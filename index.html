@@ -411,52 +411,81 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <!-- ══ EQUIPMENT ══ -->
     <div class="page hidden" id="page-equipment">
-      <div class="section-header">
-        <div><div class="section-title">Equipment</div><div class="section-sub" id="eqSyncStatus">Inventory &amp; Tracking</div></div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <button class="btn-sm btn-ghost" onclick="loadInventoryFromSheet()" style="font-size:15px;padding:6px 10px;" title="Sync from Google Sheet">🔄</button>
-          <button class="btn-sm btn-ghost" onclick="showModal('scanModal')">⬛ Scan QR</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div><div class="section-title">Equipment</div><div style="font-size:12px;color:var(--text3);" id="eqSyncStatus">Bergen County Chaverim</div></div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-sm btn-ghost" onclick="loadInventoryFromSheet()" style="font-size:15px;padding:6px 10px;">&#8635;</button>
+          <button class="btn-sm btn-ghost" onclick="showModal('scanModal')">Scan QR</button>
         </div>
       </div>
-      <div class="sub-tabs">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+        <div class="stat-card stat-blue" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-total" style="font-size:22px;">0</div><div class="stat-label">Total</div></div>
+        <div class="stat-card stat-red" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-out" style="font-size:22px;">0</div><div class="stat-label">Out</div></div>
+        <div class="stat-card stat-amber" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-issues" style="font-size:22px;">0</div><div class="stat-label">Issues</div></div>
+        <div class="stat-card stat-green" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-in" style="font-size:22px;">0</div><div class="stat-label">In</div></div>
+      </div>
+      <div class="sub-tabs" id="eqSubTabs">
         <button class="sub-tab active" onclick="setEqTab('dashboard',this)">Dashboard</button>
         <button class="sub-tab" onclick="setEqTab('inventory',this)">Inventory</button>
         <button class="sub-tab" onclick="setEqTab('checklist',this)">Checklist</button>
         <button class="sub-tab" onclick="setEqTab('reports',this)">Reports</button>
       </div>
+      <!-- DASHBOARD -->
       <div id="eq-dashboard">
-        <div class="stat-grid">
-          <div class="stat-card stat-blue"><div class="stat-num" id="eq-total">0</div><div class="stat-label">Total</div></div>
-          <div class="stat-card stat-red"><div class="stat-num" id="eq-out">0</div><div class="stat-label">Out</div></div>
-          <div class="stat-card stat-amber"><div class="stat-num" id="eq-issues">0</div><div class="stat-label">Issues</div></div>
-          <div class="stat-card stat-green"><div class="stat-num" id="eq-in">0</div><div class="stat-label">Available</div></div>
-        </div>
-        <div class="section-label">Items Out</div><div id="eq-out-list"></div>
-        <div class="section-label">Recent Activity</div><div id="eq-recent-list"></div>
+        <div id="eq-alerts-wrap" style="display:none;"><div class="section-label">Active Alerts</div><div id="eq-alerts-list"></div></div>
+        <div id="eq-out-wrap" style="display:none;"><div class="section-label">Currently Out</div><div id="eq-out-list"></div></div>
+        <div class="section-label">Recent Activity</div>
+        <div id="eq-recent-list"></div>
       </div>
+      <!-- INVENTORY -->
       <div id="eq-inventory" style="display:none;">
-        <div class="search-bar"><span class="search-icon">🔍</span><input type="text" id="eqSearch" placeholder="Search items…" oninput="renderInventory()"/></div>
+        <div class="search-bar"><span class="search-icon">&#128269;</span><input type="text" id="eqSearch" placeholder="Search items..." oninput="renderInventory()"/></div>
         <div class="filter-chips" id="eqFilters">
           <div class="chip active" onclick="setEqFilter('all',this)">All</div>
-          <div class="chip" onclick="setEqFilter('in',this)">In</div>
           <div class="chip" onclick="setEqFilter('out',this)">Out</div>
-          <div class="chip" onclick="setEqFilter('issue',this)">Issues</div>
+          <div class="chip" onclick="setEqFilter('in',this)">In</div>
+          <div class="chip" onclick="setEqFilter('cnc',this)">CNC</div>
+          <div class="chip" onclick="setEqFilter('missing',this)">Missing</div>
+          <div class="chip" onclick="setEqFilter('damaged',this)">Damaged</div>
         </div>
+        <div class="filter-chips" id="eqCatChips"></div>
         <div id="eqList"></div>
       </div>
+      <!-- CHECKLIST -->
       <div id="eq-checklist" style="display:none;">
-        <div class="input-group"><label class="input-label">Location</label><select class="input" id="checklistLocation" onchange="renderChecklist()"><option value="">-- Select --</option></select></div>
-        <div id="checklistItems"></div>
-      </div>
-      <div id="eq-reports" style="display:none;">
-        <div class="card">
-          <div class="card-title" style="margin-bottom:12px;">Submit Report</div>
-          <div class="input-group"><label class="input-label">Type</label><select class="input" id="reportType"><option value="missing">🔍 Missing</option><option value="damaged">🔧 Damaged</option><option value="need_more">📦 Need More</option><option value="other">📝 Other</option></select></div>
-          <div class="input-group"><label class="input-label">Item</label><select class="input" id="reportItem"></select></div>
-          <div class="input-group"><label class="input-label">Notes</label><textarea class="input" id="reportNotes" placeholder="Describe the issue…"></textarea></div>
-          <button class="btn-full btn-primary" onclick="submitReport()">Submit Report</button>
+        <div class="filter-chips" id="eqLocTabs"></div>
+        <div id="chkAlertsWrap" style="display:none;margin-bottom:8px;"><div class="section-label">Alerts at this location</div><div id="chkAlertsList"></div></div>
+        <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">&#128269;</span><input type="text" id="chkSearch" placeholder="Search items..." oninput="renderChkItems()"/></div>
+        <div class="filter-chips" id="chkFilterRow">
+          <div class="chip active" onclick="setChkFilter('all',this)">All</div>
+          <div class="chip" onclick="setChkFilter('out',this)">OUT</div>
+          <div class="chip" onclick="setChkFilter('in',this)">IN</div>
+          <div class="chip" onclick="setChkFilter('cnc',this)">CNC</div>
+          <div class="chip" onclick="setChkFilter('missing',this)">Missing</div>
+          <div class="chip" onclick="setChkFilter('damaged',this)">Damaged</div>
         </div>
-        <div class="section-label">Open Reports</div><div id="reportsList"></div>
+        <div id="chkSummary" style="display:none;background:#e8f4fd;border-radius:10px;padding:11px 14px;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>Items checked</span><span style="font-weight:700;color:var(--navy);" id="chkChecked">0/0</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Issues flagged</span><span style="font-weight:700;color:var(--red);" id="chkIssues">0</span></div>
+        </div>
+        <div id="chkList"></div>
+        <button id="chkWaBtn" onclick="sendChkWhatsApp()" style="display:none;width:100%;padding:13px;background:#25d366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;">Send WhatsApp Summary</button>
+      </div>
+      <!-- REPORTS -->
+      <div id="eq-reports" style="display:none;">
+        <div class="section-label">Report Type</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;" id="rptTypeBtns">
+          <button onclick="selRptType('Missing',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Missing Item</span></button>
+          <button onclick="selRptType('Damaged',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Damaged Item</span></button>
+          <button onclick="selRptType('Need More',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Need More</span></button>
+          <button onclick="selRptType('Other',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Other</span></button>
+        </div>
+        <div class="input-group"><label class="input-label">Item</label><select class="input" id="reportItem"></select></div>
+        <div class="input-group"><label class="input-label">Your BC Member #</label><input class="input" type="text" inputmode="numeric" id="reportMember" placeholder="e.g. 38"/></div>
+        <div class="input-group"><label class="input-label">Notes</label><textarea class="input" id="reportNotes" placeholder="Describe the issue..."></textarea></div>
+        <button class="btn-full btn-primary" onclick="submitReport()">Submit Report</button>
+        <div class="section-label" style="margin-top:16px;">Open Reports</div>
+        <div id="reportsList"></div>
       </div>
     </div>
 
@@ -510,7 +539,7 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <div id="more-stats" style="display:none;">
         <!-- All-time banner -->
-        <div class="alltime-banner">
+        <div class="alltime-banner" id="alltimeBanner">
           <div class="alltime-num" id="st-alltime-num">11,388</div>
           <div class="alltime-lbl">Total Calls 2021 – 2026</div>
           <div class="alltime-sub" id="st-alltime-sub">Across 6 years · 148+ members</div>
@@ -892,6 +921,101 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="modal"><div class="modal-handle"></div><div id="eqItemContent"></div></div>
 </div>
 
+<!-- Call Edit Modal -->
+<div class="modal-overlay hidden" id="callEditModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Edit Call</div>
+    <input type="hidden" id="editCallId"/>
+    <div class="input-group"><label class="input-label">Call Type</label>
+      <select class="input" id="editCallType">
+        <option value="flat_tire">Flat Tire</option><option value="lockout">Lockout</option>
+        <option value="jump_start">Jump Start</option><option value="flood">Flood</option>
+        <option value="ac_heat">A/C or Heat</option><option value="generator">Generator</option>
+        <option value="transport">Transport</option><option value="welfare">Welfare Check</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="input-group"><label class="input-label">Address</label><input class="input" type="text" id="editCallAddress"/></div>
+    <div class="input-group"><label class="input-label">Town</label>
+      <select class="input" id="editCallTown">
+        <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option><option>Fort Lee</option>
+        <option>Hackensack</option><option>Paramus</option><option>Ridgefield Park</option><option>Palisades Park</option>
+        <option>Leonia</option><option>Bogota</option><option>Fairview</option><option>Edgewater</option><option>Other</option>
+      </select>
+    </div>
+    <div class="input-group"><label class="input-label">Caller Name</label><input class="input" type="text" id="editCallCaller"/></div>
+    <div class="input-group"><label class="input-label">Caller Phone</label><input class="input" type="tel" id="editCallPhone"/></div>
+    <div class="input-group"><label class="input-label">Priority</label>
+      <select class="input" id="editCallPriority">
+        <option value="normal">Normal</option><option value="urgent">Urgent</option><option value="low">Low</option>
+      </select>
+    </div>
+    <div class="input-group"><label class="input-label">Notes</label><textarea class="input" id="editCallNotes"></textarea></div>
+    <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="saveCallEdit()">Save Changes</button>
+    <button class="btn-full btn-ghost" onclick="hideModal('callEditModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Call Complete Modal (CC/CNC) -->
+<div class="modal-overlay hidden" id="callCompleteModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Complete Call</div>
+    <input type="hidden" id="completeCallId"/>
+    <div class="input-group"><label class="input-label">Outcome</label>
+      <select class="input" id="completeOutcome" onchange="document.getElementById('completeNoteGroup').style.display=this.value==='CNC'?'block':'none'">
+        <option value="CC">CC — Call Completed Successfully</option>
+        <option value="CNC">CNC — Could Not Complete</option>
+      </select>
+    </div>
+    <div id="completeNoteGroup" style="display:none;" class="input-group">
+      <label class="input-label">Reason (CNC)</label>
+      <input class="input" id="completeNote" placeholder="e.g. No answer, wrong address..."/>
+    </div>
+    <div class="input-group"><label class="input-label">Completion Notes (optional)</label>
+      <textarea class="input" id="completeNotes" placeholder="Any notes about how the call went..."></textarea>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+      <input type="checkbox" id="completeSendWA" checked style="width:18px;height:18px;cursor:pointer;"/>
+      <div style="font-size:13px;font-weight:600;">Send completion message to WhatsApp group</div>
+    </div>
+    <button class="btn-full btn-green" style="margin-bottom:8px;" onclick="confirmCompleteCall()">Complete Call</button>
+    <button class="btn-full btn-ghost" onclick="hideModal('callCompleteModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Checkout Modal -->
+<div class="modal-overlay hidden" id="checkoutModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Check In / Out</div>
+    <div style="font-size:13px;color:var(--blue);font-weight:600;margin-bottom:14px;">All selected items share the same call info</div>
+    <div class="input-group"><label class="input-label">Your BC Member #</label><input class="input" type="text" inputmode="numeric" id="coModalMember" placeholder="e.g. 38"/></div>
+    <div class="input-group"><label class="input-label">Call Number</label><input class="input" type="text" inputmode="numeric" id="coModalCall" placeholder="Dispatched call #"/></div>
+    <div class="input-group"><label class="input-label">CC or CNC?</label>
+      <select class="input" id="coModalCCNC" onchange="document.getElementById('coModalCNCGroup').style.display=this.value==='CNC'?'block':'none'">
+        <option value="">-- Select --</option>
+        <option value="CC">CC — Correct location</option>
+        <option value="CNC">CNC — Wrong location</option>
+      </select>
+    </div>
+    <div id="coModalCNCGroup" style="display:none;" class="input-group">
+      <label class="input-label">Where is the item?</label>
+      <input class="input" id="coModalCNCNote" placeholder="e.g. Left at Teaneck Garage"/>
+    </div>
+    <div class="input-label" style="margin-bottom:6px;">Items Selected</div>
+    <div id="coModalItemList" style="margin-bottom:10px;max-height:160px;overflow-y:auto;"></div>
+    <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="coModalSearch" placeholder="Search to add more items..." oninput="renderCOSearch()"/></div>
+    <div id="coModalSearchResults" style="display:none;max-height:140px;overflow-y:auto;background:#fff;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+      <button class="btn-full btn-green" onclick="submitCO('IN')">Check IN All</button>
+      <button class="btn-full btn-danger" onclick="submitCO('OUT')">Check OUT All</button>
+    </div>
+    <button class="btn-full btn-ghost" style="margin-top:8px;" onclick="hideModal('checkoutModal')">Cancel</button>
+  </div>
+</div>
+
 <!-- Scan QR -->
 <div class="modal-overlay hidden" id="scanModal">
   <div class="modal">
@@ -1196,7 +1320,7 @@ function showTab(tab) {
   if(tab==='dispatch') renderCalls();
   if(tab==='equipment') { renderEquipmentDashboard(); loadInventoryFromSheet(); }
   if(tab==='members') renderMemberDir();
-  if(tab==='more') { setTimeout(()=>{ setMoreTab('stats',document.querySelector('.sub-tab[onclick*="stats"]')); },50); }
+  if(tab==='more') { setTimeout(()=>{ const st=document.querySelector('#statsSubNav .sub-tab'); setMoreTab('stats',st); },80); }
 }
 
 // ──────────────────────────────────────────────
@@ -1459,8 +1583,8 @@ function createCall() {
 }
 
 function cleanLabel(s) {
-  // Remove emoji for WhatsApp compatibility
-  return (s||'').replace(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu,'').replace(/\s+/g,' ').trim();
+  // Remove emoji for WhatsApp compatibility - strip chars > U+2700
+  return (s||'').replace(/[\u2702-\u27b0\u27bf\ufe0f\u24c2\u{1f004}\u{1f0cf}\u{1f100}-\u{1f9ff}]/gu,'').replace(/\s+/g,' ').trim();
 }
 function buildDispatchWhatsApp(call) {
   // Strip emoji from type label (e.g. "🚗 Flat Tire" → "Flat Tire")
@@ -1726,7 +1850,8 @@ function openCallDetail(id) {
     html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Radio</button>`;
     if(call.status==='draft') html+=`<button class="btn-sm btn-primary" onclick="publishCall('${id}');hideModal('callDetailModal')">📢 Publish</button>`;
     if(call.status==='open') html+=`<button class="btn-sm btn-green" onclick="updateCallStatus('${id}','active');renderCallDetail('${id}')">▶ Active</button>`;
-    if(call.status!=='done') html+=`<button class="btn-sm btn-ghost" onclick="updateCallStatus('${id}','done');hideModal('callDetailModal')">✅ Complete</button>`;
+    if(call.status!=='done') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">📲 WhatsApp</button>`;
     html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
 
@@ -1773,6 +1898,82 @@ function updateCallStatus(id,status) {
 function deleteCall(id) {
   if(!confirm('Delete this call?')) return;
   STATE.calls=STATE.calls.filter(c=>c.id!==id); save(); renderCalls(); renderHome(); showToast('Call deleted');
+}
+
+// ── CALL EDIT ──
+function openCallEdit(id) {
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call) return;
+  document.getElementById('editCallId').value=id;
+  document.getElementById('editCallType').value=call.type||'other';
+  document.getElementById('editCallAddress').value=call.address||'';
+  document.getElementById('editCallTown').value=call.town||'Teaneck';
+  document.getElementById('editCallCaller').value=call.caller||'';
+  document.getElementById('editCallPhone').value=call.phone||'';
+  document.getElementById('editCallPriority').value=call.priority||'normal';
+  document.getElementById('editCallNotes').value=call.notes||'';
+  hideModal('callDetailModal');
+  showModal('callEditModal');
+}
+function saveCallEdit() {
+  const id=document.getElementById('editCallId').value;
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call) return;
+  call.type=document.getElementById('editCallType').value;
+  call.address=document.getElementById('editCallAddress').value.trim();
+  call.town=document.getElementById('editCallTown').value;
+  call.caller=document.getElementById('editCallCaller').value.trim();
+  call.phone=document.getElementById('editCallPhone').value.trim();
+  call.priority=document.getElementById('editCallPriority').value;
+  call.notes=document.getElementById('editCallNotes').value.trim();
+  save(); hideModal('callEditModal');
+  renderCalls(); renderHome(); showToast('Call updated');
+  openCallDetail(id);
+}
+
+// ── CALL COMPLETE WITH CC/CNC ──
+function openCompleteModal(id) {
+  document.getElementById('completeCallId').value=id;
+  document.getElementById('completeOutcome').value='CC';
+  document.getElementById('completeNote').value='';
+  document.getElementById('completeNotes').value='';
+  document.getElementById('completeNoteGroup').style.display='none';
+  document.getElementById('completeSendWA').checked=true;
+  hideModal('callDetailModal');
+  showModal('callCompleteModal');
+}
+function confirmCompleteCall() {
+  const id=document.getElementById('completeCallId').value;
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call) return;
+  const outcome=document.getElementById('completeOutcome').value;
+  const cnc=document.getElementById('completeNote').value.trim();
+  const notes=document.getElementById('completeNotes').value.trim();
+  const sendWA=document.getElementById('completeSendWA').checked;
+  call.status='done';
+  call.completedAt=Date.now();
+  call.completionOutcome=outcome;
+  call.completionNote=outcome==='CNC'?cnc:'';
+  call.completionNotes=notes;
+  save(); hideModal('callCompleteModal');
+  renderCalls(); renderHome(); showToast('Call completed');
+  if(sendWA) {
+    const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+    const respList=(call.responders||[]).map(r=>`BC-${r.unit} ${r.name}`).join(', ')||'None assigned';
+    let msg=`*COBC Call Completed*
+`;
+    msg+=`${typeLabel} - ${call.address}, ${call.town}
+`;
+    msg+=`Outcome: *${outcome}*`;
+    if(outcome==='CNC'&&cnc) msg+=` - ${cnc}`;
+    msg+=`
+Responders: ${respList}`;
+    if(notes) msg+=`
+Notes: ${notes}`;
+    msg+=`
+_#${call.id.slice(-5)} · ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}_`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+  }
 }
 function openMaps(addr) { window.open(`https://maps.google.com/?q=${encodeURIComponent(addr)}`,'_blank'); }
 function shareDispatchWA(id) {
@@ -2044,7 +2245,7 @@ function initStats() {
   document.getElementById('st-alltime-sub').textContent=`Across 6 years · ${STATE.members.length} members`;
   const firstTab=buildStatsSubNav();
   // Hide year strip for member-only (they only see their own, not org-wide)
-  document.getElementById('stYearStrip').style.display=isMemberOnly()?'none':'flex';
+  document.getElementById('stYearStrip').style.display='flex'; // all roles can pick year for their own stats
   setStatsYear('2026',document.querySelector('.yr-btn[data-yr="2026"]'));
   setStatsSub(firstTab,document.querySelector('#statsSubNav .sub-tab'));
 }
@@ -2100,7 +2301,7 @@ function renderStatsSub() {
 function renderMyStats() {
   const el=document.getElementById('st-mine');
   if(!el) return;
-  const bc=String(SESSION.unit);
+  const bc=String(SESSION.unit).replace(/^BC-?/i,'');
   const m=STATE.members.find(x=>String(x.unit)===bc);
   const phone=m?.phone||null;
 
@@ -2669,407 +2870,403 @@ let eqFilter='all', eqTab='dashboard';
 
 function setEqTab(tab,el) {
   eqTab=tab;
-  ['dashboard','inventory','checklist','reports'].forEach(t=>{document.getElementById(`eq-${t}`).style.display=t===tab?'':'none';});
-  document.querySelectorAll('#page-equipment .sub-tab').forEach(x=>x.classList.remove('active'));
+  ['dashboard','inventory','checklist','reports'].forEach(t=>{
+    const e=document.getElementById(`eq-${t}`);
+    if(e) e.style.display=t===tab?'':'none';
+  });
+  document.querySelectorAll('#eqSubTabs .sub-tab').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   if(tab==='dashboard') renderEquipmentDashboard();
-  if(tab==='inventory') renderInventory();
-  if(tab==='checklist') renderChecklist();
-  if(tab==='reports') renderReports();
+  if(tab==='inventory')  { renderEqCatChips(); renderInventory(); }
+  if(tab==='checklist')  renderChkFull();
+  if(tab==='reports')    { renderReports(); populateReportItemSelect(); }
 }
 
 function setEqFilter(f,el) {
   eqFilter=f;
   document.querySelectorAll('#eqFilters .chip').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active'); renderInventory();
+  if(el) el.classList.add('active');
+  renderInventory();
 }
 
+let eqCurCat='all';
+const EQ_CATS=['Fan','Heater','Light Tower','Shop Vac','A/C','EZ Spare','Generator','Wheel Chair Ramp','Sump Pump'];
+function getCat(name) {
+  const n=(name||'').toLowerCase().replace(/-/g,' ');
+  for(const c of EQ_CATS) if(n.includes(c.toLowerCase().replace(/-/g,' '))) return c;
+  return 'Other';
+}
+
+function renderEqCatChips() {
+  const present={};
+  STATE.equipment.filter(e=>e.equipStatus!=='Not Active').forEach(e=>{ const c=getCat(e.name); present[c]=(present[c]||0)+1; });
+  const cats=['all'];
+  EQ_CATS.forEach(c=>{ if(present[c]) cats.push(c); });
+  if(present['Other']) cats.push('Other');
+  const el=document.getElementById('eqCatChips');
+  if(!el) return;
+  el.innerHTML=cats.map(c=>`<div class="chip${eqCurCat===c?' active':''}" onclick="setEqCat('${c}',this)">${c==='all'?'All Categories':c}</div>`).join('');
+}
+function setEqCat(cat,el) {
+  eqCurCat=cat;
+  document.querySelectorAll('#eqCatChips .chip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderInventory();
+}
+
+// ── EQUIPMENT DASHBOARD ──
 function renderEquipmentDashboard() {
   const total=STATE.equipment.length;
   const out=STATE.equipment.filter(e=>e.status==='out').length;
-  const issues=STATE.equipment.filter(e=>['missing','damaged'].includes(e.condition)).length;
+  const issues=STATE.equipment.filter(e=>e.isCNC||['Missing','Damaged'].includes(e.equipStatus)).length;
   const inn=STATE.equipment.filter(e=>e.status==='in').length;
   document.getElementById('eq-total').textContent=total;
   document.getElementById('eq-out').textContent=out;
   document.getElementById('eq-issues').textContent=issues;
   document.getElementById('eq-in').textContent=inn;
 
-  const outList=document.getElementById('eq-out-list');
-  const outItems=STATE.equipment.filter(e=>e.status==='out');
-  outList.innerHTML=outItems.length?outItems.map(e=>`
-    <div class="eq-row" onclick="openEqItem('${e.id}')">
-      <span class="eq-status-dot out"></span>
-      <div style="flex:1;min-width:0;"><div class="eq-name">${e.name}</div><div class="eq-loc">BC ${e.checkedOutBy||'?'} · Call #${e.callNum||'—'} · ${e.location}</div></div>
-      <span class="badge badge-red">OUT</span>
-    </div>`).join(''):
-    '<div class="alert alert-green"><span class="alert-icon">✅</span><div class="alert-body"><div class="alert-title">All checked in</div></div></div>';
+  // Alerts
+  const alerts=STATE.equipment.filter(e=>e.isCNC||['Missing','Damaged'].includes(e.equipStatus));
+  const aw=document.getElementById('eq-alerts-wrap');
+  if(aw) aw.style.display=alerts.length?'block':'none';
+  const al=document.getElementById('eq-alerts-list');
+  if(al) al.innerHTML=alerts.map(e=>{
+    const cls=(['Missing','Damaged'].includes(e.equipStatus))?'alert-red':'alert-amber';
+    return `<div class="alert ${cls}" style="margin-bottom:8px;">
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:13px;">${e.name}</div>
+        <div style="font-size:12px;margin-top:2px;">📍 ${e.location}${e.checkedOutBy?' · BC-'+e.checkedOutBy:''}${e.callNum?' · Call #'+e.callNum:''}</div>
+        ${e.equipStatus&&e.equipStatus!=='OK'?`<div style="font-size:11px;font-weight:700;margin-top:3px;">${e.equipStatus}${e.equipNote?' — '+e.equipNote.replace(/^[A-Z ]+\s*-\s*/i,''):''}</div>`:''}
+        ${e.isCNC?`<div style="font-size:11px;color:var(--amber);margin-top:2px;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
 
-  const recentList=document.getElementById('eq-recent-list');
-  const recent=[...STATE.activity].reverse().slice(0,8);
-  recentList.innerHTML=recent.length?recent.map(a=>`
-    <div style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);">
-      <span style="font-size:18px">${a.action==='out'?'📤':'📥'}</span>
-      <div style="flex:1;"><div style="font-size:13px;font-weight:600;">${a.name}</div><div style="font-size:11px;color:var(--text3);">BC ${a.unit} · ${new Date(a.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div></div>
-      <span class="badge ${a.action==='out'?'badge-red':'badge-green'}">${a.action.toUpperCase()}</span>
+  // Out items
+  const outItems=STATE.equipment.filter(e=>e.status==='out');
+  const ow=document.getElementById('eq-out-wrap');
+  if(ow) ow.style.display=outItems.length?'block':'none';
+  const ol=document.getElementById('eq-out-list');
+  if(ol) ol.innerHTML=outItems.length?outItems.map(e=>`
+    <div style="background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:8px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;" onclick="openCheckout(${e.row||0})">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;">${e.name}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">${e.location}${e.checkedOutBy?' · BC-'+e.checkedOutBy:''}${e.callNum?' · Call #'+e.callNum:''}</div>
+        ${e.isCNC?`<div style="font-size:12px;color:var(--amber);margin-top:2px;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <span class="badge badge-red">OUT</span>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">${fmtEqTime(e.lastUpdated)}</div>
+      </div>
+    </div>`).join(''):
+    '<div class="alert alert-green"><span class="alert-icon">+</span><div class="alert-body"><div class="alert-title">All equipment checked in</div></div></div>';
+
+  // Recent activity
+  const recent=[...STATE.activity].reverse().slice(0,20);
+  const rl=document.getElementById('eq-recent-list');
+  if(rl) rl.innerHTML=recent.length?recent.map(a=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+      <div style="width:10px;height:10px;border-radius:50%;background:${a.action==='out'?'var(--red)':'var(--green)'};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${a.name}</div>
+        <div style="font-size:11px;color:var(--text3);">${a.action==='out'?'Checked OUT':'Checked IN'} · BC-${a.unit}${a.callNum?' · Call #'+a.callNum:''}</div>
+      </div>
+      <span class="badge ${a.action==='out'?'badge-red':'badge-green'}" style="font-size:10px;">${a.action.toUpperCase()}</span>
     </div>`).join(''):
     '<div style="font-size:13px;color:var(--text3);padding:8px 0;">No recent activity</div>';
 }
 
+function fmtEqTime(s) {
+  if(!s) return '';
+  try {
+    const d=new Date(s); if(!isNaN(d)) return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    return s;
+  } catch(e){ return s; }
+}
+
+// ── INVENTORY ──
 function renderInventory() {
   const search=(document.getElementById('eqSearch')?.value||'').toLowerCase();
-  let items=STATE.equipment;
-  if(eqFilter==='in') items=items.filter(e=>e.status==='in');
+  let items=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
   if(eqFilter==='out') items=items.filter(e=>e.status==='out');
-  if(eqFilter==='issue') items=items.filter(e=>['missing','damaged'].includes(e.condition));
-  if(search) items=items.filter(e=>e.name.toLowerCase().includes(search)||e.id.toLowerCase().includes(search)||e.location.toLowerCase().includes(search));
+  else if(eqFilter==='in') items=items.filter(e=>e.status==='in');
+  else if(eqFilter==='cnc') items=items.filter(e=>e.isCNC);
+  else if(eqFilter==='missing') items=items.filter(e=>e.equipStatus==='Missing');
+  else if(eqFilter==='damaged') items=items.filter(e=>e.equipStatus==='Damaged');
+  if(eqCurCat!=='all') items=items.filter(e=>getCat(e.name)===eqCurCat);
+  if(search) items=items.filter(e=>e.name.toLowerCase().includes(search)||e.location.toLowerCase().includes(search));
+  // Sort: OUT first, then CNC, then name
+  items=[...items].sort((a,b)=>{
+    const pa=(a.status==='out'?0:2)+(a.isCNC?0:1);
+    const pb=(b.status==='out'?0:2)+(b.isCNC?0:1);
+    return pa!==pb?pa-pb:a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'});
+  });
   const el=document.getElementById('eqList');
-  el.innerHTML=items.length?items.map(e=>`
-    <div class="eq-row" onclick="openEqItem('${e.id}')">
-      <span class="eq-status-dot ${e.status==='out'?'out':e.condition==='missing'?'missing':e.condition==='damaged'?'damaged':'in'}"></span>
-      <div style="flex:1;min-width:0;"><div class="eq-name">${e.name}</div><div class="eq-loc">${e.location}</div></div>
-      <span class="badge ${e.status==='out'?'badge-red':e.condition==='damaged'?'badge-purple':e.condition==='missing'?'badge-amber':'badge-green'}">${e.status==='out'?'OUT':e.condition==='ok'?'OK':e.condition.toUpperCase()}</span>
-    </div>`).join(''):
-    '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No items found</div></div>';
-}
-
-function openEqItem(id) {
-  const eq=STATE.equipment.find(e=>e.id===id);
-  if(!eq) return;
-  const canEdit=['admin','equipment','dispatch'].includes(SESSION.role);
-
-  // Real form URL — points to existing chaverim-equipment GitHub page
-  const formUrl=`https://aryehw330-lgtm.github.io/chaverim-equipment/form.html?name=${encodeURIComponent(eq.name)}`;
-  const qrUrl=`${APPS_SCRIPT_URL}?item=${encodeURIComponent(eq.name)}&view=qr`;
-
-  // Condition badge color
-  const condBadge={ok:'badge-green',missing:'badge-amber',damaged:'badge-purple',inactive:'badge-gray'};
-  const equipStatusColors={OK:'badge-green',Missing:'badge-amber',Damaged:'badge-purple','Need More':'badge-blue','Not Active':'badge-gray'};
-  const equipStatus=eq.equipStatus||'OK';
-  const equipNote=eq.equipNote||'';
-
-  let html=`<div class="modal-title">${eq.name}</div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
-      <span class="badge ${eq.status==='out'?'badge-red':'badge-green'}">${eq.status==='out'?'OUT ↑':'IN ✓'}</span>
-      <span class="badge ${equipStatusColors[equipStatus]||'badge-gray'}">${equipStatus}</span>
-      ${eq.fromSheet?'<span class="badge badge-blue" style="font-size:10px;">📊 Live</span>':''}
-    </div>
-
-    <div class="detail-section">
-      <div class="detail-row"><span class="detail-key">Category</span><span class="detail-val">${eq.category}</span></div>
-      <div class="detail-row"><span class="detail-key">Home Location</span><span class="detail-val">${eq.location}</span></div>
-      ${eq.status==='out'?`
-      <div class="detail-row"><span class="detail-key">Checked Out By</span><span class="detail-val">BC ${eq.checkedOutBy||'?'}</span></div>
-      <div class="detail-row"><span class="detail-key">Call #</span><span class="detail-val">${eq.callNum||'—'}</span></div>`:''}
-      ${eq.isCNC?`<div class="detail-row"><span class="detail-key">⚠️ CNC Note</span><span class="detail-val" style="color:var(--amber);">${eq.cncNote||eq.ccnc}</span></div>`:''}
-      ${eq.ccnc&&!eq.isCNC?`<div class="detail-row"><span class="detail-key">CC/CNC</span><span class="detail-val"><span class="badge badge-green">CC</span></span></div>`:''}
-      ${equipNote?`<div class="detail-row"><span class="detail-key">Equipment Note</span><span class="detail-val" style="color:var(--red);">${equipNote}</span></div>`:''}
-      ${eq.lastUpdated?`<div class="detail-row"><span class="detail-key">Last Updated</span><span class="detail-val" style="font-size:12px;">${eq.lastUpdated}</span></div>`:''}
-    </div>`;
-
-  if(canEdit) {
-    if(eq.status==='in') {
-      html+=`<div class="section-label">Check Out</div>
-        <div class="input-group"><label class="input-label">Your BC Unit #</label>
-          <input class="input" type="text" id="eqModalUnit" value="${SESSION.unit}" inputmode="numeric" placeholder="BC #"/></div>
-        <div class="input-group"><label class="input-label">Call #</label>
-          <input class="input" type="text" id="eqModalCall" inputmode="numeric" placeholder="Dispatched call number"/></div>
-        <div class="input-group"><label class="input-label">CC or CNC?</label>
-          <select class="input" id="eqModalCCNC" onchange="document.getElementById('cncLocGroup').style.display=this.value==='CNC'?'block':'none'">
-            <option value="CC">CC — Correct Location</option>
-            <option value="CNC">CNC — Wrong Location</option>
-          </select></div>
-        <div id="cncLocGroup" style="display:none;" class="input-group">
-          <label class="input-label">Where is it actually?</label>
-          <input class="input" id="eqModalCNCLoc" placeholder="e.g. Left at Teaneck Garage"/></div>
-        <div class="input-group"><label class="input-label">Notes (optional)</label>
-          <input class="input" type="text" id="eqModalNotes" placeholder="Any notes…"/></div>
-        <button class="btn-full btn-danger" style="margin-bottom:10px;" onclick="checkOutItem('${id}')">📤 Check OUT → Google Sheet</button>`;
-    } else {
-      html+=`<button class="btn-full btn-green" style="margin-bottom:10px;" onclick="checkInItem('${id}')">📥 Check IN → Google Sheet</button>`;
-    }
-
-    // Equipment status (col K on sheet)
-    html+=`<div class="section-label">Equipment Status (Sheet Col K)</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        ${[['OK','btn-green','ok'],['Missing','btn-amber','missing'],['Damaged','btn-primary','damaged'],['Not Active','btn-ghost','inactive']].map(([lbl,cls,cond])=>`
-          <button class="btn-sm ${equipStatus===lbl||eq.condition===cond?cls:'btn-ghost'}" onclick="setCondition('${id}','${cond}')" style="font-size:12px;">${lbl}</button>`).join('')}
-      </div>
-      <div class="input-group" style="margin-bottom:6px;"><label class="input-label">Status Note (optional)</label>
-        <input class="input" type="text" id="eqModalNotes" placeholder="Describe issue…"/></div>`;
-  }
-
-  // QR Code — real form link
-  html+=`<div class="section-label">QR Code &amp; Form</div>
-    <div class="qr-container">
-      <canvas id="qrCanvas-${id}"></canvas>
-      <div style="margin-top:8px;font-size:12px;color:var(--text3);">${eq.name}</div>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;">
-      <a href="${formUrl}" target="_blank" class="btn-sm btn-primary" style="flex:1;text-align:center;text-decoration:none;">📋 Open Form</a>
-      <a href="${qrUrl}" target="_blank" class="btn-sm btn-ghost" style="flex:1;text-align:center;text-decoration:none;">🖨️ Print QR</a>
-    </div>`;
-
-  // History
-  const hist=eq.history||[];
-  if(hist.length) {
-    html+=`<div class="section-label">Recent History</div>`;
-    html+=hist.slice(-5).reverse().map(h=>`
-      <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
-        <span style="font-weight:700;color:${h.action==='out'?'var(--red)':'var(--green)'};">${h.action.toUpperCase()}</span>
-        · BC ${h.unit}
-        ${h.callNum?`· Call #${h.callNum}`:''}
-        · ${h.time?new Date(h.time).toLocaleDateString():''}
-        ${h.ccnc?`· <span class="badge ${h.ccnc.startsWith('CNC')?'badge-amber':'badge-green'}" style="font-size:10px;">${h.ccnc.startsWith('CNC')?'CNC':'CC'}</span>`:''}
-        ${h.notes?`<br><span style="color:var(--text2);">${h.notes}</span>`:''}
-      </div>`).join('');
-  }
-
-  html+=`<div style="margin-top:16px;"><button class="btn-full btn-ghost" onclick="hideModal('eqItemModal')">Close</button></div>`;
-  document.getElementById('eqItemContent').innerHTML=html;
-  showModal('eqItemModal');
-
-  // Generate QR pointing to real form URL
-  setTimeout(()=>{
-    const canvas=document.getElementById(`qrCanvas-${id}`);
-    if(canvas&&typeof QRCode!=='undefined') {
-      QRCode.toCanvas(canvas, formUrl, {width:180,margin:1,color:{dark:'#0f2540',light:'#ffffff'}},()=>{});
-    }
-  },100);
-}
-
-// ──────────────────────────────────────────────
-//  APPS SCRIPT API — Google Sheet backend
-// ──────────────────────────────────────────────
-// ── Apps Script endpoint (from code.gs BASE_URL) ──
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwOPOlN9kZXZbxit5PRDdcHBsoW8PmDzfp0MLe_AqPvNKbSZMVNFHBOfqNi-BrvVusN/exec';
-// Equipment Sheet: https://docs.google.com/spreadsheets/d/1iOE4c-BBatkH8zljpQTFmrzZZe_Q4uvBDWAQCos51PE
-
-// Low-level helpers
-async function sheetGET(params) {
-  const url = APPS_SCRIPT_URL + '?' + Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
-  const r = await fetch(url); return r.json();
-}
-async function sheetPOST(body) {
-  const r = await fetch(APPS_SCRIPT_URL, {method:'POST', body:JSON.stringify(body)});
-  return r.json();
-}
-
-// Convert a sheet row object → internal equipment object format
-function sheetRowToEq(item) {
-  return {
-    id:       item.row ? `EQ-${String(item.row).padStart(4,'0')}` : `EQ-${item.name.replace(/\s/g,'')}`,
-    row:      item.row,
-    name:     item.name,
-    category: guessCat(item.name),
-    location: item.homeLocation||'COBC',
-    status:   (item.status||'IN')==='OUT'?'out':'in',
-    condition:conditionFromSheet(item.equipStatus||'OK'),
-    ccnc:     item.ccnc||'CC',
-    isCNC:    item.isCNC||false,
-    cncNote:  item.cncNote||'',
-    equipStatus: item.equipStatus||'OK',
-    equipNote:   item.equipNote||'',
-    checkedOutBy: item.member||null,
-    callNum:      item.call||null,
-    lastUpdated:  item.lastUpdated||'',
-    history:  [],
-    notes:    '',
-    fromSheet: true,
-  };
-}
-
-function guessCat(name) {
-  const n=(name||'').toLowerCase();
-  if(n.includes('fan'))         return 'Fan';
-  if(n.includes('heater'))      return 'Heater';
-  if(n.includes('a/c')||n.includes('ac ')) return 'A/C Unit';
-  if(n.includes('generator'))   return 'Generator';
-  if(n.includes('light'))       return 'Light Tower';
-  if(n.includes('shop vac'))    return 'Shop Vac';
-  if(n.includes('ez-spare')||n.includes('ezspare')) return 'EZ-Spare';
-  if(n.includes('pump'))        return 'Sump Pump';
-  if(n.includes('ramp'))        return 'Wheel Chair Ramp';
-  return 'Other';
-}
-
-function conditionFromSheet(s) {
-  if(!s||s==='OK')        return 'ok';
-  if(s==='Missing')       return 'missing';
-  if(s==='Damaged')       return 'damaged';
-  if(s==='Need More')     return 'missing'; // surface as orange
-  if(s==='Not Active')    return 'inactive';
-  return 'ok';
-}
-
-// ── Load live inventory from Google Sheet ──
-let sheetLoadInProgress = false;
-async function loadInventoryFromSheet() {
-  if(sheetLoadInProgress) return;
-  sheetLoadInProgress = true;
-  showSheetStatus('loading');
-  try {
-    const data = await sheetGET({action:'getInventory'});
-    if(data?.items?.length) {
-      // Merge: sheet is authoritative for in/out status & condition
-      // Preserve any local-only items (id starts with EQ- and no row)
-      const sheetNames = new Set(data.items.map(i=>i.name.toLowerCase()));
-      const localOnly  = STATE.equipment.filter(e=>!e.fromSheet && !sheetNames.has(e.name.toLowerCase()));
-      STATE.equipment  = [...data.items.map(sheetRowToEq), ...localOnly];
-      save();
-      renderEquipmentDashboard();
-      renderInventory();
-      renderChecklist(); // re-populate with real locations from sheet
-      renderHome();
-      showSheetStatus('ok', `${data.items.length} items synced`);
-    }
-    // Also load locations from sheet
-    const locData = await sheetGET({action:'getLocations'});
-    if(locData?.locations?.length) {
-      // Merge with existing
-      const all = [...new Set([...STATE.locations, ...locData.locations])];
-      STATE.locations = all; save();
-      populateLocationSelects();
-    }
-    // Load members from sheet
-    const memData = await sheetGET({action:'getMembers'});
-    if(memData?.members?.length) {
-      // Merge — don't overwrite existing members, add any missing by unit
-      const savedUnits = new Set(STATE.members.map(m=>String(m.unit)));
-      const newMembers = memData.members
-        .filter(m=>m.unit&&!savedUnits.has(String(m.unit.replace(/^BC-?/i,''))))
-        .map(m=>({unit:String(m.unit).replace(/^BC-?/i,''),first:m.firstName||'',last:m.lastName||'',phone:m.phone||'',role:'member',addedAt:Date.now()}));
-      if(newMembers.length) {
-        STATE.members=[...STATE.members,...newMembers];
-        save(); renderMemberDir();
-      }
-    }
-  } catch(err) {
-    showSheetStatus('error', 'Sheet offline — using cached data');
-    console.warn('Sheet load failed:',err);
-  }
-  sheetLoadInProgress = false;
-}
-
-function showSheetStatus(state, msg='') {
-  // Update inline subtitle on equipment page
-  const sub = document.getElementById('eqSyncStatus');
-  // Floating toast bar
-  let el = document.getElementById('sheetStatusBar');
-  if(!el) {
-    el = document.createElement('div');
-    el.id = 'sheetStatusBar';
-    el.style.cssText = 'position:fixed;bottom:calc(60px + env(safe-area-inset-bottom));left:0;right:0;padding:7px 16px;font-size:12px;font-weight:600;text-align:center;z-index:500;transition:opacity .5s;pointer-events:none;';
-    document.body.appendChild(el);
-  }
-  if(state==='loading') {
-    el.style.background='#1a3a5c'; el.style.color='#fff'; el.style.opacity='1';
-    el.textContent='⟳ Syncing from Google Sheet…';
-    if(sub) sub.textContent='Syncing…';
-  } else if(state==='ok') {
-    el.style.background='#16a34a'; el.style.color='#fff'; el.style.opacity='1';
-    el.textContent=`✓ ${msg}`;
-    if(sub) sub.textContent=`✓ ${msg}`;
-    setTimeout(()=>{ el.style.opacity='0'; if(sub) sub.textContent='Live from Google Sheet'; },3000);
-  } else if(state==='error') {
-    el.style.background='#d97706'; el.style.color='#fff'; el.style.opacity='1';
-    el.textContent=`⚠️ ${msg}`;
-    if(sub) sub.textContent='⚠️ Offline — cached data';
-    setTimeout(()=>{ el.style.opacity='0'; },6000);
-  }
-}
-
-async function checkOutItem(id) {
-  const eq=STATE.equipment.find(e=>e.id===id);
-  if(!eq) return;
-  const unit=document.getElementById('eqModalUnit')?.value||SESSION.unit;
-  const callNum=document.getElementById('eqModalCall')?.value||'';
-  const ccnc=document.getElementById('eqModalCCNC')?.value||'CC';
-  const cncLoc=document.getElementById('eqModalCNCLoc')?.value||'';
-  const notes=document.getElementById('eqModalNotes')?.value||'';
-  // Optimistic local update
-  eq.status='out'; eq.checkedOutBy=unit; eq.callNum=callNum; eq.ccnc=ccnc;
-  if(ccnc==='CNC'&&cncLoc) eq.cncNote=cncLoc;
-  eq.history=eq.history||[];
-  eq.history.push({action:'out',unit,callNum,notes,ccnc,cncLoc,time:Date.now()});
-  STATE.activity.push({name:eq.name,id,action:'out',unit,time:Date.now()});
-  save(); hideModal('eqItemModal'); renderEquipmentDashboard(); renderInventory(); renderHome();
-  showToast(`📤 ${eq.name} checked OUT`);
-  // Write to Google Sheet
-  if(eq.row) {
-    try {
-      await sheetPOST({action:'checkInOut',row:eq.row,status:'OUT',member:unit,call:callNum,ccSel:ccnc,cncNote:cncLoc});
-    } catch(e){ showToast('⚠️ Sheet sync failed — saved locally'); }
-  }
-}
-
-async function checkInItem(id) {
-  const eq=STATE.equipment.find(e=>e.id===id);
-  if(!eq) return;
-  eq.status='in'; eq.checkedOutBy=null; eq.callNum=null; eq.cncNote=null;
-  eq.history=eq.history||[];
-  eq.history.push({action:'in',unit:SESSION.unit,time:Date.now()});
-  STATE.activity.push({name:eq.name,id,action:'in',unit:SESSION.unit,time:Date.now()});
-  save(); hideModal('eqItemModal'); renderEquipmentDashboard(); renderInventory(); renderHome();
-  showToast(`📥 ${eq.name} checked IN`);
-  if(eq.row) {
-    try {
-      await sheetPOST({action:'checkInOut',row:eq.row,status:'IN',member:SESSION.unit,call:'',ccSel:'CC',cncNote:''});
-    } catch(e){ showToast('⚠️ Sheet sync failed — saved locally'); }
-  }
-}
-
-async function setCondition(id,cond) {
-  const eq=STATE.equipment.find(e=>e.id===id);
-  if(!eq) return;
-  eq.condition=cond;
-  // Map internal condition back to sheet status values
-  const sheetStatusMap={ok:'OK',missing:'Missing',damaged:'Damaged',inactive:'Not Active'};
-  const sheetStatus=sheetStatusMap[cond]||'OK';
-  eq.equipStatus=sheetStatus;
-  save(); openEqItem(id); showToast(`Condition: ${cond}`);
-  if(eq.row) {
-    try {
-      const note=document.getElementById('eqModalNotes')?.value||'';
-      await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:sheetStatus,note});
-    } catch(e){ showToast('⚠️ Sheet sync failed'); }
-  }
-}
-
-function getActiveLocations() {
-  // Only return locations that actually have items in the current inventory
-  // This ensures checklist always reflects the real sheet, not a hardcoded list
-  const locs = [...new Set(STATE.equipment.map(e=>e.location).filter(Boolean))];
-  return locs.sort();
-}
-
-function renderChecklist() {
-  const sel=document.getElementById('checklistLocation');
-  if(!sel) return;
-  const cur=sel.value;
-  const activeLocs = getActiveLocations();
-  sel.innerHTML='<option value="">-- Select Location --</option>'+
-    activeLocs.map(l=>`<option value="${l}">${l} (${STATE.equipment.filter(e=>e.location===l).length})</option>`).join('');
-  if(cur && activeLocs.includes(cur)) sel.value=cur;
-  if(sel.value) renderChecklistItems(sel.value);
-}
-
-function renderChecklistItems(loc) {
-  const el=document.getElementById('checklistItems');
   if(!el) return;
-  const items=STATE.equipment.filter(e=>e.location===loc);
-  if(!items.length) { el.innerHTML='<div class="alert alert-blue"><span class="alert-icon">ℹ️</span><div class="alert-body"><div class="alert-title">No items at this location</div></div></div>'; return; }
-  el.innerHTML=items.map(item=>`
-    <div class="check-item">
-      <div style="flex:1;"><div style="font-size:14px;font-weight:600;">${item.name}</div><div style="font-size:11px;color:var(--text3);">${item.id} · <span class="badge ${item.status==='out'?'badge-red':'badge-green'}" style="font-size:10px;">${item.status.toUpperCase()}</span></div></div>
-      <div class="badge ${item.condition==='ok'?'badge-green':item.condition==='missing'?'badge-amber':'badge-red'}">${item.condition.toUpperCase()}</div>
+  if(!items.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">0</div><div class="empty-text">No items found</div></div>';return;}
+  const canEdit=['admin','equipment','dispatch'].includes(SESSION.role);
+  el.innerHTML=items.map(e=>{
+    const isOut=e.status==='out';
+    const statusBadge=isOut?'<span class="badge badge-red">OUT</span>':'<span class="badge badge-green">IN</span>';
+    const equipBadge=e.equipStatus&&e.equipStatus!=='OK'?`<span class="badge ${e.equipStatus==='Missing'?'badge-amber':e.equipStatus==='Damaged'?'badge-purple':'badge-blue'}" style="font-size:10px;">${e.equipStatus}</span>`:'';
+    const cncBadge=e.isCNC?'<span class="badge badge-amber" style="font-size:10px;">CNC</span>':'';
+    const fl=e.equipStatus==='Missing'?'border-left:4px solid var(--red);':e.equipStatus==='Damaged'?'border-left:4px solid var(--amber);':e.isCNC?'border-left:4px solid var(--amber);':'';
+    return `<div style="background:#fff;border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);${fl}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+        <div style="font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">${statusBadge}${equipBadge}${cncBadge}</div>
+      </div>
+      <div style="font-size:12px;color:var(--text3);">📍 ${e.location}${e.checkedOutBy?' · BC-'+e.checkedOutBy:''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
+      ${e.isCNC?`<div style="font-size:12px;color:var(--amber);background:#fff3e0;border-radius:6px;padding:4px 8px;margin-top:6px;">📍 ${e.cncNote||e.ccnc}</div>`:''}
+      ${canEdit?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+        <button style="padding:11px;background:var(--navy);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'IN')">Check IN</button>
+        <button style="padding:11px;background:var(--red);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'OUT')">Check OUT</button>
+      </div>`:''}
+      ${canEdit&&['Missing','Damaged','Need More'].includes(e.equipStatus)?`<button style="width:100%;margin-top:6px;padding:8px;background:#fff;color:var(--green);border:2px solid var(--green);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;" onclick="resetEqStatus(${e.row||0})">Mark as OK</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ── CHECKOUT MODAL ──
+let coModalItems=[];
+function openCheckout(row, defaultAction) {
+  const it=STATE.equipment.find(e=>e.row===row);
+  if(!it&&row) return;
+  if(!document.getElementById('checkoutModal').classList.contains('hidden')){
+    // Modal already open — just add item
+    if(it&&!coModalItems.find(m=>m.row===row)) { coModalItems.push(it); renderCOModalList(); }
+    return;
+  }
+  coModalItems=it?[it]:[];
+  document.getElementById('coModalMember').value=SESSION.unit||'';
+  document.getElementById('coModalCall').value='';
+  document.getElementById('coModalCCNC').value='';
+  document.getElementById('coModalCNCNote').value='';
+  document.getElementById('coModalCNCGroup').style.display='none';
+  document.getElementById('coModalSearch').value='';
+  document.getElementById('coModalSearchResults').style.display='none';
+  renderCOModalList();
+  showModal('checkoutModal');
+}
+function renderCOModalList() {
+  const el=document.getElementById('coModalItemList');
+  if(!coModalItems.length){el.innerHTML='<div style="color:var(--text3);font-size:13px;padding:6px;">No items selected</div>';return;}
+  el.innerHTML=coModalItems.map((it,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 8px;background:#f8fafc;border-radius:8px;margin-bottom:5px;">
+      <div><div style="font-size:13px;font-weight:600;">${it.name}</div><div style="font-size:11px;color:var(--text3);">${it.location}</div></div>
+      <button onclick="coModalItems.splice(${i},1);renderCOModalList()" style="background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;padding:0 4px;">×</button>
     </div>`).join('');
+}
+function renderCOSearch() {
+  const q=document.getElementById('coModalSearch').value.toLowerCase().trim();
+  const res=document.getElementById('coModalSearchResults');
+  if(!q){res.style.display='none';return;}
+  const matches=STATE.equipment.filter(e=>e.equipStatus!=='Not Active'&&e.name.toLowerCase().includes(q)&&!coModalItems.find(m=>m.row===e.row)).slice(0,8);
+  if(!matches.length){res.style.display='none';return;}
+  res.style.display='block';
+  res.innerHTML=matches.map(e=>`<div onclick="coModalItems.push(STATE.equipment.find(x=>x.row===${e.row}));renderCOModalList();document.getElementById('coModalSearch').value='';document.getElementById('coModalSearchResults').style.display='none';" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--navy);">${e.name} <span style="color:var(--text3);font-weight:400;">— ${e.location}</span></div>`).join('');
+}
+async function submitCO(action) {
+  if(!coModalItems.length){showToast('Select at least one item');return;}
+  const member=document.getElementById('coModalMember').value.trim();
+  const call=document.getElementById('coModalCall').value.trim();
+  const ccnc=document.getElementById('coModalCCNC').value;
+  const cncNote=document.getElementById('coModalCNCNote').value.trim();
+  if(!member){showToast('Enter your BC member number');return;}
+  if(!call){showToast('Enter the call number');return;}
+  if(!ccnc){showToast('Select CC or CNC');return;}
+  if(ccnc==='CNC'&&!cncNote){showToast('Describe where the item is');return;}
+  const items=[...coModalItems];
+  hideModal('checkoutModal'); coModalItems=[];
+  showToast(`Processing ${items.length} item${items.length>1?'s':''}...`);
+  for(const item of items) {
+    const idx=STATE.equipment.findIndex(e=>e.row===item.row);
+    if(idx>=0){
+      STATE.equipment[idx].status=action==='IN'?'in':'out';
+      STATE.equipment[idx].checkedOutBy=action==='OUT'?member:null;
+      STATE.equipment[idx].callNum=action==='OUT'?call:null;
+      STATE.equipment[idx].isCNC=ccnc==='CNC';
+      STATE.equipment[idx].cncNote=cncNote;
+      STATE.equipment[idx].ccnc=ccnc==='CNC'?'CNC - '+cncNote:ccnc;
+      STATE.equipment[idx].lastUpdated=new Date().toLocaleString();
+    }
+    STATE.activity.push({name:item.name,id:item.id,action:action==='IN'?'in':'out',unit:member,callNum:call,time:Date.now()});
+    if(item.row) {
+      try { await sheetPOST({action:'checkInOut',row:item.row,status:action,member,call,ccSel:ccnc,cncNote}); } catch(e){}
+    }
+  }
+  save(); renderEquipmentDashboard(); renderInventory(); renderHome();
+  showToast(`${items.length} item${items.length>1?'s':''} checked ${action}`);
+}
+
+async function resetEqStatus(row) {
+  const eq=STATE.equipment.find(e=>e.row===row);
+  if(!eq) return;
+  eq.equipStatus='OK'; eq.condition='ok'; eq.isCNC=false; eq.cncNote=''; eq.ccnc='CC';
+  save(); renderEquipmentDashboard(); renderInventory();
+  showToast('Marked as OK');
+  if(row) { try{ await sheetPOST({action:'updateEquipmentStatus',row,status:'OK',note:'',resetNote:true}); }catch(e){} }
+}
+
+// ── CHECKLIST ──
+let chkCurLoc=null, chkFilter='all', chkStatus={}, chkNotes={};
+let rptCurType='';
+
+function renderChkFull() {
+  // Build location tabs from actual items
+  const locs=[...new Set(STATE.equipment.filter(e=>e.equipStatus!=='Not Active').map(e=>e.location).filter(Boolean))].sort();
+  if(!chkCurLoc||!locs.includes(chkCurLoc)) chkCurLoc=locs[0]||null;
+  const tabEl=document.getElementById('eqLocTabs');
+  if(tabEl) tabEl.innerHTML=locs.map(loc=>{
+    const li=STATE.equipment.filter(e=>e.location===loc&&e.equipStatus!=='Not Active');
+    const iss=li.filter(e=>e.isCNC||['Missing','Damaged'].includes(e.equipStatus)).length;
+    return `<div class="chip${loc===chkCurLoc?' active':''}" onclick="chkCurLoc='${loc.replace(/'/g,"\'")}';renderChkFull();document.querySelectorAll('#eqLocTabs .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">${loc} <span style="background:${loc===chkCurLoc?'rgba(255,255,255,.3)':'#e0e6ed'};border-radius:10px;padding:0 5px;font-size:10px;">${li.length}</span>${iss>0?`<span style="background:#fdecea;color:var(--red);border-radius:10px;padding:0 5px;font-size:10px;">${iss}</span>`:''}</div>`;
+  }).join('');
+  renderChkItems();
+}
+
+function setChkFilter(f,el) {
+  chkFilter=f;
+  document.querySelectorAll('#chkFilterRow .chip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderChkItems();
+}
+
+function renderChkItems() {
+  if(!chkCurLoc){const el=document.getElementById('chkList');if(el)el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text3);">No locations found</div>';return;}
+  const q=(document.getElementById('chkSearch')?.value||'').toLowerCase();
+  // Alerts
+  const locAlerts=STATE.equipment.filter(e=>e.location===chkCurLoc&&(e.isCNC||['Missing','Damaged'].includes(e.equipStatus)));
+  const aw=document.getElementById('chkAlertsWrap');
+  if(aw) aw.style.display=locAlerts.length?'block':'none';
+  const al=document.getElementById('chkAlertsList');
+  if(al) al.innerHTML=locAlerts.map(e=>`
+    <div class="alert ${['Missing','Damaged'].includes(e.equipStatus)?'alert-red':'alert-amber'}" style="margin-bottom:6px;">
+      <div style="flex:1;"><div style="font-weight:700;font-size:13px;">${e.name}</div>
+      <div style="font-size:12px;">${e.equipStatus||''}${e.checkedOutBy?' · BC-'+e.checkedOutBy:''}${e.callNum?' · Call #'+e.callNum:''}</div>
+      ${e.isCNC?`<div style="font-size:11px;color:var(--amber);">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+      ${e.equipNote?`<div style="font-size:11px;color:var(--red);font-weight:600;">Note: ${e.equipNote.replace(/^[A-Z ]+\s*-\s*/i,'')}</div>`:''}
+      </div>
+    </div>`).join('');
+  // Items
+  let li=STATE.equipment.filter(e=>{
+    if(e.location!==chkCurLoc) return false;
+    if(q&&!e.name.toLowerCase().includes(q)) return false;
+    if(chkFilter==='out') return e.status==='out';
+    if(chkFilter==='in') return e.status==='in'&&e.equipStatus!=='Not Active';
+    if(chkFilter==='cnc') return e.isCNC;
+    if(chkFilter==='missing') return e.equipStatus==='Missing';
+    if(chkFilter==='damaged') return e.equipStatus==='Damaged';
+    return e.equipStatus!=='Not Active';
+  });
+  const done=li.filter(e=>!!chkStatus[e.row||e.id]).length;
+  const issues=li.filter(e=>chkStatus[e.row||e.id]&&chkStatus[e.row||e.id]!=='OK').length;
+  const sum=document.getElementById('chkSummary');
+  if(sum) { sum.style.display=li.length?'block':'none'; }
+  const cc=document.getElementById('chkChecked'); if(cc) cc.textContent=`${done}/${li.length}`;
+  const ci=document.getElementById('chkIssues'); if(ci) ci.textContent=issues;
+  const wb=document.getElementById('chkWaBtn'); if(wb) wb.style.display=li.length?'block':'none';
+  const STATUS_COLORS={OK:'#2e7d32',Missing:'var(--red)',Damaged:'var(--amber)','Need More':'var(--blue)','Not Active':'#888'};
+  const el=document.getElementById('chkList');
+  if(!el) return;
+  el.innerHTML=li.map(e=>{
+    const key=e.row||e.id;
+    const st=chkStatus[key]||'';
+    const noteVal=chkNotes[key]||'';
+    const sheetNote=(e.equipNote||'').replace(/^[A-Z ]+\s*-\s*/i,'');
+    const noteHtml=(st&&st!=='OK')?`<div style="margin-top:6px;">${sheetNote&&!noteVal?`<div style="font-size:11px;color:var(--red);font-weight:600;margin-bottom:4px;">Last note: ${sheetNote}</div>`:''}<input type="text" placeholder="Describe issue..." value="${noteVal||sheetNote}" oninput="chkNotes[${key}]=this.value;saveChkNote(${key})" style="font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;width:100%;font-family:inherit;"/></div>`:'';
+    const btns=['OK','Missing','Damaged','Need More','Not Active'].map(s=>{
+      const active=st===s; const col=STATUS_COLORS[s];
+      return `<button onclick="setChkStatus(${key},'${s}')" style="flex:1;min-width:0;padding:6px 2px;font-size:10px;font-weight:700;border:2px solid ${active?col:'var(--border)'};border-radius:7px;background:${active?col:'#fff'};color:${active?'#fff':'var(--text2)'};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:inherit;">${s}</button>`;
+    }).join('');
+    return `<div style="background:#fff;border-radius:10px;padding:12px;margin-bottom:8px;box-shadow:var(--shadow);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <div style="font-size:14px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
+        <div style="font-size:11px;color:var(--text3);flex-shrink:0;">${fmtEqTime(e.lastUpdated)} ${st?`<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:${st==='OK'?'#e8f5e9':st==='Not Active'?'#f5f5f5':'#fdecea'};color:${STATUS_COLORS[st]||'#333'}">${st}</span>`:''}</div>
+      </div>
+      <div style="display:flex;gap:4px;">${btns}</div>
+      ${noteHtml}
+    </div>`;
+  }).join('');
+}
+
+function setChkStatus(key, status) {
+  chkStatus[key]=status;
+  if(status==='OK') chkNotes[key]='';
+  const note=chkNotes[key]||'';
+  postJ({action:'updateEquipmentStatus',row:key,status,note,resetNote:status==='OK'}).then(data=>{
+    if(data?.success){
+      const idx=STATE.equipment.findIndex(e=>(e.row||e.id)===key);
+      if(idx>=0){STATE.equipment[idx].equipStatus=status;if(status==='OK'){STATE.equipment[idx].equipNote='';}else{STATE.equipment[idx].equipNote=note?status+' - '+note:status;}}
+      save(); renderEquipmentDashboard();
+    }
+  }).catch(()=>{});
+  renderChkItems();
+}
+function saveChkNote(key) {
+  const status=chkStatus[key]||''; const note=chkNotes[key]||'';
+  if(!status||status==='OK') return;
+  postJ({action:'updateEquipmentStatus',row:key,status,note,resetNote:false}).catch(()=>{});
+  const idx=STATE.equipment.findIndex(e=>(e.row||e.id)===key);
+  if(idx>=0) STATE.equipment[idx].equipNote=note?status+' - '+note:status;
+  save();
+}
+function sendChkWhatsApp() {
+  if(!chkCurLoc) return;
+  var li=STATE.equipment.filter(function(e){return e.location===chkCurLoc&&e.equipStatus!=='Not Active';});
+  var done=li.filter(function(e){return !!chkStatus[e.row||e.id];});
+  var issues=li.filter(function(e){return chkStatus[e.row||e.id]&&chkStatus[e.row||e.id]!=='OK';});
+  var unchecked=li.filter(function(e){return !chkStatus[e.row||e.id];});
+  var out=li.filter(function(e){return e.status==='out';});
+  var msg='*COBC Equipment Check - '+chkCurLoc+'*\n';
+  msg+='Date: '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+'\n\n';
+  msg+='Checked: '+done.length+'/'+li.length+' items\n';
+  if(issues.length){
+    msg+='\nISSUES ('+issues.length+'):\n';
+    issues.forEach(function(e){var note=chkNotes[e.row||e.id]?' - '+chkNotes[e.row||e.id]:'';msg+='- '+e.name+' - '+chkStatus[e.row||e.id]+note+'\n';});
+  } else { msg+='\nNo issues found'; }
+  if(unchecked.length){msg+='\n\nNot checked ('+unchecked.length+'):\n';unchecked.slice(0,10).forEach(function(e){msg+='- '+e.name+'\n';});}
+  if(out.length){msg+='\n\nCurrently OUT ('+out.length+'):\n';out.forEach(function(e){msg+='- '+e.name+(e.checkedOutBy?' (BC-'+e.checkedOutBy+')':'')+'\n';});}
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}function sendChkWhatsApp() {
+  if(!chkCurLoc) return;
+  var li=STATE.equipment.filter(function(e){return e.location===chkCurLoc&&e.equipStatus!=='Not Active';});
+  var done=li.filter(function(e){return !!chkStatus[e.row||e.id];});
+  var issues=li.filter(function(e){return chkStatus[e.row||e.id]&&chkStatus[e.row||e.id]!=='OK';});
+  var unchecked=li.filter(function(e){return !chkStatus[e.row||e.id];});
+  var out=li.filter(function(e){return e.status==='out';});
+  var msg='*COBC Equipment Check - '+chkCurLoc+'*\n';
+  msg+='Date: '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+'\n\n';
+  msg+='Checked: '+done.length+'/'+li.length+' items\n';
+  if(issues.length){
+    msg+='\nISSUES ('+issues.length+'):\n';
+    issues.forEach(function(e){var note=chkNotes[e.row||e.id]?' - '+chkNotes[e.row||e.id]:'';msg+='- '+e.name+' - '+chkStatus[e.row||e.id]+note+'\n';});
+  } else { msg+='\nNo issues found'; }
+  if(unchecked.length){msg+='\n\nNot checked ('+unchecked.length+'):\n';unchecked.slice(0,10).forEach(function(e){msg+='- '+e.name+'\n';});}
+  if(out.length){msg+='\n\nCurrently OUT ('+out.length+'):\n';out.forEach(function(e){msg+='- '+e.name+(e.checkedOutBy?' (BC-'+e.checkedOutBy+')':'')+'\n';});}
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
+// ── REPORTS ──
+function selRptType(type,btn) {
+  rptCurType=type;
+  document.querySelectorAll('#rptTypeBtns button').forEach(b=>{
+    b.style.borderColor='var(--border)'; b.style.color='var(--text2)'; b.style.background='#fff';
+  });
+  if(btn){btn.style.borderColor='var(--navy)';btn.style.color='var(--navy)';btn.style.background='#eef3f8';}
+}
+
+function populateReportItemSelect() {
+  const sel=document.getElementById('reportItem');
+  if(!sel) return;
+  sel.innerHTML='<option value="">-- Select item --</option>'+STATE.equipment.map(e=>`<option value="${e.name}">${e.name} (${e.location})</option>`).join('');
 }
 
 function renderReports() {
   const el=document.getElementById('reportsList');
   if(!el) return;
   const open=STATE.reports.filter(r=>!r.resolved);
-  el.innerHTML=open.length?open.reverse().map(r=>`
+  el.innerHTML=open.length?[...open].reverse().map(r=>`
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
@@ -3080,35 +3277,28 @@ function renderReports() {
         <button class="btn-sm btn-ghost" style="font-size:11px;" onclick="resolveReport('${r.id}')">Resolve</button>
       </div>
     </div>`).join(''):
-    '<div class="alert alert-green"><span class="alert-icon">✅</span><div class="alert-body"><div class="alert-title">No open reports</div></div></div>';
-}
-
-function populateReportItemSelect() {
-  const sel=document.getElementById('reportItem');
-  if(!sel) return;
-  sel.innerHTML=STATE.equipment.map(e=>`<option value="${e.name}">${e.name}</option>`).join('');
+    '<div class="alert alert-green"><span class="alert-icon">+</span><div class="alert-body"><div class="alert-title">No open reports</div></div></div>';
 }
 
 async function submitReport() {
-  const type=document.getElementById('reportType').value;
-  const item=document.getElementById('reportItem').value;
-  const notes=document.getElementById('reportNotes').value.trim();
-  if(!item) { showToast('Select an item'); return; }
-  const report={id:'R'+Date.now(),type,item,notes,time:Date.now(),unit:SESSION.unit,resolved:false};
-  STATE.reports.push(report);
-  save(); document.getElementById('reportNotes').value='';
-  showToast('✅ Report submitted'); renderReports();
-  // Write to Google Sheet Reports tab
+  const type=rptCurType;
+  const item=document.getElementById('reportItem')?.value;
+  const member=document.getElementById('reportMember')?.value?.trim()||SESSION.unit;
+  const notes=document.getElementById('reportNotes')?.value?.trim()||'';
+  if(!type){showToast('Select a report type');return;}
+  if(!item){showToast('Select an item');return;}
+  const report={id:'R'+Date.now(),type,item,notes,time:Date.now(),unit:member,resolved:false};
+  STATE.reports.push(report); save();
+  if(document.getElementById('reportNotes')) document.getElementById('reportNotes').value='';
+  showToast('Report submitted'); renderReports();
   const eq=STATE.equipment.find(e=>e.name===item);
   try {
-    await sheetPOST({action:'submitReport',item,location:eq?.location||'',type,note:notes,member:SESSION.unit});
-    // Also update equipment status column if damage/missing
-    if(eq?.row && (type==='damaged'||type==='missing')) {
-      const sheetStatus=type==='damaged'?'Damaged':'Missing';
-      await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:sheetStatus,note:notes});
-      eq.equipStatus=sheetStatus; eq.condition=type; save();
+    await sheetPOST({action:'submitReport',item,location:eq?.location||'',type,note:notes,member});
+    if(eq?.row&&(type==='Missing'||type==='Damaged')) {
+      await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:type,note:notes});
+      eq.equipStatus=type; eq.condition=type.toLowerCase(); save();
     }
-  } catch(e){ showToast('⚠️ Sheet sync failed — saved locally'); }
+  } catch(e){ showToast('Sheet sync failed — saved locally'); }
 }
 
 function resolveReport(id) {
@@ -3116,170 +3306,25 @@ function resolveReport(id) {
   if(r){r.resolved=true;save();renderReports();showToast('Report resolved');}
 }
 
-// ──────────────────────────────────────────────
-//  ADMIN
-// ──────────────────────────────────────────────
-function unlockAdmin() {
-  const pass=document.getElementById('adminPassInput').value;
-  if(pass!=='cobcadmin'){showToast('❌ Wrong password');return;}
-  document.getElementById('adminGate').style.display='none';
-  document.getElementById('adminPanel').style.display='block';
-  renderAdminMembers();
-  // Set duty fields from state
-  if(STATE.onDuty?.name) document.getElementById('dutyName').value=STATE.onDuty.name;
-  if(STATE.onDuty?.phone) document.getElementById('dutyPhone').value=STATE.onDuty.phone;
-  if(STATE.rrSettings) {
-    document.getElementById('rr1').value=STATE.rrSettings.first||3;
-    document.getElementById('rr2').value=STATE.rrSettings.repeat||3;
-    document.getElementById('rr3').value=STATE.rrSettings.switchAfter||2;
-  }
-  populateLocationSelects();
-}
+// ── Alias for backward compat ──
+function postJ(body) { return sheetPOST(body); }
 
-function setAdminTab(tab,el) {
-  ['members','dispatch','equipment','locations'].forEach(t=>{document.getElementById(`admin-${t}`).style.display=t===tab?'':'none';});
-  document.querySelectorAll('#adminPanel .sub-tab').forEach(x=>x.classList.remove('active'));
-  if(el) el.classList.add('active');
-  if(tab==='equipment') renderAdminEquipment();
-  if(tab==='locations') renderLocations();
-}
-
-function renderAdminMembers() {
-  const el=document.getElementById('memberList');
-  if(!el) return;
-  document.getElementById('memberCount').textContent=STATE.members.length;
-  if(!STATE.members.length) {
-    el.innerHTML='<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">No members yet</div></div>';
-    return;
-  }
-  el.innerHTML=[...STATE.members].sort((a,b)=>parseInt(a.unit)-parseInt(b.unit)).map(m=>`
-    <div class="list-item" style="cursor:default;">
-      <div class="list-icon list-icon-blue" style="font-size:14px;font-weight:700;color:var(--navy2);">${m.unit}</div>
-      <div class="list-body">
-        <div class="list-title">${m.first} ${m.last}${m.role==='observer'?'<span class="obs-badge">OBS</span>':''}</div>
-        <div class="list-sub">${m.phone||'—'} · <span class="tag">${m.role||'member'}</span></div>
-      </div>
-      <button class="btn-sm btn-danger" style="font-size:11px;padding:5px 10px;" onclick="deleteMember('${m.unit}')">✕</button>
-    </div>`).join('');
-}
-
-function addMember() {
-  const unit=document.getElementById('newMemberUnit').value.trim();
-  const first=document.getElementById('newMemberFirst').value.trim();
-  const last=document.getElementById('newMemberLast').value.trim();
-  const phone=document.getElementById('newMemberPhone').value.trim();
-  const role=document.getElementById('newMemberRole').value;
-  if(!unit||!first){showToast('Unit # and first name required');return;}
-  if(STATE.members.find(m=>String(m.unit)===String(unit))){showToast('Unit # already exists');return;}
-  STATE.members.push({unit,first,last,phone,role,addedAt:Date.now()});
-  save(); renderAdminMembers(); renderMemberDir();
-  ['newMemberUnit','newMemberFirst','newMemberLast','newMemberPhone'].forEach(id=>document.getElementById(id).value='');
-  showToast(`✅ BC ${unit} added`); renderHome();
-}
-
-function deleteMember(unit) {
-  if(!confirm(`Remove BC ${unit}?`)) return;
-  STATE.members=STATE.members.filter(m=>String(m.unit)!==String(unit));
-  save(); renderAdminMembers(); renderMemberDir(); renderHome(); showToast('Member removed');
-}
-
-function renderAdminEquipment() {
-  document.getElementById('eqAdminCount').textContent=STATE.equipment.length;
-  const el=document.getElementById('eqAdminList');
-  el.innerHTML=[...STATE.equipment].map(e=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
-      <span class="eq-status-dot ${e.status==='out'?'out':'in'}"></span>
-      <div style="flex:1;font-size:13px;font-weight:600;">${e.name}</div>
-      <span style="font-size:11px;color:var(--text3);">${e.location}</span>
-      <button class="btn-sm btn-danger" style="font-size:11px;padding:4px 8px;" onclick="deleteEquipment('${e.id}')">✕</button>
-    </div>`).join('');
-}
-
-async function addEquipment() {
-  const name=document.getElementById('newEqName').value.trim();
-  const cat=document.getElementById('newEqCat').value;
-  const loc=document.getElementById('newEqLoc').value;
-  if(!name){showToast('Enter item name');return;}
-  showToast('Adding item…');
-  try {
-    const result = await sheetPOST({action:'addItem',name,location:loc});
-    if(result?.success) {
-      const newRow = result.row;
-      const newEq = {id:`EQ-${String(newRow).padStart(4,'0')}`,row:newRow,name,category:cat,location:loc,status:'in',condition:'ok',equipStatus:'OK',history:[],notes:'',fromSheet:true};
-      STATE.equipment.push(newEq);
-      save(); renderAdminEquipment(); renderInventory(); renderEquipmentDashboard();
-      document.getElementById('newEqName').value='';
-      showToast(`✅ ${name} added to sheet`);
-    } else {
-      showToast('❌ Sheet error: '+(result?.error||'unknown'));
-    }
-  } catch(e) {
-    // Fallback: add locally only
-    const maxId=STATE.equipment.reduce((m,e)=>Math.max(m,parseInt(e.id.replace('EQ-',''))||0),0);
-    const newId=`EQ-${String(maxId+1).padStart(4,'0')}`;
-    STATE.equipment.push({id:newId,name,category:cat,location:loc,status:'in',condition:'ok',history:[],notes:''});
-    save(); renderAdminEquipment(); renderInventory(); renderEquipmentDashboard();
-    document.getElementById('newEqName').value='';
-    showToast(`✅ ${name} added locally (sheet offline)`);
-  }
-}
-
-function deleteEquipment(id) {
-  if(!confirm('Remove this item?')) return;
-  STATE.equipment=STATE.equipment.filter(e=>e.id!==id);
-  save(); renderAdminEquipment(); renderInventory(); renderEquipmentDashboard(); showToast('Removed');
-}
-
-function populateLocationSelects() {
-  // Admin "add item" dropdown — full location list
-  const newEqLoc = document.getElementById('newEqLoc');
-  if(newEqLoc) {
-    const cur=newEqLoc.value;
-    newEqLoc.innerHTML=STATE.locations.map(l=>`<option value="${l}">${l}</option>`).join('');
-    if(cur) newEqLoc.value=cur;
-  }
-  // Checklist — only locations that have real items
-  renderChecklist();
-}
-
-function renderLocations() {
-  const el=document.getElementById('locationList');
-  el.innerHTML=STATE.locations.map(l=>`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:#fff;border-radius:8px;margin-bottom:6px;box-shadow:var(--shadow);">
-      <span style="font-size:14px;font-weight:600;">📍 ${l}</span>
-      ${!DEFAULT_LOCATIONS.includes(l)?`<button class="btn-sm btn-danger" style="font-size:11px;padding:4px 8px;" onclick="removeLocation('${l}')">✕</button>`:'<span style="font-size:11px;color:var(--text3);">default</span>'}
-    </div>`).join('');
-}
-
-function addLocation() {
-  const name=document.getElementById('newLocName').value.trim();
-  if(!name){showToast('Enter name');return;}
-  if(STATE.locations.includes(name)){showToast('Already exists');return;}
-  STATE.locations.push(name); save();
-  document.getElementById('newLocName').value='';
-  renderLocations(); populateLocationSelects(); showToast(`📍 ${name} added`);
-}
-
-function removeLocation(name) {
-  if(!confirm(`Remove "${name}"?`)) return;
-  STATE.locations=STATE.locations.filter(l=>l!==name);
-  save(); renderLocations(); populateLocationSelects();
-}
-
-// ──────────────────────────────────────────────
-//  SCAN
-// ──────────────────────────────────────────────
 function lookupScan() {
   const val=document.getElementById('scanInput').value.trim().toUpperCase();
-  // Try by EQ-ID first, then by item name (for sheet items)
   let eq=STATE.equipment.find(e=>e.id===val||e.id===`EQ-${val.replace('EQ-','').padStart(4,'0')}`);
   if(!eq) eq=STATE.equipment.find(e=>e.name.toUpperCase()===val);
-  if(!eq){showToast('Item not found — try refreshing 🔄');return;}
+  if(!eq){showToast('Item not found — try refreshing');return;}
   hideModal('scanModal');
   document.getElementById('scanInput').value='';
-  showTab('equipment'); setEqTab('inventory',null);
-  setTimeout(()=>openEqItem(eq.id),200);
+  showTab('equipment'); setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)'));
+  setTimeout(()=>{
+    // Scroll to item in inventory
+    renderInventory();
+    showToast(`Found: ${eq.name}`);
+  },200);
 }
+
+
 </script>
 </body>
 </html>
