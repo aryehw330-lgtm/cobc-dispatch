@@ -838,7 +838,8 @@ textarea.input{min-height:80px;resize:vertical;}
 <div class="modal-overlay hidden" id="respondModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">✋ Respond to Call</div>
+    <div class="modal-title">✋ Request to Respond</div>
+    <div class="alert alert-blue" style="margin-bottom:14px;"><span class="alert-icon">ℹ️</span><div class="alert-body"><div class="alert-title">Needs dispatch approval</div><div class="alert-sub">Your request will be sent to the on-duty dispatcher. You will be notified once approved.</div></div></div>
     <input type="hidden" id="respondCallId"/>
     <div class="input-group"><label class="input-label">Your ETA (minutes)</label><input class="input" type="number" id="respondETA" value="10" min="1" max="120"/></div>
     <div class="input-group"><label class="input-label">Notes (optional)</label><input class="input" type="text" id="respondNotes" placeholder="Any notes…"/></div>
@@ -921,7 +922,7 @@ const ROLES = {
 // ── Seed Members (from Google Sheet — BC roster) ──
 const SEED_MEMBERS=[{"unit":"05","first":"Yehuda","last":"Miller","phone":"845-558-4497","role":"member","addedAt":1700000000000},{"unit":"06","first":"Chaim","last":"Huisman","phone":"201-456-7701","role":"member","addedAt":1700000000000},{"unit":"07","first":"Chaim","last":"Stadtmauer","phone":"973-865-0588","role":"member","addedAt":1700000000000},{"unit":"08","first":"Elliott","last":"Gilden","phone":"201-280-7062","role":"member","addedAt":1700000000000},{"unit":"09","first":"Edward","last":"Abramovitz","phone":"203-988-6334","role":"member","addedAt":1700000000000},{"unit":"10","first":"Yehuda","last":"Feig","phone":"201-491-3423","role":"member","addedAt":1700000000000},{"unit":"11","first":"Nosson","last":"Moldaver","phone":"732-233-8595","role":"member","addedAt":1700000000000},{"unit":"12","first":"David","last":"Roberts","phone":"201-562-7844","role":"member","addedAt":1700000000000},{"unit":"13","first":"Stuart","last":"Krupnik","phone":"347-371-1132","role":"member","addedAt":1700000000000},{"unit":"14","first":"Simon","last":"Berrebi","phone":"347-768-0807","role":"member","addedAt":1700000000000},{"unit":"15","first":"Moshe","last":"Kozlow","phone":"201-655-3279","role":"member","addedAt":1700000000000},{"unit":"16","first":"Ari","last":"Wartelsky","phone":"917-841-4115","role":"member","addedAt":1700000000000},{"unit":"17","first":"Motti","last":"Rosenthal","phone":"718-614-6002","role":"member","addedAt":1700000000000},{"unit":"18","first":"Ahron","last":"Mallin","phone":"917-596-9528","role":"member","addedAt":1700000000000},{"unit":"19","first":"Sruli","last":"Scharf","phone":"201-321-2073","role":"member","addedAt":1700000000000},{"unit":"20","first":"Burry","last":"Greenbaum","phone":"718-974-1571","role":"member","addedAt":1700000000000},{"unit":"21","first":"Yehuda","last":"Lisker","phone":"201-723-7228","role":"member","addedAt":1700000000000},{"unit":"22","first":"Yoni","last":"Celnik","phone":"845-364-1318","role":"member","addedAt":1700000000000},{"unit":"23","first":"Daniel","last":"Hyman","phone":"917-767-4040","role":"member","addedAt":1700000000000},{"unit":"24","first":"Gershon","last":"Weinreb","phone":"570-909-6530","role":"member","addedAt":1700000000000},{"unit":"25","first":"Daniel","last":"Rubinoff","phone":"917-345-3447","role":"member","addedAt":1700000000000},{"unit":"26","first":"Mickey","last":"Cohen","phone":"201-937-2192","role":"member","addedAt":1700000000000},{"unit":"27","first":"Yitzchok","last":"Berger","phone":"917-697-0043","role":"member","addedAt":1700000000000},{"unit":"28","first":"Benny","last":"Kessler","phone":"718-915-8057","role":"member","addedAt":1700000000000},{"unit":"29","first":"Aaron","last":"Heideman","phone":"732-609-6154","role":"member","addedAt":1700000000000},{"unit":"30","first":"Matis","last":"Gluck","phone":"845-641-2001","role":"member","addedAt":1700000000000},{"unit":"31","first":"Rachmiel","last":"","phone":"718-909-9352","role":"member","addedAt":1700000000000},{"unit":"32","first":"Avi","last":"Weiskopf","phone":"201-707-4616","role":"member","addedAt":1700000000000},{"unit":"33","first":"Chaim","last":"Gottesman","phone":"201-280-2386","role":"member","addedAt":1700000000000},{"unit":"34","first":"Yehuda","last":"Kreitman","phone":"732-440-8457","role":"member","addedAt":1700000000000},{"unit":"36","first":"Aaron","last":"Sheffy","phone":"551-804-3385","role":"member","addedAt":1700000000000},{"unit":"37","first":"Micah","last":"Epstein","phone":"914-806-3334","role":"member","addedAt":1700000000000},{"unit":"38","first":"Aryeh","last":"Wizman","phone":"845-531-9110","role":"member","addedAt":1700000000000},{"unit":"39","first":"Rami","last":"Glatt","phone":"718-536-6574","role":"member","addedAt":1700000000000},{"unit":"40","first":"Shloimy","last":"Ciment","phone":"845-587-0053","role":"member","addedAt":1700000000000},{"unit":"41","first":"Michael","last":"Goldsmith","phone":"201-370-5664","role":"member","addedAt":1700000000000},{"unit":"42","first":"Kenneth","last":"Goldman","phone":"201-638-6515","role":"member","addedAt":1700000000000},{"unit":"43","first":"Avi","last":"Okin","phone":"862-438-4094","role":"member","addedAt":1700000000000},{"unit":"44","first":"Isaac","last":"Vizel","phone":"917-672-1999","role":"member","addedAt":1700000000000},{"unit":"45","first":"Mark","last":"Eisenberger","phone":"917-363-8106","role":"member","addedAt":1700000000000},{"unit":"46","first":"Dov","last":"Eisenberger","phone":"917-538-5462","role":"member","addedAt":1700000000000},{"unit":"47","first":"Fischel","last":"Bensinger","phone":"305-389-3907","role":"member","addedAt":1700000000000},{"unit":"48","first":"Dovid","last":"Lisker","phone":"201-214-0803","role":"member","addedAt":1700000000000},{"unit":"49","first":"Mitchell","last":"Schaffer","phone":"201-519-6904","role":"member","addedAt":1700000000000},{"unit":"50","first":"Moti","last":"Rimer","phone":"646-772-3455","role":"member","addedAt":1700000000000},{"unit":"51","first":"Isaac","last":"Dayan","phone":"847-226-6892","role":"member","addedAt":1700000000000},{"unit":"52","first":"Judah","last":"Samuel","phone":"201-888-0214","role":"member","addedAt":1700000000000},{"unit":"53","first":"Shloimie","last":"Kreindler","phone":"443-939-9979","role":"member","addedAt":1700000000000},{"unit":"54","first":"Dovie","last":"Hirsch","phone":"201-354-0550","role":"member","addedAt":1700000000000},{"unit":"55","first":"Henry","last":"Bernstein","phone":"516-554-4063","role":"member","addedAt":1700000000000},{"unit":"59","first":"Chaim","last":"Ezagui","phone":"347-785-8798","role":"member","addedAt":1700000000000},{"unit":"60","first":"Noah","last":"Isaacs","phone":"201-803-8614","role":"member","addedAt":1700000000000},{"unit":"61","first":"Moshe","last":"Katz","phone":"516-209-1427","role":"member","addedAt":1700000000000},{"unit":"62","first":"","last":"Gendler","phone":"347-409-5754","role":"member","addedAt":1700000000000},{"unit":"63","first":"Aaron","last":"Bauman","phone":"347-543-2941","role":"member","addedAt":1700000000000},{"unit":"64","first":"Kivi","last":"Gorden","phone":"610-513-0776","role":"member","addedAt":1700000000000},{"unit":"65","first":"Eli","last":"Teichman","phone":"845-558-5247","role":"member","addedAt":1700000000000},{"unit":"66","first":"Andy","last":"Schultz","phone":"914-574-7057","role":"member","addedAt":1700000000000},{"unit":"67","first":"Willie","last":"Silberstein","phone":"201-681-8876","role":"member","addedAt":1700000000000},{"unit":"68","first":"Yehuda","last":"Schwartz","phone":"917-288-2546","role":"member","addedAt":1700000000000},{"unit":"69","first":"Dovi","last":"Pfeffer","phone":"848-210-5060","role":"member","addedAt":1700000000000},{"unit":"70","first":"Yosi","last":"Gibraltar","phone":"","role":"member","addedAt":1700000000000},{"unit":"71","first":"Avi","last":"Klein","phone":"347-731-5525","role":"member","addedAt":1700000000000},{"unit":"72","first":"Moshe","last":"Skoczylas","phone":"718-974-7347","role":"member","addedAt":1700000000000},{"unit":"73","first":"Danny","last":"Senter","phone":"201-491-4602","role":"member","addedAt":1700000000000},{"unit":"74","first":"Rudman","last":"Zvi","phone":"","role":"member","addedAt":1700000000000},{"unit":"75","first":"David","last":"Kestenbaum","phone":"516-318-2697","role":"member","addedAt":1700000000000},{"unit":"76","first":"Aharon","last":"Klarberg","phone":"973-567-0772","role":"member","addedAt":1700000000000},{"unit":"77","first":"Willie","last":"Balk","phone":"216-392-2244","role":"member","addedAt":1700000000000},{"unit":"78","first":"Izzy","last":"Infield","phone":"201-245-4666","role":"member","addedAt":1700000000000},{"unit":"79","first":"David","last":"Itzkowits","phone":"347-227-9014","role":"member","addedAt":1700000000000},{"unit":"80","first":"Mayer","last":"Sabo","phone":"201-566-4759","role":"member","addedAt":1700000000000},{"unit":"81","first":"Aaron","last":"Lerer","phone":"845-213-7323","role":"member","addedAt":1700000000000},{"unit":"82","first":"Naftali","last":"Nunberg","phone":"917-912-8913","role":"member","addedAt":1700000000000},{"unit":"83","first":"Michel","last":"Klarburg","phone":"973-851-0510","role":"member","addedAt":1700000000000},{"unit":"86","first":"Israel","last":"Romand","phone":"845-499-0540","role":"member","addedAt":1700000000000},{"unit":"87","first":"Phillip","last":"Katz","phone":"917-549-5540","role":"member","addedAt":1700000000000},{"unit":"88","first":"Yitz","last":"Stern","phone":"845-596-7988","role":"member","addedAt":1700000000000},{"unit":"89","first":"Mordechai","last":"Solinsky","phone":"347-486-4434","role":"member","addedAt":1700000000000},{"unit":"90","first":"Sam","last":"Ulrich","phone":"858-401-0863","role":"member","addedAt":1700000000000},{"unit":"91","first":"Leibi","last":"Stern","phone":"","role":"member","addedAt":1700000000000},{"unit":"92","first":"Michael","last":"Scharf","phone":"201-468-1166","role":"member","addedAt":1700000000000},{"unit":"93","first":"Yair","last":"Menchel","phone":"516-672-1325","role":"member","addedAt":1700000000000},{"unit":"94","first":"Zvi","last":"Bin-Nun","phone":"551-795-3394","role":"member","addedAt":1700000000000},{"unit":"95","first":"Zev","last":"Darack","phone":"973-202-9867","role":"member","addedAt":1700000000000},{"unit":"96","first":"Binyamin","last":"Schulgasser","phone":"973-943-0413","role":"member","addedAt":1700000000000},{"unit":"97","first":"Solomon","last":"Itzkowitz","phone":"929-261-6554","role":"admin","addedAt":1700000000000},{"unit":"99","first":"Yakov","last":"Cohen","phone":"201-957-3523","role":"member","addedAt":1700000000000},{"unit":"100","first":"Emanuel","last":"Klein","phone":"718-807-5604","role":"member","addedAt":1700000000000},{"unit":"102","first":"Joel","last":"Varnai","phone":"646-597-0935","role":"member","addedAt":1700000000000},{"unit":"103","first":"Shalom","last":"Peretz","phone":"845-270-8447","role":"member","addedAt":1700000000000},{"unit":"104","first":"Mo","last":"Berow","phone":"973-270-3015","role":"member","addedAt":1700000000000},{"unit":"105","first":"Daniel","last":"Fuksbrumer","phone":"917-439-3984","role":"member","addedAt":1700000000000},{"unit":"106","first":"Yoni","last":"Kaufman","phone":"917-608-4904","role":"member","addedAt":1700000000000},{"unit":"107","first":"Daniel","last":"Gross","phone":"917-974-9630","role":"member","addedAt":1700000000000},{"unit":"108","first":"David","last":"Rivkin","phone":"201-580-0456","role":"member","addedAt":1700000000000},{"unit":"110","first":"Isaac","last":"Mass","phone":"201-630-1518","role":"member","addedAt":1700000000000},{"unit":"111","first":"Leiby","last":"Itzkowitz","phone":"929-445-0429","role":"member","addedAt":1700000000000},{"unit":"112","first":"Benzi","last":"Herbst","phone":"718-810-3968","role":"member","addedAt":1700000000000},{"unit":"114","first":"Avidan","last":"Rothman","phone":"973-280-1691","role":"member","addedAt":1700000000000},{"unit":"115","first":"Zach","last":"Berman","phone":"845-216-8279","role":"member","addedAt":1700000000000},{"unit":"116","first":"Steven","last":"Hoenig","phone":"201-240-8749","role":"member","addedAt":1700000000000},{"unit":"117","first":"Jeffrey","last":"Rosenfeld","phone":"917-664-8374","role":"member","addedAt":1700000000000},{"unit":"118","first":"Zev","last":"Savetsky","phone":"201-805-2476","role":"member","addedAt":1700000000000},{"unit":"119","first":"Nechemia","last":"Berman","phone":"845-622-0094","role":"member","addedAt":1700000000000},{"unit":"120","first":"Yehuda","last":"Breuer","phone":"845-399-0523","role":"member","addedAt":1700000000000},{"unit":"121","first":"David","last":"Dahan","phone":"551-326-1160","role":"observer","addedAt":1700000000000},{"unit":"122","first":"Ephraim","last":"Rudin","phone":"973-368-7639","role":"member","addedAt":1700000000000},{"unit":"123","first":"Mendy","last":"Green","phone":"845-213-0748","role":"member","addedAt":1700000000000},{"unit":"124","first":"Binyamin","last":"Kroll","phone":"973-462-3851","role":"member","addedAt":1700000000000},{"unit":"125","first":"Jack","last":"Attali","phone":"917-626-1069","role":"observer","addedAt":1700000000000},{"unit":"126","first":"Sam","last":"Lovi","phone":"347-985-6088","role":"member","addedAt":1700000000000},{"unit":"127","first":"Nathan","last":"Rose","phone":"914-714-4138","role":"member","addedAt":1700000000000},{"unit":"128","first":"Pinchas","last":"Feinstein","phone":"646-244-1137","role":"member","addedAt":1700000000000},{"unit":"129","first":"Zecharia","last":"Gurell","phone":"201-334-2325","role":"member","addedAt":1700000000000},{"unit":"130","first":"Didi","last":"Forman","phone":"972-53-272-8815","role":"member","addedAt":1700000000000},{"unit":"131","first":"Zach","last":"Cohen","phone":"201-803-6143","role":"member","addedAt":1700000000000},{"unit":"133","first":"Zevy","last":"Glicksman","phone":"917-655-2075","role":"member","addedAt":1700000000000},{"unit":"140","first":"Khodik","last":"Kalmen","phone":"201-970-1818","role":"member","addedAt":1700000000000},{"unit":"148","first":"Shloime","last":"Mintz","phone":"","role":"member","addedAt":1700000000000},{"unit":"149","first":"Juda","last":"Glick","phone":"718-613-9575","role":"member","addedAt":1700000000000},{"unit":"150","first":"Isaac","last":"Forgash","phone":"201-509-0986","role":"member","addedAt":1700000000000},{"unit":"154","first":"Matthew","last":"Fried","phone":"917-371-2669","role":"member","addedAt":1700000000000},{"unit":"155","first":"Yisrael Mayer","last":"Birnbaum","phone":"347-448-1796","role":"member","addedAt":1700000000000},{"unit":"157","first":"Daniel","last":"Steinermam","phone":"201-575-3569","role":"member","addedAt":1700000000000},{"unit":"160","first":"Avi","last":"Greenberg","phone":"845-422-3090","role":"member","addedAt":1700000000000},{"unit":"161","first":"Abraham","last":"Green","phone":"","role":"member","addedAt":1700000000000},{"unit":"162","first":"Zev Yida","last":"Farkas","phone":"","role":"member","addedAt":1700000000000},{"unit":"163","first":"Daniel","last":"Blum","phone":"347-533-0596","role":"member","addedAt":1700000000000},{"unit":"164","first":"Shmuel","last":"Remer","phone":"551-999-7592","role":"member","addedAt":1700000000000},{"unit":"169","first":"Avrumy","last":"Schwartz","phone":"929-355-3943","role":"member","addedAt":1700000000000},{"unit":"171","first":"Chaim","last":"Abenson","phone":"845-866-1647","role":"member","addedAt":1700000000000},{"unit":"178","first":"Yisroel","last":"Gutman","phone":"347-693-0315","role":"member","addedAt":1700000000000},{"unit":"180","first":"Abbey","last":"Cooper","phone":"201-543-1267","role":"member","addedAt":1700000000000},{"unit":"191","first":"Kenny","last":"Fried","phone":"917-544-0383","role":"member","addedAt":1700000000000},{"unit":"200","first":"Jan","last":"Meyer","phone":"201-888-4566","role":"member","addedAt":1700000000000},{"unit":"234","first":"Mordechai","last":"Kupferstein","phone":"718-679-7278","role":"member","addedAt":1700000000000},{"unit":"257","first":"Moshe","last":"Teicher","phone":"786-999-5939","role":"member","addedAt":1700000000000},{"unit":"369","first":"Rafael","last":"Pomerantz","phone":"929-253-4860","role":"member","addedAt":1700000000000},{"unit":"500","first":"Dalia","last":"Romand","phone":"914-220-2702","role":"dispatch","addedAt":1700000000000},{"unit":"501","first":"Rivky","last":"Sandal","phone":"845-629-1212","role":"member","addedAt":1700000000000},{"unit":"502","first":"Lazar","last":"Weider","phone":"845-248-8636","role":"member","addedAt":1700000000000},{"unit":"503","first":"Shmuel","last":"Eidelman","phone":"732-429-5195","role":"member","addedAt":1700000000000},{"unit":"504","first":"Jacob","last":"Rosenberg","phone":"201-686-1731","role":"member","addedAt":1700000000000},{"unit":"505","first":"Shloime","last":"Mintz","phone":"201-370-1097","role":"member","addedAt":1700000000000},{"unit":"506","first":"Shlomo","last":"Erlanger","phone":"551-238-5060","role":"member","addedAt":1700000000000},{"unit":"507","first":"Shragie","last":"Rubelow","phone":"848-525-7435","role":"member","addedAt":1700000000000},{"unit":"508","first":"Yehuda","last":"Rhine","phone":"929-210-1524","role":"member","addedAt":1700000000000}];
 
-const DEFAULT_LOCATIONS = ['COBC','Englewood Shed','Teaneck Garage','Teaneck Shed','TVAC Trailer','Truck 02','Truck 03',"Rami's Garage"];
+const DEFAULT_LOCATIONS = ['COBC','Garage TABC','TVAC Trailer','Teaneck Garage','Teaneck Shed','Englewood Shed','Truck 02','Truck 03',"Rami's Garage"];
 
 // ── Town colors (for call card accent) ──
 const TOWN_COLORS = {
@@ -1265,8 +1266,11 @@ function renderHome() {
 
   const badge=document.getElementById('tab-dispatch-badge');
   const total=openC+activeC;
-  badge.style.display=total?'flex':'none';
-  badge.textContent=total;
+  const pendingTotal=isDispatchRole()?STATE.calls.reduce((s,c)=>s+(c.pendingResponders?.length||0),0):0;
+  const badgeNum=total+(pendingTotal?pendingTotal:0);
+  badge.style.display=badgeNum?'flex':'none';
+  badge.textContent=badgeNum;
+  badge.style.background=pendingTotal?'var(--amber)':'var(--red)';
 
   const el=document.getElementById('homeCallsList');
   const recent=STATE.calls.filter(c=>c.status!=='done'&&c.status!=='draft').slice(-3).reverse();
@@ -1305,10 +1309,16 @@ function callCardHTML(call, mini=false) {
   const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
   const timeStr=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   const responders=(call.responders||[]).length;
+  const pending=(call.pendingResponders||[]).length;
   const townColor=TOWN_COLORS[call.town]||'var(--text3)';
   const isDraft=call.status==='draft';
   const hasBackup=(call.backupRequests||[]).length>0;
   const rrCount=call.rrCount||0;
+  const isDispatch=['admin','dispatch'].includes(SESSION.role);
+  // Is this user already pending or approved?
+  const myUnit=String(SESSION.unit);
+  const iAmApproved=(call.responders||[]).some(r=>String(r.unit)===myUnit);
+  const iAmPending=(call.pendingResponders||[]).some(r=>String(r.unit)===myUnit);
 
   if (mini) return `
     <div class="call-card ${call.status}" onclick="openCallDetail('${call.id}')">
@@ -1317,14 +1327,27 @@ function callCardHTML(call, mini=false) {
         <div>
           <div class="call-type" style="color:${call.priority==='urgent'?'var(--red)':townColor}">${typeLabel}${isDraft?'<span class="obs-badge">DRAFT</span>':''}</div>
           <div class="call-address">${call.address}, ${call.town}</div>
-          <div class="call-meta">${timeStr} · ${responders} responder${responders!==1?'s':''}</div>
+          <div class="call-meta">${timeStr} · ${responders} approved${pending?` · <span style="color:var(--amber);">${pending} pending</span>`:''}
+          </div>
         </div>
         <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':'badge-gray'}">${call.status.toUpperCase()}</span>
       </div>
     </div>`;
 
-  const carInfo=call.carMake?`<span class="vehicle-tag">🚗 ${call.carYear||''} ${call.carMake.replace('_',' ')} ${call.carModel} ${call.carColor||''}`.trim()+'</span>':'';
+  const carInfo=call.carMake?`<span class="vehicle-tag">🚗 ${[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ')}</span>`:'';
   const vehicleInfo=(call.assignedVehicles||[]).map(v=>`<span class="vehicle-tag">🚐 ${v}</span>`).join('');
+
+  // Respond button state
+  let respondBtn='';
+  if(call.status!=='done'&&!isDraft) {
+    if(iAmApproved) {
+      respondBtn=`<button class="call-btn" style="background:#dcfce7;color:var(--green);" disabled>✅ Approved</button>`;
+    } else if(iAmPending) {
+      respondBtn=`<button class="call-btn" style="background:#fef3c7;color:var(--amber);" disabled>⏳ Pending</button>`;
+    } else {
+      respondBtn=`<button class="call-btn" style="background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();openRespondModal('${call.id}')">✋ Respond</button>`;
+    }
+  }
 
   return `
     <div class="call-card ${call.priority==='urgent'?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
@@ -1334,17 +1357,19 @@ function callCardHTML(call, mini=false) {
           <span class="call-num">#${call.id.slice(-5)}</span>
           ${hasBackup?`<span class="backup-tag">🆘 BACKUP</span>`:''}
           ${rrCount>0?`<span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;">↻${rrCount}</span>`:''}
+          ${isDispatch&&pending>0?`<span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;">⏳${pending}</span>`:''}
           <div class="call-type" style="color:${call.priority==='urgent'?'var(--red)':townColor};margin-top:2px;">${typeLabel}${isDraft?'<span class="obs-badge" style="margin-left:6px;">DRAFT</span>':''}</div>
         </div>
         <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':'badge-gray'}">${call.status.toUpperCase()}</span>
       </div>
       <div class="call-address">${call.address}</div>
-      <div class="call-meta" style="margin-top:2px;">${call.town} · ${timeStr}</div>
+      <div class="call-meta" style="margin-top:2px;">${call.town} · ${timeStr} · ${responders} approved${pending?` · <span style="color:var(--amber);">${pending} pending</span>`:''}
+      </div>
       ${carInfo?`<div style="margin-top:6px;">${carInfo}</div>`:''}
       ${vehicleInfo?`<div style="margin-top:4px;">${vehicleInfo}</div>`:''}
       ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:6px;background:var(--border2);padding:6px 10px;border-radius:6px;">${call.notes}</div>`:''}
       <div class="call-actions">
-        ${call.status!=='done'&&!isDraft?`<button class="call-btn" style="background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();openRespondModal('${call.id}')">✋ Respond</button>`:''}
+        ${respondBtn}
         <button class="call-btn" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details →</button>
         ${call.address?`<button class="call-btn" style="background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">🗺️</button>`:''}
         ${call.phone?`<button class="call-btn" style="background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞</button>`:''}
@@ -1403,6 +1428,8 @@ function createCall() {
     status: dontPublish?'draft':'open',
     createdAt: Date.now(),
     responders: [],
+    pendingResponders: [],
+    rejectedResponders: [],
     backupRequests: [],
     assignedVehicles: [],
     createdBy: SESSION.unit,
@@ -1432,24 +1459,40 @@ function createCall() {
 }
 
 function buildDispatchWhatsApp(call) {
-  const type=CALL_TYPE_LABELS[call.type]||call.type;
+  const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
   const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
-  let msg=`🚨 *COBC Dispatch Alert*\n`;
-  msg+=`*${type}*\n`;
+  const appLink=`https://aryehw330-lgtm.github.io/cobc-dispatch/`;
+  let msg=`🚨 *COBC DISPATCH*\n`;
+  msg+=`━━━━━━━━━━━━━━━\n`;
+  msg+=`*${typeLabel.replace(/[🚗🔑⚡💧❄️⚡🚐🏥📋]/gu,'').trim()}*\n`;
   msg+=`📍 ${call.address}, ${call.town}\n`;
-  msg+=`🗺️ ${mapLink}\n`;
-  if(call.caller) msg+=`👤 ${call.caller}`;
-  if(call.phone) msg+=` · 📞 ${call.phone}`;
-  msg+=`\n`;
-  if(call.carMake) msg+=`🚗 ${call.carYear||''} ${call.carMake.replace('_',' ')} ${call.carModel} ${call.carColor||''}`.trim()+`\n`;
+  if(call.carMake) {
+    const carStr=[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ');
+    msg+=`🚗 ${carStr}\n`;
+  }
+  if(call.caller||call.phone) {
+    if(call.caller) msg+=`👤 ${call.caller}`;
+    if(call.phone) msg+=`${call.caller?' · ':''}📞 ${call.phone}`;
+    msg+=`\n`;
+  }
   if(call.notes) msg+=`📝 ${call.notes}\n`;
-  if(call.priority==='urgent') msg+=`⚠️ *URGENT*\n`;
-  msg+=`\n_Call #${call.id.slice(-5)} · ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}_`;
+  if(call.priority==='urgent') msg+=`🔴 *URGENT*\n`;
+  msg+=`━━━━━━━━━━━━━━━\n`;
+  msg+=`🗺️ ${mapLink}\n`;
+  msg+=`📲 ${appLink}\n`;
+  msg+=`_#${call.id.slice(-5)} · ${new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}_`;
   return msg;
 }
 
-// ── Respond ──
+// ── Member requests to respond (PENDING — needs dispatch approval) ──
 function openRespondModal(id) {
+  const call=STATE.calls.find(c=>c.id===id);
+  if(call) {
+    const alreadyApproved=(call.responders||[]).find(r=>String(r.unit)===String(SESSION.unit));
+    const alreadyPending=(call.pendingResponders||[]).find(r=>String(r.unit)===String(SESSION.unit));
+    if(alreadyApproved){showToast('✅ You are already approved on this call');return;}
+    if(alreadyPending){showToast('⏳ Your request is pending dispatch approval');return;}
+  }
   document.getElementById('respondCallId').value=id;
   document.getElementById('respondETA').value='10';
   document.getElementById('respondNotes').value='';
@@ -1460,21 +1503,73 @@ function confirmRespond() {
   const id=document.getElementById('respondCallId').value;
   const eta=document.getElementById('respondETA').value||'10';
   const notes=document.getElementById('respondNotes').value.trim();
-  const sendWA=document.getElementById('sendETANotif').checked;
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  const already=call.responders.find(r=>r.unit===SESSION.unit);
-  if(already) { showToast('Already responding'); hideModal('respondModal'); return; }
-  call.responders.push({unit:SESSION.unit,name:SESSION.name,eta,notes,time:Date.now()});
-  call.status='active';
+  const isObserver=SESSION.role==='observer';
+  call.pendingResponders=call.pendingResponders||[];
+  call.pendingResponders.push({unit:SESSION.unit,name:SESSION.name,eta,notes,isObserver,time:Date.now(),status:'pending'});
   save(); hideModal('respondModal');
   renderCalls(); renderHome();
-  showToast(`✋ Responding — ETA ${eta} min`);
-  if (sendWA) {
-    const od=STATE.onDuty||{};
-    const msg=`✋ *BC ${SESSION.unit} Responding*\n${SESSION.name}\nETA: ${eta} min\nCall: ${CALL_TYPE_LABELS[call.type]||call.type} at ${call.address}, ${call.town}${notes?`\n📝 ${notes}`:''}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+  showToast('⏳ Request sent — awaiting dispatch approval');
+  // Notify dispatcher via WhatsApp
+  const od=STATE.onDuty||{};
+  const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
+  const waMsg=`✋ *Response Request — Needs Approval*\nBC-${SESSION.unit} ${SESSION.name}${isObserver?' _(Observer)_':''}\n${typeLabel.replace(/[🚗🔑⚡💧❄️🚐🏥📋]/gu,'').trim()} at ${call.address}, ${call.town}\nETA: ${eta} min${notes?`\n📝 ${notes}`:''}\n\n_Please approve or reject in the COBC app_`;
+  const dispPhone=od.phone?od.phone.replace(/\D/g,''):'';
+  window.open(dispPhone?`https://wa.me/${dispPhone}?text=${encodeURIComponent(waMsg)}`:`https://wa.me/?text=${encodeURIComponent(waMsg)}`,'_blank');
+}
+
+// ── Dispatcher approves a pending responder ──
+function approveResponder(callId,unit) {
+  const call=STATE.calls.find(c=>c.id===callId);
+  if(!call) return;
+  const req=(call.pendingResponders||[]).find(r=>String(r.unit)===String(unit));
+  if(!req) return;
+  call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
+  call.responders=call.responders||[];
+  call.responders.push({...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()});
+  call.status='active';
+  save(); renderCalls(); renderHome();
+  showToast(`✅ BC-${unit} ${req.name} approved`);
+  // WhatsApp to group
+  const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
+  const groupMsg=`✅ *BC-${unit} ${req.name} is responding*\n${typeLabel.replace(/[🚗🔑⚡💧❄️🚐🏥📋]/gu,'').trim()} — ${call.address}, ${call.town}\nETA: ${req.eta} min${req.notes?`\n📝 ${req.notes}`:''}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(groupMsg)}`,'_blank');
+  // Personal message to member
+  const m=STATE.members.find(x=>String(x.unit)===String(unit));
+  if(m?.phone) {
+    setTimeout(()=>{
+      if(confirm(`Also send personal confirmation to BC-${unit} ${req.name}?`)) {
+        const personalMsg=`✅ You have been approved to respond\n${typeLabel.replace(/[🚗🔑⚡💧❄️🚐🏥📋]/gu,'').trim()} at ${call.address}, ${call.town}\nETA: ${req.eta} min\n\nStay safe! — COBC Dispatch`;
+        window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(personalMsg)}`,'_blank');
+      }
+    },600);
   }
+  openCallDetail(callId);
+}
+
+// ── Dispatcher rejects a pending responder ──
+function rejectResponder(callId,unit) {
+  const call=STATE.calls.find(c=>c.id===callId);
+  if(!call) return;
+  const req=(call.pendingResponders||[]).find(r=>String(r.unit)===String(unit));
+  if(!req) return;
+  call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
+  call.rejectedResponders=call.rejectedResponders||[];
+  call.rejectedResponders.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:Date.now()});
+  save(); renderCalls(); renderHome();
+  showToast(`❌ BC-${unit} rejected`);
+  const m=STATE.members.find(x=>String(x.unit)===String(unit));
+  if(m?.phone) {
+    setTimeout(()=>{
+      if(confirm(`Send rejection message to BC-${unit} ${req.name}?`)) {
+        const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
+        const msg=`We have enough coverage for the ${typeLabel.replace(/[🚗🔑⚡💧❄️🚐🏥📋]/gu,'').trim()} call at ${call.address}. Thank you for offering! — COBC Dispatch`;
+        window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
+      }
+    },300);
+  }
+  openCallDetail(callId);
 }
 
 // ── Backup Request ──
@@ -1562,16 +1657,38 @@ function openCallDetail(id) {
     ${call.notes?`<div class="detail-row"><span class="detail-key">Notes</span><span class="detail-val">${call.notes}</span></div>`:''}
   </div>`;
 
-  // Responders — tap name to call
+  // ── Pending Responders (dispatch approval queue) ──
+  const pending=call.pendingResponders||[];
+  if(pending.length) {
+    html+=`<div class="section-label" style="color:var(--amber);">⏳ Pending Approval (${pending.length})</div>`;
+    pending.forEach(r=>{
+      const m=STATE.members.find(x=>String(x.unit)===String(r.unit));
+      html+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 14px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div>
+            <div style="font-size:14px;font-weight:700;">BC-${r.unit} ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
+            <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${r.notes?` · ${r.notes}`:''} · ${new Date(r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>
+          </div>
+          ${m?.phone?`<button class="responder-call-btn" onclick="window.location='tel:${m.phone}'">📞</button>`:''}
+        </div>
+        ${isDispatch?`<div style="display:flex;gap:8px;">
+          <button class="btn-full btn-green" style="padding:9px;font-size:13px;" onclick="approveResponder('${id}','${r.unit}')">✅ Approve</button>
+          <button class="btn-full btn-danger" style="padding:9px;font-size:13px;" onclick="rejectResponder('${id}','${r.unit}')">❌ Reject</button>
+        </div>`:`<div style="font-size:12px;color:var(--amber);font-weight:600;">⏳ Awaiting dispatch approval</div>`}
+      </div>`;
+    });
+  }
+
+  // ── Approved Responders ──
   const resp=call.responders||[];
-  html+=`<div class="section-label">Responders (${resp.length})</div>`;
+  html+=`<div class="section-label">✅ Approved Responders (${resp.length})</div>`;
   if(resp.length) {
     resp.forEach(r=>{
       const m=STATE.members.find(x=>String(x.unit)===String(r.unit));
       const phone=m?.phone||null;
       html+=`<div class="responder-row">
         <div style="flex:1;">
-          <div style="font-size:14px;font-weight:700;">BC ${r.unit}${r.via==='radio'?' 📻':''} — ${r.name}</div>
+          <div style="font-size:14px;font-weight:700;">BC-${r.unit}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
           <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
         </div>
         ${phone?`<button class="responder-call-btn" onclick="window.location='tel:${phone}'">📞 Call</button>`:''}
@@ -2606,7 +2723,7 @@ function renderInventory() {
   el.innerHTML=items.length?items.map(e=>`
     <div class="eq-row" onclick="openEqItem('${e.id}')">
       <span class="eq-status-dot ${e.status==='out'?'out':e.condition==='missing'?'missing':e.condition==='damaged'?'damaged':'in'}"></span>
-      <div style="flex:1;min-width:0;"><div class="eq-name">${e.name} <span class="mono" style="font-size:10px;color:var(--text3)">${e.id}</span></div><div class="eq-loc">${e.location}</div></div>
+      <div style="flex:1;min-width:0;"><div class="eq-name">${e.name}</div><div class="eq-loc">${e.location}</div></div>
       <span class="badge ${e.status==='out'?'badge-red':e.condition==='damaged'?'badge-purple':e.condition==='missing'?'badge-amber':'badge-green'}">${e.status==='out'?'OUT':e.condition==='ok'?'OK':e.condition.toUpperCase()}</span>
     </div>`).join(''):
     '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No items found</div></div>';
@@ -2629,10 +2746,9 @@ function openEqItem(id) {
 
   let html=`<div class="modal-title">${eq.name}</div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
-      <span class="mono badge badge-gray" style="font-size:10px;">${eq.id}${eq.row?` · Row ${eq.row}`:''}</span>
       <span class="badge ${eq.status==='out'?'badge-red':'badge-green'}">${eq.status==='out'?'OUT ↑':'IN ✓'}</span>
       <span class="badge ${equipStatusColors[equipStatus]||'badge-gray'}">${equipStatus}</span>
-      ${eq.fromSheet?'<span class="badge badge-blue" style="font-size:10px;">📊 Sheet</span>':''}
+      ${eq.fromSheet?'<span class="badge badge-blue" style="font-size:10px;">📊 Live</span>':''}
     </div>
 
     <div class="detail-section">
@@ -2799,6 +2915,7 @@ async function loadInventoryFromSheet() {
       save();
       renderEquipmentDashboard();
       renderInventory();
+      renderChecklist(); // re-populate with real locations from sheet
       renderHome();
       showSheetStatus('ok', `${data.items.length} items synced`);
     }
@@ -2915,13 +3032,22 @@ async function setCondition(id,cond) {
   }
 }
 
+function getActiveLocations() {
+  // Only return locations that actually have items in the current inventory
+  // This ensures checklist always reflects the real sheet, not a hardcoded list
+  const locs = [...new Set(STATE.equipment.map(e=>e.location).filter(Boolean))];
+  return locs.sort();
+}
+
 function renderChecklist() {
   const sel=document.getElementById('checklistLocation');
   if(!sel) return;
   const cur=sel.value;
-  sel.innerHTML='<option value="">-- Select --</option>'+STATE.locations.map(l=>`<option value="${l}">${l}</option>`).join('');
-  if(cur) sel.value=cur;
-  if(cur) renderChecklistItems(cur);
+  const activeLocs = getActiveLocations();
+  sel.innerHTML='<option value="">-- Select Location --</option>'+
+    activeLocs.map(l=>`<option value="${l}">${l} (${STATE.equipment.filter(e=>e.location===l).length})</option>`).join('');
+  if(cur && activeLocs.includes(cur)) sel.value=cur;
+  if(sel.value) renderChecklistItems(sel.value);
 }
 
 function renderChecklistItems(loc) {
@@ -3061,7 +3187,7 @@ function renderAdminEquipment() {
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
       <span class="eq-status-dot ${e.status==='out'?'out':'in'}"></span>
       <div style="flex:1;font-size:13px;font-weight:600;">${e.name}</div>
-      <span class="mono" style="font-size:10px;color:var(--text3);">${e.id}</span>
+      <span style="font-size:11px;color:var(--text3);">${e.location}</span>
       <button class="btn-sm btn-danger" style="font-size:11px;padding:4px 8px;" onclick="deleteEquipment('${e.id}')">✕</button>
     </div>`).join('');
 }
@@ -3102,13 +3228,15 @@ function deleteEquipment(id) {
 }
 
 function populateLocationSelects() {
-  ['newEqLoc','checklistLocation'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(!el) return;
-    const cur=el.value;
-    el.innerHTML=(id==='checklistLocation'?'<option value="">-- Select --</option>':'')+STATE.locations.map(l=>`<option value="${l}">${l}</option>`).join('');
-    if(cur) el.value=cur;
-  });
+  // Admin "add item" dropdown — full location list
+  const newEqLoc = document.getElementById('newEqLoc');
+  if(newEqLoc) {
+    const cur=newEqLoc.value;
+    newEqLoc.innerHTML=STATE.locations.map(l=>`<option value="${l}">${l}</option>`).join('');
+    if(cur) newEqLoc.value=cur;
+  }
+  // Checklist — only locations that have real items
+  renderChecklist();
 }
 
 function renderLocations() {
