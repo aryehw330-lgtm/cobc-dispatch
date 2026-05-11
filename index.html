@@ -1306,7 +1306,7 @@ function setDispatchFilter(f,el) {
 }
 
 function callCardHTML(call, mini=false) {
-  const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
+  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
   const timeStr=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   const responders=(call.responders||[]).length;
   const pending=(call.pendingResponders||[]).length;
@@ -1458,29 +1458,32 @@ function createCall() {
   renderCalls(); renderHome();
 }
 
+function cleanLabel(s) {
+  // Remove emoji for WhatsApp compatibility
+  return (s||'').replace(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu,'').replace(/\s+/g,' ').trim();
+}
 function buildDispatchWhatsApp(call) {
-  const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
+  // Strip emoji from type label (e.g. "🚗 Flat Tire" → "Flat Tire")
+  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
   const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
   const appLink=`https://aryehw330-lgtm.github.io/cobc-dispatch/`;
-  let msg=`🚨 *COBC DISPATCH*\n`;
-  msg+=`━━━━━━━━━━━━━━━\n`;
-  msg+=`*${typeLabel.replace(/[🚗🔑⚡💧❄️⚡🚐🏥📋]/gu,'').trim()}*\n`;
-  msg+=`📍 ${call.address}, ${call.town}\n`;
+  const time=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+  let msg=`*COBC DISPATCH*\n`;
+  msg+=`*${typeLabel}*\n`;
+  msg+=`Address: ${call.address}, ${call.town}\n`;
   if(call.carMake) {
     const carStr=[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ');
-    msg+=`🚗 ${carStr}\n`;
+    msg+=`Vehicle: ${carStr}\n`;
   }
-  if(call.caller||call.phone) {
-    if(call.caller) msg+=`👤 ${call.caller}`;
-    if(call.phone) msg+=`${call.caller?' · ':''}📞 ${call.phone}`;
-    msg+=`\n`;
-  }
-  if(call.notes) msg+=`📝 ${call.notes}\n`;
-  if(call.priority==='urgent') msg+=`🔴 *URGENT*\n`;
-  msg+=`━━━━━━━━━━━━━━━\n`;
-  msg+=`🗺️ ${mapLink}\n`;
-  msg+=`📲 ${appLink}\n`;
-  msg+=`_#${call.id.slice(-5)} · ${new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}_`;
+  if(call.caller) msg+=`Caller: ${call.caller}\n`;
+  if(call.phone)  msg+=`Phone: ${call.phone}\n`;
+  if(call.notes)  msg+=`Notes: ${call.notes}\n`;
+  if(call.priority==='urgent') msg+=`*-- URGENT --*\n`;
+  msg+=`\n`;
+  msg+=`Map: ${mapLink}\n`;
+  msg+=`App: ${appLink}\n`;
+  msg+=`_#${call.id.slice(-5)} · ${time}_`;
   return msg;
 }
 
@@ -1513,8 +1516,8 @@ function confirmRespond() {
   showToast('⏳ Request sent — awaiting dispatch approval');
   // Notify dispatcher via WhatsApp
   const od=STATE.onDuty||{};
-  const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
-  const waMsg=`✋ *Response Request — Needs Approval*\nBC-${SESSION.unit} ${SESSION.name}${isObserver?' _(Observer)_':''}\n${typeLabel.replace(/[🚗🔑⚡💧❄️🚐🏥📋]/gu,'').trim()} at ${call.address}, ${call.town}\nETA: ${eta} min${notes?`\n📝 ${notes}`:''}\n\n_Please approve or reject in the COBC app_`;
+  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+  const waMsg=`*Response Request - Needs Approval*\nBC-${SESSION.unit} ${SESSION.name}${isObserver?' (Observer)':''}\n${typeLabel} at ${call.address}, ${call.town}\nETA: ${eta} min${notes?'\nNotes: '+notes:''}\n\n_Please approve or reject in the COBC app_`;
   const dispPhone=od.phone?od.phone.replace(/\D/g,''):'';
   window.open(dispPhone?`https://wa.me/${dispPhone}?text=${encodeURIComponent(waMsg)}`:`https://wa.me/?text=${encodeURIComponent(waMsg)}`,'_blank');
 }
@@ -1532,15 +1535,15 @@ function approveResponder(callId,unit) {
   save(); renderCalls(); renderHome();
   showToast(`✅ BC-${unit} ${req.name} approved`);
   // WhatsApp to group
-  const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
-  const groupMsg=`✅ *BC-${unit} ${req.name} is responding*\n${typeLabel.replace(/[🚗🔑⚡💧❄️🚐🏥📋]/gu,'').trim()} — ${call.address}, ${call.town}\nETA: ${req.eta} min${req.notes?`\n📝 ${req.notes}`:''}`;
+  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+  const groupMsg=`*BC-${unit} ${req.name} is responding*\n${typeLabel} — ${call.address}, ${call.town}\nETA: ${req.eta} min${req.notes?'\nNotes: '+req.notes:''}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(groupMsg)}`,'_blank');
   // Personal message to member
   const m=STATE.members.find(x=>String(x.unit)===String(unit));
   if(m?.phone) {
     setTimeout(()=>{
       if(confirm(`Also send personal confirmation to BC-${unit} ${req.name}?`)) {
-        const personalMsg=`✅ You have been approved to respond\n${typeLabel.replace(/[🚗🔑⚡💧❄️🚐🏥📋]/gu,'').trim()} at ${call.address}, ${call.town}\nETA: ${req.eta} min\n\nStay safe! — COBC Dispatch`;
+        const personalMsg=`You have been approved to respond\n${typeLabel} at ${call.address}, ${call.town}\nETA: ${req.eta} min\n\nStay safe! — COBC Dispatch`;
         window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(personalMsg)}`,'_blank');
       }
     },600);
@@ -1563,8 +1566,8 @@ function rejectResponder(callId,unit) {
   if(m?.phone) {
     setTimeout(()=>{
       if(confirm(`Send rejection message to BC-${unit} ${req.name}?`)) {
-        const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
-        const msg=`We have enough coverage for the ${typeLabel.replace(/[🚗🔑⚡💧❄️🚐🏥📋]/gu,'').trim()} call at ${call.address}. Thank you for offering! — COBC Dispatch`;
+        const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+        const msg=`We have enough coverage for the ${typeLabel} call at ${call.address}. Thank you for offering! — COBC Dispatch`;
         window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
       }
     },300);
@@ -1630,7 +1633,7 @@ function openCallDetail(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   const isDispatch=['admin','dispatch'].includes(SESSION.role);
-  const typeLabel=CALL_TYPE_LABELS[call.type]||call.type;
+  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
   const timeStr=new Date(call.createdAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   const townColor=TOWN_COLORS[call.town]||'var(--text3)';
   const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
