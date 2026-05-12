@@ -308,6 +308,84 @@ textarea.input{min-height:80px;resize:vertical;}
 .alltime-lbl{font-size:12px;color:rgba(255,255,255,.6);font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;}
 .alltime-sub{font-size:11px;color:rgba(255,255,255,.4);margin-top:6px;}
 
+
+/* Quick type buttons */
+.qtype-btn{padding:10px 6px;border-radius:10px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all .15s;font-family:inherit;line-height:1.3;}
+.qtype-btn:active{transform:scale(.95);}
+.qtype-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+.qtype-btn.urgent-active{background:var(--red);border-color:var(--red);color:#fff;}
+
+.eta-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
+.eta-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+.call-card{background:#fff;border-radius:14px;margin-bottom:10px;box-shadow:var(--shadow-md);overflow:hidden;cursor:pointer;transition:transform .1s,box-shadow .1s;}
+.call-card:active{transform:scale(.99);}
+.call-card.urgent{border:2px solid var(--red);}
+.call-card-header{padding:12px 14px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.call-card-type{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
+.call-card-addr{font-size:13px;color:var(--text2);margin-top:2px;}
+.call-card-meta{font-size:11px;color:var(--text3);margin-top:4px;}
+.call-card-footer{padding:8px 14px;border-top:1px solid var(--border2);display:flex;gap:6px;background:#fafbfc;}
+.call-action{flex:1;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;}
+.call-action:active{opacity:.8;}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+.status-dot.open{background:var(--amber);}
+.status-dot.active{background:var(--green);}
+.status-dot.done{background:var(--text3);}
+.status-dot.draft{background:var(--purple);}
+.pending-badge{background:#fef3c7;color:#92400e;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;}
+.approved-badge{background:#dcfce7;color:#166534;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;}
+
+/* Professional polish */
+.input{border-radius:10px;border:1.5px solid var(--border);padding:12px 14px;font-size:15px;font-family:'DM Sans',sans-serif;outline:none;width:100%;background:#fff;transition:border-color .15s,box-shadow .15s;}
+.input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.input-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px;}
+.input-group{margin-bottom:12px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(15,37,64,.6);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:flex-end;justify-content:center;transition:opacity .2s;}
+.modal-overlay.hidden{display:none;}
+.modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:90dvh;overflow-y:auto;padding:12px 20px 32px;padding-bottom:max(32px,env(safe-area-inset-bottom));}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}
+/* Section headers */
+.section-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 8px;}
+/* Member cards */
+.member-card{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;}
+.member-avatar{width:40px;height:40px;border-radius:10px;background:var(--navy);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;}
+/* Responder row */
+.responder-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border-radius:10px;margin-bottom:6px;}
+.responder-call-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:13px;cursor:pointer;font-family:inherit;}
+/* Alert banners */
+.alert{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:10px;margin-bottom:8px;}
+.alert-blue{background:#eff6ff;border-left:3px solid var(--blue);}
+.alert-green{background:#f0fdf4;border-left:3px solid var(--green);}
+.alert-amber{background:#fffbeb;border-left:3px solid var(--amber);}
+.alert-red{background:#fef2f2;border-left:3px solid var(--red);}
+.alert-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+.alert-body .alert-title{font-size:13px;font-weight:700;color:var(--text);}
+.alert-body .alert-sub{font-size:12px;color:var(--text2);margin-top:2px;}
+/* Sub tabs */
+.sub-tabs{display:flex;background:#fff;border-radius:10px;padding:3px;margin-bottom:14px;box-shadow:var(--shadow);}
+.sub-tab{flex:1;padding:8px 4px;border:none;background:none;border-radius:8px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;color:var(--text3);transition:all .15s;}
+.sub-tab.active{background:var(--navy);color:#fff;}
+/* Filter chips */
+.filter-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none;}
+.filter-chips::-webkit-scrollbar{display:none;}
+.chip{flex-shrink:0;padding:6px 14px;border-radius:20px;background:#fff;border:1.5px solid var(--border);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.chip.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+/* Search bar */
+.search-bar{position:relative;margin-bottom:12px;}
+.search-bar .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:15px;pointer-events:none;}
+.search-bar input{padding-left:38px;}
+/* Empty state */
+.empty-state{text-align:center;padding:40px 20px;color:var(--text3);}
+.empty-icon{font-size:40px;margin-bottom:10px;}
+.empty-text{font-size:15px;font-weight:500;}
+/* Login screen */
+.login-input{width:100%;background:#fff;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;font-size:16px;color:#fff;font-family:inherit;outline:none;margin-bottom:10px;transition:border-color .15s;backdrop-filter:blur(10px);background:rgba(255,255,255,.1);}
+.login-input:focus{border-color:rgba(255,255,255,.5);}
+.login-input::placeholder{color:rgba(255,255,255,.4);}
+.login-btn{width:100%;padding:15px;background:#fff;color:var(--navy);border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;transition:opacity .15s;}
+.login-btn:active{opacity:.9;}
+
 </style>
 </head>
 <body>
@@ -321,7 +399,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.6);margin-bottom:6px;">Members — enter your BC# only</div>
     <div style="font-size:11px;color:rgba(255,255,255,.35);margin-bottom:14px;">Dispatch / Admin / Equipment — select role + password</div>
     <div class="login-roles" id="roleChips">
-      <div class="role-chip active" data-role="member">👤 Member</div>
+      <div class="role-chip active" data-role="member">Caller: Member</div>
       <div class="role-chip" data-role="dispatch">📡 Dispatch</div>
       <div class="role-chip" data-role="equipment">📦 Equipment</div>
       <div class="role-chip" data-role="admin">⚙️ Admin</div>
@@ -365,7 +443,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="on-duty-name" id="onDutyName">—</div>
           <div class="on-duty-sub" id="onDutyPhone">No dispatcher set</div>
         </div>
-        <button class="call-dispatch-btn" id="callDispatchBtn" onclick="callDispatchOnDuty()">📞 Call Dispatch</button>
+        <button class="call-dispatch-btn" id="callDispatchBtn" onclick="callDispatchOnDuty()">Phone: Call Dispatch</button>
       </div>
       <!-- Stats strip -->
       <div class="scroll-row">
@@ -396,7 +474,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- On duty compact -->
       <div id="dispatchOnDutyRow" style="display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:12px;box-shadow:var(--shadow);">
         <div style="font-size:13px;"><span style="color:var(--text3);font-weight:600;">On Duty: </span><span style="font-weight:700;" id="dispOnDutyName">—</span></div>
-        <button class="btn-sm btn-green" style="font-size:12px;padding:6px 12px;" onclick="callDispatchOnDuty()">📞 Call</button>
+        <button class="btn-sm btn-green" style="font-size:12px;padding:6px 12px;" onclick="callDispatchOnDuty()">Phone: Call</button>
       </div>
       <!-- Filter: In Progress first, then Open -->
       <div class="filter-chips" id="dispatchFilters">
@@ -508,7 +586,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="page hidden" id="page-more">
       <div class="section-header"><div class="section-title">More</div></div>
       <div class="sub-tabs">
-        <button class="sub-tab" onclick="setMoreTab('numbers',this)">📞 Numbers</button>
+        <button class="sub-tab" onclick="setMoreTab('numbers',this)">Phone: Numbers</button>
         <button class="sub-tab active" onclick="setMoreTab('stats',this)">📊 Stats</button>
         <button class="sub-tab" onclick="setMoreTab('schedule',this)">📅 Schedule</button>
         <button class="sub-tab" onclick="setMoreTab('vehicles',this)">🚐 Vehicles</button>
@@ -582,7 +660,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <div class="chart-wrap"><canvas id="ch-hour"></canvas></div>
           </div>
           <div class="chart-card">
-            <div class="chart-title">📍 Top Locations</div>
+            <div class="chart-title">Top Locations</div>
             <div id="st-cities"></div>
           </div>
           <div class="chart-card">
@@ -791,92 +869,109 @@ textarea.input{min-height:80px;resize:vertical;}
 
 <!-- New Call -->
 <div class="modal-overlay hidden" id="newCallModal">
-  <div class="modal">
+  <div class="modal" style="max-height:92dvh;">
     <div class="modal-handle"></div>
-    <div class="modal-title">🚨 New Dispatch Call</div>
-    <div class="input-group">
-      <label class="input-label">Call Type</label>
-      <select class="input" id="callType" onchange="handleCallTypeChange()">
-        <option value="flat_tire_spare">Flat Tire - Has Spare</option><option value="flat_tire_no_spare">Flat Tire - No Spare</option>
-        <option value="lockout">🔑 Lockout</option>
-        <option value="jump_start">⚡ Jump Start</option>
-        <option value="flood">💧 Flood</option>
-        <option value="ac_heat">❄️ A/C or Heat</option>
-        <option value="generator">⚡ Generator</option>
-        <option value="transport">🚐 Transport</option>
-        <option value="welfare">🏥 Welfare Check</option>
-        <option value="other">📋 Other</option>
-      </select>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:18px;font-weight:700;color:var(--text);">New Dispatch Call</div>
+      <button onclick="hideModal('newCallModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">x</button>
     </div>
-    <!-- Car info (flat tire / lockout / jump) -->
-    <div id="carInfoSection" style="display:none;">
-      <div class="input-group">
-        <label class="input-label">Car Make</label>
-        <select class="input" id="carMake" onchange="populateModels()">
-          <option value="">-- Select Make --</option>
-        </select>
+
+    <!-- QUICK TYPE GRID -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;" id="callTypeGrid">
+      <button class="qtype-btn active" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
+      <button class="qtype-btn" onclick="selectCallType('flat_tire_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">Has Spare</span></button>
+      <button class="qtype-btn" onclick="selectCallType('lockout',this)">Lockout</button>
+      <button class="qtype-btn" onclick="selectCallType('jump_start',this)">Jump Start</button>
+      <button class="qtype-btn" onclick="selectCallType('flood',this)">Flood</button>
+      <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
+    </div>
+    <input type="hidden" id="callType" value="flat_tire_no_spare"/>
+
+    <!-- OTHER TYPE WRITE-IN -->
+    <div id="otherTypeGroup" style="display:none;" class="input-group">
+      <label class="input-label">Describe Call Type</label>
+      <input class="input" type="text" id="otherTypeText" placeholder="e.g. Welfare check, stuck in mud..."/>
+    </div>
+
+    <!-- CAR INFO (shown for tire/lockout/jump) -->
+    <div id="carInfoSection">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Make</label>
+          <input class="input" type="text" id="carMake" list="carMakeList" placeholder="Toyota, Honda..." autocomplete="off"/>
+          <datalist id="carMakeList"></datalist>
+        </div>
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Model</label>
+          <input class="input" type="text" id="carModel" placeholder="Camry, Civic..." autocomplete="off"/>
+        </div>
       </div>
-      <div class="input-group">
-        <label class="input-label">Car Model</label>
-        <select class="input" id="carModel">
-          <option value="">-- Select Model --</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label class="input-label">Car Year (optional)</label>
-        <input class="input" type="number" id="carYear" placeholder="e.g. 2019" min="1990" max="2030"/>
-      </div>
-      <div class="input-group">
-        <label class="input-label">Car Color (optional)</label>
-        <input class="input" type="text" id="carColor" placeholder="Silver, Black…"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Year</label>
+          <input class="input" type="number" id="carYear" placeholder="2020" min="1990" max="2030"/>
+        </div>
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Color</label>
+          <input class="input" type="text" id="carColor" placeholder="Silver, Black..."/>
+        </div>
       </div>
     </div>
+
+    <!-- ADDRESS + TOWN in one row -->
     <div class="input-group">
       <label class="input-label">Address</label>
-      <input class="input" type="text" id="callAddress" placeholder="123 Main St"/>
+      <input class="input" type="text" id="callAddress" placeholder="123 Main St" autocomplete="off"/>
     </div>
-    <div class="input-group">
-      <label class="input-label">Town</label>
-      <select class="input" id="callTown" onchange="document.getElementById('callTownOther').style.display=this.value==='Other'?'block':'none'">
-        <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option><option>Fort Lee</option>
-        <option>Hackensack</option><option>Paramus</option><option>Ridgefield Park</option><option>Palisades Park</option>
-        <option>Leonia</option><option>Bogota</option><option>Fairview</option><option>Edgewater</option><option>Other</option>
-      </select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label class="input-label">Town</label>
+        <select class="input" id="callTown" onchange="document.getElementById('callTownOther').style.display=this.value==='Other'?'block':'none'">
+          <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option>
+          <option>Fort Lee</option><option>Hackensack</option><option>Paramus</option>
+          <option>Ridgefield Park</option><option>Palisades Park</option><option>Leonia</option>
+          <option>Bogota</option><option>Fairview</option><option>Edgewater</option><option>Other</option>
+        </select>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label class="input-label">Priority</label>
+        <select class="input" id="callPriority">
+          <option value="normal">Normal</option>
+          <option value="urgent">URGENT</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
     </div>
-    <div class="input-group" id="callTownOther" style="display:none;">
+    <div id="callTownOther" style="display:none;" class="input-group">
       <label class="input-label">Specify Town</label>
       <input class="input" type="text" id="callTownText" placeholder="Enter town name..."/>
     </div>
-    <div class="input-group">
-      <label class="input-label">Caller Name</label>
-      <input class="input" type="text" id="callCaller" placeholder="Caller's name"/>
-    </div>
-    <div class="input-group">
-      <label class="input-label">Caller Phone</label>
-      <input class="input" type="tel" id="callPhone" placeholder="Phone number"/>
-    </div>
-    <div class="input-group">
-      <label class="input-label">Priority</label>
-      <select class="input" id="callPriority">
-        <option value="normal">Normal</option>
-        <option value="urgent">🔴 Urgent</option>
-        <option value="low">Low</option>
-      </select>
-    </div>
-    <div class="input-group">
-      <label class="input-label">Notes</label>
-      <textarea class="input" id="callNotes" placeholder="Additional details…"></textarea>
-    </div>
-    <!-- Don't publish option -->
-    <div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
-      <input type="checkbox" id="callDontPublish" style="width:18px;height:18px;cursor:pointer;"/>
-      <div>
-        <div style="font-size:13px;font-weight:700;color:var(--text);">Don't Publish</div>
-        <div style="font-size:11px;color:var(--text3);">Save as draft — won't notify members</div>
+
+    <!-- CALLER INFO in one row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label class="input-label">Caller Name</label>
+        <input class="input" type="text" id="callCaller" placeholder="Name"/>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label class="input-label">Caller Phone</label>
+        <input class="input" type="tel" id="callPhone" placeholder="Phone"/>
       </div>
     </div>
-    <button class="btn-full btn-primary" style="margin-bottom:10px;" onclick="createCall()">Create Call</button>
-    <button class="btn-full btn-ghost" onclick="hideModal('newCallModal')">Cancel</button>
+
+    <div class="input-group">
+      <label class="input-label">Notes</label>
+      <textarea class="input" id="callNotes" placeholder="Additional details..." style="min-height:60px;resize:none;"></textarea>
+    </div>
+
+    <!-- Draft toggle -->
+    <div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:11px 14px;margin-bottom:14px;">
+      <input type="checkbox" id="callDontPublish" style="width:18px;height:18px;cursor:pointer;accent-color:var(--blue);"/>
+      <div><div style="font-size:13px;font-weight:600;">Save as Draft</div><div style="font-size:11px;color:var(--text3);">Won't dispatch to members</div></div>
+    </div>
+
+    <button class="btn-full btn-primary" onclick="createCall()" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);font-size:16px;font-weight:700;padding:16px;letter-spacing:-.2px;">Dispatch Call</button>
+    <button class="btn-full btn-ghost" onclick="hideModal('newCallModal')" style="margin-top:8px;">Cancel</button>
   </div>
 </div>
 
@@ -885,21 +980,27 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="modal"><div class="modal-handle"></div><div id="callDetailContent"></div></div>
 </div>
 
-<!-- ETA / Respond Modal -->
+<!-- Respond Modal -->
 <div class="modal-overlay hidden" id="respondModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">✋ Request to Respond</div>
-    <div class="alert alert-blue" style="margin-bottom:14px;"><span class="alert-icon">ℹ️</span><div class="alert-body"><div class="alert-title">Needs dispatch approval</div><div class="alert-sub">Your request will be sent to the on-duty dispatcher. You will be notified once approved.</div></div></div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:6px;">Request to Respond</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">Your request goes directly to the on-duty dispatcher for approval.</div>
     <input type="hidden" id="respondCallId"/>
-    <div class="input-group"><label class="input-label">Your ETA (minutes)</label><input class="input" type="number" id="respondETA" value="10" min="1" max="120"/></div>
-    <div class="input-group"><label class="input-label">Notes (optional)</label><input class="input" type="text" id="respondNotes" placeholder="Any notes…"/></div>
-    <!-- send ETA notification toggle -->
-    <div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
-      <input type="checkbox" id="sendETANotif" checked style="width:18px;height:18px;cursor:pointer;"/>
-      <div style="font-size:13px;font-weight:600;color:var(--text);">Send ETA to Dispatch via WhatsApp</div>
+    <!-- ETA quick buttons -->
+    <div class="input-label" style="margin-bottom:8px;">ETA</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;">
+      <button class="eta-btn active" onclick="setETA(5,this)">5 min</button>
+      <button class="eta-btn" onclick="setETA(10,this)">10 min</button>
+      <button class="eta-btn" onclick="setETA(15,this)">15 min</button>
+      <button class="eta-btn" onclick="setETA(20,this)">20 min</button>
     </div>
-    <button class="btn-full btn-primary" style="margin-bottom:10px;" onclick="confirmRespond()">Confirm Response</button>
+    <input type="hidden" id="respondETA" value="5"/>
+    <div class="input-group">
+      <label class="input-label">Notes (optional)</label>
+      <input class="input" type="text" id="respondNotes" placeholder="Coming from home, need 5 extra min..."/>
+    </div>
+    <button class="btn-full btn-green" onclick="confirmRespond()" style="font-size:15px;font-weight:700;padding:16px;margin-bottom:8px;">Send Request to Dispatcher</button>
     <button class="btn-full btn-ghost" onclick="hideModal('respondModal')">Cancel</button>
   </div>
 </div>
@@ -1078,7 +1179,172 @@ const ROLES = {
 // ── Seed Members (from Google Sheet — BC roster) ──
 const SEED_MEMBERS=[{"unit":"05","first":"Yehuda","last":"Miller","phone":"845-558-4497","role":"member","addedAt":1700000000000},{"unit":"06","first":"Chaim","last":"Huisman","phone":"201-456-7701","role":"member","addedAt":1700000000000},{"unit":"07","first":"Chaim","last":"Stadtmauer","phone":"973-865-0588","role":"member","addedAt":1700000000000},{"unit":"08","first":"Elliott","last":"Gilden","phone":"201-280-7062","role":"member","addedAt":1700000000000},{"unit":"09","first":"Edward","last":"Abramovitz","phone":"203-988-6334","role":"member","addedAt":1700000000000},{"unit":"10","first":"Yehuda","last":"Feig","phone":"201-491-3423","role":"member","addedAt":1700000000000},{"unit":"11","first":"Nosson","last":"Moldaver","phone":"732-233-8595","role":"member","addedAt":1700000000000},{"unit":"12","first":"David","last":"Roberts","phone":"201-562-7844","role":"member","addedAt":1700000000000},{"unit":"13","first":"Stuart","last":"Krupnik","phone":"347-371-1132","role":"member","addedAt":1700000000000},{"unit":"14","first":"Simon","last":"Berrebi","phone":"347-768-0807","role":"member","addedAt":1700000000000},{"unit":"15","first":"Moshe","last":"Kozlow","phone":"201-655-3279","role":"member","addedAt":1700000000000},{"unit":"16","first":"Ari","last":"Wartelsky","phone":"917-841-4115","role":"member","addedAt":1700000000000},{"unit":"17","first":"Motti","last":"Rosenthal","phone":"718-614-6002","role":"member","addedAt":1700000000000},{"unit":"18","first":"Ahron","last":"Mallin","phone":"917-596-9528","role":"member","addedAt":1700000000000},{"unit":"19","first":"Sruli","last":"Scharf","phone":"201-321-2073","role":"member","addedAt":1700000000000},{"unit":"20","first":"Burry","last":"Greenbaum","phone":"718-974-1571","role":"member","addedAt":1700000000000},{"unit":"21","first":"Yehuda","last":"Lisker","phone":"201-723-7228","role":"member","addedAt":1700000000000},{"unit":"22","first":"Yoni","last":"Celnik","phone":"845-364-1318","role":"member","addedAt":1700000000000},{"unit":"23","first":"Daniel","last":"Hyman","phone":"917-767-4040","role":"member","addedAt":1700000000000},{"unit":"24","first":"Gershon","last":"Weinreb","phone":"570-909-6530","role":"member","addedAt":1700000000000},{"unit":"25","first":"Daniel","last":"Rubinoff","phone":"917-345-3447","role":"member","addedAt":1700000000000},{"unit":"26","first":"Mickey","last":"Cohen","phone":"201-937-2192","role":"member","addedAt":1700000000000},{"unit":"27","first":"Yitzchok","last":"Berger","phone":"917-697-0043","role":"member","addedAt":1700000000000},{"unit":"28","first":"Benny","last":"Kessler","phone":"718-915-8057","role":"member","addedAt":1700000000000},{"unit":"29","first":"Aaron","last":"Heideman","phone":"732-609-6154","role":"dispatch","addedAt":1700000000000},{"unit":"30","first":"Matis","last":"Gluck","phone":"845-641-2001","role":"member","addedAt":1700000000000},{"unit":"31","first":"Rachmiel","last":"","phone":"718-909-9352","role":"member","addedAt":1700000000000},{"unit":"32","first":"Avi","last":"Weiskopf","phone":"201-707-4616","role":"member","addedAt":1700000000000},{"unit":"33","first":"Chaim","last":"Gottesman","phone":"201-280-2386","role":"member","addedAt":1700000000000},{"unit":"34","first":"Yehuda","last":"Kreitman","phone":"732-440-8457","role":"dispatch","addedAt":1700000000000},{"unit":"36","first":"Aaron","last":"Sheffy","phone":"551-804-3385","role":"member","addedAt":1700000000000},{"unit":"37","first":"Micah","last":"Epstein","phone":"914-806-3334","role":"member","addedAt":1700000000000},{"unit":"38","first":"Aryeh","last":"Wizman","phone":"845-531-9110","role":"admin","addedAt":1700000000000},{"unit":"39","first":"Rami","last":"Glatt","phone":"718-536-6574","role":"member","addedAt":1700000000000},{"unit":"40","first":"Shloimy","last":"Ciment","phone":"845-587-0053","role":"member","addedAt":1700000000000},{"unit":"41","first":"Michael","last":"Goldsmith","phone":"201-370-5664","role":"member","addedAt":1700000000000},{"unit":"42","first":"Kenneth","last":"Goldman","phone":"201-638-6515","role":"member","addedAt":1700000000000},{"unit":"43","first":"Avi","last":"Okin","phone":"862-438-4094","role":"member","addedAt":1700000000000},{"unit":"44","first":"Isaac","last":"Vizel","phone":"917-672-1999","role":"member","addedAt":1700000000000},{"unit":"45","first":"Mark","last":"Eisenberger","phone":"917-363-8106","role":"member","addedAt":1700000000000},{"unit":"46","first":"Dov","last":"Eisenberger","phone":"917-538-5462","role":"member","addedAt":1700000000000},{"unit":"47","first":"Fischel","last":"Bensinger","phone":"305-389-3907","role":"member","addedAt":1700000000000},{"unit":"48","first":"Dovid","last":"Lisker","phone":"201-214-0803","role":"member","addedAt":1700000000000},{"unit":"49","first":"Mitchell","last":"Schaffer","phone":"201-519-6904","role":"member","addedAt":1700000000000},{"unit":"50","first":"Moti","last":"Rimer","phone":"646-772-3455","role":"member","addedAt":1700000000000},{"unit":"51","first":"Isaac","last":"Dayan","phone":"847-226-6892","role":"member","addedAt":1700000000000},{"unit":"52","first":"Judah","last":"Samuel","phone":"201-888-0214","role":"member","addedAt":1700000000000},{"unit":"53","first":"Shloimie","last":"Kreindler","phone":"443-939-9979","role":"dispatch","addedAt":1700000000000},{"unit":"54","first":"Dovie","last":"Hirsch","phone":"201-354-0550","role":"dispatch","addedAt":1700000000000},{"unit":"55","first":"Henry","last":"Bernstein","phone":"516-554-4063","role":"member","addedAt":1700000000000},{"unit":"59","first":"Chaim","last":"Ezagui","phone":"347-785-8798","role":"dispatch","addedAt":1700000000000},{"unit":"60","first":"Noah","last":"Isaacs","phone":"201-803-8614","role":"member","addedAt":1700000000000},{"unit":"61","first":"Moshe","last":"Katz","phone":"516-209-1427","role":"member","addedAt":1700000000000},{"unit":"62","first":"","last":"Gendler","phone":"347-409-5754","role":"member","addedAt":1700000000000},{"unit":"63","first":"Aaron","last":"Bauman","phone":"347-543-2941","role":"member","addedAt":1700000000000},{"unit":"64","first":"Kivi","last":"Gorden","phone":"610-513-0776","role":"member","addedAt":1700000000000},{"unit":"65","first":"Eli","last":"Teichman","phone":"845-558-5247","role":"member","addedAt":1700000000000},{"unit":"66","first":"Andy","last":"Schultz","phone":"914-574-7057","role":"member","addedAt":1700000000000},{"unit":"67","first":"Willie","last":"Silberstein","phone":"201-681-8876","role":"member","addedAt":1700000000000},{"unit":"68","first":"Yehuda","last":"Schwartz","phone":"917-288-2546","role":"member","addedAt":1700000000000},{"unit":"69","first":"Dovi","last":"Pfeffer","phone":"848-210-5060","role":"member","addedAt":1700000000000},{"unit":"70","first":"Yosi","last":"Gibraltar","phone":"","role":"member","addedAt":1700000000000},{"unit":"71","first":"Avi","last":"Klein","phone":"347-731-5525","role":"dispatch","addedAt":1700000000000},{"unit":"72","first":"Moshe","last":"Skoczylas","phone":"718-974-7347","role":"member","addedAt":1700000000000},{"unit":"73","first":"Danny","last":"Senter","phone":"201-491-4602","role":"member","addedAt":1700000000000},{"unit":"74","first":"Rudman","last":"Zvi","phone":"","role":"member","addedAt":1700000000000},{"unit":"75","first":"David","last":"Kestenbaum","phone":"516-318-2697","role":"member","addedAt":1700000000000},{"unit":"76","first":"Aharon","last":"Klarberg","phone":"973-567-0772","role":"member","addedAt":1700000000000},{"unit":"77","first":"Willie","last":"Balk","phone":"216-392-2244","role":"member","addedAt":1700000000000},{"unit":"78","first":"Izzy","last":"Infield","phone":"201-245-4666","role":"member","addedAt":1700000000000},{"unit":"79","first":"David","last":"Itzkowits","phone":"347-227-9014","role":"member","addedAt":1700000000000},{"unit":"80","first":"Mayer","last":"Sabo","phone":"201-566-4759","role":"member","addedAt":1700000000000},{"unit":"81","first":"Aaron","last":"Lerer","phone":"845-213-7323","role":"member","addedAt":1700000000000},{"unit":"82","first":"Naftali","last":"Nunberg","phone":"917-912-8913","role":"member","addedAt":1700000000000},{"unit":"83","first":"Michel","last":"Klarburg","phone":"973-851-0510","role":"member","addedAt":1700000000000},{"unit":"86","first":"Israel","last":"Romand","phone":"845-499-0540","role":"member","addedAt":1700000000000},{"unit":"87","first":"Phillip","last":"Katz","phone":"917-549-5540","role":"member","addedAt":1700000000000},{"unit":"88","first":"Yitz","last":"Stern","phone":"845-596-7988","role":"member","addedAt":1700000000000},{"unit":"89","first":"Mordechai","last":"Solinsky","phone":"347-486-4434","role":"member","addedAt":1700000000000},{"unit":"90","first":"Sam","last":"Ulrich","phone":"858-401-0863","role":"member","addedAt":1700000000000},{"unit":"91","first":"Leibi","last":"Stern","phone":"","role":"member","addedAt":1700000000000},{"unit":"92","first":"Michael","last":"Scharf","phone":"201-468-1166","role":"member","addedAt":1700000000000},{"unit":"93","first":"Yair","last":"Menchel","phone":"516-672-1325","role":"member","addedAt":1700000000000},{"unit":"94","first":"Zvi","last":"Bin-Nun","phone":"551-795-3394","role":"member","addedAt":1700000000000},{"unit":"95","first":"Zev","last":"Darack","phone":"973-202-9867","role":"member","addedAt":1700000000000},{"unit":"96","first":"Binyamin","last":"Schulgasser","phone":"973-943-0413","role":"member","addedAt":1700000000000},{"unit":"97","first":"Solomon","last":"Itzkowitz","phone":"929-261-6554","role":"dispatch","addedAt":1700000000000},{"unit":"99","first":"Yakov","last":"Cohen","phone":"201-957-3523","role":"member","addedAt":1700000000000},{"unit":"100","first":"Emanuel","last":"Klein","phone":"718-807-5604","role":"member","addedAt":1700000000000},{"unit":"102","first":"Joel","last":"Varnai","phone":"646-597-0935","role":"member","addedAt":1700000000000},{"unit":"103","first":"Shalom","last":"Peretz","phone":"845-270-8447","role":"member","addedAt":1700000000000},{"unit":"104","first":"Mo","last":"Berow","phone":"973-270-3015","role":"member","addedAt":1700000000000},{"unit":"105","first":"Daniel","last":"Fuksbrumer","phone":"917-439-3984","role":"member","addedAt":1700000000000},{"unit":"106","first":"Yoni","last":"Kaufman","phone":"917-608-4904","role":"member","addedAt":1700000000000},{"unit":"107","first":"Daniel","last":"Gross","phone":"917-974-9630","role":"observer","addedAt":1700000000000},{"unit":"108","first":"David","last":"Rivkin","phone":"201-580-0456","role":"member","addedAt":1700000000000},{"unit":"110","first":"Isaac","last":"Mass","phone":"201-630-1518","role":"member","addedAt":1700000000000},{"unit":"111","first":"Leiby","last":"Itzkowitz","phone":"929-445-0429","role":"dispatch","addedAt":1700000000000},{"unit":"112","first":"Benzi","last":"Herbst","phone":"718-810-3968","role":"member","addedAt":1700000000000},{"unit":"114","first":"Avidan","last":"Rothman","phone":"973-280-1691","role":"member","addedAt":1700000000000},{"unit":"115","first":"Zach","last":"Berman","phone":"845-216-8279","role":"member","addedAt":1700000000000},{"unit":"116","first":"Steven","last":"Hoenig","phone":"201-240-8749","role":"member","addedAt":1700000000000},{"unit":"117","first":"Jeffrey","last":"Rosenfeld","phone":"917-664-8374","role":"member","addedAt":1700000000000},{"unit":"118","first":"Zev","last":"Savetsky","phone":"201-805-2476","role":"member","addedAt":1700000000000},{"unit":"119","first":"Nechemia","last":"Berman","phone":"845-622-0094","role":"member","addedAt":1700000000000},{"unit":"120","first":"Yehuda","last":"Breuer","phone":"845-399-0523","role":"member","addedAt":1700000000000},{"unit":"121","first":"David","last":"Dahan","phone":"551-326-1160","role":"observer","addedAt":1700000000000},{"unit":"122","first":"Ephraim","last":"Rudin","phone":"973-368-7639","role":"dispatch","addedAt":1700000000000},{"unit":"123","first":"Mendy","last":"Green","phone":"845-213-0748","role":"member","addedAt":1700000000000},{"unit":"124","first":"Binyamin","last":"Kroll","phone":"973-462-3851","role":"dispatch","addedAt":1700000000000},{"unit":"125","first":"Jack","last":"Attali","phone":"917-626-1069","role":"observer","addedAt":1700000000000},{"unit":"126","first":"Sam","last":"Lovi","phone":"347-985-6088","role":"member","addedAt":1700000000000},{"unit":"127","first":"Nathan","last":"Rose","phone":"914-714-4138","role":"member","addedAt":1700000000000},{"unit":"128","first":"Pinchas","last":"Feinstein","phone":"646-244-1137","role":"member","addedAt":1700000000000},{"unit":"129","first":"Zecharia","last":"Gurell","phone":"201-334-2325","role":"member","addedAt":1700000000000},{"unit":"130","first":"Didi","last":"Forman","phone":"972-53-272-8815","role":"member","addedAt":1700000000000},{"unit":"131","first":"Zach","last":"Cohen","phone":"201-803-6143","role":"member","addedAt":1700000000000},{"unit":"133","first":"Zevy","last":"Glicksman","phone":"917-655-2075","role":"dispatch","addedAt":1700000000000},{"unit":"140","first":"Khodik","last":"Kalmen","phone":"201-970-1818","role":"member","addedAt":1700000000000},{"unit":"148","first":"Shloime","last":"Mintz","phone":"","role":"member","addedAt":1700000000000},{"unit":"149","first":"Juda","last":"Glick","phone":"718-613-9575","role":"member","addedAt":1700000000000},{"unit":"150","first":"Isaac","last":"Forgash","phone":"201-509-0986","role":"member","addedAt":1700000000000},{"unit":"154","first":"Matthew","last":"Fried","phone":"917-371-2669","role":"member","addedAt":1700000000000},{"unit":"155","first":"Yisrael Mayer","last":"Birnbaum","phone":"347-448-1796","role":"dispatch","addedAt":1700000000000},{"unit":"157","first":"Daniel","last":"Steinermam","phone":"201-575-3569","role":"member","addedAt":1700000000000},{"unit":"160","first":"Avi","last":"Greenberg","phone":"845-422-3090","role":"member","addedAt":1700000000000},{"unit":"161","first":"Abraham","last":"Green","phone":"","role":"member","addedAt":1700000000000},{"unit":"162","first":"Zev Yida","last":"Farkas","phone":"","role":"member","addedAt":1700000000000},{"unit":"163","first":"Daniel","last":"Blum","phone":"347-533-0596","role":"member","addedAt":1700000000000},{"unit":"164","first":"Shmuel","last":"Remer","phone":"551-999-7592","role":"member","addedAt":1700000000000},{"unit":"169","first":"Avrumy","last":"Schwartz","phone":"929-355-3943","role":"member","addedAt":1700000000000},{"unit":"171","first":"Chaim","last":"Abenson","phone":"845-866-1647","role":"member","addedAt":1700000000000},{"unit":"178","first":"Yisroel","last":"Gutman","phone":"347-693-0315","role":"member","addedAt":1700000000000},{"unit":"180","first":"Abbey","last":"Cooper","phone":"201-543-1267","role":"member","addedAt":1700000000000},{"unit":"191","first":"Kenny","last":"Fried","phone":"917-544-0383","role":"member","addedAt":1700000000000},{"unit":"200","first":"Jan","last":"Meyer","phone":"201-888-4566","role":"member","addedAt":1700000000000},{"unit":"234","first":"Mordechai","last":"Kupferstein","phone":"718-679-7278","role":"member","addedAt":1700000000000},{"unit":"257","first":"Moshe","last":"Teicher","phone":"786-999-5939","role":"dispatch","addedAt":1700000000000},{"unit":"369","first":"Rafael","last":"Pomerantz","phone":"929-253-4860","role":"dispatch","addedAt":1700000000000},{"unit":"500","first":"Dalia","last":"Romand","phone":"914-220-2702","role":"dispatch","addedAt":1700000000000},{"unit":"501","first":"Rivky","last":"Sandal","phone":"845-629-1212","role":"member","addedAt":1700000000000},{"unit":"502","first":"Lazar","last":"Weider","phone":"845-248-8636","role":"member","addedAt":1700000000000},{"unit":"503","first":"Shmuel","last":"Eidelman","phone":"732-429-5195","role":"dispatch","addedAt":1700000000000},{"unit":"504","first":"Jacob","last":"Rosenberg","phone":"201-686-1731","role":"member","addedAt":1700000000000},{"unit":"505","first":"Shloime","last":"Mintz","phone":"201-370-1097","role":"dispatch","addedAt":1700000000000},{"unit":"506","first":"Shlomo","last":"Erlanger","phone":"551-238-5060","role":"member","addedAt":1700000000000},{"unit":"507","first":"Shragie","last":"Rubelow","phone":"848-525-7435","role":"dispatch","addedAt":1700000000000},{"unit":"508","first":"Yehuda","last":"Rhine","phone":"929-210-1524","role":"member","addedAt":1700000000000}];
 
-const DEFAULT_LOCATIONS = ['COBC','Garage TABC','TVAC Trailer','Teaneck Garage','Teaneck Shed','Englewood Shed','Truck 02','Truck 03',"Rami's Garage"];
+const DEFAULT_LOCATIONS = ['COBC','Garage TABC','Teaneck Garage','Teaneck Shed','Englewood Shed','Truck 02','Truck 03',"Rami's Garage"];
+
+// ══════════════════════════════════════════════
+//  APPS SCRIPT API — Google Sheet backend
+//  Equipment Sheet: 1iOE4c-BBatkH8zljpQTFmrzZZe_Q4uvBDWAQCos51PE
+//  Members Sheet:   1Leh-KVqnLai650Se4JftnG1zTz6FbuCcbOUqUGmlfEk
+// ══════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwOPOlN9kZXZbxit5PRDdcHBsoW8PmDzfp0MLe_AqPvNKbSZMVNFHBOfqNi-BrvVusN/exec';
+
+async function sheetGET(params) {
+  try {
+    const qs = Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
+    const r = await fetch(APPS_SCRIPT_URL + '?' + qs);
+    return await r.json();
+  } catch(e) { console.warn('sheetGET failed:', e); return null; }
+}
+
+async function sheetPOST(body) {
+  try {
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    return await r.json();
+  } catch(e) { console.warn('sheetPOST failed:', e); return {success:false,error:e.toString()}; }
+}
+
+// postJ alias for backward compatibility with equipment checklist code
+function postJ(body) { return sheetPOST(body); }
+
+// Convert sheet row → internal equipment object
+function sheetRowToEq(item) {
+  return {
+    id: `EQ-${String(item.row).padStart(4,'0')}`,
+    row: item.row,
+    name: item.name,
+    category: guessCat(item.name),
+    location: item.homeLocation || 'COBC',
+    status: item.status === 'OUT' ? 'out' : 'in',
+    condition: conditionFromSheet(item.equipStatus || 'OK'),
+    equipStatus: item.equipStatus || 'OK',
+    equipNote: item.equipNote || '',
+    ccnc: item.ccnc || 'CC',
+    isCNC: item.isCNC || false,
+    cncNote: item.cncNote || '',
+    checkedOutBy: item.member || null,
+    callNum: item.call || null,
+    lastUpdated: item.lastUpdated || '',
+    history: [],
+    fromSheet: true,
+  };
+}
+
+function guessCat(name) {
+  const n = (name||'').toLowerCase();
+  if(n.includes('fan'))           return 'Fan';
+  if(n.includes('heater'))        return 'Heater';
+  if(n.includes('a/c')||n.includes('ac ')) return 'A/C';
+  if(n.includes('generator'))     return 'Generator';
+  if(n.includes('light tower'))   return 'Light Tower';
+  if(n.includes('shop vac'))      return 'Shop Vac';
+  if(n.includes('ez-spare')||n.includes('ez spare')) return 'EZ Spare';
+  if(n.includes('pump'))          return 'Pump';
+  if(n.includes('ramp'))          return 'Ramp';
+  if(n.includes('chainsaw'))      return 'Chainsaw';
+  return 'Other';
+}
+
+function conditionFromSheet(s) {
+  if(!s || s==='OK')    return 'ok';
+  if(s==='Missing')     return 'missing';
+  if(s==='Damaged')     return 'damaged';
+  if(s==='Need More')   return 'missing';
+  if(s==='Not Active')  return 'inactive';
+  return 'ok';
+}
+
+let _sheetSyncing = false;
+
+async function loadInventoryFromSheet() {
+  if(_sheetSyncing) return;
+  _sheetSyncing = true;
+  showSheetStatus('loading');
+  try {
+    // Load inventory
+    const data = await sheetGET({action:'getInventory'});
+    if(data?.items?.length) {
+      const sheetNames = new Set(data.items.map(i=>i.name.toLowerCase()));
+      const localOnly  = (STATE.equipment||[]).filter(e=>!e.fromSheet && !sheetNames.has(e.name.toLowerCase()));
+      STATE.equipment  = [...data.items.map(sheetRowToEq), ...localOnly];
+      populateReportItemSelect();
+      renderEquipmentDashboard();
+      renderInventory();
+      renderChkFull();
+      renderHome();
+      showSheetStatus('ok', `${data.items.length} items synced`);
+    } else {
+      showSheetStatus('error', 'No items returned — check connection');
+    }
+
+    // Load locations
+    const locData = await sheetGET({action:'getLocations'});
+    if(locData?.locations?.length) {
+      STATE.locations = [...new Set([...DEFAULT_LOCATIONS, ...locData.locations])];
+    }
+
+    // Load members + update roles from sheet column E
+    const memData = await sheetGET({action:'getMembers'});
+    if(memData?.members?.length) {
+      // Update roles for existing members (sheet column E is authoritative)
+      memData.members.forEach(sm => {
+        const u = String(sm.unit||'').replace(/^BC-?/i,'').replace(/^0+/,'');
+        const sheetRole = (sm.role||sm.status||'member').toLowerCase();
+        const idx = STATE.members.findIndex(x=>String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'')===u);
+        if(idx >= 0 && sheetRole) STATE.members[idx].role = sheetRole;
+      });
+      // Add any new members
+      const savedUnits = new Set(STATE.members.map(m=>String(m.unit).replace(/^BC-?/i,'').replace(/^0+/,'')));
+      const newMembers = memData.members
+        .filter(m => m.unit && !savedUnits.has(String(m.unit).replace(/^BC-?/i,'').replace(/^0+/,'')))
+        .map(m => ({
+          unit: String(m.unit).replace(/^BC-?/i,''),
+          first: m.firstName||m.first||'',
+          last:  m.lastName||m.last||'',
+          phone: m.phone||'',
+          role:  (m.role||m.status||'member').toLowerCase(),
+          addedAt: Date.now()
+        }));
+      if(newMembers.length) STATE.members = [...STATE.members, ...newMembers];
+      renderMemberDir();
+    }
+    save();
+  } catch(err) {
+    showSheetStatus('error', 'Sheet offline — cached data');
+    console.warn('loadInventoryFromSheet error:', err);
+  }
+  _sheetSyncing = false;
+}
+
+function showSheetStatus(state, msg='') {
+  // Update the equipment page sync indicator
+  const sub = document.getElementById('eqSyncStatus');
+  let bar = document.getElementById('sheetStatusBar');
+  if(!bar) {
+    bar = document.createElement('div');
+    bar.id = 'sheetStatusBar';
+    bar.style.cssText = 'position:fixed;bottom:calc(58px + env(safe-area-inset-bottom));left:0;right:0;padding:7px 16px;font-size:12px;font-weight:600;text-align:center;z-index:500;transition:opacity .4s;pointer-events:none;';
+    document.body.appendChild(bar);
+  }
+  if(state==='loading') {
+    bar.style.cssText += 'background:#1a3a5c;color:#fff;opacity:1;';
+    bar.style.background='#1a3a5c'; bar.style.color='#fff'; bar.style.opacity='1';
+    bar.textContent='Syncing equipment from Google Sheet...';
+    if(sub) sub.textContent='Syncing...';
+  } else if(state==='ok') {
+    bar.style.background='#16a34a'; bar.style.color='#fff'; bar.style.opacity='1';
+    bar.textContent='Sheet synced — '+msg;
+    if(sub) sub.textContent='Live from Sheet';
+    setTimeout(()=>{ bar.style.opacity='0'; }, 3000);
+  } else if(state==='error') {
+    bar.style.background='#d97706'; bar.style.color='#fff'; bar.style.opacity='1';
+    bar.textContent='Sheet: '+msg;
+    if(sub) sub.textContent='Offline — cached';
+    setTimeout(()=>{ bar.style.opacity='0'; }, 5000);
+  }
+}
 
 // ── Town colors (for call card accent) ──
 const TOWN_COLORS = {
@@ -1271,7 +1537,22 @@ function finishLogin() {
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('loginUnit').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 
+
+function setOnDutyOverride() {
+  const name=document.getElementById('adminOnDutyName')?.value?.trim();
+  const phone=document.getElementById('adminOnDutyPhone')?.value?.trim();
+  if(!name||!phone){showToast('Enter name and phone');return;}
+  STATE.onDuty={name,phone,override:true,setAt:Date.now()};
+  save(); showToast('On-duty override set: '+name);
+}
+function clearOnDutyOverride() {
+  delete STATE.onDuty;
+  save(); showToast('Override cleared — using schedule');
+}
 function initApp() {
+  // Initialize new call modal
+  document.getElementById('carInfoSection').style.display='block'; // flat tire is default
+
   document.getElementById('roleLabel').textContent = ROLES[SESSION.role]?.label||'MEMBER';
   document.getElementById('topbarSub').textContent = SESSION.name;
 
@@ -1286,12 +1567,14 @@ function initApp() {
     document.getElementById('tab-more').textContent=''; // kept visible
   }
 
-  // Populate car makes
-  const makeEl = document.getElementById('carMake');
-  Object.keys(CAR_DATA).sort().forEach(m=>{
-    const o=document.createElement('option'); o.value=m; o.textContent=m.replace('_',' ');
-    makeEl.appendChild(o);
-  });
+  // Populate car makes datalist
+  const makeDatalist = document.getElementById('carMakeList');
+  if(makeDatalist) {
+    Object.keys(CAR_DATA).sort().forEach(m=>{
+      const o=document.createElement('option'); o.value=m.replace('_',' ');
+      makeDatalist.appendChild(o);
+    });
+  }
 
   populateLocationSelects();
   populateReportItemSelect();
@@ -1443,7 +1726,7 @@ function renderHome() {
 //  DISPATCH
 // ──────────────────────────────────────────────
 const CALL_TYPE_LABELS = {
-  flat_tire_spare:'🚗 Flat Tire - Has Spare',flat_tire_no_spare:'🚗 Flat Tire - No Spare',lockout:'🔑 Lockout',jump_start:'⚡ Jump Start',
+  flat_tire_spare:'Vehicle: Flat Tire - Has Spare',flat_tire_no_spare:'Vehicle: Flat Tire - No Spare',lockout:'🔑 Lockout',jump_start:'⚡ Jump Start',
   flood:'💧 Flood',ac_heat:'❄️ A/C or Heat',generator:'⚡ Generator',
   transport:'🚐 Transport',welfare:'🏥 Welfare Check',other:'📋 Other'
 };
@@ -1456,76 +1739,78 @@ function setDispatchFilter(f,el) {
 }
 
 function callCardHTML(call, mini=false) {
-  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  const timeStr=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-  const responders=(call.responders||[]).length;
-  const pending=(call.pendingResponders||[]).length;
-  const townColor=TOWN_COLORS[call.town]||'var(--text3)';
-  const isDraft=call.status==='draft';
-  const hasBackup=(call.backupRequests||[]).length>0;
-  const rrCount=call.rrCount||0;
-  const isDispatch=['admin','dispatch'].includes(SESSION.role);
-  // Is this user already pending or approved?
-  const myUnit=String(SESSION.unit);
-  const iAmApproved=(call.responders||[]).some(r=>String(r.unit)===myUnit);
-  const iAmPending=(call.pendingResponders||[]).some(r=>String(r.unit)===myUnit);
+  const typeRaw = call.type||'other';
+  const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
+  const timeStr = new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  const approved = (call.responders||[]).length;
+  const pending  = (call.pendingResponders||[]).length;
+  const townColor = TOWN_COLORS[call.town]||'var(--blue)';
+  const isUrgent = call.priority==='urgent';
+  const isDraft  = call.status==='draft';
+  const myUnit   = String(SESSION.unit);
+  const iAmApproved = (call.responders||[]).some(r=>String(r.unit)===myUnit);
+  const iAmPending  = (call.pendingResponders||[]).some(r=>String(r.unit)===myUnit);
+  const isDispatch  = ['admin','dispatch'].includes(SESSION.role);
 
-  if (mini) return `
-    <div class="call-card ${call.status}" onclick="openCallDetail('${call.id}')">
-      <div class="town-badge" style="background:${townColor}"></div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div class="call-type" style="color:${call.priority==='urgent'?'var(--red)':townColor}">${typeLabel}${isDraft?'<span class="obs-badge">DRAFT</span>':''}</div>
-          <div class="call-address">${call.address}, ${call.town}</div>
-          <div class="call-meta">${timeStr} · ${responders} approved${pending?` · <span style="color:var(--amber);">${pending} pending</span>`:''}
+  // Status color
+  const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
+  const sc = statusColors[call.status]||'var(--text3)';
+
+  if(mini) return `
+    <div class="call-card${isUrgent?' urgent':''}" onclick="openCallDetail('${call.id}')">
+      <div class="call-card-header">
+        <div style="display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0;">
+          <div class="status-dot ${call.status}"></div>
+          <div style="flex:1;min-width:0;">
+            <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="font-size:10px;font-weight:600;color:var(--purple);">DRAFT</span>':''}</div>
+            <div class="call-card-addr">${call.address}, ${call.town}</div>
+            <div class="call-card-meta">${timeStr}${approved?' · '+approved+' responding':''}${pending?' · <span style="color:var(--amber);">'+pending+' pending</span>':''}</div>
           </div>
         </div>
-        <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':'badge-gray'}">${call.status.toUpperCase()}</span>
+        <div style="background:${sc}15;color:${sc};padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">${call.status.toUpperCase()}</div>
       </div>
     </div>`;
 
-  const carInfo=call.carMake?`<span class="vehicle-tag">🚗 ${[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ')}</span>`:'';
-  const vehicleInfo=(call.assignedVehicles||[]).map(v=>`<span class="vehicle-tag">🚐 ${v}</span>`).join('');
+  // Full card
+  const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
 
-  // Respond button state
-  let respondBtn='';
-  if(call.status!=='done'&&!isDraft) {
+  // Respond button
+  let respondBtn = '';
+  if(call.status!=='done' && !isDraft) {
     if(iAmApproved) {
-      respondBtn=`<button class="call-btn" style="background:#dcfce7;color:var(--green);" disabled>✅ Approved</button>`;
+      respondBtn = `<div class="approved-badge" style="padding:7px 12px;font-size:12px;">Approved to respond</div>`;
     } else if(iAmPending) {
-      respondBtn=`<button class="call-btn" style="background:#fef3c7;color:var(--amber);" disabled>⏳ Pending</button>`;
+      respondBtn = `<div class="pending-badge" style="padding:7px 12px;font-size:12px;">Pending approval...</div>`;
     } else {
-      respondBtn=`<button class="call-btn" style="background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();openRespondModal('${call.id}')">✋ Respond</button>`;
+      respondBtn = `<button class="call-action" style="background:var(--green);color:#fff;" onclick="event.stopPropagation();openRespondModal('${call.id}')">Request to Respond</button>`;
     }
   }
 
   return `
-    <div class="call-card ${call.priority==='urgent'?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
-      <div class="town-badge" style="background:${townColor}"></div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
-        <div>
-          <span class="call-num">#${call.id.slice(-5)}</span>
-          ${hasBackup?`<span class="backup-tag">🆘 BACKUP</span>`:''}
-          ${rrCount>0?`<span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;">↻${rrCount}</span>`:''}
-          ${isDispatch&&pending>0?`<span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;">⏳${pending}</span>`:''}
-          <div class="call-type" style="color:${call.priority==='urgent'?'var(--red)':townColor};margin-top:2px;">${typeLabel}${isDraft?'<span class="obs-badge" style="margin-left:6px;">DRAFT</span>':''}</div>
+  <div class="call-card${isUrgent?' urgent':''}" onclick="openCallDetail('${call.id}')">
+    ${isUrgent?'<div style="background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:5px 14px;letter-spacing:.5px;">URGENT</div>':''}
+    <div class="call-card-header">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <div class="status-dot ${call.status}"></div>
+          <div class="call-card-type" style="color:${townColor};">${typeLabel}</div>
+          ${isDraft?'<span style="background:#f3e8ff;color:var(--purple);padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;">DRAFT</span>':''}
+          ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
+          ${approved>0?`<span class="approved-badge">${approved} responding</span>`:''}
         </div>
-        <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':'badge-gray'}">${call.status.toUpperCase()}</span>
+        <div class="call-card-addr">${call.address}${call.town?', '+call.town:''}</div>
+        ${carInfo?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${carInfo}</div>`:''}
+        ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
+        <div class="call-card-meta" style="margin-top:5px;">#${call.id.slice(-5)} · ${timeStr}</div>
       </div>
-      <div class="call-address">${call.address}</div>
-      <div class="call-meta" style="margin-top:2px;">${call.town} · ${timeStr} · ${responders} approved${pending?` · <span style="color:var(--amber);">${pending} pending</span>`:''}
-      </div>
-      ${carInfo?`<div style="margin-top:6px;">${carInfo}</div>`:''}
-      ${vehicleInfo?`<div style="margin-top:4px;">${vehicleInfo}</div>`:''}
-      ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:6px;background:var(--border2);padding:6px 10px;border-radius:6px;">${call.notes}</div>`:''}
-      <div class="call-actions">
-        ${respondBtn}
-        <button class="call-btn" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details →</button>
-        ${call.address?`<button class="call-btn" style="background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">🗺️</button>`:''}
-        ${call.phone?`<button class="call-btn" style="background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞</button>`:''}
-      </div>
-      ${call.priority==='urgent'?`<div class="priority-bar priority-high"></div>`:''}
-    </div>`;
+    </div>
+    <div class="call-card-footer">
+      ${respondBtn}
+      <button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
+      ${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}
+      ${call.phone?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">Call</button>`:''}
+    </div>
+  </div>`;
 }
 
 function renderCalls() {
@@ -1551,10 +1836,19 @@ function handleCallTypeChange() {
 }
 
 function populateModels() {
-  const make=document.getElementById('carMake').value;
-  const el=document.getElementById('carModel');
-  el.innerHTML='<option value="">-- Select Model --</option>';
-  (CAR_DATA[make]||[]).forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;el.appendChild(o);});
+  // carModel is now a text input — nothing to populate
+}
+
+
+function selectCallType(type, btn) {
+  document.getElementById('callType').value = type;
+  document.querySelectorAll('.qtype-btn').forEach(b=>b.classList.remove('active','urgent-active'));
+  if(btn) btn.classList.add('active');
+  // Show/hide car info
+  const carTypes=['flat_tire_spare','flat_tire_no_spare','lockout','jump_start'];
+  document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
+  // Show/hide other text
+  document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
 }
 
 // ── Create Call ──
@@ -1572,8 +1866,8 @@ function createCall() {
   const priority=document.getElementById('callPriority').value;
   const notes=document.getElementById('callNotes').value.trim();
   const dontPublish=document.getElementById('callDontPublish').checked;
-  const carMake=document.getElementById('carMake').value;
-  const carModel=document.getElementById('carModel').value;
+  const carMake=(document.getElementById('carMake')?.value||'').trim();
+  const carModel=(document.getElementById('carModel')?.value||'').trim();
   const carYear=document.getElementById('carYear').value;
   const carColor=document.getElementById('carColor').value.trim();
 
@@ -1602,7 +1896,7 @@ function createCall() {
   document.getElementById('carInfoSection').style.display='none';
 
   if (dontPublish) {
-    showToast('📝 Call saved as draft');
+    showToast('Notes: Call saved as draft');
   } else {
     showToast('✅ Call created & dispatched');
     // Auto-generate WhatsApp dispatch message
@@ -1616,11 +1910,12 @@ function createCall() {
 }
 
 function cleanLabel(s) {
-  // Remove emoji for WhatsApp compatibility - strip chars > U+2700
-  return (s||'').replace(/[\u2702-\u27b0\u27bf\ufe0f\u24c2\u{1f004}\u{1f0cf}\u{1f100}-\u{1f9ff}]/gu,'').replace(/\s+/g,' ').trim();
+  if(!s) return '';
+  // Remove all non-ASCII characters (emoji, special chars) for WhatsApp plain text
+  return s.replace(/[^\x00-\x7F]/g,'').replace(/\s+/g,' ').trim();
 }
 function buildDispatchWhatsApp(call) {
-  // Strip emoji from type label (e.g. "🚗 Flat Tire" → "Flat Tire")
+  // Strip emoji from type label (e.g. "Vehicle: Flat Tire" → "Flat Tire")
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
   const appLink=`https://aryehw330-lgtm.github.io/cobc-dispatch/`;
@@ -1682,6 +1977,12 @@ function getOnDutyDispatcher() {
   return { name: slot?.p || 'Dispatcher', phone: null };
 }
 
+
+function setETA(val, btn) {
+  document.getElementById('respondETA').value = val;
+  document.querySelectorAll('.eta-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
 function confirmRespond() {
   const id=document.getElementById('respondCallId').value;
   const eta=document.getElementById('respondETA').value||'10';
@@ -1737,14 +2038,14 @@ function approveResponder(callId,unit) {
   showToast(`✅ BC-${unit} ${req.name} approved`);
   // WhatsApp to group
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  const groupMsg=`*BC-${unit} ${req.name} is responding*\n${typeLabel} — ${call.address}, ${call.town}\nETA: ${req.eta} min${req.notes?'\nNotes: '+req.notes:''}`;
+  const groupMsg='*BC-'+unit+' '+req.name+' is responding*\n'+typeLabel+' - '+call.address+', '+call.town+'\nETA: '+req.eta+' min'+(req.notes?'\nNotes: '+req.notes:'');
   window.open(`https://wa.me/?text=${encodeURIComponent(groupMsg)}`,'_blank');
   // Personal message to member
   const m=STATE.members.find(x=>String(x.unit)===String(unit));
   if(m?.phone) {
     setTimeout(()=>{
       if(confirm(`Also send personal confirmation to BC-${unit} ${req.name}?`)) {
-        const personalMsg=`You have been approved to respond\n${typeLabel} at ${call.address}, ${call.town}\nETA: ${req.eta} min\n\nStay safe! — COBC Dispatch`;
+        const personalMsg='You have been approved to respond\n'+typeLabel+' at '+call.address+', '+call.town+'\nETA: '+req.eta+' min\n\nStay safe! - COBC Dispatch';
         window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(personalMsg)}`,'_blank');
       }
     },600);
@@ -1768,7 +2069,7 @@ function rejectResponder(callId,unit) {
     setTimeout(()=>{
       if(confirm(`Send rejection message to BC-${unit} ${req.name}?`)) {
         const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-        const msg=`We have enough coverage for the ${typeLabel} call at ${call.address}. Thank you for offering! — COBC Dispatch`;
+        const msg='We have enough coverage for the '+typeLabel+' call at '+call.address+'. Thank you for offering! - COBC Dispatch';
         window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
       }
     },300);
@@ -1801,7 +2102,7 @@ function submitBackup() {
   const callType=CALL_TYPE_LABELS[call.type]||call.type;
   let msg=`🆘 *COBC Backup Requested*\n${callType} at ${call.address}, ${call.town}\nRequested by BC ${SESSION.unit}`;
   if(equipment) msg+=`\nEquipment needed: ${equipment}`;
-  if(notes) msg+=`\n📝 ${notes}`;
+  if(notes) msg+=`\nNotes: ${notes}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
 }
 
@@ -1937,7 +2238,7 @@ function openCallDetail(id) {
     <div style="width:12px;height:12px;border-radius:50%;background:${townColor}"></div>
     <span style="font-size:13px;font-weight:600;color:var(--text2);">${call.town}</span>
     <span class="call-num">#${call.id.slice(-5)}</span>
-    ${call.priority==='urgent'?'<span class="badge badge-red">🔴 URGENT</span>':''}
+    ${call.priority==='urgent'?'<span class="badge badge-red">URGENT</span>':''}
   </div>`;
 
   // Details block
@@ -1966,8 +2267,8 @@ function openCallDetail(id) {
           ${m?.phone?`<button class="responder-call-btn" onclick="window.location='tel:${m.phone}'">📞</button>`:''}
         </div>
         ${isDispatch?`<div style="display:flex;gap:8px;">
-          <button class="btn-full btn-green" style="padding:9px;font-size:13px;" onclick="approveResponder('${id}','${r.unit}')">✅ Approve</button>
-          <button class="btn-full btn-danger" style="padding:9px;font-size:13px;" onclick="rejectResponder('${id}','${r.unit}')">❌ Reject</button>
+          <button style="flex:1;padding:11px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;" onclick="approveResponder('${id}','${r.unit}')">✅ Approve</button>
+          <button style="flex:1;padding:11px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;" onclick="rejectResponder('${id}','${r.unit}')">❌ Reject</button>
         </div>`:`<div style="font-size:12px;color:var(--amber);font-weight:600;">⏳ Awaiting dispatch approval</div>`}
       </div>`;
     });
@@ -2013,8 +2314,8 @@ function openCallDetail(id) {
   html+=`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">`;
   if(call.status!=='done'&&call.status!=='draft') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
   if(call.status!=='done') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
-  if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺️ Map</button>`;
-  if(call.phone) html+=`<button class="btn-sm btn-ghost" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
+  if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">Map: Map</button>`;
+  if(call.phone) html+=`<button class="btn-sm btn-ghost" onclick="window.location='tel:${call.phone}'">Phone: Caller</button>`;
 
   if(isDispatch) {
     html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Radio</button>`;
@@ -2022,7 +2323,7 @@ function openCallDetail(id) {
     if(call.status==='open') html+=`<button class="btn-sm btn-green" onclick="updateCallStatus('${id}','active');renderCallDetail('${id}')">▶ Active</button>`;
     if(call.status!=='done') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
-    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">📲 WhatsApp</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">App: WhatsApp</button>`;
     html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
 
     // Vehicle assignment
@@ -2252,7 +2553,7 @@ function renderNumbers() {
     groups[cat].forEach(n=>{
       html+=`<div class="number-item">
         <div><div style="font-size:14px;font-weight:700;">${n.label}</div><div style="font-size:12px;color:var(--text3);">${n.phone}${n.dispatchOnly?'<span class="obs-badge">DISP</span>':''}</div></div>
-        <button class="number-call-btn" onclick="window.location='tel:${n.phone}'">📞 Call</button>
+        <button class="number-call-btn" onclick="window.location='tel:${n.phone}'">Phone: Call</button>
       </div>`;
     });
   });
@@ -2440,7 +2741,7 @@ function renderSchedule() {
           ${curSlot.s&&curSlot.s!=='OPEN'&&curSlot.s!==curSlot.p?`<div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:3px;">Secondary: ${curSlot.s}${secPhone?` · <a href="tel:${secPhone.replace(/\D/g,'')}" style="color:rgba(255,255,255,.85);">📞</a>`:''}</div>`:''}
           ${isOpen?'<div style="font-size:12px;color:#fde68a;margin-top:4px;font-weight:600;">Shift is open — needs coverage</div>':''}
         </div>
-        ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none;flex-shrink:0;">📞 Call</a>`:''}
+        ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none;flex-shrink:0;">Phone: Call</a>`:''}
       </div>`;
   }
 
@@ -2739,7 +3040,7 @@ function renderMyStats() {
         ${rank&&rank>0?`<div style="font-size:12px;font-weight:700;color:${rank<=3?'#f59e0b':rank<=10?'var(--blue)':'var(--text3)'};margin-top:2px;">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'🏅'} All-Time Rank #${rank}</div>`:''}
       </div>
     </div>
-    ${phone?`<button class="btn-sm btn-green" onclick="window.location='tel:${phone}'">📞 Call Me</button>`:''}
+    ${phone?`<button class="btn-sm btn-green" onclick="window.location='tel:${phone}'">Phone: Call Me</button>`:''}
   </div>`;
 
   if(!grandTotal) {
@@ -3333,7 +3634,7 @@ function renderEquipmentDashboard() {
     return `<div class="alert ${cls}" style="margin-bottom:8px;">
       <div style="flex:1;">
         <div style="font-weight:700;font-size:13px;">${e.name}</div>
-        <div style="font-size:12px;margin-top:2px;">📍 ${e.location}${e.checkedOutBy?' · BC-'+e.checkedOutBy:''}${e.callNum?' · Call #'+e.callNum:''}</div>
+        <div style="font-size:12px;margin-top:2px;">${e.location}${e.checkedOutBy?' · BC-'+e.checkedOutBy:''}${e.callNum?' · Call #'+e.callNum:''}</div>
         ${e.equipStatus&&e.equipStatus!=='OK'?`<div style="font-size:11px;font-weight:700;margin-top:3px;">${e.equipStatus}${e.equipNote?' — '+e.equipNote.replace(/^[A-Z ]+\s*-\s*/i,''):''}</div>`:''}
         ${e.isCNC?`<div style="font-size:11px;color:var(--amber);margin-top:2px;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
       </div>
@@ -3414,8 +3715,8 @@ function renderInventory() {
         <div style="font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
         <div style="display:flex;gap:4px;flex-shrink:0;">${statusBadge}${equipBadge}${cncBadge}</div>
       </div>
-      <div style="font-size:12px;color:var(--text3);">📍 ${e.location}${e.checkedOutBy?' · BC-'+e.checkedOutBy:''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
-      ${e.isCNC?`<div style="font-size:12px;color:var(--amber);background:#fff3e0;border-radius:6px;padding:4px 8px;margin-top:6px;">📍 ${e.cncNote||e.ccnc}</div>`:''}
+      <div style="font-size:12px;color:var(--text3);">${e.location}${e.checkedOutBy?' · BC-'+e.checkedOutBy:''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
+      ${e.isCNC?`<div style="font-size:12px;color:var(--amber);background:#fff3e0;border-radius:6px;padding:4px 8px;margin-top:6px;">${e.cncNote||e.ccnc}</div>`:''}
       ${canEdit?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
         <button style="padding:11px;background:var(--navy);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'IN')">Check IN</button>
         <button style="padding:11px;background:var(--red);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'OUT')">Check OUT</button>
