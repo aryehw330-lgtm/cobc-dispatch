@@ -1644,6 +1644,29 @@ function openRespondModal(id) {
   showModal('respondModal');
 }
 
+function getOnDutyDispatcher() {
+  // Primary: check the schedule for who is on duty RIGHT NOW
+  const now = new Date();
+  const dow = now.getDay();
+  const shiftIdx = getShiftIndexNow();
+  const slot = DISPATCH_SCHEDULE[shiftIdx]?.slots[dow];
+
+  if (slot && slot.p !== 'OPEN' && slot.p !== 'CHIEFS') {
+    const phone = getDispatcherPhone(slot.p);
+    if (phone) return { name: slot.p, phone };
+    // Has a name but no phone in member list — check secondary
+    if (slot.s && slot.s !== 'OPEN' && slot.s !== 'CHIEFS') {
+      const phone2 = getDispatcherPhone(slot.s);
+      if (phone2) return { name: slot.s, phone: phone2 };
+    }
+  }
+  // Secondary fallback: manually set on-duty dispatcher in Admin
+  const od = STATE.onDuty || {};
+  if (od.phone) return { name: od.name || 'Dispatcher', phone: od.phone };
+  // Last resort: no phone found
+  return { name: slot?.p || 'Dispatcher', phone: null };
+}
+
 function confirmRespond() {
   const id=document.getElementById('respondCallId').value;
   const eta=document.getElementById('respondETA').value||'10';
@@ -1655,13 +1678,23 @@ function confirmRespond() {
   call.pendingResponders.push({unit:SESSION.unit,name:SESSION.name,eta,notes,isObserver,time:Date.now(),status:'pending'});
   save(); hideModal('respondModal');
   renderCalls(); renderHome();
-  showToast('⏳ Request sent — awaiting dispatch approval');
-  // Notify dispatcher via WhatsApp
-  const od=STATE.onDuty||{};
+
+  // Get on-duty dispatcher from schedule
+  const dispatcher = getOnDutyDispatcher();
   const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
-  const waMsg=`*Response Request - Needs Approval*\nBC-${SESSION.unit} ${SESSION.name}${isObserver?' (Observer)':''}\n${typeLabel} at ${call.address}, ${call.town}\nETA: ${eta} min${notes?'\nNotes: '+notes:''}\n\n_Please approve or reject in the COBC app_`;
-  const dispPhone=od.phone?od.phone.replace(/\D/g,''):'';
-  window.open(dispPhone?`https://wa.me/${dispPhone}?text=${encodeURIComponent(waMsg)}`:`https://wa.me/?text=${encodeURIComponent(waMsg)}`,'_blank');
+  const waMsg=`*COBC - Response Request*\nBC-${SESSION.unit} ${SESSION.name}${isObserver?' (Observer)':''} is requesting to respond\n${typeLabel} - ${call.address}, ${call.town}\nETA: ${eta} min${notes?'\nNotes: '+notes:''}\n\nPlease approve or reject in the COBC app`;
+
+  if (dispatcher.phone) {
+    // Send directly to on-duty dispatcher's personal WhatsApp
+    const clean = dispatcher.phone.replace(/\D/g,'');
+    const num = clean.length===10 ? '1'+clean : clean;
+    window.open(`https://wa.me/${num}?text=${encodeURIComponent(waMsg)}`,'_blank');
+    showToast(`Request sent to ${dispatcher.name}`);
+  } else {
+    // No phone found — open generic WA so dispatcher can manually forward
+    window.open(`https://wa.me/?text=${encodeURIComponent(waMsg)}`,'_blank');
+    showToast('Request sent — no dispatcher phone found for this shift');
+  }
 }
 
 // ── Dispatcher approves a pending responder ──
@@ -2226,11 +2259,14 @@ function getShiftIndexNow() {
 }
 
 function getDispatcherPhone(nameStr) {
-  // nameStr like "BC97 Itzkowitz" — extract unit number
+  // nameStr like "BC97 Itzkowitz" or "BC503 Eidelman"
   const m=nameStr.match(/BC(\d+)/i);
   if(!m) return null;
-  const unit=m[1];
-  const member=STATE.members.find(x=>String(x.unit)===unit||String(x.unit).replace(/^0+/,'')===unit.replace(/^0+/,''));
+  const unit=m[1].replace(/^0+/,''); // strip leading zeros for comparison
+  const member=STATE.members.find(x=>{
+    const u=String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'');
+    return u===unit;
+  });
   return member?.phone||null;
 }
 
