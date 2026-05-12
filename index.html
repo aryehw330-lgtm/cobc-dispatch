@@ -797,7 +797,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="input-group">
       <label class="input-label">Call Type</label>
       <select class="input" id="callType" onchange="handleCallTypeChange()">
-        <option value="flat_tire">🚗 Flat Tire</option>
+        <option value="flat_tire_spare">Flat Tire - Has Spare</option><option value="flat_tire_no_spare">Flat Tire - No Spare</option>
         <option value="lockout">🔑 Lockout</option>
         <option value="jump_start">⚡ Jump Start</option>
         <option value="flood">💧 Flood</option>
@@ -837,11 +837,15 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <div class="input-group">
       <label class="input-label">Town</label>
-      <select class="input" id="callTown">
+      <select class="input" id="callTown" onchange="document.getElementById('callTownOther').style.display=this.value==='Other'?'block':'none'">
         <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option><option>Fort Lee</option>
         <option>Hackensack</option><option>Paramus</option><option>Ridgefield Park</option><option>Palisades Park</option>
         <option>Leonia</option><option>Bogota</option><option>Fairview</option><option>Edgewater</option><option>Other</option>
       </select>
+    </div>
+    <div class="input-group" id="callTownOther" style="display:none;">
+      <label class="input-label">Specify Town</label>
+      <input class="input" type="text" id="callTownText" placeholder="Enter town name..."/>
     </div>
     <div class="input-group">
       <label class="input-label">Caller Name</label>
@@ -921,15 +925,21 @@ textarea.input{min-height:80px;resize:vertical;}
   </div>
 </div>
 
-<!-- Add Radio Responder -->
+<!-- Add Radio Responder (multi-select) -->
 <div class="modal-overlay hidden" id="radioModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">📻 Add Radio Responder</div>
+    <div class="modal-title">📻 Radio Responders</div>
     <input type="hidden" id="radioCallId"/>
-    <div class="input-group"><label class="input-label">Unit # (BC #)</label><input class="input" type="text" id="radioUnit" placeholder="e.g. 38"/></div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">Add everyone responding via radio at once. Each will be notified via WhatsApp.</div>
+    <!-- Search -->
+    <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="radioSearch" placeholder="Search by name or BC#..." oninput="renderRadioSearch()"/></div>
+    <div id="radioSearchResults" style="display:none;max-height:160px;overflow-y:auto;background:#fff;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;"></div>
+    <!-- Selected members -->
+    <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;">Selected</div>
+    <div id="radioSelectedList" style="margin-bottom:10px;min-height:36px;"></div>
     <div class="input-group"><label class="input-label">ETA (minutes)</label><input class="input" type="number" id="radioETA" value="5" min="1"/></div>
-    <button class="btn-full btn-primary" style="margin-bottom:10px;" onclick="addRadioResponder()">Add Responder</button>
+    <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="submitRadioResponders()">Add All + Notify via WhatsApp</button>
     <button class="btn-full btn-ghost" onclick="hideModal('radioModal')">Cancel</button>
   </div>
 </div>
@@ -947,7 +957,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <input type="hidden" id="editCallId"/>
     <div class="input-group"><label class="input-label">Call Type</label>
       <select class="input" id="editCallType">
-        <option value="flat_tire">Flat Tire</option><option value="lockout">Lockout</option>
+        <option value="flat_tire_spare">Flat Tire - Has Spare</option><option value="flat_tire_no_spare">Flat Tire - No Spare</option><option value="lockout">Lockout</option>
         <option value="jump_start">Jump Start</option><option value="flood">Flood</option>
         <option value="ac_heat">A/C or Heat</option><option value="generator">Generator</option>
         <option value="transport">Transport</option><option value="welfare">Welfare Check</option>
@@ -956,11 +966,15 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <div class="input-group"><label class="input-label">Address</label><input class="input" type="text" id="editCallAddress"/></div>
     <div class="input-group"><label class="input-label">Town</label>
-      <select class="input" id="editCallTown">
+      <select class="input" id="editCallTown" onchange="document.getElementById('editCallTownOther').style.display=this.value==='Other'?'block':'none'">
         <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option><option>Fort Lee</option>
         <option>Hackensack</option><option>Paramus</option><option>Ridgefield Park</option><option>Palisades Park</option>
         <option>Leonia</option><option>Bogota</option><option>Fairview</option><option>Edgewater</option><option>Other</option>
       </select>
+    </div>
+    <div class="input-group" id="editCallTownOther" style="display:none;">
+      <label class="input-label">Specify Town</label>
+      <input class="input" type="text" id="editCallTownText" placeholder="Enter town name..."/>
     </div>
     <div class="input-group"><label class="input-label">Caller Name</label><input class="input" type="text" id="editCallCaller"/></div>
     <div class="input-group"><label class="input-label">Caller Phone</label><input class="input" type="tel" id="editCallPhone"/></div>
@@ -1062,7 +1076,7 @@ const ROLES = {
 };
 
 // ── Seed Members (from Google Sheet — BC roster) ──
-const SEED_MEMBERS=[{"unit":"05","first":"Yehuda","last":"Miller","phone":"845-558-4497","role":"member","addedAt":1700000000000},{"unit":"06","first":"Chaim","last":"Huisman","phone":"201-456-7701","role":"member","addedAt":1700000000000},{"unit":"07","first":"Chaim","last":"Stadtmauer","phone":"973-865-0588","role":"member","addedAt":1700000000000},{"unit":"08","first":"Elliott","last":"Gilden","phone":"201-280-7062","role":"member","addedAt":1700000000000},{"unit":"09","first":"Edward","last":"Abramovitz","phone":"203-988-6334","role":"member","addedAt":1700000000000},{"unit":"10","first":"Yehuda","last":"Feig","phone":"201-491-3423","role":"member","addedAt":1700000000000},{"unit":"11","first":"Nosson","last":"Moldaver","phone":"732-233-8595","role":"member","addedAt":1700000000000},{"unit":"12","first":"David","last":"Roberts","phone":"201-562-7844","role":"member","addedAt":1700000000000},{"unit":"13","first":"Stuart","last":"Krupnik","phone":"347-371-1132","role":"member","addedAt":1700000000000},{"unit":"14","first":"Simon","last":"Berrebi","phone":"347-768-0807","role":"member","addedAt":1700000000000},{"unit":"15","first":"Moshe","last":"Kozlow","phone":"201-655-3279","role":"member","addedAt":1700000000000},{"unit":"16","first":"Ari","last":"Wartelsky","phone":"917-841-4115","role":"member","addedAt":1700000000000},{"unit":"17","first":"Motti","last":"Rosenthal","phone":"718-614-6002","role":"member","addedAt":1700000000000},{"unit":"18","first":"Ahron","last":"Mallin","phone":"917-596-9528","role":"member","addedAt":1700000000000},{"unit":"19","first":"Sruli","last":"Scharf","phone":"201-321-2073","role":"member","addedAt":1700000000000},{"unit":"20","first":"Burry","last":"Greenbaum","phone":"718-974-1571","role":"member","addedAt":1700000000000},{"unit":"21","first":"Yehuda","last":"Lisker","phone":"201-723-7228","role":"member","addedAt":1700000000000},{"unit":"22","first":"Yoni","last":"Celnik","phone":"845-364-1318","role":"member","addedAt":1700000000000},{"unit":"23","first":"Daniel","last":"Hyman","phone":"917-767-4040","role":"member","addedAt":1700000000000},{"unit":"24","first":"Gershon","last":"Weinreb","phone":"570-909-6530","role":"member","addedAt":1700000000000},{"unit":"25","first":"Daniel","last":"Rubinoff","phone":"917-345-3447","role":"member","addedAt":1700000000000},{"unit":"26","first":"Mickey","last":"Cohen","phone":"201-937-2192","role":"member","addedAt":1700000000000},{"unit":"27","first":"Yitzchok","last":"Berger","phone":"917-697-0043","role":"member","addedAt":1700000000000},{"unit":"28","first":"Benny","last":"Kessler","phone":"718-915-8057","role":"member","addedAt":1700000000000},{"unit":"29","first":"Aaron","last":"Heideman","phone":"732-609-6154","role":"member","addedAt":1700000000000},{"unit":"30","first":"Matis","last":"Gluck","phone":"845-641-2001","role":"member","addedAt":1700000000000},{"unit":"31","first":"Rachmiel","last":"","phone":"718-909-9352","role":"member","addedAt":1700000000000},{"unit":"32","first":"Avi","last":"Weiskopf","phone":"201-707-4616","role":"member","addedAt":1700000000000},{"unit":"33","first":"Chaim","last":"Gottesman","phone":"201-280-2386","role":"member","addedAt":1700000000000},{"unit":"34","first":"Yehuda","last":"Kreitman","phone":"732-440-8457","role":"member","addedAt":1700000000000},{"unit":"36","first":"Aaron","last":"Sheffy","phone":"551-804-3385","role":"member","addedAt":1700000000000},{"unit":"37","first":"Micah","last":"Epstein","phone":"914-806-3334","role":"member","addedAt":1700000000000},{"unit":"38","first":"Aryeh","last":"Wizman","phone":"845-531-9110","role":"member","addedAt":1700000000000},{"unit":"39","first":"Rami","last":"Glatt","phone":"718-536-6574","role":"member","addedAt":1700000000000},{"unit":"40","first":"Shloimy","last":"Ciment","phone":"845-587-0053","role":"member","addedAt":1700000000000},{"unit":"41","first":"Michael","last":"Goldsmith","phone":"201-370-5664","role":"member","addedAt":1700000000000},{"unit":"42","first":"Kenneth","last":"Goldman","phone":"201-638-6515","role":"member","addedAt":1700000000000},{"unit":"43","first":"Avi","last":"Okin","phone":"862-438-4094","role":"member","addedAt":1700000000000},{"unit":"44","first":"Isaac","last":"Vizel","phone":"917-672-1999","role":"member","addedAt":1700000000000},{"unit":"45","first":"Mark","last":"Eisenberger","phone":"917-363-8106","role":"member","addedAt":1700000000000},{"unit":"46","first":"Dov","last":"Eisenberger","phone":"917-538-5462","role":"member","addedAt":1700000000000},{"unit":"47","first":"Fischel","last":"Bensinger","phone":"305-389-3907","role":"member","addedAt":1700000000000},{"unit":"48","first":"Dovid","last":"Lisker","phone":"201-214-0803","role":"member","addedAt":1700000000000},{"unit":"49","first":"Mitchell","last":"Schaffer","phone":"201-519-6904","role":"member","addedAt":1700000000000},{"unit":"50","first":"Moti","last":"Rimer","phone":"646-772-3455","role":"member","addedAt":1700000000000},{"unit":"51","first":"Isaac","last":"Dayan","phone":"847-226-6892","role":"member","addedAt":1700000000000},{"unit":"52","first":"Judah","last":"Samuel","phone":"201-888-0214","role":"member","addedAt":1700000000000},{"unit":"53","first":"Shloimie","last":"Kreindler","phone":"443-939-9979","role":"member","addedAt":1700000000000},{"unit":"54","first":"Dovie","last":"Hirsch","phone":"201-354-0550","role":"member","addedAt":1700000000000},{"unit":"55","first":"Henry","last":"Bernstein","phone":"516-554-4063","role":"member","addedAt":1700000000000},{"unit":"59","first":"Chaim","last":"Ezagui","phone":"347-785-8798","role":"member","addedAt":1700000000000},{"unit":"60","first":"Noah","last":"Isaacs","phone":"201-803-8614","role":"member","addedAt":1700000000000},{"unit":"61","first":"Moshe","last":"Katz","phone":"516-209-1427","role":"member","addedAt":1700000000000},{"unit":"62","first":"","last":"Gendler","phone":"347-409-5754","role":"member","addedAt":1700000000000},{"unit":"63","first":"Aaron","last":"Bauman","phone":"347-543-2941","role":"member","addedAt":1700000000000},{"unit":"64","first":"Kivi","last":"Gorden","phone":"610-513-0776","role":"member","addedAt":1700000000000},{"unit":"65","first":"Eli","last":"Teichman","phone":"845-558-5247","role":"member","addedAt":1700000000000},{"unit":"66","first":"Andy","last":"Schultz","phone":"914-574-7057","role":"member","addedAt":1700000000000},{"unit":"67","first":"Willie","last":"Silberstein","phone":"201-681-8876","role":"member","addedAt":1700000000000},{"unit":"68","first":"Yehuda","last":"Schwartz","phone":"917-288-2546","role":"member","addedAt":1700000000000},{"unit":"69","first":"Dovi","last":"Pfeffer","phone":"848-210-5060","role":"member","addedAt":1700000000000},{"unit":"70","first":"Yosi","last":"Gibraltar","phone":"","role":"member","addedAt":1700000000000},{"unit":"71","first":"Avi","last":"Klein","phone":"347-731-5525","role":"member","addedAt":1700000000000},{"unit":"72","first":"Moshe","last":"Skoczylas","phone":"718-974-7347","role":"member","addedAt":1700000000000},{"unit":"73","first":"Danny","last":"Senter","phone":"201-491-4602","role":"member","addedAt":1700000000000},{"unit":"74","first":"Rudman","last":"Zvi","phone":"","role":"member","addedAt":1700000000000},{"unit":"75","first":"David","last":"Kestenbaum","phone":"516-318-2697","role":"member","addedAt":1700000000000},{"unit":"76","first":"Aharon","last":"Klarberg","phone":"973-567-0772","role":"member","addedAt":1700000000000},{"unit":"77","first":"Willie","last":"Balk","phone":"216-392-2244","role":"member","addedAt":1700000000000},{"unit":"78","first":"Izzy","last":"Infield","phone":"201-245-4666","role":"member","addedAt":1700000000000},{"unit":"79","first":"David","last":"Itzkowits","phone":"347-227-9014","role":"member","addedAt":1700000000000},{"unit":"80","first":"Mayer","last":"Sabo","phone":"201-566-4759","role":"member","addedAt":1700000000000},{"unit":"81","first":"Aaron","last":"Lerer","phone":"845-213-7323","role":"member","addedAt":1700000000000},{"unit":"82","first":"Naftali","last":"Nunberg","phone":"917-912-8913","role":"member","addedAt":1700000000000},{"unit":"83","first":"Michel","last":"Klarburg","phone":"973-851-0510","role":"member","addedAt":1700000000000},{"unit":"86","first":"Israel","last":"Romand","phone":"845-499-0540","role":"member","addedAt":1700000000000},{"unit":"87","first":"Phillip","last":"Katz","phone":"917-549-5540","role":"member","addedAt":1700000000000},{"unit":"88","first":"Yitz","last":"Stern","phone":"845-596-7988","role":"member","addedAt":1700000000000},{"unit":"89","first":"Mordechai","last":"Solinsky","phone":"347-486-4434","role":"member","addedAt":1700000000000},{"unit":"90","first":"Sam","last":"Ulrich","phone":"858-401-0863","role":"member","addedAt":1700000000000},{"unit":"91","first":"Leibi","last":"Stern","phone":"","role":"member","addedAt":1700000000000},{"unit":"92","first":"Michael","last":"Scharf","phone":"201-468-1166","role":"member","addedAt":1700000000000},{"unit":"93","first":"Yair","last":"Menchel","phone":"516-672-1325","role":"member","addedAt":1700000000000},{"unit":"94","first":"Zvi","last":"Bin-Nun","phone":"551-795-3394","role":"member","addedAt":1700000000000},{"unit":"95","first":"Zev","last":"Darack","phone":"973-202-9867","role":"member","addedAt":1700000000000},{"unit":"96","first":"Binyamin","last":"Schulgasser","phone":"973-943-0413","role":"member","addedAt":1700000000000},{"unit":"97","first":"Solomon","last":"Itzkowitz","phone":"929-261-6554","role":"admin","addedAt":1700000000000},{"unit":"99","first":"Yakov","last":"Cohen","phone":"201-957-3523","role":"member","addedAt":1700000000000},{"unit":"100","first":"Emanuel","last":"Klein","phone":"718-807-5604","role":"member","addedAt":1700000000000},{"unit":"102","first":"Joel","last":"Varnai","phone":"646-597-0935","role":"member","addedAt":1700000000000},{"unit":"103","first":"Shalom","last":"Peretz","phone":"845-270-8447","role":"member","addedAt":1700000000000},{"unit":"104","first":"Mo","last":"Berow","phone":"973-270-3015","role":"member","addedAt":1700000000000},{"unit":"105","first":"Daniel","last":"Fuksbrumer","phone":"917-439-3984","role":"member","addedAt":1700000000000},{"unit":"106","first":"Yoni","last":"Kaufman","phone":"917-608-4904","role":"member","addedAt":1700000000000},{"unit":"107","first":"Daniel","last":"Gross","phone":"917-974-9630","role":"member","addedAt":1700000000000},{"unit":"108","first":"David","last":"Rivkin","phone":"201-580-0456","role":"member","addedAt":1700000000000},{"unit":"110","first":"Isaac","last":"Mass","phone":"201-630-1518","role":"member","addedAt":1700000000000},{"unit":"111","first":"Leiby","last":"Itzkowitz","phone":"929-445-0429","role":"member","addedAt":1700000000000},{"unit":"112","first":"Benzi","last":"Herbst","phone":"718-810-3968","role":"member","addedAt":1700000000000},{"unit":"114","first":"Avidan","last":"Rothman","phone":"973-280-1691","role":"member","addedAt":1700000000000},{"unit":"115","first":"Zach","last":"Berman","phone":"845-216-8279","role":"member","addedAt":1700000000000},{"unit":"116","first":"Steven","last":"Hoenig","phone":"201-240-8749","role":"member","addedAt":1700000000000},{"unit":"117","first":"Jeffrey","last":"Rosenfeld","phone":"917-664-8374","role":"member","addedAt":1700000000000},{"unit":"118","first":"Zev","last":"Savetsky","phone":"201-805-2476","role":"member","addedAt":1700000000000},{"unit":"119","first":"Nechemia","last":"Berman","phone":"845-622-0094","role":"member","addedAt":1700000000000},{"unit":"120","first":"Yehuda","last":"Breuer","phone":"845-399-0523","role":"member","addedAt":1700000000000},{"unit":"121","first":"David","last":"Dahan","phone":"551-326-1160","role":"observer","addedAt":1700000000000},{"unit":"122","first":"Ephraim","last":"Rudin","phone":"973-368-7639","role":"member","addedAt":1700000000000},{"unit":"123","first":"Mendy","last":"Green","phone":"845-213-0748","role":"member","addedAt":1700000000000},{"unit":"124","first":"Binyamin","last":"Kroll","phone":"973-462-3851","role":"member","addedAt":1700000000000},{"unit":"125","first":"Jack","last":"Attali","phone":"917-626-1069","role":"observer","addedAt":1700000000000},{"unit":"126","first":"Sam","last":"Lovi","phone":"347-985-6088","role":"member","addedAt":1700000000000},{"unit":"127","first":"Nathan","last":"Rose","phone":"914-714-4138","role":"member","addedAt":1700000000000},{"unit":"128","first":"Pinchas","last":"Feinstein","phone":"646-244-1137","role":"member","addedAt":1700000000000},{"unit":"129","first":"Zecharia","last":"Gurell","phone":"201-334-2325","role":"member","addedAt":1700000000000},{"unit":"130","first":"Didi","last":"Forman","phone":"972-53-272-8815","role":"member","addedAt":1700000000000},{"unit":"131","first":"Zach","last":"Cohen","phone":"201-803-6143","role":"member","addedAt":1700000000000},{"unit":"133","first":"Zevy","last":"Glicksman","phone":"917-655-2075","role":"member","addedAt":1700000000000},{"unit":"140","first":"Khodik","last":"Kalmen","phone":"201-970-1818","role":"member","addedAt":1700000000000},{"unit":"148","first":"Shloime","last":"Mintz","phone":"","role":"member","addedAt":1700000000000},{"unit":"149","first":"Juda","last":"Glick","phone":"718-613-9575","role":"member","addedAt":1700000000000},{"unit":"150","first":"Isaac","last":"Forgash","phone":"201-509-0986","role":"member","addedAt":1700000000000},{"unit":"154","first":"Matthew","last":"Fried","phone":"917-371-2669","role":"member","addedAt":1700000000000},{"unit":"155","first":"Yisrael Mayer","last":"Birnbaum","phone":"347-448-1796","role":"member","addedAt":1700000000000},{"unit":"157","first":"Daniel","last":"Steinermam","phone":"201-575-3569","role":"member","addedAt":1700000000000},{"unit":"160","first":"Avi","last":"Greenberg","phone":"845-422-3090","role":"member","addedAt":1700000000000},{"unit":"161","first":"Abraham","last":"Green","phone":"","role":"member","addedAt":1700000000000},{"unit":"162","first":"Zev Yida","last":"Farkas","phone":"","role":"member","addedAt":1700000000000},{"unit":"163","first":"Daniel","last":"Blum","phone":"347-533-0596","role":"member","addedAt":1700000000000},{"unit":"164","first":"Shmuel","last":"Remer","phone":"551-999-7592","role":"member","addedAt":1700000000000},{"unit":"169","first":"Avrumy","last":"Schwartz","phone":"929-355-3943","role":"member","addedAt":1700000000000},{"unit":"171","first":"Chaim","last":"Abenson","phone":"845-866-1647","role":"member","addedAt":1700000000000},{"unit":"178","first":"Yisroel","last":"Gutman","phone":"347-693-0315","role":"member","addedAt":1700000000000},{"unit":"180","first":"Abbey","last":"Cooper","phone":"201-543-1267","role":"member","addedAt":1700000000000},{"unit":"191","first":"Kenny","last":"Fried","phone":"917-544-0383","role":"member","addedAt":1700000000000},{"unit":"200","first":"Jan","last":"Meyer","phone":"201-888-4566","role":"member","addedAt":1700000000000},{"unit":"234","first":"Mordechai","last":"Kupferstein","phone":"718-679-7278","role":"member","addedAt":1700000000000},{"unit":"257","first":"Moshe","last":"Teicher","phone":"786-999-5939","role":"member","addedAt":1700000000000},{"unit":"369","first":"Rafael","last":"Pomerantz","phone":"929-253-4860","role":"member","addedAt":1700000000000},{"unit":"500","first":"Dalia","last":"Romand","phone":"914-220-2702","role":"dispatch","addedAt":1700000000000},{"unit":"501","first":"Rivky","last":"Sandal","phone":"845-629-1212","role":"member","addedAt":1700000000000},{"unit":"502","first":"Lazar","last":"Weider","phone":"845-248-8636","role":"member","addedAt":1700000000000},{"unit":"503","first":"Shmuel","last":"Eidelman","phone":"732-429-5195","role":"member","addedAt":1700000000000},{"unit":"504","first":"Jacob","last":"Rosenberg","phone":"201-686-1731","role":"member","addedAt":1700000000000},{"unit":"505","first":"Shloime","last":"Mintz","phone":"201-370-1097","role":"member","addedAt":1700000000000},{"unit":"506","first":"Shlomo","last":"Erlanger","phone":"551-238-5060","role":"member","addedAt":1700000000000},{"unit":"507","first":"Shragie","last":"Rubelow","phone":"848-525-7435","role":"member","addedAt":1700000000000},{"unit":"508","first":"Yehuda","last":"Rhine","phone":"929-210-1524","role":"member","addedAt":1700000000000}];
+const SEED_MEMBERS=[{"unit":"05","first":"Yehuda","last":"Miller","phone":"845-558-4497","role":"member","addedAt":1700000000000},{"unit":"06","first":"Chaim","last":"Huisman","phone":"201-456-7701","role":"member","addedAt":1700000000000},{"unit":"07","first":"Chaim","last":"Stadtmauer","phone":"973-865-0588","role":"member","addedAt":1700000000000},{"unit":"08","first":"Elliott","last":"Gilden","phone":"201-280-7062","role":"member","addedAt":1700000000000},{"unit":"09","first":"Edward","last":"Abramovitz","phone":"203-988-6334","role":"member","addedAt":1700000000000},{"unit":"10","first":"Yehuda","last":"Feig","phone":"201-491-3423","role":"member","addedAt":1700000000000},{"unit":"11","first":"Nosson","last":"Moldaver","phone":"732-233-8595","role":"member","addedAt":1700000000000},{"unit":"12","first":"David","last":"Roberts","phone":"201-562-7844","role":"member","addedAt":1700000000000},{"unit":"13","first":"Stuart","last":"Krupnik","phone":"347-371-1132","role":"member","addedAt":1700000000000},{"unit":"14","first":"Simon","last":"Berrebi","phone":"347-768-0807","role":"member","addedAt":1700000000000},{"unit":"15","first":"Moshe","last":"Kozlow","phone":"201-655-3279","role":"member","addedAt":1700000000000},{"unit":"16","first":"Ari","last":"Wartelsky","phone":"917-841-4115","role":"member","addedAt":1700000000000},{"unit":"17","first":"Motti","last":"Rosenthal","phone":"718-614-6002","role":"member","addedAt":1700000000000},{"unit":"18","first":"Ahron","last":"Mallin","phone":"917-596-9528","role":"member","addedAt":1700000000000},{"unit":"19","first":"Sruli","last":"Scharf","phone":"201-321-2073","role":"member","addedAt":1700000000000},{"unit":"20","first":"Burry","last":"Greenbaum","phone":"718-974-1571","role":"member","addedAt":1700000000000},{"unit":"21","first":"Yehuda","last":"Lisker","phone":"201-723-7228","role":"member","addedAt":1700000000000},{"unit":"22","first":"Yoni","last":"Celnik","phone":"845-364-1318","role":"member","addedAt":1700000000000},{"unit":"23","first":"Daniel","last":"Hyman","phone":"917-767-4040","role":"member","addedAt":1700000000000},{"unit":"24","first":"Gershon","last":"Weinreb","phone":"570-909-6530","role":"member","addedAt":1700000000000},{"unit":"25","first":"Daniel","last":"Rubinoff","phone":"917-345-3447","role":"member","addedAt":1700000000000},{"unit":"26","first":"Mickey","last":"Cohen","phone":"201-937-2192","role":"member","addedAt":1700000000000},{"unit":"27","first":"Yitzchok","last":"Berger","phone":"917-697-0043","role":"member","addedAt":1700000000000},{"unit":"28","first":"Benny","last":"Kessler","phone":"718-915-8057","role":"member","addedAt":1700000000000},{"unit":"29","first":"Aaron","last":"Heideman","phone":"732-609-6154","role":"dispatch","addedAt":1700000000000},{"unit":"30","first":"Matis","last":"Gluck","phone":"845-641-2001","role":"member","addedAt":1700000000000},{"unit":"31","first":"Rachmiel","last":"","phone":"718-909-9352","role":"member","addedAt":1700000000000},{"unit":"32","first":"Avi","last":"Weiskopf","phone":"201-707-4616","role":"member","addedAt":1700000000000},{"unit":"33","first":"Chaim","last":"Gottesman","phone":"201-280-2386","role":"member","addedAt":1700000000000},{"unit":"34","first":"Yehuda","last":"Kreitman","phone":"732-440-8457","role":"dispatch","addedAt":1700000000000},{"unit":"36","first":"Aaron","last":"Sheffy","phone":"551-804-3385","role":"member","addedAt":1700000000000},{"unit":"37","first":"Micah","last":"Epstein","phone":"914-806-3334","role":"member","addedAt":1700000000000},{"unit":"38","first":"Aryeh","last":"Wizman","phone":"845-531-9110","role":"admin","addedAt":1700000000000},{"unit":"39","first":"Rami","last":"Glatt","phone":"718-536-6574","role":"member","addedAt":1700000000000},{"unit":"40","first":"Shloimy","last":"Ciment","phone":"845-587-0053","role":"member","addedAt":1700000000000},{"unit":"41","first":"Michael","last":"Goldsmith","phone":"201-370-5664","role":"member","addedAt":1700000000000},{"unit":"42","first":"Kenneth","last":"Goldman","phone":"201-638-6515","role":"member","addedAt":1700000000000},{"unit":"43","first":"Avi","last":"Okin","phone":"862-438-4094","role":"member","addedAt":1700000000000},{"unit":"44","first":"Isaac","last":"Vizel","phone":"917-672-1999","role":"member","addedAt":1700000000000},{"unit":"45","first":"Mark","last":"Eisenberger","phone":"917-363-8106","role":"member","addedAt":1700000000000},{"unit":"46","first":"Dov","last":"Eisenberger","phone":"917-538-5462","role":"member","addedAt":1700000000000},{"unit":"47","first":"Fischel","last":"Bensinger","phone":"305-389-3907","role":"member","addedAt":1700000000000},{"unit":"48","first":"Dovid","last":"Lisker","phone":"201-214-0803","role":"member","addedAt":1700000000000},{"unit":"49","first":"Mitchell","last":"Schaffer","phone":"201-519-6904","role":"member","addedAt":1700000000000},{"unit":"50","first":"Moti","last":"Rimer","phone":"646-772-3455","role":"member","addedAt":1700000000000},{"unit":"51","first":"Isaac","last":"Dayan","phone":"847-226-6892","role":"member","addedAt":1700000000000},{"unit":"52","first":"Judah","last":"Samuel","phone":"201-888-0214","role":"member","addedAt":1700000000000},{"unit":"53","first":"Shloimie","last":"Kreindler","phone":"443-939-9979","role":"dispatch","addedAt":1700000000000},{"unit":"54","first":"Dovie","last":"Hirsch","phone":"201-354-0550","role":"dispatch","addedAt":1700000000000},{"unit":"55","first":"Henry","last":"Bernstein","phone":"516-554-4063","role":"member","addedAt":1700000000000},{"unit":"59","first":"Chaim","last":"Ezagui","phone":"347-785-8798","role":"dispatch","addedAt":1700000000000},{"unit":"60","first":"Noah","last":"Isaacs","phone":"201-803-8614","role":"member","addedAt":1700000000000},{"unit":"61","first":"Moshe","last":"Katz","phone":"516-209-1427","role":"member","addedAt":1700000000000},{"unit":"62","first":"","last":"Gendler","phone":"347-409-5754","role":"member","addedAt":1700000000000},{"unit":"63","first":"Aaron","last":"Bauman","phone":"347-543-2941","role":"member","addedAt":1700000000000},{"unit":"64","first":"Kivi","last":"Gorden","phone":"610-513-0776","role":"member","addedAt":1700000000000},{"unit":"65","first":"Eli","last":"Teichman","phone":"845-558-5247","role":"member","addedAt":1700000000000},{"unit":"66","first":"Andy","last":"Schultz","phone":"914-574-7057","role":"member","addedAt":1700000000000},{"unit":"67","first":"Willie","last":"Silberstein","phone":"201-681-8876","role":"member","addedAt":1700000000000},{"unit":"68","first":"Yehuda","last":"Schwartz","phone":"917-288-2546","role":"member","addedAt":1700000000000},{"unit":"69","first":"Dovi","last":"Pfeffer","phone":"848-210-5060","role":"member","addedAt":1700000000000},{"unit":"70","first":"Yosi","last":"Gibraltar","phone":"","role":"member","addedAt":1700000000000},{"unit":"71","first":"Avi","last":"Klein","phone":"347-731-5525","role":"dispatch","addedAt":1700000000000},{"unit":"72","first":"Moshe","last":"Skoczylas","phone":"718-974-7347","role":"member","addedAt":1700000000000},{"unit":"73","first":"Danny","last":"Senter","phone":"201-491-4602","role":"member","addedAt":1700000000000},{"unit":"74","first":"Rudman","last":"Zvi","phone":"","role":"member","addedAt":1700000000000},{"unit":"75","first":"David","last":"Kestenbaum","phone":"516-318-2697","role":"member","addedAt":1700000000000},{"unit":"76","first":"Aharon","last":"Klarberg","phone":"973-567-0772","role":"member","addedAt":1700000000000},{"unit":"77","first":"Willie","last":"Balk","phone":"216-392-2244","role":"member","addedAt":1700000000000},{"unit":"78","first":"Izzy","last":"Infield","phone":"201-245-4666","role":"member","addedAt":1700000000000},{"unit":"79","first":"David","last":"Itzkowits","phone":"347-227-9014","role":"member","addedAt":1700000000000},{"unit":"80","first":"Mayer","last":"Sabo","phone":"201-566-4759","role":"member","addedAt":1700000000000},{"unit":"81","first":"Aaron","last":"Lerer","phone":"845-213-7323","role":"member","addedAt":1700000000000},{"unit":"82","first":"Naftali","last":"Nunberg","phone":"917-912-8913","role":"member","addedAt":1700000000000},{"unit":"83","first":"Michel","last":"Klarburg","phone":"973-851-0510","role":"member","addedAt":1700000000000},{"unit":"86","first":"Israel","last":"Romand","phone":"845-499-0540","role":"member","addedAt":1700000000000},{"unit":"87","first":"Phillip","last":"Katz","phone":"917-549-5540","role":"member","addedAt":1700000000000},{"unit":"88","first":"Yitz","last":"Stern","phone":"845-596-7988","role":"member","addedAt":1700000000000},{"unit":"89","first":"Mordechai","last":"Solinsky","phone":"347-486-4434","role":"member","addedAt":1700000000000},{"unit":"90","first":"Sam","last":"Ulrich","phone":"858-401-0863","role":"member","addedAt":1700000000000},{"unit":"91","first":"Leibi","last":"Stern","phone":"","role":"member","addedAt":1700000000000},{"unit":"92","first":"Michael","last":"Scharf","phone":"201-468-1166","role":"member","addedAt":1700000000000},{"unit":"93","first":"Yair","last":"Menchel","phone":"516-672-1325","role":"member","addedAt":1700000000000},{"unit":"94","first":"Zvi","last":"Bin-Nun","phone":"551-795-3394","role":"member","addedAt":1700000000000},{"unit":"95","first":"Zev","last":"Darack","phone":"973-202-9867","role":"member","addedAt":1700000000000},{"unit":"96","first":"Binyamin","last":"Schulgasser","phone":"973-943-0413","role":"member","addedAt":1700000000000},{"unit":"97","first":"Solomon","last":"Itzkowitz","phone":"929-261-6554","role":"dispatch","addedAt":1700000000000},{"unit":"99","first":"Yakov","last":"Cohen","phone":"201-957-3523","role":"member","addedAt":1700000000000},{"unit":"100","first":"Emanuel","last":"Klein","phone":"718-807-5604","role":"member","addedAt":1700000000000},{"unit":"102","first":"Joel","last":"Varnai","phone":"646-597-0935","role":"member","addedAt":1700000000000},{"unit":"103","first":"Shalom","last":"Peretz","phone":"845-270-8447","role":"member","addedAt":1700000000000},{"unit":"104","first":"Mo","last":"Berow","phone":"973-270-3015","role":"member","addedAt":1700000000000},{"unit":"105","first":"Daniel","last":"Fuksbrumer","phone":"917-439-3984","role":"member","addedAt":1700000000000},{"unit":"106","first":"Yoni","last":"Kaufman","phone":"917-608-4904","role":"member","addedAt":1700000000000},{"unit":"107","first":"Daniel","last":"Gross","phone":"917-974-9630","role":"observer","addedAt":1700000000000},{"unit":"108","first":"David","last":"Rivkin","phone":"201-580-0456","role":"member","addedAt":1700000000000},{"unit":"110","first":"Isaac","last":"Mass","phone":"201-630-1518","role":"member","addedAt":1700000000000},{"unit":"111","first":"Leiby","last":"Itzkowitz","phone":"929-445-0429","role":"dispatch","addedAt":1700000000000},{"unit":"112","first":"Benzi","last":"Herbst","phone":"718-810-3968","role":"member","addedAt":1700000000000},{"unit":"114","first":"Avidan","last":"Rothman","phone":"973-280-1691","role":"member","addedAt":1700000000000},{"unit":"115","first":"Zach","last":"Berman","phone":"845-216-8279","role":"member","addedAt":1700000000000},{"unit":"116","first":"Steven","last":"Hoenig","phone":"201-240-8749","role":"member","addedAt":1700000000000},{"unit":"117","first":"Jeffrey","last":"Rosenfeld","phone":"917-664-8374","role":"member","addedAt":1700000000000},{"unit":"118","first":"Zev","last":"Savetsky","phone":"201-805-2476","role":"member","addedAt":1700000000000},{"unit":"119","first":"Nechemia","last":"Berman","phone":"845-622-0094","role":"member","addedAt":1700000000000},{"unit":"120","first":"Yehuda","last":"Breuer","phone":"845-399-0523","role":"member","addedAt":1700000000000},{"unit":"121","first":"David","last":"Dahan","phone":"551-326-1160","role":"observer","addedAt":1700000000000},{"unit":"122","first":"Ephraim","last":"Rudin","phone":"973-368-7639","role":"dispatch","addedAt":1700000000000},{"unit":"123","first":"Mendy","last":"Green","phone":"845-213-0748","role":"member","addedAt":1700000000000},{"unit":"124","first":"Binyamin","last":"Kroll","phone":"973-462-3851","role":"dispatch","addedAt":1700000000000},{"unit":"125","first":"Jack","last":"Attali","phone":"917-626-1069","role":"observer","addedAt":1700000000000},{"unit":"126","first":"Sam","last":"Lovi","phone":"347-985-6088","role":"member","addedAt":1700000000000},{"unit":"127","first":"Nathan","last":"Rose","phone":"914-714-4138","role":"member","addedAt":1700000000000},{"unit":"128","first":"Pinchas","last":"Feinstein","phone":"646-244-1137","role":"member","addedAt":1700000000000},{"unit":"129","first":"Zecharia","last":"Gurell","phone":"201-334-2325","role":"member","addedAt":1700000000000},{"unit":"130","first":"Didi","last":"Forman","phone":"972-53-272-8815","role":"member","addedAt":1700000000000},{"unit":"131","first":"Zach","last":"Cohen","phone":"201-803-6143","role":"member","addedAt":1700000000000},{"unit":"133","first":"Zevy","last":"Glicksman","phone":"917-655-2075","role":"dispatch","addedAt":1700000000000},{"unit":"140","first":"Khodik","last":"Kalmen","phone":"201-970-1818","role":"member","addedAt":1700000000000},{"unit":"148","first":"Shloime","last":"Mintz","phone":"","role":"member","addedAt":1700000000000},{"unit":"149","first":"Juda","last":"Glick","phone":"718-613-9575","role":"member","addedAt":1700000000000},{"unit":"150","first":"Isaac","last":"Forgash","phone":"201-509-0986","role":"member","addedAt":1700000000000},{"unit":"154","first":"Matthew","last":"Fried","phone":"917-371-2669","role":"member","addedAt":1700000000000},{"unit":"155","first":"Yisrael Mayer","last":"Birnbaum","phone":"347-448-1796","role":"dispatch","addedAt":1700000000000},{"unit":"157","first":"Daniel","last":"Steinermam","phone":"201-575-3569","role":"member","addedAt":1700000000000},{"unit":"160","first":"Avi","last":"Greenberg","phone":"845-422-3090","role":"member","addedAt":1700000000000},{"unit":"161","first":"Abraham","last":"Green","phone":"","role":"member","addedAt":1700000000000},{"unit":"162","first":"Zev Yida","last":"Farkas","phone":"","role":"member","addedAt":1700000000000},{"unit":"163","first":"Daniel","last":"Blum","phone":"347-533-0596","role":"member","addedAt":1700000000000},{"unit":"164","first":"Shmuel","last":"Remer","phone":"551-999-7592","role":"member","addedAt":1700000000000},{"unit":"169","first":"Avrumy","last":"Schwartz","phone":"929-355-3943","role":"member","addedAt":1700000000000},{"unit":"171","first":"Chaim","last":"Abenson","phone":"845-866-1647","role":"member","addedAt":1700000000000},{"unit":"178","first":"Yisroel","last":"Gutman","phone":"347-693-0315","role":"member","addedAt":1700000000000},{"unit":"180","first":"Abbey","last":"Cooper","phone":"201-543-1267","role":"member","addedAt":1700000000000},{"unit":"191","first":"Kenny","last":"Fried","phone":"917-544-0383","role":"member","addedAt":1700000000000},{"unit":"200","first":"Jan","last":"Meyer","phone":"201-888-4566","role":"member","addedAt":1700000000000},{"unit":"234","first":"Mordechai","last":"Kupferstein","phone":"718-679-7278","role":"member","addedAt":1700000000000},{"unit":"257","first":"Moshe","last":"Teicher","phone":"786-999-5939","role":"dispatch","addedAt":1700000000000},{"unit":"369","first":"Rafael","last":"Pomerantz","phone":"929-253-4860","role":"dispatch","addedAt":1700000000000},{"unit":"500","first":"Dalia","last":"Romand","phone":"914-220-2702","role":"dispatch","addedAt":1700000000000},{"unit":"501","first":"Rivky","last":"Sandal","phone":"845-629-1212","role":"member","addedAt":1700000000000},{"unit":"502","first":"Lazar","last":"Weider","phone":"845-248-8636","role":"member","addedAt":1700000000000},{"unit":"503","first":"Shmuel","last":"Eidelman","phone":"732-429-5195","role":"dispatch","addedAt":1700000000000},{"unit":"504","first":"Jacob","last":"Rosenberg","phone":"201-686-1731","role":"member","addedAt":1700000000000},{"unit":"505","first":"Shloime","last":"Mintz","phone":"201-370-1097","role":"dispatch","addedAt":1700000000000},{"unit":"506","first":"Shlomo","last":"Erlanger","phone":"551-238-5060","role":"member","addedAt":1700000000000},{"unit":"507","first":"Shragie","last":"Rubelow","phone":"848-525-7435","role":"dispatch","addedAt":1700000000000},{"unit":"508","first":"Yehuda","last":"Rhine","phone":"929-210-1524","role":"member","addedAt":1700000000000}];
 
 const DEFAULT_LOCATIONS = ['COBC','Garage TABC','TVAC Trailer','Teaneck Garage','Teaneck Shed','Englewood Shed','Truck 02','Truck 03',"Rami's Garage"];
 
@@ -1151,7 +1165,7 @@ function defaultState() {
     vehicles: [
       {id:'V1',name:'Truck 02',type:'Truck',plate:'',checkedOut:false,checkedOutBy:null},
       {id:'V2',name:'Truck 03',type:'Truck',plate:'',checkedOut:false,checkedOutBy:null},
-      {id:'V3',name:'TVAC Trailer',type:'Trailer',plate:'',checkedOut:false,checkedOutBy:null},
+      
     ],
     onDuty: {name:'', phone:''},
     rrSettings: {first:3, repeat:3, switchAfter:2},
@@ -1216,53 +1230,47 @@ document.querySelectorAll('.role-chip').forEach(c=>{
 });
 
 function doLogin() {
-  const unit=document.getElementById('loginUnit').value.trim().replace(/^(BC-?)/i,''); // strip BC- prefix if typed
+  const unit=document.getElementById('loginUnit').value.trim().replace(/^BC-?/i,'');
   const pass=document.getElementById('loginPass').value.trim();
   const err=document.getElementById('loginError');
   err.textContent='';
+  if(!unit) { err.textContent='Enter your BC number'; return; }
 
-  // Dispatcher/Admin/Equipment: password-only login (no unit required)
-  const forcedRole = ['dispatch','equipment','admin'].find(r=>selectedRole===r);
-
-  if (forcedRole) {
-    // Password-gated roles — unit is optional (used for name lookup)
-    if (pass!==ROLES[forcedRole].pass) { err.textContent='Incorrect password'; return; }
-    const m=unit?STATE.members.find(m=>String(m.unit)===String(unit)):null;
-    const displayName = m?`${m.first} ${m.last}`:(forcedRole==='dispatch'?'Dispatcher':forcedRole.charAt(0).toUpperCase()+forcedRole.slice(1));
-    SESSION={role:forcedRole,unit:unit||'0',name:displayName};
-  } else {
-    // Member login — just enter BC# (no password needed)
-    // Also handles dispatch/admin/observer if their BC# is in the sheet with that role
-    if (!unit) { err.textContent='Enter your BC unit number'; return; }
-    const m=STATE.members.find(m=>String(m.unit)===String(unit));
-    if (!m) {
-      // Unknown unit — still allow as basic member
-      SESSION={role:'member',unit,name:`BC ${unit}`};
-    } else {
-      // Role comes from the sheet's status level
-      const sheetRole=m.role||'member'; // member|observer|dispatch|admin|equipment
-      // Dispatch/admin from sheet still need the password for security
-      if (['dispatch','admin','equipment'].includes(sheetRole)) {
-        const expectedPass=ROLES[sheetRole]?.pass;
-        if (expectedPass && pass!==expectedPass) {
-          err.textContent=`BC ${unit} has ${sheetRole} access — password required`;
-          // Show password field hint
-          document.getElementById('loginPass').focus();
-          return;
-        }
-      }
-      SESSION={role:sheetRole,unit,name:`${m.first} ${m.last}`.trim()||`BC ${unit}`};
+  // Check role passwords first (admin/dispatch/equipment)
+  for(const [role,cfg] of Object.entries(ROLES)) {
+    if(cfg.pass && pass===cfg.pass) {
+      const m=STATE.members.find(x=>String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'')===unit.replace(/^0+/,''));
+      SESSION={role,unit:m?m.unit:unit,name:m?`${m.first} ${m.last}`.trim():`BC ${unit}`,phone:m?.phone||null};
+      finishLogin(); return;
     }
   }
 
-  document.getElementById('login-screen').classList.add('hidden');
-  initApp();
-}
-document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  // Member / Observer password: 4357
+  if(pass==='4357') {
+    const m=STATE.members.find(x=>String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'')===unit.replace(/^0+/,''));
+    if(!m) { err.textContent='BC# not found — check your number'; return; }
+    // Role comes from column E of the members sheet (stored in SEED_MEMBERS)
+    const sheetRole=(m.role||'member').toLowerCase();
+    SESSION={role:sheetRole,unit:m.unit,name:`${m.first} ${m.last}`.trim(),phone:m.phone||null};
+    finishLogin(); return;
+  }
 
-// ──────────────────────────────────────────────
-//  INIT
-// ──────────────────────────────────────────────
+  err.textContent='Incorrect password';
+}
+
+function finishLogin() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('roleLabel').textContent = ROLES[SESSION.role]?.label||'MEMBER';
+  document.getElementById('unitLabel').textContent  = `BC ${SESSION.unit}`;
+  initApp();
+  showTab('home');
+  save();
+}
+
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('loginUnit').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
 function initApp() {
   document.getElementById('roleLabel').textContent = ROLES[SESSION.role]?.label||'MEMBER';
   document.getElementById('topbarSub').textContent = SESSION.name;
@@ -1435,7 +1443,7 @@ function renderHome() {
 //  DISPATCH
 // ──────────────────────────────────────────────
 const CALL_TYPE_LABELS = {
-  flat_tire:'🚗 Flat Tire',lockout:'🔑 Lockout',jump_start:'⚡ Jump Start',
+  flat_tire_spare:'🚗 Flat Tire - Has Spare',flat_tire_no_spare:'🚗 Flat Tire - No Spare',lockout:'🔑 Lockout',jump_start:'⚡ Jump Start',
   flood:'💧 Flood',ac_heat:'❄️ A/C or Heat',generator:'⚡ Generator',
   transport:'🚐 Transport',welfare:'🏥 Welfare Check',other:'📋 Other'
 };
@@ -1448,7 +1456,7 @@ function setDispatchFilter(f,el) {
 }
 
 function callCardHTML(call, mini=false) {
-  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const timeStr=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   const responders=(call.responders||[]).length;
   const pending=(call.pendingResponders||[]).length;
@@ -1537,7 +1545,9 @@ function renderCalls() {
 // ── Car fields ──
 function handleCallTypeChange() {
   const t=document.getElementById('callType').value;
-  document.getElementById('carInfoSection').style.display=['flat_tire','lockout','jump_start'].includes(t)?'block':'none';
+  document.getElementById('carInfoSection').style.display=['flat_tire_spare','flat_tire_no_spare','lockout','jump_start'].includes(t)?'block':'none';
+  const otherGrp=document.getElementById('otherTypeGroup');
+  if(otherGrp) otherGrp.style.display=t==='other'?'block':'none';
 }
 
 function populateModels() {
@@ -1549,9 +1559,14 @@ function populateModels() {
 
 // ── Create Call ──
 function createCall() {
-  const type=document.getElementById('callType').value;
+  let type=document.getElementById('callType').value;
+  if(type==='other') {
+    const customType=document.getElementById('otherTypeText')?.value?.trim();
+    if(customType) type='other:'+customType;
+  }
   const address=document.getElementById('callAddress').value.trim();
-  const town=document.getElementById('callTown').value;
+  const townSel=document.getElementById('callTown').value;
+  const town=townSel==='Other'?(document.getElementById('callTownText')?.value?.trim()||'Other'):townSel;
   const caller=document.getElementById('callCaller').value.trim();
   const phone=document.getElementById('callPhone').value.trim();
   const priority=document.getElementById('callPriority').value;
@@ -1606,7 +1621,7 @@ function cleanLabel(s) {
 }
 function buildDispatchWhatsApp(call) {
   // Strip emoji from type label (e.g. "🚗 Flat Tire" → "Flat Tire")
-  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
   const appLink=`https://aryehw330-lgtm.github.io/cobc-dispatch/`;
   const time=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
@@ -1681,7 +1696,7 @@ function confirmRespond() {
 
   // Get on-duty dispatcher from schedule
   const dispatcher = getOnDutyDispatcher();
-  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const waMsg=`*COBC - Response Request*\nBC-${SESSION.unit} ${SESSION.name}${isObserver?' (Observer)':''} is requesting to respond\n${typeLabel} - ${call.address}, ${call.town}\nETA: ${eta} min${notes?'\nNotes: '+notes:''}\n\nPlease approve or reject in the COBC app`;
 
   if (dispatcher.phone) {
@@ -1698,6 +1713,17 @@ function confirmRespond() {
 }
 
 // ── Dispatcher approves a pending responder ──
+
+function removeApprovedResponder(callId, unit) {
+  const call=STATE.calls.find(c=>c.id===callId);
+  if(!call) return;
+  const req=call.responders.find(r=>String(r.unit)===String(unit));
+  if(!confirm(`Remove BC-${unit} ${req?.name||''} from this call?`)) return;
+  call.responders=call.responders.filter(r=>String(r.unit)!==String(unit));
+  if(!call.responders.length && !call.pendingResponders?.length) call.status='open';
+  save(); openCallDetail(callId); renderCalls(); renderHome();
+  showToast(`BC-${unit} removed from call`);
+}
 function approveResponder(callId,unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
@@ -1710,7 +1736,7 @@ function approveResponder(callId,unit) {
   save(); renderCalls(); renderHome();
   showToast(`✅ BC-${unit} ${req.name} approved`);
   // WhatsApp to group
-  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const groupMsg=`*BC-${unit} ${req.name} is responding*\n${typeLabel} — ${call.address}, ${call.town}\nETA: ${req.eta} min${req.notes?'\nNotes: '+req.notes:''}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(groupMsg)}`,'_blank');
   // Personal message to member
@@ -1741,7 +1767,7 @@ function rejectResponder(callId,unit) {
   if(m?.phone) {
     setTimeout(()=>{
       if(confirm(`Send rejection message to BC-${unit} ${req.name}?`)) {
-        const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+        const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
         const msg=`We have enough coverage for the ${typeLabel} call at ${call.address}. Thank you for offering! — COBC Dispatch`;
         window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
       }
@@ -1788,27 +1814,117 @@ function openRadioModal(id) {
   showModal('radioModal');
 }
 
-function addRadioResponder() {
+let radioSelectedMembers=[];
+
+function openRadioModal(callId) {
+  radioSelectedMembers=[];
+  document.getElementById('radioCallId').value=callId;
+  document.getElementById('radioSearch').value='';
+  document.getElementById('radioSearchResults').style.display='none';
+  document.getElementById('radioETA').value='5';
+  renderRadioSelected();
+  showModal('radioModal');
+}
+
+function renderRadioSearch() {
+  const q=(document.getElementById('radioSearch').value||'').toLowerCase().trim();
+  const res=document.getElementById('radioSearchResults');
+  if(!q){res.style.display='none';return;}
+  const matches=STATE.members.filter(m=>{
+    if(radioSelectedMembers.find(x=>x.unit===m.unit)) return false;
+    const name=`${m.first} ${m.last}`.toLowerCase();
+    return name.includes(q)||String(m.unit).includes(q);
+  }).slice(0,8);
+  if(!matches.length){res.style.display='none';return;}
+  res.style.display='block';
+  res.innerHTML=matches.map(m=>`
+    <div onclick="addRadioMember('${m.unit}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;display:flex;align-items:center;gap:10px;">
+      <span style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">BC-${m.unit}</span>
+      ${m.first} ${m.last}
+    </div>`).join('');
+}
+
+function addRadioMember(unit) {
+  const m=STATE.members.find(x=>String(x.unit)===String(unit));
+  if(!m||radioSelectedMembers.find(x=>x.unit===unit)) return;
+  radioSelectedMembers.push(m);
+  document.getElementById('radioSearch').value='';
+  document.getElementById('radioSearchResults').style.display='none';
+  renderRadioSelected();
+}
+
+function renderRadioSelected() {
+  const el=document.getElementById('radioSelectedList');
+  if(!radioSelectedMembers.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 0;">Search and select members above</div>';
+    return;
+  }
+  el.innerHTML=radioSelectedMembers.map((m,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">BC-${m.unit}</span>
+        <span style="font-size:13px;font-weight:600;">${m.first} ${m.last}</span>
+      </div>
+      <button onclick="radioSelectedMembers.splice(${i},1);renderRadioSelected()" style="background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;">×</button>
+    </div>`).join('');
+}
+
+async function submitRadioResponders() {
   const id=document.getElementById('radioCallId').value;
-  const unit=document.getElementById('radioUnit').value.trim();
   const eta=document.getElementById('radioETA').value||'5';
-  if(!unit) { showToast('Enter unit #'); return; }
+  if(!radioSelectedMembers.length){showToast('Select at least one member');return;}
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  const m=STATE.members.find(m=>String(m.unit)===String(unit));
-  call.responders.push({unit,name:m?`${m.first} ${m.last}`:`BC ${unit}`,eta,via:'radio',time:Date.now()});
+  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+
+  radioSelectedMembers.forEach(m=>{
+    call.responders=call.responders||[];
+    // Remove from pending if they were there
+    call.pendingResponders=(call.pendingResponders||[]).filter(r=>String(r.unit)!==String(m.unit));
+    if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
+      call.responders.push({unit:m.unit,name:`${m.first} ${m.last}`.trim(),eta,via:'radio',status:'approved',time:Date.now()});
+    }
+  });
   call.status='active';
   save(); hideModal('radioModal');
   openCallDetail(id); renderCalls(); renderHome();
-  showToast(`📻 BC ${unit} added via radio`);
+  showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
+
+  // Send WhatsApp group announcement for all responders at once
+  const names=radioSelectedMembers.map(m=>`BC-${m.unit} ${m.first} ${m.last}`).join(', ');
+  const groupMsg=`*Responding to call*
+${names}
+${typeLabel} - ${call.address}, ${call.town}
+ETA: ${eta} min`;
+  setTimeout(()=>{
+    window.open('https://wa.me/?text='+encodeURIComponent(groupMsg),'_blank');
+  },300);
+
+  // Send personal WA to each member
+  for(let i=0;i<radioSelectedMembers.length;i++) {
+    const m=radioSelectedMembers[i];
+    if(!m.phone) continue;
+    const clean=m.phone.replace(/\D/g,'');
+    const num=clean.length===10?'1'+clean:clean;
+    const personalMsg=`You have been confirmed to respond
+${typeLabel} - ${call.address}, ${call.town}
+ETA: ${eta} min
+
+Stay safe! - COBC Dispatch`;
+    setTimeout(()=>{
+      window.open(`https://wa.me/${num}?text=`+encodeURIComponent(personalMsg),'_blank');
+    },600+(i*400));
+  }
 }
+
+function addRadioResponder() { /* legacy — use openRadioModal */ }
 
 // ── Call Detail ──
 function openCallDetail(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   const isDispatch=['admin','dispatch'].includes(SESSION.role);
-  const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const timeStr=new Date(call.createdAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   const townColor=TOWN_COLORS[call.town]||'var(--text3)';
   const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
@@ -1869,7 +1985,10 @@ function openCallDetail(id) {
           <div style="font-size:14px;font-weight:700;">BC-${r.unit}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
           <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
         </div>
-        ${phone?`<button class="responder-call-btn" onclick="window.location='tel:${phone}'">📞 Call</button>`:''}
+        <div style="display:flex;gap:6px;align-items:center;">
+          ${phone?`<button class="responder-call-btn" onclick="window.location='tel:${phone}'">📞</button>`:''}
+          ${isDispatch?`<button onclick="removeApprovedResponder('${id}','${r.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
+        </div>
       </div>`;
     });
   } else {
@@ -1958,7 +2077,13 @@ function openCallEdit(id) {
   document.getElementById('editCallId').value=id;
   document.getElementById('editCallType').value=call.type||'other';
   document.getElementById('editCallAddress').value=call.address||'';
-  document.getElementById('editCallTown').value=call.town||'Teaneck';
+  const knownTowns=['Teaneck','Englewood','Bergenfield','Fort Lee','Hackensack','Paramus','Ridgefield Park','Palisades Park','Leonia','Bogota','Fairview','Edgewater'];
+  const isKnownTown=knownTowns.includes(call.town);
+  document.getElementById('editCallTown').value=isKnownTown?call.town:'Other';
+  const otherGrp=document.getElementById('editCallTownOther');
+  if(otherGrp) otherGrp.style.display=isKnownTown?'none':'block';
+  const otherTxt=document.getElementById('editCallTownText');
+  if(otherTxt) otherTxt.value=isKnownTown?'':call.town||'';
   document.getElementById('editCallCaller').value=call.caller||'';
   document.getElementById('editCallPhone').value=call.phone||'';
   document.getElementById('editCallPriority').value=call.priority||'normal';
@@ -1972,7 +2097,8 @@ function saveCallEdit() {
   if(!call) return;
   call.type=document.getElementById('editCallType').value;
   call.address=document.getElementById('editCallAddress').value.trim();
-  call.town=document.getElementById('editCallTown').value;
+  const editTownSel=document.getElementById('editCallTown').value;
+  call.town=editTownSel==='Other'?(document.getElementById('editCallTownText')?.value?.trim()||'Other'):editTownSel;
   call.caller=document.getElementById('editCallCaller').value.trim();
   call.phone=document.getElementById('editCallPhone').value.trim();
   call.priority=document.getElementById('editCallPriority').value;
@@ -2009,7 +2135,7 @@ function confirmCompleteCall() {
   save(); hideModal('callCompleteModal');
   renderCalls(); renderHome(); showToast('Call completed');
   if(sendWA) {
-    const typeLabel=cleanLabel(CALL_TYPE_LABELS[call.type]||call.type);
+    const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const respList=(call.responders||[]).map(r=>`BC-${r.unit} ${r.name}`).join(', ')||'None assigned';
     let msg=`*COBC Call Completed*
 `;
@@ -2026,7 +2152,27 @@ _#${call.id.slice(-5)} · ${new Date().toLocaleTimeString('en-US',{hour:'numeric
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
   }
 }
-function openMaps(addr) { window.open(`https://maps.google.com/?q=${encodeURIComponent(addr)}`,'_blank'); }
+function openMaps(addr) {
+  const enc=encodeURIComponent(addr);
+  const wazeUrl='https://waze.com/ul?q='+enc+'&navigate=yes';
+  const gmapsUrl='https://maps.google.com/?q='+enc;
+  // Show choice bottom sheet
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+  el.innerHTML=`<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;">
+    <div style="font-size:15px;font-weight:700;margin-bottom:16px;text-align:center;">Open in Maps</div>
+    <a href="${wazeUrl}" target="_blank" onclick="document.body.removeChild(el)" style="display:flex;align-items:center;gap:14px;padding:14px;background:#f0fdf4;border-radius:12px;margin-bottom:10px;text-decoration:none;color:var(--text);">
+      <span style="font-size:28px;">🚕</span><div><div style="font-weight:700;font-size:15px;">Waze</div><div style="font-size:12px;color:var(--text3);">Live traffic navigation</div></div>
+    </a>
+    <a href="${gmapsUrl}" target="_blank" onclick="document.body.removeChild(el)" style="display:flex;align-items:center;gap:14px;padding:14px;background:#eff6ff;border-radius:12px;margin-bottom:10px;text-decoration:none;color:var(--text);">
+      <span style="font-size:28px;">🗺️</span><div><div style="font-weight:700;font-size:15px;">Google Maps</div><div style="font-size:12px;color:var(--text3);">Standard navigation</div></div>
+    </a>
+    <button onclick="document.body.removeChild(el)" style="width:100%;padding:13px;background:var(--border2);border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+  </div>`;
+  el.querySelector('div').addEventListener('click',e=>e.stopPropagation());
+  el.addEventListener('click',()=>document.body.removeChild(el));
+  document.body.appendChild(el);
+}
 function shareDispatchWA(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
