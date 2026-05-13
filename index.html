@@ -434,7 +434,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="section-title" id="homeGreeting">Welcome</div>
           <div class="section-sub" id="homeDate"></div>
         </div>
-        <button class="btn-sm btn-primary" id="homeNewCallBtn" onclick="showTab('dispatch');showModal('newCallModal')">+ New Call</button>
+        <button class="btn-sm btn-primary" id="homeNewCallBtn" onclick="showTab('dispatch');showModal('newCallModal')" style="display:none;">+ New Call</button>
       </div>
       <!-- On-Duty Dispatcher Banner -->
       <div class="on-duty-banner" id="onDutyBanner">
@@ -469,7 +469,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="page hidden" id="page-dispatch">
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
-        <button class="btn-sm btn-primary" id="newCallBtn" onclick="showModal('newCallModal')">+ Call</button>
+        <button class="btn-sm btn-primary" id="newCallBtn" onclick="showModal('newCallModal')" style="display:none;">+ Call</button>
       </div>
       <!-- On duty compact -->
       <div id="dispatchOnDutyRow" style="display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:12px;box-shadow:var(--shadow);">
@@ -1529,9 +1529,14 @@ function finishLogin() {
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('roleLabel').textContent = ROLES[SESSION.role]?.label||'MEMBER';
   document.getElementById('unitLabel').textContent  = `BC ${SESSION.unit}`;
-  // Hide checklist tab from members and observers
+  const canDispatch = ['admin','dispatch'].includes(SESSION.role);
+  const canChecklist = ['admin','dispatch','equipment'].includes(SESSION.role);
+  // Show/hide New Call buttons
+  const d = canDispatch ? '' : 'none';
+  ['homeNewCallBtn','newCallBtn'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display=d; });
+  // Show/hide Checklist tab
   const chkTab = document.getElementById('eqChecklistTab');
-  if(chkTab) chkTab.style.display = ['admin','dispatch','equipment'].includes(SESSION.role) ? '' : 'none';
+  if(chkTab) chkTab.style.display = canChecklist ? '' : 'none';
   initApp();
   showTab('home');
   save();
@@ -1856,6 +1861,7 @@ function selectCallType(type, btn) {
 
 // ── Create Call ──
 function createCall() {
+  if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Only dispatch can create calls'); return; }
   let type=document.getElementById('callType').value;
   if(type==='other') {
     const customType=document.getElementById('otherTypeText')?.value?.trim();
