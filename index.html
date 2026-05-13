@@ -505,7 +505,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div class="sub-tabs" id="eqSubTabs">
         <button class="sub-tab active" onclick="setEqTab('dashboard',this)">Dashboard</button>
         <button class="sub-tab" onclick="setEqTab('inventory',this)">Inventory</button>
-        <button class="sub-tab" onclick="setEqTab('checklist',this)">Checklist</button>
+        <button class="sub-tab" id="eqChecklistTab" onclick="setEqTab('checklist',this)">Checklist</button>
         <button class="sub-tab" onclick="setEqTab('reports',this)">Reports</button>
       </div>
       <!-- DASHBOARD -->
@@ -1529,6 +1529,9 @@ function finishLogin() {
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('roleLabel').textContent = ROLES[SESSION.role]?.label||'MEMBER';
   document.getElementById('unitLabel').textContent  = `BC ${SESSION.unit}`;
+  // Hide checklist tab from members and observers
+  const chkTab = document.getElementById('eqChecklistTab');
+  if(chkTab) chkTab.style.display = ['admin','dispatch','equipment'].includes(SESSION.role) ? '' : 'none';
   initApp();
   showTab('home');
   save();
@@ -3568,6 +3571,12 @@ function addVehicle() {
 let eqFilter='all', eqTab='dashboard';
 
 function setEqTab(tab,el) {
+  // Checklist is restricted to equipment team, dispatch, and admin only
+  const canChecklist = ['admin','dispatch','equipment'].includes(SESSION.role);
+  if(tab==='checklist' && !canChecklist) {
+    showToast('Checklist is for Equipment Team only');
+    return;
+  }
   eqTab=tab;
   ['dashboard','inventory','checklist','reports'].forEach(t=>{
     const e=document.getElementById(`eq-${t}`);
