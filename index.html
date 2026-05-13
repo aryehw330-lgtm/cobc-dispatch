@@ -396,18 +396,14 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="login-org">Bergen Chaverim</div>
   <div class="login-tagline">COBC Operations Platform</div>
   <div class="login-card">
-    <div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.6);margin-bottom:6px;">Members — enter your BC# only</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.35);margin-bottom:14px;">Dispatch / Admin / Equipment — select role + password</div>
-    <div class="login-roles" id="roleChips">
-      <div class="role-chip active" data-role="member">Caller: Member</div>
-      <div class="role-chip" data-role="dispatch">📡 Dispatch</div>
-      <div class="role-chip" data-role="equipment">📦 Equipment</div>
-      <div class="role-chip" data-role="admin">⚙️ Admin</div>
-    </div>
+    <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:16px;text-align:center;">Enter your BC# and password</div>
     <input class="login-input" id="loginUnit" type="text" inputmode="numeric" placeholder="BC Unit # (e.g. 38)" autocomplete="off"/>
-    <input class="login-input" id="loginPass" type="password" placeholder="Password (dispatch / admin / equipment)" autocomplete="off"/>
-    <button class="login-btn" onclick="doLogin()">Enter →</button>
+    <input class="login-input" id="loginPass" type="password" placeholder="Password" autocomplete="off"/>
+    <button class="login-btn" onclick="doLogin()">Sign In →</button>
     <div class="login-error" id="loginError"></div>
+    <div style="margin-top:14px;font-size:11px;color:rgba(255,255,255,.25);text-align:center;line-height:1.6;">
+      Your role (Member / Dispatch / Admin / Equipment)<br>is set automatically based on your BC#
+    </div>
   </div>
   <div style="margin-top:20px;font-size:12px;color:rgba(255,255,255,.2);text-align:center;">Bergen County Chaverim · v2.1</div>
 </div>
@@ -1487,13 +1483,7 @@ const rrTimers = {};
 // ──────────────────────────────────────────────
 //  LOGIN
 // ──────────────────────────────────────────────
-let selectedRole = 'member';
-document.querySelectorAll('.role-chip').forEach(c=>{
-  c.addEventListener('click',()=>{
-    document.querySelectorAll('.role-chip').forEach(x=>x.classList.remove('active'));
-    c.classList.add('active'); selectedRole=c.dataset.role;
-  });
-});
+// Login key listeners
 
 function doLogin() {
   const unit=document.getElementById('loginUnit').value.trim().replace(/^BC-?/i,'');
@@ -1502,22 +1492,33 @@ function doLogin() {
   err.textContent='';
   if(!unit) { err.textContent='Enter your BC number'; return; }
 
-  // Check role passwords first (admin/dispatch/equipment)
-  for(const [role,cfg] of Object.entries(ROLES)) {
-    if(cfg.pass && pass===cfg.pass) {
-      const m=STATE.members.find(x=>String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'')===unit.replace(/^0+/,''));
-      SESSION={role,unit:m?m.unit:unit,name:m?`${m.first} ${m.last}`.trim():`BC ${unit}`,phone:m?.phone||null};
-      finishLogin(); return;
-    }
+  // Look up this member in the roster
+  const m=STATE.members.find(x=>String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'')===unit.replace(/^0+/,''));
+  if(!m) { err.textContent='BC# not found — check your number'; return; }
+
+  const sheetRole=(m.role||'member').toLowerCase();
+
+  // Role-specific passwords (dispatch / equipment / admin)
+  // IMPORTANT: member must ALSO have that role in the Google Sheet
+  if(pass===ROLES.admin?.pass) {
+    if(sheetRole!=='admin') { err.textContent='Your BC# is not authorized as Admin'; return; }
+    SESSION={role:'admin', unit:m.unit, name:`${m.first} ${m.last}`.trim(), phone:m.phone||null};
+    finishLogin(); return;
+  }
+  if(pass===ROLES.dispatch?.pass) {
+    if(!['admin','dispatch'].includes(sheetRole)) { err.textContent='Your BC# is not authorized as Dispatch'; return; }
+    SESSION={role:'dispatch', unit:m.unit, name:`${m.first} ${m.last}`.trim(), phone:m.phone||null};
+    finishLogin(); return;
+  }
+  if(pass===ROLES.equipment?.pass) {
+    if(!['admin','dispatch','equipment'].includes(sheetRole)) { err.textContent='Your BC# is not authorized for Equipment Team'; return; }
+    SESSION={role:'equipment', unit:m.unit, name:`${m.first} ${m.last}`.trim(), phone:m.phone||null};
+    finishLogin(); return;
   }
 
-  // Member / Observer password: 4357
+  // Member password: 4357 — role comes entirely from the Google Sheet
   if(pass==='4357') {
-    const m=STATE.members.find(x=>String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'')===unit.replace(/^0+/,''));
-    if(!m) { err.textContent='BC# not found — check your number'; return; }
-    // Role comes from column E of the members sheet (stored in SEED_MEMBERS)
-    const sheetRole=(m.role||'member').toLowerCase();
-    SESSION={role:sheetRole,unit:m.unit,name:`${m.first} ${m.last}`.trim(),phone:m.phone||null};
+    SESSION={role:sheetRole, unit:m.unit, name:`${m.first} ${m.last}`.trim(), phone:m.phone||null};
     finishLogin(); return;
   }
 
