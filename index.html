@@ -481,10 +481,6 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="chip" data-filter="draft" onclick="setDispatchFilter('draft',this)">Draft</div>
       </div>
       <div id="callsList"></div>
-      <!-- Floating new call button for dispatch/admin -->
-      <div id="fabNewCall" style="position:sticky;bottom:16px;text-align:center;margin-top:12px;">
-        <button onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:50px;padding:14px 32px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(220,38,38,.4);letter-spacing:-.3px;">+ Dispatch New Call</button>
-      </div>
     </div>
 
     <!-- ══ EQUIPMENT ══ -->
@@ -1538,7 +1534,7 @@ function finishLogin() {
 
   // New Call buttons — visible for dispatch + admin, hidden for members
   const btnDisplay = isDispatch ? '' : 'none';
-  ['homeNewCallBtn','newCallBtn','fabNewCall'].forEach(id => {
+  ['homeNewCallBtn','newCallBtn'].forEach(id => {
     const e = document.getElementById(id);
     if(e) e.style.display = btnDisplay;
   });
