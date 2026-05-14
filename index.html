@@ -1573,13 +1573,7 @@ function initApp() {
   const isDispatch = ['admin','dispatch'].includes(SESSION.role);
   const isAdmin = SESSION.role==='admin';
 
-  if (!isDispatch) {
-    document.getElementById('newCallBtn').style.display='none';
-    document.getElementById('homeNewCallBtn').style.display='none';
-  }
-  if (!isAdmin) {
-    document.getElementById('tab-more').textContent=''; // kept visible
-  }
+  // New call buttons already shown/hidden in finishLogin — don't override here
 
   // Populate car makes datalist
   const makeDatalist = document.getElementById('carMakeList');
