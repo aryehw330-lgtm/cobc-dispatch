@@ -320,12 +320,16 @@ textarea.input{min-height:80px;resize:vertical;}
 
 .call-card{background:#fff;border-radius:14px;margin-bottom:10px;box-shadow:var(--shadow-md);overflow:hidden;cursor:pointer;transition:transform .1s,box-shadow .1s;}
 .call-card:active{transform:scale(.99);}
-.call-card.urgent{border:2px solid var(--red);}
+.call-card.open{background:#fff;}
+.call-card.active{background:#f0fdf4;border-left:4px solid var(--green);}
+.call-card.urgent{background:#fff1f2;border:2px solid var(--red);}
+.call-card.done{background:#f4f4f5;opacity:.75;filter:grayscale(20%);}
+.call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
 .call-card-header{padding:12px 14px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
 .call-card-type{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
 .call-card-addr{font-size:13px;color:var(--text2);margin-top:2px;}
 .call-card-meta{font-size:11px;color:var(--text3);margin-top:4px;}
-.call-card-footer{padding:8px 14px;border-top:1px solid var(--border2);display:flex;gap:6px;background:#fafbfc;}
+.call-card-footer{padding:8px 14px;border-top:1px solid var(--border2);display:flex;gap:6px;background:rgba(0,0,0,.02);}
 .call-action{flex:1;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;}
 .call-action:active{opacity:.8;}
 .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;}
@@ -1114,6 +1118,23 @@ textarea.input{min-height:80px;resize:vertical;}
   </div>
 </div>
 
+<!-- Checklist Password Modal -->
+<div class="modal-overlay hidden" id="cobcetModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:6px;">Equipment Checklist</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:18px;">Enter the equipment team password to access the checklist.</div>
+    <input type="hidden" id="cobcetCallbackTab"/>
+    <div class="input-group">
+      <label class="input-label">Password</label>
+      <input class="input" type="password" id="cobcetInput" placeholder="Enter password..." autocomplete="off"/>
+    </div>
+    <div style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:10px;" id="cobcetError"></div>
+    <button class="btn-full btn-primary" onclick="submitCobcet()" style="margin-bottom:8px;">Unlock Checklist</button>
+    <button class="btn-full btn-ghost" onclick="hideModal('cobcetModal')">Cancel</button>
+  </div>
+</div>
+
 <!-- Checkout Modal -->
 <div class="modal-overlay hidden" id="checkoutModal">
   <div class="modal">
@@ -1551,6 +1572,9 @@ function finishLogin() {
 
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('loginUnit').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&document.getElementById('cobcetInput')===document.activeElement) submitCobcet();
+});
 
 
 function setOnDutyOverride() {
@@ -3577,13 +3601,33 @@ function addVehicle() {
 // ──────────────────────────────────────────────
 let eqFilter='all', eqTab='dashboard';
 
+function submitCobcet() {
+  const pw = document.getElementById('cobcetInput').value;
+  if(pw === 'cobcet') {
+    sessionStorage.setItem('cobcet_ok','1');
+    hideModal('cobcetModal');
+    // Now actually switch to checklist
+    const tab = document.getElementById('cobcetCallbackTab').value;
+    const btn = document.querySelector('#eqSubTabs .sub-tab:nth-child(3)');
+    setEqTab(tab, btn);
+  } else {
+    document.getElementById('cobcetError').textContent = 'Incorrect password — try again';
+    document.getElementById('cobcetInput').value = '';
+    document.getElementById('cobcetInput').focus();
+  }
+}
+
 function setEqTab(tab,el) {
-  // Checklist requires cobcet password — prompt if not already unlocked this session
   if(tab==='checklist') {
-    if(!sessionStorage.getItem('cobcet_ok')) {
-      const pw = prompt('Enter Equipment Team password:');
-      if(pw !== 'cobcet') { showToast('Incorrect password'); return; }
-      sessionStorage.setItem('cobcet_ok','1');
+    if(sessionStorage.getItem('cobcet_ok')==='1') {
+      // Already unlocked — proceed
+    } else {
+      // Show in-app password modal instead of prompt()
+      document.getElementById('cobcetCallbackTab').value = tab;
+      document.getElementById('cobcetInput').value = '';
+      document.getElementById('cobcetError').textContent = '';
+      showModal('cobcetModal');
+      return;
     }
   }
   eqTab=tab;
