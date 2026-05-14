@@ -3765,7 +3765,7 @@ function renderInventory() {
   const el=document.getElementById('eqList');
   if(!el) return;
   if(!items.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">0</div><div class="empty-text">No items found</div></div>';return;}
-  const canEdit=['admin','equipment','dispatch'].includes(SESSION.role);
+  const canEdit = true; // all logged-in members can check in/out
   el.innerHTML=items.map(e=>{
     const isOut=e.status==='out';
     const statusBadge=isOut?'<span class="badge badge-red">OUT</span>':'<span class="badge badge-green">IN</span>';
