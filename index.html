@@ -44,6 +44,12 @@ html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0f2
 .topbar-badge{font-size:9px;background:rgba(212,169,58,.18);border:1px solid rgba(212,169,58,.4);color:var(--gold-light);padding:2px 7px;border-radius:4px;letter-spacing:.8px;font-weight:700;}
 .topbar-sub{font-size:10.5px;color:rgba(255,255,255,.55);font-weight:500;letter-spacing:.3px;text-transform:uppercase;}
 .topbar-right{display:flex;align-items:center;gap:8px;}
+.topbar-sync{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(212,169,58,.4);color:var(--gold-light,#d4a93a);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;transition:transform .2s,background .15s;}
+.topbar-sync:hover{background:rgba(212,169,58,.2);}
+.topbar-sync.spinning{animation:syncspin 1s linear infinite;}
+.topbar-sync.ok{color:#22c55e;border-color:rgba(34,197,94,.5);}
+.topbar-sync.error{color:#ef4444;border-color:rgba(239,68,68,.5);}
+@keyframes syncspin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 .status-pill{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:rgba(255,255,255,.9);}
 .dot-live{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:livepulse 1.8s ease-in-out infinite;}
 @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(0.8)}}
@@ -326,6 +332,8 @@ textarea.input{min-height:80px;resize:vertical;}
 .qtype-btn{padding:10px 6px;border-radius:10px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all .15s;font-family:inherit;line-height:1.3;}
 .qtype-btn:active{transform:scale(.95);}
 .qtype-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+.qtype-btn.ns-btn{padding:8px 4px;font-size:11px;background:rgba(255,255,255,.85);}
+.qtype-btn.ns-btn.active{background:#d97706;border-color:#d97706;color:#fff;}
 .qtype-btn.urgent-active{background:var(--red);border-color:var(--red);color:#fff;}
 
 .eta-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
@@ -438,6 +446,7 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
     <div class="topbar-right">
+      <button id="topbarSync" class="topbar-sync" onclick="manualSync()" title="Sync inventory from Google Sheet" aria-label="Sync">↻</button>
       <div class="status-pill"><span class="dot-live"></span><span id="activeCalls">0 Active</span></div>
       <div style="cursor:pointer;font-size:14px;color:rgba(255,255,255,.6);padding:4px;" onclick="signOut()">⎋</div>
     </div>
@@ -899,7 +908,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn active" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
       <button class="qtype-btn" onclick="selectCallType('flat_tire_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">Has Spare</span></button>
       <button class="qtype-btn" onclick="selectCallType('lockout',this)">Lockout</button>
-      <button class="qtype-btn" onclick="selectCallType('jump_start',this)">Jump Start</button>
+      <button class="qtype-btn" onclick="selectCallType('jump_start',this)">Boost</button>
       <button class="qtype-btn" onclick="selectCallType('flood',this)">Flood</button>
       <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
     </div>
@@ -916,12 +925,53 @@ textarea.input{min-height:80px;resize:vertical;}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div class="input-group" style="margin-bottom:0;">
           <label class="input-label">Make</label>
-          <input class="input" type="text" id="carMake" list="carMakeList" placeholder="Toyota, Honda..." autocomplete="off"/>
-          <datalist id="carMakeList"></datalist>
+          <select class="input" id="carMake" onchange="onCarMakeChange()">
+            <option value="">Select make...</option>
+          </select>
+          <input class="input" type="text" id="carMakeOther" placeholder="Enter make..." autocomplete="off" style="display:none;margin-top:6px;"/>
         </div>
         <div class="input-group" style="margin-bottom:0;">
           <label class="input-label">Model</label>
-          <input class="input" type="text" id="carModel" placeholder="Camry, Civic..." autocomplete="off"/>
+          <select class="input" id="carModel" onchange="onCarModelChange()" disabled>
+            <option value="">Select make first</option>
+          </select>
+          <input class="input" type="text" id="carModelOther" placeholder="Enter model..." autocomplete="off" style="display:none;margin-top:6px;"/>
+        </div>
+      </div>
+
+      <!-- NO-SPARE ACTION PICKER -->
+      <div id="noSpareSection" style="display:none;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.3);border-radius:10px;padding:10px;margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Recommended Action</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+          <button type="button" class="qtype-btn ns-btn" onclick="selectNoSpareAction('plug',this)">Plug Kit</button>
+          <button type="button" class="qtype-btn ns-btn" onclick="selectNoSpareAction('ezspare',this)">EZ-Spare</button>
+          <button type="button" class="qtype-btn ns-btn" onclick="selectNoSpareAction('tow',this)">Tow</button>
+        </div>
+        <input type="hidden" id="noSpareAction" value=""/>
+
+        <!-- EZ-SPARE DETAIL -->
+        <div id="ezSpareSection" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(217,119,6,.3);">
+          <div style="background:rgba(15,37,64,.06);border:1px solid rgba(212,169,58,.4);border-radius:8px;padding:10px;margin-bottom:10px;">
+            <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Look up the correct size for this vehicle and copy paste to notes below:</div>
+            <a href="https://www.ezsparewheel.com/pages/fitment-guide" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;padding:8px 12px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:700;">↗ EZ-Spare Fitment Guide</a>
+          </div>
+          <div id="ezSpareRefreshHint" style="font-size:11px;color:var(--text2);margin-bottom:8px;text-align:right;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+            <div class="input-group" style="margin-bottom:0;">
+              <label class="input-label">Size</label>
+              <select class="input" id="ezSpareSize" onchange="onEzSpareSizeChange()">
+                <option value="">Select size...</option>
+              </select>
+            </div>
+            <div class="input-group" style="margin-bottom:0;">
+              <label class="input-label">Unit (from inventory)</label>
+              <select class="input" id="ezSpareUnit">
+                <option value="">Select size first</option>
+              </select>
+            </div>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;">Kit Checklist</div>
+          <div id="ezSpareKitList" style="font-size:12px;color:var(--text);line-height:1.7;"></div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
@@ -1077,7 +1127,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="input-group"><label class="input-label">Call Type</label>
       <select class="input" id="editCallType">
         <option value="flat_tire_spare">Flat Tire - Has Spare</option><option value="flat_tire_no_spare">Flat Tire - No Spare</option><option value="lockout">Lockout</option>
-        <option value="jump_start">Jump Start</option><option value="flood">Flood</option>
+        <option value="jump_start">Boost</option><option value="flood">Flood</option>
         <option value="ac_heat">A/C or Heat</option><option value="generator">Generator</option>
         <option value="transport">Transport</option><option value="welfare">Welfare Check</option>
         <option value="other">Other</option>
@@ -1391,6 +1441,134 @@ const TOWN_COLORS = {
 };
 
 // ── Car Makes & Models ──
+function populateCarMakeSelect() {
+  const makeSelect = document.getElementById('carMake');
+  if(!makeSelect || makeSelect.tagName !== 'SELECT') return;
+  if(makeSelect.dataset.populated === '1') return;
+  if(typeof CAR_DATA === 'undefined') return;
+  Object.keys(CAR_DATA).filter(k=>k!=='Other').sort().forEach(m=>{
+    const o=document.createElement('option');
+    const label=m.replace('_',' ');
+    o.value=label; o.textContent=label;
+    makeSelect.appendChild(o);
+  });
+  const other=document.createElement('option');
+  other.value='Other'; other.textContent='Other...';
+  makeSelect.appendChild(other);
+  makeSelect.dataset.populated='1';
+}
+function onCarMakeChange() {
+  const makeSel = document.getElementById('carMake');
+  const makeOther = document.getElementById('carMakeOther');
+  const modelSel = document.getElementById('carModel');
+  const modelOther = document.getElementById('carModelOther');
+  const val = makeSel.value;
+  if(val==='Other'){ makeOther.style.display='block'; setTimeout(()=>makeOther.focus(),50); }
+  else { makeOther.style.display='none'; makeOther.value=''; }
+  modelSel.innerHTML='';
+  modelOther.style.display='none'; modelOther.value='';
+  if(!val){ modelSel.disabled=true; modelSel.innerHTML='<option value="">Select make first</option>'; return; }
+  modelSel.disabled=false;
+  modelSel.appendChild(new Option('Select model...',''));
+  const key = val.replace(/ /g,'_');
+  const models = (CAR_DATA[key] || CAR_DATA[val] || []);
+  models.forEach(m => modelSel.appendChild(new Option(m, m)));
+  modelSel.appendChild(new Option('Other...','Other'));
+}
+function onCarModelChange() {
+  const modelSel = document.getElementById('carModel');
+  const modelOther = document.getElementById('carModelOther');
+  if(modelSel.value==='Other'){ modelOther.style.display='block'; setTimeout(()=>modelOther.focus(),50); }
+  else { modelOther.style.display='none'; modelOther.value=''; }
+}
+
+// ── No-Spare action + EZ-Spare flow ──
+function populateEzSpareSizeSelect() {
+  const sel = document.getElementById('ezSpareSize');
+  if(!sel || sel.dataset.populated==='1') return;
+  EZ_SPARE_SIZES.forEach(s => sel.appendChild(new Option(s, s)));
+  sel.dataset.populated='1';
+}
+function selectNoSpareAction(action, btn) {
+  document.getElementById('noSpareAction').value = action;
+  document.querySelectorAll('.ns-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  const ezSec = document.getElementById('ezSpareSection');
+  if(action==='ezspare') {
+    ezSec.style.display='block';
+    populateEzSpareSizeSelect();
+    renderKitChecklist();
+    // Auto-refresh inventory from sheet so we have the freshest IN/OUT status
+    refreshEzSpareInventory();
+  } else {
+    ezSec.style.display='none';
+  }
+}
+async function manualSync() {
+  const btn = document.getElementById('topbarSync');
+  if(!btn || btn.classList.contains('spinning')) return;
+  btn.classList.remove('ok','error');
+  btn.classList.add('spinning');
+  try {
+    if(typeof loadInventoryFromSheet === 'function') {
+      await loadInventoryFromSheet();
+    }
+    btn.classList.remove('spinning');
+    btn.classList.add('ok');
+    showToast('✅ Synced from Google Sheet');
+    setTimeout(()=>btn.classList.remove('ok'), 3000);
+  } catch(e) {
+    btn.classList.remove('spinning');
+    btn.classList.add('error');
+    showToast('⚠️ Sync failed — check connection');
+    setTimeout(()=>btn.classList.remove('error'), 3000);
+  }
+}
+async function refreshEzSpareInventory() {
+  // (defined above by hoisting the manualSync block)
+  const hint = document.getElementById('ezSpareRefreshHint');
+  if(hint) hint.textContent = '⏳ Syncing inventory…';
+  try {
+    if(typeof sheetGET === 'function') {
+      const data = await sheetGET({action:'getInventory'});
+      if(data?.items?.length && typeof sheetRowToEq === 'function') {
+        const sheetNames = new Set(data.items.map(i=>i.name.toLowerCase()));
+        const localOnly = (STATE.equipment||[]).filter(e=>!e.fromSheet && !sheetNames.has(e.name.toLowerCase()));
+        STATE.equipment = [...data.items.map(sheetRowToEq), ...localOnly];
+        save();
+      }
+    }
+  } catch(e){}
+  // Re-render whatever size is currently selected to refresh available-units list
+  onEzSpareSizeChange();
+  if(hint) {
+    const t = new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    hint.innerHTML = `<a href="#" onclick="event.preventDefault();refreshEzSpareInventory()" style="color:var(--blue);text-decoration:none;">↻ Refresh inventory</a> <span style="opacity:.5;">· last sync ${t}</span>`;
+  }
+}
+function onCarMakeChange_legacy_removed(){}
+function onEzSpareSizeChange() {
+  const size = document.getElementById('ezSpareSize').value;
+  const unitSel = document.getElementById('ezSpareUnit');
+  unitSel.innerHTML='';
+  if(!size) { unitSel.appendChild(new Option('Select size first','')); return; }
+  const units = getAvailableEZSpares(size);
+  if(units.length===0) {
+    unitSel.appendChild(new Option(`⚠️ None in stock for ${size}`, ''));
+  } else {
+    unitSel.appendChild(new Option(`Auto-assign (${units.length} available)`, ''));
+    units.forEach(u => {
+      const loc = (u.location && u.location !== 'COBC') ? u.location : (u.location || '');
+      const suffix = loc ? ` — ${loc}` : '';
+      unitSel.appendChild(new Option(`${u.name}${suffix}`, u.id));
+    });
+  }
+}
+function renderKitChecklist() {
+  const list = document.getElementById('ezSpareKitList');
+  if(!list) return;
+  list.innerHTML = EZ_SPARE_KIT.map(k => `<div>• ${k}</div>`).join('');
+}
 const CAR_DATA = {
   Acura:['ILX','MDX','RDX','TLX'],
   BMW:['3 Series','5 Series','7 Series','X1','X3','X5','X7'],
@@ -1421,6 +1599,29 @@ const CAR_DATA = {
   Volvo:['S60','S90','XC40','XC60','XC90'],
   Other:['Other / Not Listed'],
 };
+
+// ── EZ-Spare sizes & kit ──
+// Sizes match the inventory: 125/80R17, 145/80D17, 145/85R18, 155/85R18, 165/70R17, 175/70R20, 195/55R20, 205/50ZR17
+const EZ_SPARE_SIZES = ['125/80R17','145/80D17','145/85R18','155/85R18','165/70R17','175/70R20','195/55R20','205/50ZR17'];
+function getAvailableEZSpares(size) {
+  if(typeof STATE === 'undefined' || !STATE.equipment) return [];
+  return STATE.equipment.filter(e => {
+    const cat = (e.category||'').toLowerCase().replace(/[-_\s]/g,'');
+    const isEz = cat === 'ezspare' || /ez[-\s]?spare/i.test(e.name||'');
+    return isEz &&
+      e.status === 'in' &&
+      !e.isCNC &&
+      !['Missing','Damaged','Not Active'].includes(e.equipStatus) &&
+      (!size || (e.name||'').includes(size));
+  });
+}
+const EZ_SPARE_KIT = ['Spare tire', 'Scissor jack', 'Lug wrench', 'Locking-nut key', 'Work gloves', 'Wheel chock'];
+// Eagerly populate the car-make dropdown as soon as DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', populateCarMakeSelect);
+} else {
+  populateCarMakeSelect();
+}
 
 // ── Default Equipment ──
 function buildDefaultEquipment() {
@@ -1491,6 +1692,20 @@ function load() {
       const savedUnits=new Set(saved.members.map(m=>String(m.unit)));
       const missing=SEED_MEMBERS.filter(m=>!savedUnits.has(String(m.unit)));
       if(missing.length) saved.members=[...saved.members,...missing];
+      // Migrate: ensure all default EZ-Spares exist (added in newer versions)
+      saved.equipment = saved.equipment || [];
+      const existingEz = new Set(saved.equipment.filter(e=>e.category==='EZ-Spare').map(e=>e.name));
+      const expectedEz = ['EZ-Spare 125/80R17 1','EZ-Spare 125/80R17 2','EZ-Spare 125/80R17 3','EZ-Spare 145/80D17 1','EZ-Spare 145/80D17 2','EZ-Spare 145/85R18 1','EZ-Spare 145/85R18 2','EZ-Spare 145/85R18 3','EZ-Spare 165/70R17 1','EZ-Spare 175/70R20 1','EZ-Spare 175/70R20 2','EZ-Spare 175/70R20 3','EZ-Spare 195/55R20 1','EZ-Spare 205/50ZR17 1','EZ-Spare 155/85R18 1'];
+      const missingEz = expectedEz.filter(n=>!existingEz.has(n));
+      if(missingEz.length) {
+        // Find a free EQ-#### id
+        let maxIdx = 0;
+        saved.equipment.forEach(e=>{ const m=/^EQ-(\d+)$/.exec(e.id||''); if(m) maxIdx = Math.max(maxIdx, parseInt(m[1],10)); });
+        missingEz.forEach(n=>{
+          maxIdx++;
+          saved.equipment.push({id:`EQ-${String(maxIdx).padStart(4,'0')}`, name:n, category:'EZ-Spare', location:'COBC', status:'in', condition:'ok', history:[], notes:''});
+        });
+      }
       try{localStorage.setItem('cobc_v21',JSON.stringify(saved));}catch(e){}
       return saved;
     }
@@ -1618,14 +1833,8 @@ function initApp() {
 
   // New call buttons already shown/hidden in finishLogin — don't override here
 
-  // Populate car makes datalist
-  const makeDatalist = document.getElementById('carMakeList');
-  if(makeDatalist) {
-    Object.keys(CAR_DATA).sort().forEach(m=>{
-      const o=document.createElement('option'); o.value=m.replace('_',' ');
-      makeDatalist.appendChild(o);
-    });
-  }
+  // Populate car makes select (also runs at script-load below as a backstop)
+  populateCarMakeSelect();
 
   populateLocationSelects();
   populateReportItemSelect();
@@ -1686,7 +1895,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'&&typeof populateCarMakeSelect==='function')populateCarMakeSelect();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -1777,7 +1986,7 @@ function renderHome() {
 //  DISPATCH
 // ──────────────────────────────────────────────
 const CALL_TYPE_LABELS = {
-  flat_tire_spare:'Vehicle: Flat Tire - Has Spare',flat_tire_no_spare:'Vehicle: Flat Tire - No Spare',lockout:'🔑 Lockout',jump_start:'⚡ Jump Start',
+  flat_tire_spare:'Vehicle: Flat Tire - Has Spare',flat_tire_no_spare:'Vehicle: Flat Tire - No Spare',lockout:'🔑 Lockout',jump_start:'⚡ Boost',
   flood:'💧 Flood',ac_heat:'❄️ A/C or Heat',generator:'⚡ Generator',
   transport:'🚐 Transport',welfare:'🏥 Welfare Check',other:'📋 Other'
 };
@@ -1884,6 +2093,8 @@ function handleCallTypeChange() {
   document.getElementById('carInfoSection').style.display=['flat_tire_spare','flat_tire_no_spare','lockout','jump_start'].includes(t)?'block':'none';
   const otherGrp=document.getElementById('otherTypeGroup');
   if(otherGrp) otherGrp.style.display=t==='other'?'block':'none';
+  const nsSec=document.getElementById('noSpareSection');
+  if(nsSec) nsSec.style.display=t==='flat_tire_no_spare'?'block':'none';
 }
 
 function populateModels() {
@@ -1893,13 +2104,19 @@ function populateModels() {
 
 function selectCallType(type, btn) {
   document.getElementById('callType').value = type;
-  document.querySelectorAll('.qtype-btn').forEach(b=>b.classList.remove('active','urgent-active'));
+  document.querySelectorAll('.qtype-btn:not(.ns-btn)').forEach(b=>b.classList.remove('active','urgent-active'));
   if(btn) btn.classList.add('active');
-  // Show/hide car info
   const carTypes=['flat_tire_spare','flat_tire_no_spare','lockout','jump_start'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
-  // Show/hide other text
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
+  // Show/hide no-spare action picker
+  const nsSec = document.getElementById('noSpareSection');
+  if(nsSec) nsSec.style.display = (type==='flat_tire_no_spare') ? 'block' : 'none';
+  if(type !== 'flat_tire_no_spare') {
+    document.getElementById('noSpareAction').value='';
+    document.querySelectorAll('.ns-btn').forEach(b=>b.classList.remove('active'));
+    document.getElementById('ezSpareSection').style.display='none';
+  }
 }
 
 // ── Create Call ──
@@ -1918,8 +2135,10 @@ function createCall() {
   const priority=document.getElementById('callPriority').value;
   const notes=document.getElementById('callNotes').value.trim();
   const dontPublish=document.getElementById('callDontPublish').checked;
-  const carMake=(document.getElementById('carMake')?.value||'').trim();
-  const carModel=(document.getElementById('carModel')?.value||'').trim();
+  let carMake=(document.getElementById('carMake')?.value||'').trim();
+  if(carMake==='Other') carMake=(document.getElementById('carMakeOther')?.value||'').trim();
+  let carModel=(document.getElementById('carModel')?.value||'').trim();
+  if(carModel==='Other') carModel=(document.getElementById('carModelOther')?.value||'').trim();
   const carYear=document.getElementById('carYear').value;
   const carColor=document.getElementById('carColor').value.trim();
 
@@ -1939,11 +2158,24 @@ function createCall() {
     rrCount: 0,
     rrLastSent: dontPublish?null:Date.now(),
     carMake:carMake||null, carModel:carModel||null, carYear:carYear||null, carColor:carColor||null,
+    noSpareAction: (type==='flat_tire_no_spare' ? (document.getElementById('noSpareAction')?.value || null) : null),
+    ezSpareSize: (document.getElementById('ezSpareSize')?.value || null),
+    ezSpareUnit: (document.getElementById('ezSpareUnit')?.value || null),
   };
 
   STATE.calls.push(call); save();
   hideModal('newCallModal');
-  ['callAddress','callCaller','callPhone','callNotes','carYear','carColor'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const _cm=document.getElementById('carMake'); if(_cm){_cm.value='';}
+  const _cmo=document.getElementById('carMakeOther'); if(_cmo)_cmo.style.display='none';
+  const _md=document.getElementById('carModel'); if(_md){_md.innerHTML='<option value="">Select make first</option>';_md.disabled=true;}
+  const _mdo=document.getElementById('carModelOther'); if(_mdo)_mdo.style.display='none';
+  // Reset no-spare picker
+  const _ns=document.getElementById('noSpareAction'); if(_ns) _ns.value='';
+  document.querySelectorAll('.ns-btn').forEach(b=>b.classList.remove('active'));
+  const _ezs=document.getElementById('ezSpareSection'); if(_ezs) _ezs.style.display='none';
+  const _ezSize=document.getElementById('ezSpareSize'); if(_ezSize) _ezSize.value='';
+  const _ezUnit=document.getElementById('ezSpareUnit'); if(_ezUnit) _ezUnit.innerHTML='<option value="">Select size first</option>';
   document.getElementById('callDontPublish').checked=false;
   document.getElementById('carInfoSection').style.display='none';
 
@@ -1979,6 +2211,24 @@ function buildDispatchWhatsApp(call) {
   if(call.carMake) {
     const carStr=[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ');
     msg+=`Vehicle: ${carStr}\n`;
+  }
+  // EZ-Spare / Plug / Tow action
+  if(call.noSpareAction==='plug') {
+    msg+=`*Action: PLUG KIT*\n`;
+  } else if(call.noSpareAction==='tow') {
+    msg+=`*Action: TOW NEEDED*\n`;
+  } else if(call.noSpareAction==='ezspare') {
+    msg+=`*Action: EZ-SPARE*`;
+    if(call.ezSpareSize) msg+=` - Size ${call.ezSpareSize}`;
+    msg+=`\n`;
+    if(call.ezSpareUnit) {
+      const u=(STATE.equipment||[]).find(e=>e.id===call.ezSpareUnit);
+      if(u) {
+        const loc = u.location ? ` (${u.location})` : '';
+        msg+=`Unit: ${u.name}${loc}\n`;
+      }
+    }
+    msg+=`Bring: ${EZ_SPARE_KIT.join(', ')}\n`;
   }
   if(call.caller) msg+=`Caller: ${call.caller}\n`;
   if(call.phone)  msg+=`Phone: ${call.phone}\n`;
@@ -2300,6 +2550,9 @@ function openCallDetail(id) {
     ${call.caller?`<div class="detail-row"><span class="detail-key">Caller</span><span class="detail-val">${call.caller}</span></div>`:''}
     ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="tel:${call.phone}" style="color:var(--blue);text-decoration:none;">${call.phone}</a></span></div>`:''}
     ${call.carMake?`<div class="detail-row"><span class="detail-key">Vehicle</span><span class="detail-val">${[call.carYear,call.carMake?.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ')}</span></div>`:''}
+    ${call.noSpareAction==='plug'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--orange);font-weight:700;">🔧 Plug Kit</span></div>`:''}
+    ${call.noSpareAction==='tow'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--red);font-weight:700;">🚛 Tow Needed</span></div>`:''}
+    ${call.noSpareAction==='ezspare'?`<div class="detail-row"><span class="detail-key">EZ-Spare</span><span class="detail-val" style="color:var(--gold-light,#d4a93a);font-weight:700;">${call.ezSpareSize||'—'}${call.ezSpareUnit?` · ${(()=>{const u=(STATE.equipment||[]).find(e=>e.id===call.ezSpareUnit);return u?u.name+(u.location?` (${u.location})`:''):call.ezSpareUnit;})()}`:''}</span></div><div class="detail-row"><span class="detail-key">Kit</span><span class="detail-val" style="font-size:11px;line-height:1.5;">${EZ_SPARE_KIT.join(' · ')}</span></div>`:''}
     ${(call.assignedVehicles||[]).length?`<div class="detail-row"><span class="detail-key">Fleet</span><span class="detail-val">${call.assignedVehicles.join(', ')}</span></div>`:''}
     ${call.notes?`<div class="detail-row"><span class="detail-key">Notes</span><span class="detail-val">${call.notes}</span></div>`:''}
   </div>`;
