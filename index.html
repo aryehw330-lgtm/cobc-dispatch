@@ -340,6 +340,16 @@ textarea.input{min-height:80px;resize:vertical;}
 .qtype-btn.ns-btn.active{background:#d97706;border-color:#d97706;color:#fff;}
 .qtype-btn.urgent-active{background:var(--red);border-color:var(--red);color:#fff;}
 
+/* Address autocomplete dropdown */
+.addr-suggest{position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--border);border-top:none;border-radius:0 0 10px 10px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:240px;overflow-y:auto;z-index:50;}
+.addr-suggest-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border2);font-size:13px;color:var(--text);line-height:1.3;}
+.addr-suggest-item:last-child{border-bottom:none;}
+.addr-suggest-item:hover,.addr-suggest-item.active{background:#eff6ff;}
+.addr-suggest-main{font-weight:600;color:var(--text);}
+.addr-suggest-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.addr-suggest-loading{padding:10px 14px;font-size:12px;color:var(--text3);text-align:center;font-style:italic;}
+.addr-suggest-empty{padding:10px 14px;font-size:12px;color:var(--text3);text-align:center;}
+
 .eta-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
 .eta-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
 
@@ -915,6 +925,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn" onclick="selectCallType('car_lockout',this)">Car Lockout</button>
       <button class="qtype-btn" onclick="selectCallType('lockout',this)">House Lockout</button>
       <button class="qtype-btn qtype-btn-urgent" onclick="selectCallType('child_lockout',this)">🚨 Child<br><span style="font-size:10px;opacity:.9;">Locked in Car</span></button>
+      <button class="qtype-btn" onclick="selectCallType('missing_person',this)">Missing Person</button>
       <button class="qtype-btn" onclick="selectCallType('flood',this)">Flood</button>
       <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
     </div>
@@ -993,9 +1004,10 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <!-- ADDRESS + TOWN in one row -->
-    <div class="input-group">
+    <div class="input-group" style="position:relative;">
       <label class="input-label">Address</label>
-      <input class="input" type="text" id="callAddress" placeholder="123 Main St" autocomplete="off"/>
+      <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>document.getElementById('callAddressSuggest').style.display='none',200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
+      <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
       <div class="input-group" style="margin-bottom:0;">
@@ -1058,7 +1070,8 @@ textarea.input{min-height:80px;resize:vertical;}
 <div class="modal-overlay hidden" id="respondModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:6px;">Request to Respond</div>
+    <div class="modal-title" id="respondModalTitle" style="font-size:18px;font-weight:700;margin-bottom:6px;">✋ Request to Respond</div>
+    <div id="respondUrgentHint" style="display:none;background:#fef2f2;border:1px solid var(--red);border-radius:8px;padding:10px 14px;margin-bottom:12px;color:var(--red);font-size:13px;font-weight:600;">🚨 This is an URGENT call. You'll be auto-approved — no need to wait for dispatch.</div>
     <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">Your request goes directly to the on-duty dispatcher for approval.</div>
     <input type="hidden" id="respondCallId"/>
     <!-- ETA quick buttons -->
@@ -1074,7 +1087,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <label class="input-label">Notes (optional)</label>
       <input class="input" type="text" id="respondNotes" placeholder="Coming from home, need 5 extra min..."/>
     </div>
-    <button class="btn-full btn-green" onclick="confirmRespond()" style="font-size:15px;font-weight:700;padding:16px;margin-bottom:8px;">Send Request to Dispatcher</button>
+    <button id="respondSubmitBtn" class="btn-full btn-green" onclick="confirmRespond()" style="font-size:15px;font-weight:700;padding:16px;margin-bottom:8px;">Send Request to Dispatcher</button>
     <button class="btn-full btn-ghost" onclick="hideModal('respondModal')">Cancel</button>
   </div>
 </div>
@@ -1136,6 +1149,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <option value="jump_start">Boost</option><option value="flood">Flood</option>
         <option value="car_lockout">Car Lockout</option>
         <option value="child_lockout">🚨 Child Locked in Car</option>
+        <option value="missing_person">Missing Person</option>
         <option value="lockout">House Lockout</option>
         <option value="ac_heat">A/C or Heat</option><option value="generator">Generator</option>
         <option value="transport">Transport</option><option value="welfare">Welfare Check</option>
@@ -1174,7 +1188,11 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
       </div>
     </div>
-    <div class="input-group"><label class="input-label">Address</label><input class="input" type="text" id="editCallAddress"/></div>
+    <div class="input-group" style="position:relative;">
+      <label class="input-label">Address</label>
+      <input class="input" type="text" id="editCallAddress" autocomplete="off" oninput="addrAutoLookup(this,'editCallTown','editCallTownText')" onblur="setTimeout(()=>document.getElementById('editCallAddressSuggest').style.display='none',200)" onfocus="if(this.value.length>=3)document.getElementById('editCallAddressSuggest').style.display='block'"/>
+      <div id="editCallAddressSuggest" class="addr-suggest" style="display:none;"></div>
+    </div>
     <div class="input-group"><label class="input-label">Town</label>
       <select class="input" id="editCallTown" onchange="document.getElementById('editCallTownOther').style.display=this.value==='Other'?'block':'none'">
         <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option><option>Fort Lee</option>
@@ -1480,6 +1498,115 @@ const TOWN_COLORS = {
   'Ridgefield Park':'#ea580c', 'Palisades Park':'#0891b2',
   Leonia:'#65a30d', Bogota:'#9333ea', Fairview:'#db2777', Edgewater:'#0284c7', Other:'#64748b'
 };
+
+// ── Address Autocomplete (OpenStreetMap Nominatim — free, no key) ──
+// Biased to Bergen County NJ + surrounding area
+const ADDR_BOUNDS = { west:-74.30, south:40.78, east:-73.80, north:41.08 };
+const KNOWN_TOWNS_LC = {
+  'teaneck':'Teaneck','englewood':'Englewood','bergenfield':'Bergenfield',
+  'fort lee':'Fort Lee','hackensack':'Hackensack','paramus':'Paramus',
+  'ridgefield park':'Ridgefield Park','palisades park':'Palisades Park',
+  'leonia':'Leonia','bogota':'Bogota','fairview':'Fairview','edgewater':'Edgewater',
+  'tenafly':'Other','englewood cliffs':'Other','cliffside park':'Other',
+  'new milford':'Other','dumont':'Other','river edge':'Other'
+};
+let _addrTimer=null, _addrAbort=null, _addrCache={};
+
+function addrAutoLookup(inputEl, townSelId, townTextId) {
+  const q = (inputEl.value||'').trim();
+  const suggestId = inputEl.id + 'Suggest';
+  const box = document.getElementById(suggestId);
+  if(!box) return;
+  if(_addrTimer) clearTimeout(_addrTimer);
+  if(_addrAbort) { try{_addrAbort.abort();}catch(e){} _addrAbort=null; }
+  if(q.length < 3) { box.style.display='none'; box.innerHTML=''; return; }
+
+  _addrTimer = setTimeout(async () => {
+    if(_addrCache[q]) {
+      renderAddrSuggestions(_addrCache[q], box, inputEl, townSelId, townTextId);
+      return;
+    }
+    box.style.display='block';
+    box.innerHTML='<div class="addr-suggest-loading">⌖ Searching…</div>';
+    try {
+      _addrAbort = new AbortController();
+      const vb = `${ADDR_BOUNDS.west},${ADDR_BOUNDS.north},${ADDR_BOUNDS.east},${ADDR_BOUNDS.south}`;
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&countrycodes=us&viewbox=${vb}&bounded=1&q=${encodeURIComponent(q)}`;
+      const r = await fetch(url, { signal: _addrAbort.signal, headers: {'Accept':'application/json'} });
+      const data = await r.json();
+      _addrCache[q] = data;
+      renderAddrSuggestions(data, box, inputEl, townSelId, townTextId);
+    } catch(e) {
+      if(e.name !== 'AbortError') {
+        box.innerHTML='<div class="addr-suggest-empty">⚠️ Lookup failed — type manually</div>';
+      }
+    }
+  }, 350);
+}
+function renderAddrSuggestions(data, box, inputEl, townSelId, townTextId) {
+  if(!data || !data.length) {
+    box.innerHTML='<div class="addr-suggest-empty">No matches — type address manually</div>';
+    return;
+  }
+  box.innerHTML = data.map((d,i) => {
+    const a = d.address || {};
+    const street = [a.house_number, a.road].filter(Boolean).join(' ');
+    const rawTown = a.city || a.town || a.village || a.hamlet || a.suburb || '';
+    const town = rawTown
+      .replace(/\s+(township|borough|town|city|village)$/i,'')
+      .replace(/^(township|borough|town|city|village)\s+of\s+/i,'')
+      .trim();
+    const main = street || d.name || (d.display_name||'').split(',')[0];
+    const sub = [town, a.state, a.postcode].filter(Boolean).join(', ');
+    return `<div class="addr-suggest-item" data-idx="${i}" onclick="addrPickSuggestion(${i},'${box.id}','${inputEl.id}','${townSelId||''}','${townTextId||''}')">
+      <div class="addr-suggest-main">${escapeHTML(main)}</div>
+      <div class="addr-suggest-sub">${escapeHTML(sub)}</div>
+    </div>`;
+  }).join('');
+  box._addrData = data;
+}
+function addrPickSuggestion(idx, boxId, inputId, townSelId, townTextId) {
+  const box = document.getElementById(boxId);
+  const inputEl = document.getElementById(inputId);
+  const d = (box && box._addrData) ? box._addrData[idx] : null;
+  if(!d) return;
+  const a = d.address || {};
+  const streetParts = [a.house_number, a.road].filter(Boolean);
+  const street = streetParts.length ? streetParts.join(' ') : ((d.display_name||'').split(',')[0]||'');
+  // Strip "Township", "Borough", "City of", "Town of" from town name
+  const rawTown = (a.city || a.town || a.village || a.hamlet || a.suburb || '').trim();
+  const town = rawTown
+    .replace(/\s+(township|borough|town|city|village)$/i,'')
+    .replace(/^(township|borough|town|city|village)\s+of\s+/i,'')
+    .trim();
+  const zip = a.postcode || '';
+  // Fill the address field with the FULL address: street, town, NJ zip
+  inputEl.value = [street, town, zip ? ('NJ ' + zip) : 'NJ'].filter(Boolean).join(', ');
+  // Also set the Town dropdown silently (used internally for filters/colors/WhatsApp)
+  if(town && townSelId) {
+    const townSel = document.getElementById(townSelId);
+    const known = KNOWN_TOWNS_LC[town.toLowerCase()];
+    if(townSel) {
+      if(known && known!=='Other') {
+        townSel.value = known;
+        const otherWrap = document.getElementById(townSelId+'Other');
+        if(otherWrap) otherWrap.style.display='none';
+      } else {
+        townSel.value = 'Other';
+        if(townTextId) {
+          const t = document.getElementById(townTextId);
+          if(t) t.value = town;
+        }
+        const otherWrap = document.getElementById(townSelId+'Other');
+        if(otherWrap) otherWrap.style.display='block';
+      }
+    }
+  }
+  box.style.display='none';
+}
+function escapeHTML(s) {
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 // ── Car Makes & Models ──
 function populateCarMakeSelect() {
@@ -2027,7 +2154,7 @@ function renderHome() {
 //  DISPATCH
 // ──────────────────────────────────────────────
 const CALL_TYPE_LABELS = {
-  flat_tire_spare:'Vehicle: Flat Tire - Has Spare',flat_tire_no_spare:'Vehicle: Flat Tire - No Spare',lockout:'🔑 House Lockout',car_lockout:'🔑 Car Lockout',child_lockout:'🚨 CHILD LOCKED IN CAR',jump_start:'⚡ Boost',
+  flat_tire_spare:'Vehicle: Flat Tire - Has Spare',flat_tire_no_spare:'Vehicle: Flat Tire - No Spare',lockout:'🔑 House Lockout',car_lockout:'🔑 Car Lockout',child_lockout:'🚨 CHILD LOCKED IN CAR',missing_person:'Missing Person',jump_start:'⚡ Boost',
   flood:'💧 Flood',ac_heat:'❄️ A/C or Heat',generator:'⚡ Generator',
   transport:'🚐 Transport',welfare:'🏥 Welfare Check',other:'📋 Other'
 };
@@ -2083,7 +2210,10 @@ function callCardHTML(call, mini=false) {
     } else if(iAmPending) {
       respondBtn = `<div class="pending-badge" style="padding:7px 12px;font-size:12px;">Pending approval...</div>`;
     } else {
-      respondBtn = `<button class="call-action" style="background:var(--green);color:#fff;" onclick="event.stopPropagation();openRespondModal('${call.id}')">Request to Respond</button>`;
+      const isUrgent = call.priority==='urgent';
+      const btnBg = isUrgent ? 'var(--red)' : 'var(--green)';
+      const btnLabel = isUrgent ? '⚠️ Respond Now' : 'Request to Respond';
+      respondBtn = `<button class="call-action" style="background:${btnBg};color:#fff;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${btnLabel}</button>`;
     }
   }
 
@@ -2119,7 +2249,25 @@ function renderCalls() {
   // Sort: active first, then open, then draft, then done
   const order={active:0,open:1,draft:2,done:3};
   let list=[...STATE.calls].sort((a,b)=>(order[a.status]??3)-(order[b.status]??3)||(b.createdAt-a.createdAt));
-  if (dispatchFilter!=='all') list=list.filter(c=>c.status===dispatchFilter);
+  if (dispatchFilter!=='all') {
+    if (dispatchFilter==='active') {
+      // "In Progress" = status active OR has approved/pending responders (and not done/draft)
+      list = list.filter(c =>
+        c.status==='active' ||
+        ((c.responders||[]).length>0 && c.status!=='done') ||
+        ((c.pendingResponders||[]).length>0 && c.status!=='done' && c.status!=='draft')
+      );
+    } else if (dispatchFilter==='open') {
+      // "Open" = status open AND no responders yet (truly waiting)
+      list = list.filter(c =>
+        c.status==='open' &&
+        !(c.responders||[]).length &&
+        !(c.pendingResponders||[]).length
+      );
+    } else {
+      list = list.filter(c=>c.status===dispatchFilter);
+    }
+  }
   if (!list.length) {
     el.innerHTML='<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No calls</div><div class="empty-sub">Create a call with the + button</div></div>';
     return;
@@ -2159,11 +2307,12 @@ function selectCallType(type, btn) {
     document.querySelectorAll('.ns-btn').forEach(b=>b.classList.remove('active'));
     document.getElementById('ezSpareSection').style.display='none';
   }
-  // Priority: auto-urgent for child lockout; auto-revert when switching AWAY from it
+  // Priority: auto-urgent for child lockout & missing person; auto-revert when switching AWAY
   const pri=document.getElementById('callPriority');
   if(pri) {
-    if(type==='child_lockout') pri.value='urgent';
-    else if(prevType==='child_lockout' && pri.value==='urgent') pri.value='normal';
+    const URGENT_TYPES=['child_lockout'];
+    if(URGENT_TYPES.includes(type)) pri.value='urgent';
+    else if(URGENT_TYPES.includes(prevType) && pri.value==='urgent') pri.value='normal';
   }
 }
 
@@ -2301,6 +2450,17 @@ function openRespondModal(id) {
   document.getElementById('respondCallId').value=id;
   document.getElementById('respondETA').value='10';
   document.getElementById('respondNotes').value='';
+  // Update title/hint/submit based on urgency
+  const isUrgent = call && call.priority==='urgent' && SESSION.role!=='observer';
+  const titleEl = document.getElementById('respondModalTitle');
+  if(titleEl) titleEl.innerHTML = isUrgent ? '🚨 Urgent — Respond Now' : '✋ Request to Respond';
+  const hintEl = document.getElementById('respondUrgentHint');
+  if(hintEl) hintEl.style.display = isUrgent ? 'block' : 'none';
+  const submitBtn = document.getElementById('respondSubmitBtn');
+  if(submitBtn) {
+    submitBtn.textContent = isUrgent ? '🚨 Confirm Response (Auto-Approved)' : 'Send Request to Dispatcher';
+    submitBtn.style.background = isUrgent ? 'var(--red)' : '';
+  }
   showModal('respondModal');
 }
 
@@ -2340,6 +2500,24 @@ function confirmRespond() {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   const isObserver=SESSION.role==='observer';
+
+  // 🚨 URGENT calls: skip approval queue — auto-approve member responders
+  if(call.priority==='urgent' && !isObserver) {
+    call.responders=call.responders||[];
+    if(!call.responders.find(r=>String(r.unit)===String(SESSION.unit))) {
+      call.responders.push({
+        unit:SESSION.unit,name:SESSION.name,eta,notes,
+        isObserver:false,time:Date.now(),status:'approved',
+        approvedBy:'AUTO (urgent)',approvedAt:Date.now(),autoApproved:true
+      });
+      if(call.status==='open') call.status='active';
+    }
+    save(); hideModal('respondModal');
+    renderCalls(); renderHome();
+    showToast('✅ Auto-approved — responding to urgent call');
+    return;
+  }
+
   call.pendingResponders=call.pendingResponders||[];
   call.pendingResponders.push({unit:SESSION.unit,name:SESSION.name,eta,notes,isObserver,time:Date.now(),status:'pending'});
   save(); hideModal('respondModal');
