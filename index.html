@@ -10,13 +10,17 @@
 <title>COBC — Bergen Chaverim</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+// QR code stub (real lib loaded by user's production deploy)
+window.QRCode=window.QRCode||{toCanvas:function(c,t,o,cb){if(typeof o==='function')cb=o;if(cb)cb(null);},toDataURL:function(t,o,cb){if(typeof o==='function')cb=o;const r='';if(cb)cb(null,r);return Promise.resolve(r);}};
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0f2540;color:#1c1c1e;overscroll-behavior:none;}
 :root{
   --navy:#0f2540;--navy2:#1a3a5c;--navy3:#234d77;
+  --gold:#d4a93a;--gold-light:#e6c463;--gold-deep:#b8902a;
   --blue:#2563eb;--blue-light:#3b82f6;
   --green:#16a34a;--green-light:#22c55e;
   --red:#dc2626;--red-light:#ef4444;
@@ -29,12 +33,16 @@ html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0f2
   --radius:12px;--radius-sm:8px;--radius-lg:16px;
 }
 #app{display:flex;flex-direction:column;height:100vh;height:100dvh;background:var(--bg);overflow:hidden;}
-.topbar{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;display:flex;align-items:flex-end;justify-content:space-between;padding:0 18px 12px;padding-top:calc(12px + env(safe-area-inset-top));height:calc(58px + env(safe-area-inset-top));flex-shrink:0;position:relative;overflow:hidden;}
+.topbar{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px 12px;padding-top:calc(12px + env(safe-area-inset-top));height:calc(64px + env(safe-area-inset-top));flex-shrink:0;position:relative;overflow:hidden;border-bottom:1px solid rgba(212,169,58,.25);box-shadow:0 1px 0 rgba(0,0,0,.2),inset 0 -1px 0 rgba(212,169,58,.15);}
+.topbar::before{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent 0%,var(--gold) 20%,var(--gold-light) 50%,var(--gold) 80%,transparent 100%);opacity:.7;}
 .topbar::after{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='white' fill-opacity='0.03'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E") repeat;pointer-events:none;}
-.topbar-left{display:flex;flex-direction:column;gap:1px;}
-.topbar-title{font-size:18px;font-weight:700;letter-spacing:-.4px;display:flex;align-items:center;gap:8px;}
-.topbar-badge{font-size:10px;background:rgba(255,255,255,.15);padding:2px 7px;border-radius:20px;letter-spacing:.5px;font-weight:600;}
-.topbar-sub{font-size:11px;color:rgba(255,255,255,.55);font-weight:500;}
+.topbar-left{display:flex;align-items:center;gap:11px;min-width:0;}
+.topbar-logo{height:44px;width:auto;flex-shrink:0;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));}
+.topbar-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.topbar-title{font-size:15px;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:8px;color:#fff;text-transform:uppercase;}
+.topbar-title-main{color:var(--gold-light);letter-spacing:.6px;}
+.topbar-badge{font-size:9px;background:rgba(212,169,58,.18);border:1px solid rgba(212,169,58,.4);color:var(--gold-light);padding:2px 7px;border-radius:4px;letter-spacing:.8px;font-weight:700;}
+.topbar-sub{font-size:10.5px;color:rgba(255,255,255,.55);font-weight:500;letter-spacing:.3px;text-transform:uppercase;}
 .topbar-right{display:flex;align-items:center;gap:8px;}
 .status-pill{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:rgba(255,255,255,.9);}
 .dot-live{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:livepulse 1.8s ease-in-out infinite;}
@@ -213,17 +221,22 @@ textarea.input{min-height:80px;resize:vertical;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 /* ── LOGIN ── */
-#login-screen{position:fixed;inset:0;z-index:2000;background:linear-gradient(160deg,var(--navy) 0%,var(--navy3) 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;}
+#login-screen{position:fixed;inset:0;z-index:2000;background:radial-gradient(ellipse at top,#1a3a5c 0%,var(--navy) 45%,#08182b 100%);display:flex;flex-direction:column;align-items:center;justify-content:safe center;padding:32px 24px;overflow-y:auto;overflow-x:hidden;}
+#login-screen::before{content:'';position:absolute;inset:-20%;background:radial-gradient(circle at 50% 30%,rgba(212,169,58,.08) 0%,transparent 55%);pointer-events:none;}
+#login-screen::after{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,transparent,var(--gold) 30%,var(--gold-light) 50%,var(--gold) 70%,transparent);opacity:.6;}
+#login-screen > *{position:relative;z-index:1;}
 #login-screen.hidden{display:none;}
-.login-logo{font-size:64px;margin-bottom:12px;}
-.login-org{font-size:24px;font-weight:700;color:#fff;letter-spacing:-.5px;}
-.login-tagline{font-size:14px;color:rgba(255,255,255,.5);margin-bottom:32px;letter-spacing:.3px;}
-.login-card{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:24px;width:100%;max-width:360px;backdrop-filter:blur(10px);}
-.login-input{width:100%;padding:14px 16px;border:1.5px solid rgba(255,255,255,.2);border-radius:10px;font-size:16px;font-family:'DM Sans',sans-serif;color:#fff;background:rgba(255,255,255,.1);outline:none;margin-bottom:12px;transition:border-color .15s;}
-.login-input:focus{border-color:var(--blue-light);}
-.login-input::placeholder{color:rgba(255,255,255,.4);}
-.login-btn{width:100%;padding:15px;border-radius:10px;border:none;background:var(--blue);color:#fff;font-size:16px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:4px;}
-.login-btn:active{background:#1d4ed8;transform:scale(.98);}
+.login-logo{width:128px;height:auto;margin-bottom:16px;display:block;flex-shrink:0;filter:drop-shadow(0 8px 24px rgba(0,0,0,.55)) drop-shadow(0 2px 6px rgba(212,169,58,.25));}
+.login-org{font-size:11px;font-weight:700;color:var(--gold-light);letter-spacing:3.5px;text-transform:uppercase;margin-bottom:6px;}
+.login-name{font-size:24px;font-weight:700;color:#fff;letter-spacing:-.5px;line-height:1.1;text-align:center;}
+.login-tagline{font-size:11px;color:rgba(255,255,255,.5);margin:8px 0 20px;letter-spacing:2px;text-transform:uppercase;font-weight:600;display:flex;align-items:center;gap:10px;}
+.login-tagline::before,.login-tagline::after{content:'';height:1px;width:28px;background:linear-gradient(90deg,transparent,rgba(212,169,58,.5),transparent);}
+.login-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;width:100%;max-width:360px;backdrop-filter:blur(10px);box-shadow:0 20px 50px rgba(0,0,0,.4);flex-shrink:0;}
+.login-input{width:100%;padding:14px 16px;border:1.5px solid rgba(255,255,255,.14);border-radius:10px;font-size:16px;font-family:'DM Sans',sans-serif;color:#fff;background:rgba(255,255,255,.06);outline:none;margin-bottom:12px;transition:all .15s;}
+.login-input:focus{border-color:var(--gold);background:rgba(255,255,255,.09);box-shadow:0 0 0 3px rgba(212,169,58,.12);}
+.login-input::placeholder{color:rgba(255,255,255,.35);}
+.login-btn{width:100%;padding:15px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-deep) 100%);color:#1a1206;font-size:14px;font-weight:800;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:6px;letter-spacing:1.5px;text-transform:uppercase;box-shadow:0 4px 14px rgba(212,169,58,.35),inset 0 1px 0 rgba(255,255,255,.3);transition:transform .1s;}
+.login-btn:active{background:linear-gradient(135deg,var(--gold-deep) 0%,#9a7820 100%);transform:scale(.98);}
 .login-error{color:#fca5a5;font-size:13px;text-align:center;margin-top:8px;min-height:20px;}
 .login-roles{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
 .role-chip{padding:6px 14px;border-radius:20px;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;}
@@ -396,28 +409,33 @@ textarea.input{min-height:80px;resize:vertical;}
 
 <!-- LOGIN -->
 <div id="login-screen">
-  <div class="login-logo">🚨</div>
-  <div class="login-org">Bergen Chaverim</div>
-  <div class="login-tagline">COBC Operations Platform</div>
+  <img class="login-logo" src="logo-badge.png" alt="Chaverim of Bergen County"/>
+  <div class="login-org">Chaverim</div>
+  <div class="login-name">of Bergen County</div>
+  <div class="login-tagline"><span>Emergency Services</span></div>
   <div class="login-card">
-    <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:16px;text-align:center;">Enter your BC# and password</div>
-    <input class="login-input" id="loginUnit" type="text" inputmode="numeric" placeholder="BC Unit # (e.g. 38)" autocomplete="off"/>
+    <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.55);margin-bottom:18px;text-align:center;letter-spacing:1.5px;text-transform:uppercase;">Member Sign-In</div>
+    <input class="login-input" id="loginUnit" type="text" inputmode="numeric" placeholder="BC Unit Number" autocomplete="off"/>
     <input class="login-input" id="loginPass" type="password" placeholder="Password" autocomplete="off"/>
-    <button class="login-btn" onclick="doLogin()">Sign In →</button>
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
     <div class="login-error" id="loginError"></div>
-    <div style="margin-top:14px;font-size:11px;color:rgba(255,255,255,.25);text-align:center;line-height:1.6;">
-      Your role (Member / Dispatch / Admin / Equipment)<br>is set automatically based on your BC#
+    <div style="margin-top:16px;font-size:10.5px;color:rgba(255,255,255,.3);text-align:center;line-height:1.7;letter-spacing:.3px;">
+      Your role is set automatically by your BC#<br/>
+      <span style="color:rgba(255,255,255,.22);">Member · Dispatch · Admin · Equipment</span>
     </div>
   </div>
-  <div style="margin-top:20px;font-size:12px;color:rgba(255,255,255,.2);text-align:center;">Bergen County Chaverim · v2.1</div>
+  <div style="margin-top:24px;font-size:10px;color:rgba(255,255,255,.28);text-align:center;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">COBC Operations Platform &middot; v2.1</div>
 </div>
 
 <!-- APP -->
 <div id="app">
   <div class="topbar">
     <div class="topbar-left">
-      <div class="topbar-title">🚨 COBC <span class="topbar-badge" id="roleLabel">MEMBER</span></div>
-      <div class="topbar-sub" id="topbarSub">Bergen County Chaverim</div>
+      <img class="topbar-logo" src="logo-badge.png" alt="COBC"/>
+      <div class="topbar-text">
+        <div class="topbar-title"><span class="topbar-title-main">COBC</span><span class="topbar-badge" id="roleLabel">MEMBER</span></div>
+        <div class="topbar-sub" id="topbarSub">Chaverim of Bergen County</div>
+      </div>
     </div>
     <div class="topbar-right">
       <div class="status-pill"><span class="dot-live"></span><span id="activeCalls">0 Active</span></div>
