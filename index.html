@@ -905,6 +905,12 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
         <!-- Full weekly schedule -->
         <div class="section-label">Weekly Schedule</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
+          <button class="btn-sm btn-ghost" style="font-size:13px;padding:6px 12px;" onclick="schedNavWeek(-1)">← Prev</button>
+          <div id="schedWeekLabel" style="font-size:13px;font-weight:700;color:var(--text);"></div>
+          <button class="btn-sm btn-ghost" style="font-size:13px;padding:6px 12px;" onclick="schedNavWeek(1)">Next →</button>
+        </div>
+        <div style="text-align:center;margin-bottom:10px;"><button id="schedThisWeekBtn" class="btn-sm btn-ghost" style="font-size:11px;padding:4px 12px;display:none;" onclick="schedNavWeek(0)">↺ This Week</button></div>
         <div class="filter-chips" id="schedDayChips" style="margin-bottom:12px;"></div>
         <div id="schedDayContent"></div>
       </div>
@@ -2365,10 +2371,24 @@ function showToast(msg) {
 //  ON-DUTY DISPATCHER
 // ──────────────────────────────────────────────
 function updateOnDutyBanner() {
-  const od=STATE.onDuty||{};
-  document.getElementById('onDutyName').textContent=od.name||'—';
-  document.getElementById('dispOnDutyName').textContent=od.name||'No dispatcher set';
-  document.getElementById('onDutyPhone').textContent=od.phone||'No dispatcher set';
+  // Prefer schedule-derived on-duty; fall back to manual STATE.onDuty override
+  let name='', phone='', source='';
+  if(typeof getOnDutyDispatcher === 'function') {
+    try {
+      const d = getOnDutyDispatcher();
+      if(d && d.name) { name = d.name; phone = d.phone || ''; source = 'schedule'; }
+    } catch(e){}
+  }
+  const od = STATE.onDuty || {};
+  if(od.override && od.name) { name = od.name; phone = od.phone || phone; source = 'override'; }
+  else if(!name && od.name)  { name = od.name; phone = od.phone || ''; source = 'manual'; }
+
+  const nameEl = document.getElementById('onDutyName');
+  const phoneEl = document.getElementById('onDutyPhone');
+  const dispEl = document.getElementById('dispOnDutyName');
+  if(nameEl)  nameEl.textContent  = name || '—';
+  if(dispEl)  dispEl.textContent  = name || 'No dispatcher set';
+  if(phoneEl) phoneEl.textContent = phone || (name ? (source==='schedule' ? 'From schedule · no phone' : 'No phone') : 'No dispatcher set');
 }
 
 function callDispatchOnDuty() {
@@ -3968,6 +3988,11 @@ function resetScheduleSlot() {
 const SCHED_DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const SCHED_DAYS_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 let schedCurDay=new Date().getDay();
+let schedWeekOffset=0; // weeks from current week (0=this, 1=next, -1=last)
+function schedNavWeek(delta) {
+  if(delta===0) schedWeekOffset=0; else schedWeekOffset+=delta;
+  renderSchedule();
+}
 
 function getShiftIndexNow() {
   const h=new Date().getHours();
@@ -4023,14 +4048,30 @@ function renderSchedule() {
       </div>`;
   }
 
-  // Day chips — show day-of-week + actual date for the current week
+  // Day chips — show day-of-week + actual date for the selected week (today + schedWeekOffset weeks)
   const chipsEl=document.getElementById('schedDayChips');
   const todayDow = now.getDay();
+  // Sunday of current week
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - todayDow + (schedWeekOffset*7));
+  // Week label
+  const wkEnd = new Date(weekStart); wkEnd.setDate(wkEnd.getDate()+6);
+  const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const wkLabelEl = document.getElementById('schedWeekLabel');
+  if(wkLabelEl) {
+    let prefix = '';
+    if(schedWeekOffset===0) prefix = 'This week · ';
+    else if(schedWeekOffset===1) prefix = 'Next week · ';
+    else if(schedWeekOffset===-1) prefix = 'Last week · ';
+    else if(schedWeekOffset>1) prefix = `+${schedWeekOffset} weeks · `;
+    else prefix = `${schedWeekOffset} weeks · `;
+    wkLabelEl.textContent = prefix + `${fmt(weekStart)} – ${fmt(wkEnd)}`;
+  }
+  const thisWeekBtn = document.getElementById('schedThisWeekBtn');
+  if(thisWeekBtn) thisWeekBtn.style.display = schedWeekOffset===0 ? 'none' : 'inline-block';
   chipsEl.innerHTML=SCHED_DAYS.map((d,i)=>{
-    const offset = i - todayDow; // days from today
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+    const date = new Date(weekStart); date.setDate(date.getDate()+i);
     const dateStr = date.toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
-    const isToday = todayDow===i;
+    const isToday = schedWeekOffset===0 && todayDow===i;
     return `<div class="chip${schedCurDay===i?' active':''}" style="display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:6px 10px;min-width:54px;" onclick="schedCurDay=${i};renderScheduleDay();document.querySelectorAll('#schedDayChips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">
       <div style="font-size:11px;font-weight:700;">${d}${isToday?' ★':''}</div>
       <div style="font-size:10px;opacity:.7;margin-top:1px;">${dateStr}</div>
@@ -4043,7 +4084,7 @@ function renderSchedule() {
 function renderScheduleDay() {
   const now=new Date();
   const curHourShift=getShiftIndexNow();
-  const isToday=schedCurDay===now.getDay();
+  const isToday=schedWeekOffset===0 && schedCurDay===now.getDay();
   const el=document.getElementById('schedDayContent');
   el.innerHTML=DISPATCH_SCHEDULE.map((row,si)=>{
     const slot=row.slots[schedCurDay];
