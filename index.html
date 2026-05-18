@@ -10,7 +10,15 @@
 <title>COBC — Bergen Chaverim</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "8937df24-f2d2-440b-bb92-e8244db860b6",
+    });
+  });
+</script>
 // QR stub. Real lib lazy-loaded on first QR display.
 window.QRCode=window.QRCode||{toCanvas:function(c,t,o,cb){if(typeof o==='function')cb=o;if(cb)cb(null);},toDataURL:function(t,o,cb){if(typeof o==='function')cb=o;const r='';if(cb)cb(null,r);return Promise.resolve(r);}};
 window.__qrLibTried=false;
