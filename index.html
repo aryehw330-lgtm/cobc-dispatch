@@ -11,8 +11,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
 <script>
-// QR code stub (real lib loaded by user's production deploy)
+// QR stub. Real lib lazy-loaded on first QR display.
 window.QRCode=window.QRCode||{toCanvas:function(c,t,o,cb){if(typeof o==='function')cb=o;if(cb)cb(null);},toDataURL:function(t,o,cb){if(typeof o==='function')cb=o;const r='';if(cb)cb(null,r);return Promise.resolve(r);}};
+window.__qrLibTried=false;
+window.__loadQRLib=function(){
+  if(window.__qrLibTried) return;
+  window.__qrLibTried=true;
+  var cdns=['https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js','https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js'];
+  var i=0;
+  function tryNext(){
+    if(i>=cdns.length) return;
+    var s=document.createElement('script');
+    s.src=cdns[i++];
+    s.onerror=function(){s.remove();tryNext();};
+    document.head.appendChild(s);
+  }
+  tryNext();
+};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <style>
@@ -414,6 +429,16 @@ textarea.input{min-height:80px;resize:vertical;}
 .search-bar{position:relative;margin-bottom:12px;}
 .search-bar .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:15px;pointer-events:none;}
 .search-bar input{padding-left:38px;}
+
+/* Admin accordion (equipment Admin tab) */
+.adm-acc{background:#fff;border-radius:12px;margin-bottom:10px;box-shadow:var(--shadow);overflow:hidden;}
+.adm-acc-head{width:100%;background:none;border:none;font-family:inherit;font-size:14px;font-weight:700;color:var(--navy);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left;border-bottom:1px solid transparent;}
+.adm-acc-head:hover{background:#f8fafc;}
+.adm-acc-head.open{border-bottom-color:var(--border2);}
+.adm-acc-arrow{font-size:12px;color:var(--text3);transition:transform .2s;}
+.adm-acc-head.open .adm-acc-arrow{transform:rotate(180deg);}
+.adm-acc-body{display:none;padding:14px 16px;}
+.adm-acc-body.open{display:block;}
 /* Empty state */
 .empty-state{text-align:center;padding:40px 20px;color:var(--text3);}
 .empty-icon{font-size:40px;margin-bottom:10px;}
@@ -548,6 +573,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="sub-tab" onclick="setEqTab('inventory',this)">Inventory</button>
         <button class="sub-tab" id="eqChecklistTab" onclick="setEqTab('checklist',this)">Checklist</button>
         <button class="sub-tab" onclick="setEqTab('reports',this)">Reports</button>
+        <button class="sub-tab" id="eqAdminTab" onclick="setEqTab('admin',this)" style="display:none;">Admin</button>
       </div>
       <!-- DASHBOARD -->
       <div id="eq-dashboard">
@@ -606,6 +632,80 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="section-label" style="margin-top:16px;">Open Reports</div>
         <div id="reportsList"></div>
       </div>
+      <!-- ADMIN (accordion-style, equipment-focused) -->
+      <div id="eq-admin" style="display:none;">
+        <a href="https://aryehw330-lgtm.github.io/Chaverim-Statistics/" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,var(--navy),var(--navy3));color:#fff;text-decoration:none;border-radius:12px;padding:16px;margin-bottom:14px;font-size:15px;font-weight:700;box-shadow:0 6px 18px rgba(15,37,64,.25);">
+          📊 View Chaverim Dispatch Statistics
+        </a>
+        <div class="adm-acc">
+          <button class="adm-acc-head open" onclick="toggleAdmAcc(this)"><span>➕ Add New Item</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body open">
+            <div class="input-group"><label class="input-label">Item Name</label><input class="input" type="text" id="newEqName" placeholder="e.g. Fan 31"/></div>
+            <div class="input-group"><label class="input-label">Category</label>
+              <select class="input" id="newEqCat">
+                <option>Fan</option><option>Heater</option><option>A/C Unit</option><option>Generator</option>
+                <option>Light Tower</option><option>Shop Vac</option><option>EZ-Spare</option>
+                <option>Sump Pump</option><option>Wheel Chair Ramp</option><option>Other</option>
+              </select>
+            </div>
+            <div class="input-group"><label class="input-label">Home Location</label><select class="input" id="newEqLoc"></select></div>
+            <button class="btn-full btn-primary" onclick="addEquipment()">Add Item + Generate QR</button>
+          </div>
+        </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>📍 Manage Locations</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div id="eqLocList" style="margin-bottom:10px;"></div>
+            <div style="display:flex;gap:8px;">
+              <input class="input" type="text" id="newLocName" placeholder="New location name" style="flex:1;"/>
+              <button class="btn-sm btn-primary" onclick="addLocation()" style="padding:10px 16px;">Add</button>
+            </div>
+          </div>
+        </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>🏠 Equipment Home Locations</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Change the home location for any item. Saves to Google Sheet.</div>
+            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="hlocSearch" placeholder="Search equipment..." oninput="renderHlocList()"/></div>
+            <div id="hlocList" style="max-height:420px;overflow-y:auto;"></div>
+          </div>
+        </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>👤 Add Member</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div class="input-group"><label class="input-label">BC # (Unit)</label><input class="input" type="text" inputmode="numeric" id="newMemberUnitEq" placeholder="e.g. 42"/></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div class="input-group"><label class="input-label">First Name</label><input class="input" type="text" id="newMemberFirstEq" placeholder="First"/></div>
+              <div class="input-group"><label class="input-label">Last Name</label><input class="input" type="text" id="newMemberLastEq" placeholder="Last"/></div>
+            </div>
+            <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="newMemberPhoneEq" placeholder="555-000-0000"/></div>
+            <div class="input-group"><label class="input-label">Role</label>
+              <select class="input" id="newMemberRoleEq">
+                <option value="member">Member</option>
+                <option value="observer">Observer</option>
+                <option value="dispatch">Dispatch</option>
+                <option value="equipment">Equipment Team</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <button class="btn-full btn-primary" onclick="addMemberFromEq()">Add Member</button>
+          </div>
+        </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>👥 Members (<span id="eqAdmMemCount">0</span>)</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="eqMemSearch" placeholder="Search members..." oninput="renderEqMemberList()"/></div>
+            <div id="eqMemList" style="max-height:420px;overflow-y:auto;"></div>
+          </div>
+        </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>📦 Equipment Status (<span id="eqAdminCount">0</span>)</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="eqAdminSearch" placeholder="Search equipment..." oninput="renderEqAdminList()"/></div>
+            <div id="eqAdminList" style="max-height:520px;overflow-y:auto;"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ══ MEMBERS ══ -->
@@ -619,17 +719,19 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="chip" onclick="setMemberFilter('member',this)">Members</div>
         <div class="chip" onclick="setMemberFilter('observer',this)">Observers</div>
         <div class="chip" onclick="setMemberFilter('dispatch',this)">Dispatch</div>
+        <div class="chip" id="addMemberChip" onclick="showModal('addMemberModal')" style="display:none;background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700;">+ Add Member</div>
       </div>
       <div id="memberDir"></div>
     </div>
 
-    <!-- ══ MORE (Numbers / Stats) ══ -->
+    <!-- ══ ADMIN (Numbers / Stats / Schedule / Vehicles / Admin Tools) ══ -->
     <div class="page hidden" id="page-more">
-      <div class="section-header"><div class="section-title">More</div></div>
-      <div class="sub-tabs">
-        <button class="sub-tab" onclick="setMoreTab('numbers',this)">Phone: Numbers</button>
+      <div class="section-header"><div class="section-title">Admin</div></div>
+      <div class="sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;">
+        <button class="sub-tab" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
         <button class="sub-tab active" onclick="setMoreTab('stats',this)">📊 Stats</button>
-        <button class="sub-tab" onclick="setMoreTab('schedule',this)">📅 Schedule</button>
+        <button class="sub-tab" onclick="setMoreTab('schedule',this)">📅 Dispatch Schedule</button>
+        <button class="sub-tab" onclick="setMoreTab('equipment',this)">📦 Equipment</button>
         <button class="sub-tab" onclick="setMoreTab('vehicles',this)">🚐 Vehicles</button>
       </div>
       <div id="more-numbers">
@@ -658,6 +760,25 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
       </div>
       <div id="more-stats" style="display:none;">
+        <!-- External stats link (live stats site) -->
+        <a href="https://aryehw330-lgtm.github.io/Chaverim-Statistics/" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%);color:#fff;text-decoration:none;border-radius:14px;padding:18px 20px;margin-bottom:14px;font-weight:700;box-shadow:0 6px 18px rgba(15,37,64,.25);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:700;color:var(--gold-light,#d4a93a);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Live Statistics</div>
+            <div style="font-size:17px;font-weight:700;letter-spacing:-.3px;">Chaverim Dispatch Statistics</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:4px;font-weight:500;">Tap to view full reports →</div>
+          </div>
+          <div style="font-size:24px;flex-shrink:0;">📊</div>
+        </a>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--text2);line-height:1.55;">
+          <div style="font-weight:700;color:var(--amber);margin-bottom:6px;">📊 Statistics — Live Tracking</div>
+          Once the app is deployed, this section will automatically display call statistics from every call dispatched, responded to, and completed in the app:
+          <ul style="margin:8px 0 4px 18px;padding:0;">
+            <li><b>Admins & Dispatch:</b> Full org-wide stats — call volume by type, town, hour, day, top responders, top dispatchers, response times — same data as the link above.</li>
+            <li><b>Members:</b> Personal stats only — your call count, response times, types you've responded to, and your ranking.</li>
+          </ul>
+        </div>
+        <!-- Admin shortcuts removed — admins use Members page + Equipment Admin tab directly -->
+        <div id="more-stats-legacy" style="display:none;">
         <!-- All-time banner -->
         <div class="alltime-banner" id="alltimeBanner">
           <div class="alltime-num" id="st-alltime-num">11,388</div>
@@ -769,6 +890,7 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
           <div id="st-compare-result"></div>
         </div>
+        </div><!-- /more-stats-legacy -->
       </div>
       <div id="more-schedule" style="display:none;">
         <!-- On-Duty Now banner -->
@@ -785,6 +907,43 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="section-label">Weekly Schedule</div>
         <div class="filter-chips" id="schedDayChips" style="margin-bottom:12px;"></div>
         <div id="schedDayContent"></div>
+      </div>
+
+      <!-- EQUIPMENT (admin accordion, mirrors equipment-tab admin) -->
+      <div id="more-equipment" style="display:none;">
+        <div class="adm-acc">
+          <button class="adm-acc-head open" onclick="toggleAdmAcc(this)"><span>➕ Add New Item</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body open">
+            <div class="input-group"><label class="input-label">Item Name</label><input class="input" type="text" id="newEqName2" placeholder="e.g. Fan 31"/></div>
+            <div class="input-group"><label class="input-label">Home Location</label><select class="input" id="newEqLoc2"></select></div>
+            <button class="btn-full btn-primary" onclick="addEquipmentFromMore()">Add Item + Generate QR</button>
+          </div>
+        </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>📍 Manage Locations</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div id="eqLocList2" style="margin-bottom:10px;"></div>
+            <div style="display:flex;gap:8px;">
+              <input class="input" type="text" id="newLocName2" placeholder="New location name" style="flex:1;"/>
+              <button class="btn-sm btn-primary" onclick="addLocationFromMore()" style="padding:10px 16px;">Add</button>
+            </div>
+          </div>
+        </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>🏠 Equipment Home Locations</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Change the home location for any item. Saves to Google Sheet.</div>
+            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="hlocSearch2" placeholder="Search equipment..." oninput="renderHlocList2()"/></div>
+            <div id="hlocList2" style="max-height:420px;overflow-y:auto;"></div>
+          </div>
+        </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>📦 Equipment Status (<span id="eqAdminCount2">0</span>)</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="eqAdminSearch2" placeholder="Search equipment..." oninput="renderEqAdminList2()"/></div>
+            <div id="eqAdminList2" style="max-height:520px;overflow-y:auto;"></div>
+          </div>
+        </div>
       </div>
 
       <div id="more-vehicles" style="display:none;">
@@ -878,6 +1037,14 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
           <div class="section-label">All Equipment (<span id="eqAdminCount">0</span>)</div>
           <div id="eqAdminList"></div>
+
+          <!-- HOME LOCATIONS EDITOR -->
+          <div class="card" style="margin-top:16px;">
+            <div class="card-title" style="margin-bottom:8px;">🏠 Equipment Home Locations</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Change the home location for any item. Saves to Google Sheet.</div>
+            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="hlocSearch" placeholder="Search equipment..." oninput="renderHlocList()"/></div>
+            <div id="hlocList" style="max-height:420px;overflow-y:auto;"></div>
+          </div>
         </div>
         <!-- Locations -->
         <div id="admin-locations" style="display:none;">
@@ -902,7 +1069,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </button>
     <button class="tab" onclick="showTab('equipment')" id="tab-equipment"><span class="tab-icon">📦</span>Equip</button>
     <button class="tab" onclick="showTab('members')" id="tab-members"><span class="tab-icon">👥</span>Members</button>
-    <button class="tab" onclick="showTab('more')" id="tab-more"><span class="tab-icon">📊</span>More</button>
+    <button class="tab" onclick="showTab('more')" id="tab-more"><span class="tab-icon">⚙️</span>Admin</button>
   </div>
 </div>
 
@@ -1293,6 +1460,95 @@ textarea.input{min-height:80px;resize:vertical;}
   </div>
 </div>
 
+<!-- Schedule Slot Editor (admin) -->
+<div class="modal-overlay hidden" id="schedEditModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📅 Edit Schedule Slot</div>
+    <div id="schedEditShift" style="font-size:13px;color:var(--text3);margin-bottom:14px;font-family:'DM Mono',monospace;">—</div>
+    <input type="hidden" id="schedEditShiftIdx"/>
+    <input type="hidden" id="schedEditDayIdx"/>
+    <div class="input-group">
+      <label class="input-label">Primary Dispatcher</label>
+      <select class="input" id="schedEditPrimary"></select>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Secondary (Backup)</label>
+      <select class="input" id="schedEditSecondary"></select>
+    </div>
+    <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="saveScheduleEdit()">💾 Save Changes</button>
+    <button class="btn-full btn-ghost" style="margin-bottom:8px;color:var(--amber);" onclick="resetScheduleSlot()">↺ Set to OPEN</button>
+    <button class="btn-full btn-ghost" onclick="hideModal('schedEditModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Edit Member Role Modal -->
+<div class="modal-overlay hidden" id="editMemberRoleModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:18px;font-weight:700;color:var(--text);">✏️ Edit Member Role</div>
+      <button onclick="hideModal('editMemberRoleModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">×</button>
+    </div>
+    <input type="hidden" id="editMbrUnit"/>
+    <div id="editMbrInfo" style="background:#f8fafc;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;"></div>
+    <div class="input-group"><label class="input-label">Role</label>
+      <select class="input" id="editMbrRole">
+        <option value="member">Member</option>
+        <option value="observer">Observer</option>
+        <option value="dispatch">Dispatch</option>
+        <option value="equipment">Equipment Team</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editMbrPhone" placeholder="555-000-0000"/></div>
+    <button class="btn-full btn-primary" onclick="saveEditMemberRole()" style="margin-bottom:8px;">Save Changes</button>
+    <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Add Member Modal (members page) -->
+<div class="modal-overlay hidden" id="addMemberModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:18px;font-weight:700;color:var(--text);">➕ Add New Member</div>
+      <button onclick="hideModal('addMemberModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">×</button>
+    </div>
+    <div class="input-group"><label class="input-label">BC # (Unit)</label><input class="input" type="text" inputmode="numeric" id="addMbrUnit" placeholder="e.g. 42"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="input-group"><label class="input-label">First Name</label><input class="input" type="text" id="addMbrFirst" placeholder="First"/></div>
+      <div class="input-group"><label class="input-label">Last Name</label><input class="input" type="text" id="addMbrLast" placeholder="Last"/></div>
+    </div>
+    <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="addMbrPhone" placeholder="555-000-0000"/></div>
+    <div class="input-group"><label class="input-label">Role</label>
+      <select class="input" id="addMbrRole">
+        <option value="member">Member</option>
+        <option value="observer">Observer</option>
+        <option value="dispatch">Dispatch</option>
+        <option value="equipment">Equipment Team</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <button class="btn-full btn-primary" onclick="submitAddMember()" style="margin-bottom:8px;">Add Member</button>
+    <button class="btn-full btn-ghost" onclick="hideModal('addMemberModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- QR Display (after adding item or clicking QR) -->
+<div class="modal-overlay hidden" id="qrDisplayModal">
+  <div class="modal" style="text-align:center;">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="qrItemName">Item</div>
+    <div id="qrItemMeta" style="font-size:12px;color:var(--text3);margin-bottom:18px;">—</div>
+    <div id="qrCodeWrap" style="display:flex;align-items:center;justify-content:center;min-height:240px;background:#fff;border-radius:12px;border:1px solid var(--border);padding:16px;margin-bottom:16px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn-full btn-primary" onclick="printQR()">🖨️ Print / Save</button>
+      <button class="btn-full btn-ghost" onclick="hideModal('qrDisplayModal')">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Scan QR -->
 <div class="modal-overlay hidden" id="scanModal">
   <div class="modal">
@@ -1323,7 +1579,7 @@ const ROLES = {
 // ── Seed Members (from Google Sheet — BC roster) ──
 const SEED_MEMBERS=[{"unit":"05","first":"Yehuda","last":"Miller","phone":"845-558-4497","role":"member","addedAt":1700000000000},{"unit":"06","first":"Chaim","last":"Huisman","phone":"201-456-7701","role":"Admin, Dispatch, member","addedAt":1700000000000},{"unit":"07","first":"Chaim","last":"Stadtmauer","phone":"973-865-0588","role":"member","addedAt":1700000000000},{"unit":"08","first":"Elliott","last":"Gilden","phone":"201-280-7062","role":"member","addedAt":1700000000000},{"unit":"09","first":"Edward","last":"Abramovitz","phone":"203-988-6334","role":"member","addedAt":1700000000000},{"unit":"10","first":"Yehuda","last":"Feig","phone":"201-491-3423","role":"member","addedAt":1700000000000},{"unit":"11","first":"Nosson","last":"Moldaver","phone":"732-233-8595","role":"member","addedAt":1700000000000},{"unit":"12","first":"David","last":"Roberts","phone":"201-562-7844","role":"member","addedAt":1700000000000},{"unit":"13","first":"Stuart","last":"Krupnik","phone":"347-371-1132","role":"member","addedAt":1700000000000},{"unit":"14","first":"Simon","last":"Berrebi","phone":"347-768-0807","role":"member","addedAt":1700000000000},{"unit":"15","first":"Moshe","last":"Kozlow","phone":"201-655-3279","role":"member","addedAt":1700000000000},{"unit":"16","first":"Ari","last":"Wartelsky","phone":"917-841-4115","role":"member","addedAt":1700000000000},{"unit":"17","first":"Motti","last":"Rosenthal","phone":"718-614-6002","role":"member","addedAt":1700000000000},{"unit":"18","first":"Ahron","last":"Mallin","phone":"917-596-9528","role":"member","addedAt":1700000000000},{"unit":"19","first":"Sruli","last":"Scharf","phone":"201-321-2073","role":"member","addedAt":1700000000000},{"unit":"20","first":"Burry","last":"Greenbaum","phone":"718-974-1571","role":"member","addedAt":1700000000000},{"unit":"21","first":"Yehuda","last":"Lisker","phone":"201-723-7228","role":"member","addedAt":1700000000000},{"unit":"22","first":"Yoni","last":"Celnik","phone":"845-364-1318","role":"member","addedAt":1700000000000},{"unit":"23","first":"Daniel","last":"Hyman","phone":"917-767-4040","role":"member","addedAt":1700000000000},{"unit":"24","first":"Gershon","last":"Weinreb","phone":"570-909-6530","role":"member","addedAt":1700000000000},{"unit":"25","first":"Daniel","last":"Rubinoff","phone":"917-345-3447","role":"member","addedAt":1700000000000},{"unit":"26","first":"Mickey","last":"Cohen","phone":"201-937-2192","role":"member","addedAt":1700000000000},{"unit":"27","first":"Yitzchok","last":"Berger","phone":"917-697-0043","role":"member","addedAt":1700000000000},{"unit":"28","first":"Benny","last":"Kessler","phone":"718-915-8057","role":"member","addedAt":1700000000000},{"unit":"29","first":"Aaron","last":"Heideman","phone":"732-609-6154","role":"Dispatch, equipment, member","addedAt":1700000000000},{"unit":"30","first":"Matis","last":"Gluck","phone":"845-641-2001","role":"member","addedAt":1700000000000},{"unit":"31","first":"Rachmiel","last":"","phone":"718-909-9352","role":"member","addedAt":1700000000000},{"unit":"32","first":"Avi","last":"Weiskopf","phone":"201-707-4616","role":"member","addedAt":1700000000000},{"unit":"33","first":"Chaim","last":"Gottesman","phone":"201-280-2386","role":"Admin, Dispatch, Equipment, member","addedAt":1700000000000},{"unit":"34","first":"Yehuda","last":"Kreitman","phone":"732-440-8457","role":"Dispatch, member","addedAt":1700000000000},{"unit":"36","first":"Aaron","last":"Sheffy","phone":"551-804-3385","role":"member","addedAt":1700000000000},{"unit":"37","first":"Micah","last":"Epstein","phone":"914-806-3334","role":"member","addedAt":1700000000000},{"unit":"38","first":"Aryeh","last":"Wizman","phone":"845-531-9110","role":"Admin, Dispatch, Equipment, member","addedAt":1700000000000},{"unit":"39","first":"Rami","last":"Glatt","phone":"718-536-6574","role":"member","addedAt":1700000000000},{"unit":"40","first":"Shloimy","last":"Ciment","phone":"845-587-0053","role":"member","addedAt":1700000000000},{"unit":"41","first":"Michael","last":"Goldsmith","phone":"201-370-5664","role":"member","addedAt":1700000000000},{"unit":"42","first":"Kenneth","last":"Goldman","phone":"201-638-6515","role":"member","addedAt":1700000000000},{"unit":"43","first":"Avi","last":"Okin","phone":"862-438-4094","role":"member","addedAt":1700000000000},{"unit":"44","first":"Isaac","last":"Vizel","phone":"917-672-1999","role":"member","addedAt":1700000000000},{"unit":"45","first":"Mark","last":"Eisenberger","phone":"917-363-8106","role":"member","addedAt":1700000000000},{"unit":"46","first":"Dov","last":"Eisenberger","phone":"917-538-5462","role":"member","addedAt":1700000000000},{"unit":"47","first":"Fischel","last":"Bensinger","phone":"305-389-3907","role":"member","addedAt":1700000000000},{"unit":"48","first":"Dovid","last":"Lisker","phone":"201-214-0803","role":"member","addedAt":1700000000000},{"unit":"49","first":"Mitchell","last":"Schaffer","phone":"201-519-6904","role":"member","addedAt":1700000000000},{"unit":"50","first":"Moti","last":"Rimer","phone":"646-772-3455","role":"member","addedAt":1700000000000},{"unit":"51","first":"Isaac","last":"Dayan","phone":"847-226-6892","role":"member","addedAt":1700000000000},{"unit":"52","first":"Judah","last":"Samuel","phone":"201-888-0214","role":"member","addedAt":1700000000000},{"unit":"53","first":"Shloimie","last":"Kreindler","phone":"443-939-9979","role":"Dispatch, member","addedAt":1700000000000},{"unit":"54","first":"Dovie","last":"Hirsch","phone":"201-354-0550","role":"Dispatch, member","addedAt":1700000000000},{"unit":"55","first":"Henry","last":"Bernstein","phone":"516-554-4063","role":"member","addedAt":1700000000000},{"unit":"59","first":"Chaim","last":"Ezagui","phone":"347-785-8798","role":"Dispatch, member","addedAt":1700000000000},{"unit":"60","first":"Noah","last":"Isaacs","phone":"201-803-8614","role":"member","addedAt":1700000000000},{"unit":"61","first":"Moshe","last":"Katz","phone":"516-209-1427","role":"member","addedAt":1700000000000},{"unit":"62","first":"","last":"Gendler","phone":"347-409-5754","role":"member","addedAt":1700000000000},{"unit":"63","first":"Aaron","last":"Bauman","phone":"347-543-2941","role":"member","addedAt":1700000000000},{"unit":"64","first":"Kivi","last":"Gorden","phone":"610-513-0776","role":"member","addedAt":1700000000000},{"unit":"65","first":"Eli","last":"Teichman","phone":"845-558-5247","role":"member","addedAt":1700000000000},{"unit":"66","first":"Andy","last":"Schultz","phone":"914-574-7057","role":"member","addedAt":1700000000000},{"unit":"67","first":"Willie","last":"Silberstein","phone":"201-681-8876","role":"member","addedAt":1700000000000},{"unit":"68","first":"Yehuda","last":"Schwartz","phone":"917-288-2546","role":"member","addedAt":1700000000000},{"unit":"69","first":"Dovi","last":"Pfeffer","phone":"848-210-5060","role":"member","addedAt":1700000000000},{"unit":"70","first":"Yosi","last":"Gibraltar","phone":"","role":"member","addedAt":1700000000000},{"unit":"71","first":"Avi","last":"Klein","phone":"347-731-5525","role":"Dispatch, member","addedAt":1700000000000},{"unit":"72","first":"Moshe","last":"Skoczylas","phone":"718-974-7347","role":"member","addedAt":1700000000000},{"unit":"73","first":"Danny","last":"Senter","phone":"201-491-4602","role":"member","addedAt":1700000000000},{"unit":"74","first":"Rudman","last":"Zvi","phone":"","role":"member","addedAt":1700000000000},{"unit":"75","first":"David","last":"Kestenbaum","phone":"516-318-2697","role":"member","addedAt":1700000000000},{"unit":"76","first":"Aharon","last":"Klarberg","phone":"973-567-0772","role":"member","addedAt":1700000000000},{"unit":"77","first":"Willie","last":"Balk","phone":"216-392-2244","role":"member","addedAt":1700000000000},{"unit":"78","first":"Izzy","last":"Infield","phone":"201-245-4666","role":"member","addedAt":1700000000000},{"unit":"79","first":"David","last":"Itzkowits","phone":"347-227-9014","role":"member","addedAt":1700000000000},{"unit":"80","first":"Mayer","last":"Sabo","phone":"201-566-4759","role":"member","addedAt":1700000000000},{"unit":"81","first":"Aaron","last":"Lerer","phone":"845-213-7323","role":"member","addedAt":1700000000000},{"unit":"82","first":"Naftali","last":"Nunberg","phone":"917-912-8913","role":"member","addedAt":1700000000000},{"unit":"83","first":"Michel","last":"Klarburg","phone":"973-851-0510","role":"member","addedAt":1700000000000},{"unit":"86","first":"Israel","last":"Romand","phone":"845-499-0540","role":"member","addedAt":1700000000000},{"unit":"87","first":"Phillip","last":"Katz","phone":"917-549-5540","role":"member","addedAt":1700000000000},{"unit":"88","first":"Yitz","last":"Stern","phone":"845-596-7988","role":"member","addedAt":1700000000000},{"unit":"89","first":"Mordechai","last":"Solinsky","phone":"347-486-4434","role":"member","addedAt":1700000000000},{"unit":"90","first":"Sam","last":"Ulrich","phone":"858-401-0863","role":"member","addedAt":1700000000000},{"unit":"91","first":"Leibi","last":"Stern","phone":"","role":"member","addedAt":1700000000000},{"unit":"92","first":"Michael","last":"Scharf","phone":"201-468-1166","role":"member","addedAt":1700000000000},{"unit":"93","first":"Yair","last":"Menchel","phone":"516-672-1325","role":"member","addedAt":1700000000000},{"unit":"94","first":"Zvi","last":"Bin-Nun","phone":"551-795-3394","role":"member","addedAt":1700000000000},{"unit":"95","first":"Zev","last":"Darack","phone":"973-202-9867","role":"member","addedAt":1700000000000},{"unit":"96","first":"Binyamin","last":"Schulgasser","phone":"973-943-0413","role":"member","addedAt":1700000000000},{"unit":"97","first":"Solomon","last":"Itzkowitz","phone":"929-261-6554","role":"Admin, Dispatch, Equipment, member","addedAt":1700000000000},{"unit":"99","first":"Yakov","last":"Cohen","phone":"201-957-3523","role":"member","addedAt":1700000000000},{"unit":"100","first":"Emanuel","last":"Klein","phone":"718-807-5604","role":"member","addedAt":1700000000000},{"unit":"102","first":"Joel","last":"Varnai","phone":"646-597-0935","role":"member","addedAt":1700000000000},{"unit":"103","first":"Shalom","last":"Peretz","phone":"845-270-8447","role":"member","addedAt":1700000000000},{"unit":"104","first":"Mo","last":"Berow","phone":"973-270-3015","role":"member","addedAt":1700000000000},{"unit":"105","first":"Daniel","last":"Fuksbrumer","phone":"917-439-3984","role":"member","addedAt":1700000000000},{"unit":"106","first":"Yoni","last":"Kaufman","phone":"917-608-4904","role":"member","addedAt":1700000000000},{"unit":"107","first":"Daniel","last":"Gross","phone":"917-974-9630","role":"observer","addedAt":1700000000000},{"unit":"108","first":"David","last":"Rivkin","phone":"201-580-0456","role":"member","addedAt":1700000000000},{"unit":"110","first":"Isaac","last":"Mass","phone":"201-630-1518","role":"member","addedAt":1700000000000},{"unit":"111","first":"Leiby","last":"Itzkowitz","phone":"929-445-0429","role":"Dispatch, member","addedAt":1700000000000},{"unit":"112","first":"Benzi","last":"Herbst","phone":"718-810-3968","role":"member","addedAt":1700000000000},{"unit":"114","first":"Avidan","last":"Rothman","phone":"973-280-1691","role":"member","addedAt":1700000000000},{"unit":"115","first":"Zach","last":"Berman","phone":"845-216-8279","role":"member","addedAt":1700000000000},{"unit":"116","first":"Steven","last":"Hoenig","phone":"201-240-8749","role":"member","addedAt":1700000000000},{"unit":"117","first":"Jeffrey","last":"Rosenfeld","phone":"917-664-8374","role":"member","addedAt":1700000000000},{"unit":"118","first":"Zev","last":"Savetsky","phone":"201-805-2476","role":"member","addedAt":1700000000000},{"unit":"119","first":"Nechemia","last":"Berman","phone":"845-622-0094","role":"member","addedAt":1700000000000},{"unit":"120","first":"Yehuda","last":"Breuer","phone":"845-399-0523","role":"member","addedAt":1700000000000},{"unit":"121","first":"David","last":"Dahan","phone":"551-326-1160","role":"observer","addedAt":1700000000000},{"unit":"122","first":"Ephraim","last":"Rudin","phone":"973-368-7639","role":"Dispatch, member","addedAt":1700000000000},{"unit":"123","first":"Mendy","last":"Green","phone":"845-213-0748","role":"member","addedAt":1700000000000},{"unit":"124","first":"Binyamin","last":"Kroll","phone":"973-462-3851","role":"Dispatch, member","addedAt":1700000000000},{"unit":"125","first":"Jack","last":"Attali","phone":"917-626-1069","role":"observer","addedAt":1700000000000},{"unit":"126","first":"Sam","last":"Lovi","phone":"347-985-6088","role":"member","addedAt":1700000000000},{"unit":"127","first":"Nathan","last":"Rose","phone":"914-714-4138","role":"member","addedAt":1700000000000},{"unit":"128","first":"Pinchas","last":"Feinstein","phone":"646-244-1137","role":"member","addedAt":1700000000000},{"unit":"129","first":"Zecharia","last":"Gurell","phone":"201-334-2325","role":"member","addedAt":1700000000000},{"unit":"130","first":"Didi","last":"Forman","phone":"972-53-272-8815","role":"member","addedAt":1700000000000},{"unit":"131","first":"Zach","last":"Cohen","phone":"201-803-6143","role":"member","addedAt":1700000000000},{"unit":"133","first":"Zevy","last":"Glicksman","phone":"917-655-2075","role":"Dispatch, member","addedAt":1700000000000},{"unit":"140","first":"Khodik","last":"Kalmen","phone":"201-970-1818","role":"member","addedAt":1700000000000},{"unit":"148","first":"Shloime","last":"Mintz","phone":"","role":"member","addedAt":1700000000000},{"unit":"149","first":"Juda","last":"Glick","phone":"718-613-9575","role":"member","addedAt":1700000000000},{"unit":"150","first":"Isaac","last":"Forgash","phone":"201-509-0986","role":"Equipment, member","addedAt":1700000000000},{"unit":"154","first":"Matthew","last":"Fried","phone":"917-371-2669","role":"member","addedAt":1700000000000},{"unit":"155","first":"Yisrael Mayer","last":"Birnbaum","phone":"347-448-1796","role":"Dispatch, member","addedAt":1700000000000},{"unit":"157","first":"Daniel","last":"Steinermam","phone":"201-575-3569","role":"member","addedAt":1700000000000},{"unit":"160","first":"Avi","last":"Greenberg","phone":"845-422-3090","role":"member","addedAt":1700000000000},{"unit":"161","first":"Abraham","last":"Green","phone":"","role":"member","addedAt":1700000000000},{"unit":"162","first":"Zev Yida","last":"Farkas","phone":"","role":"member","addedAt":1700000000000},{"unit":"163","first":"Daniel","last":"Blum","phone":"347-533-0596","role":"member","addedAt":1700000000000},{"unit":"164","first":"Shmuel","last":"Remer","phone":"551-999-7592","role":"member","addedAt":1700000000000},{"unit":"169","first":"Avrumy","last":"Schwartz","phone":"929-355-3943","role":"member","addedAt":1700000000000},{"unit":"171","first":"Chaim","last":"Abenson","phone":"845-866-1647","role":"member","addedAt":1700000000000},{"unit":"178","first":"Yisroel","last":"Gutman","phone":"347-693-0315","role":"member","addedAt":1700000000000},{"unit":"180","first":"Abbey","last":"Cooper","phone":"201-543-1267","role":"member","addedAt":1700000000000},{"unit":"191","first":"Kenny","last":"Fried","phone":"917-544-0383","role":"member","addedAt":1700000000000},{"unit":"200","first":"Jan","last":"Meyer","phone":"201-888-4566","role":"member","addedAt":1700000000000},{"unit":"234","first":"Mordechai","last":"Kupferstein","phone":"718-679-7278","role":"member","addedAt":1700000000000},{"unit":"257","first":"Moshe","last":"Teicher","phone":"786-999-5939","role":"Dispatch, member","addedAt":1700000000000},{"unit":"369","first":"Rafael","last":"Pomerantz","phone":"929-253-4860","role":"Dispatch, member","addedAt":1700000000000},{"unit":"500","first":"Dalia","last":"Romand","phone":"914-220-2702","role":"Dispatch, member","addedAt":1700000000000},{"unit":"501","first":"Rivky","last":"Sandal","phone":"845-629-1212","role":"member","addedAt":1700000000000},{"unit":"502","first":"Lazar","last":"Weider","phone":"845-248-8636","role":"member","addedAt":1700000000000},{"unit":"503","first":"Shmuel","last":"Eidelman","phone":"732-429-5195","role":"Dispatch, member","addedAt":1700000000000},{"unit":"504","first":"Jacob","last":"Rosenberg","phone":"201-686-1731","role":"member","addedAt":1700000000000},{"unit":"505","first":"Shloime","last":"Mintz","phone":"201-370-1097","role":"Dispatch, member","addedAt":1700000000000},{"unit":"506","first":"Shlomo","last":"Erlanger","phone":"551-238-5060","role":"member","addedAt":1700000000000},{"unit":"507","first":"Shragie","last":"Rubelow","phone":"848-525-7435","role":"Dispatch, member","addedAt":1700000000000},{"unit":"508","first":"Yehuda","last":"Rhine","phone":"929-210-1524","role":"member","addedAt":1700000000000}];
 
-const DEFAULT_LOCATIONS = ['COBC','Garage TABC','Teaneck Garage','Teaneck Shed','Englewood Shed','Truck 02','Truck 03',"Rami's Garage"];
+const DEFAULT_LOCATIONS = ['COBC','Garage TABC','Teaneck Garage','Teaneck Shed','Englewood Shed','Truck 02','Truck 03','COBC 04',"Rami's Garage"];
 
 // ══════════════════════════════════════════════
 //  APPS SCRIPT API — Google Sheet backend
@@ -1410,9 +1666,8 @@ async function loadInventoryFromSheet() {
     // Load inventory
     const data = await sheetGET({action:'getInventory'});
     if(data?.items?.length) {
-      const sheetNames = new Set(data.items.map(i=>i.name.toLowerCase()));
-      const localOnly  = (STATE.equipment||[]).filter(e=>!e.fromSheet && !sheetNames.has(e.name.toLowerCase()));
-      STATE.equipment  = [...data.items.map(sheetRowToEq), ...localOnly];
+      // Sheet is source of truth — replace local equipment entirely on successful sync
+      STATE.equipment  = data.items.map(sheetRowToEq);
       populateReportItemSelect();
       renderEquipmentDashboard();
       renderInventory();
@@ -1829,6 +2084,7 @@ function defaultState() {
     members: [...SEED_MEMBERS],
     equipment: buildDefaultEquipment(),
     calls: [],
+    callLog: [], // [{ts, action, callId, type, town, priority, dispatcher, responder, payload}]
     reports: [],
     locations: [...DEFAULT_LOCATIONS],
     activity: [],
@@ -1836,7 +2092,7 @@ function defaultState() {
     vehicles: [
       {id:'V1',name:'Truck 02',type:'Truck',plate:'',checkedOut:false,checkedOutBy:null},
       {id:'V2',name:'Truck 03',type:'Truck',plate:'',checkedOut:false,checkedOutBy:null},
-      
+      {id:'V3',name:'COBC 04',type:'Truck',plate:'',checkedOut:false,checkedOutBy:null},
     ],
     onDuty: {name:'', phone:''},
     rrSettings: {first:3, repeat:3, switchAfter:2},
@@ -1856,6 +2112,15 @@ function load() {
         if(seed) return {...m, role:seed.role, first:seed.first||m.first, last:seed.last||m.last, phone:seed.phone||m.phone};
         return m;
       });
+      // Ensure callLog exists
+      saved.callLog = saved.callLog || [];
+      // Migrate: ensure COBC 04 vehicle + location exists
+      saved.vehicles = saved.vehicles || [];
+      if(!saved.vehicles.find(v => v.name==='COBC 04')) {
+        saved.vehicles.push({id:'V3',name:'COBC 04',type:'Truck',plate:'',checkedOut:false,checkedOutBy:null});
+      }
+      saved.locations = saved.locations || ['COBC'];
+      if(!saved.locations.includes('COBC 04')) saved.locations.push('COBC 04');
       // Add any members in SEED_MEMBERS not yet in saved state
       const savedUnits=new Set(saved.members.map(m=>String(m.unit)));
       const missing=SEED_MEMBERS.filter(m=>!savedUnits.has(String(m.unit)));
@@ -1949,7 +2214,8 @@ function finishLogin() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('roleLabel').textContent = SESSION.role.toUpperCase();
-  document.getElementById('unitLabel').textContent  = `BC-${SESSION.unit}`;
+  const topSub = document.getElementById('topbarSub');
+  if(topSub) topSub.textContent = SESSION.name || `BC-${SESSION.unit}`;
 
   const isAdmin    = SESSION.role === 'admin';
   const isDispatch = ['admin','dispatch'].includes(SESSION.role);
@@ -1961,10 +2227,12 @@ function finishLogin() {
     if(e) e.style.display = btnDisplay;
   });
 
-  // Checklist tab — hidden for everyone; gated by cobcet password inside
-  // Show the tab to all but require cobcet when clicked
+  // Checklist tab — visible to all, password prompt inside
   const chkTab = document.getElementById('eqChecklistTab');
-  if(chkTab) chkTab.style.display = ''; // visible to all — password prompt inside
+  if(chkTab) chkTab.style.display = '';
+  // Equipment Admin tab — admin role only
+  const eqAdmTab = document.getElementById('eqAdminTab');
+  if(eqAdmTab) eqAdmTab.style.display = SESSION.role==='admin' ? '' : 'none';
 
   initApp();
   showTab('home');
@@ -2004,7 +2272,17 @@ function initApp() {
   // Populate car makes select (also runs at script-load below as a backstop)
   populateCarMakeSelect();
 
-  populateLocationSelects();
+  // Populate location dropdowns (safe no-op if elements missing)
+  (function populateLocationSelects() {
+    const locs = STATE.locations || ['COBC'];
+    ['newEqLoc'].forEach(id => {
+      const sel = document.getElementById(id);
+      if(sel) {
+        const cur = sel.value;
+        sel.innerHTML = locs.map(l=>`<option value="${l}" ${l===cur?'selected':''}>${l}</option>`).join('');
+      }
+    });
+  })();
   populateReportItemSelect();
   renderHome();
   renderCalls();
@@ -2013,8 +2291,11 @@ function initApp() {
   renderMemberDir();
   renderNumbers();
   renderVehicles();
-  renderAdminMembers();
+  if(typeof renderAdminMembers === 'function') renderAdminMembers();
   updateOnDutyBanner();
+  // Show + Add Member chip on Members page (admin only)
+  const addChip = document.getElementById('addMemberChip');
+  if(addChip) addChip.style.display = SESSION.role==='admin' ? 'inline-flex' : 'none';
 
   const h=new Date().getHours();
   const greet=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
@@ -2361,6 +2642,7 @@ function createCall() {
   };
 
   STATE.calls.push(call); save();
+  logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
   hideModal('newCallModal');
   ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const _cm=document.getElementById('carMake'); if(_cm){_cm.value='';}
@@ -2438,6 +2720,26 @@ function buildDispatchWhatsApp(call) {
   return msg;
 }
 
+// ── Call activity logging (powers future stats) ──
+function logCallEvent(call, action, payload) {
+  if(!call || !STATE) return;
+  STATE.callLog = STATE.callLog || [];
+  STATE.callLog.push({
+    ts: Date.now(),
+    action, // 'created' | 'published' | 'responder_pending' | 'responder_approved' | 'responder_rejected' | 'auto_approved' | 'completed' | 'cancelled' | 'edited'
+    callId: call.id,
+    type: call.type,
+    town: call.town,
+    priority: call.priority||'normal',
+    status: call.status,
+    by: SESSION?.unit || null,
+    byName: SESSION?.name || null,
+    ...(payload||{})
+  });
+  // Cap at last 5000 events
+  if(STATE.callLog.length > 5000) STATE.callLog = STATE.callLog.slice(-5000);
+}
+
 // ── Member requests to respond (PENDING — needs dispatch approval) ──
 function openRespondModal(id) {
   const call=STATE.calls.find(c=>c.id===id);
@@ -2511,6 +2813,7 @@ function confirmRespond() {
         approvedBy:'AUTO (urgent)',approvedAt:Date.now(),autoApproved:true
       });
       if(call.status==='open') call.status='active';
+      logCallEvent(call, 'auto_approved', {responder:SESSION.unit, eta, urgent:true});
     }
     save(); hideModal('respondModal');
     renderCalls(); renderHome();
@@ -2520,6 +2823,7 @@ function confirmRespond() {
 
   call.pendingResponders=call.pendingResponders||[];
   call.pendingResponders.push({unit:SESSION.unit,name:SESSION.name,eta,notes,isObserver,time:Date.now(),status:'pending'});
+  logCallEvent(call, 'responder_pending', {responder:SESSION.unit, eta});
   save(); hideModal('respondModal');
   renderCalls(); renderHome();
 
@@ -2562,6 +2866,7 @@ function approveResponder(callId,unit) {
   call.responders=call.responders||[];
   call.responders.push({...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()});
   call.status='active';
+  logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
   save(); renderCalls(); renderHome();
   showToast(`✅ BC-${unit} ${req.name} approved`);
   // WhatsApp to group
@@ -2590,6 +2895,7 @@ function rejectResponder(callId,unit) {
   call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
   call.rejectedResponders=call.rejectedResponders||[];
   call.rejectedResponders.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:Date.now()});
+  logCallEvent(call, 'responder_rejected', {responder:unit, rejectedBy:SESSION.unit});
   save(); renderCalls(); renderHome();
   showToast(`❌ BC-${unit} rejected`);
   const m=STATE.members.find(x=>String(x.unit)===String(unit));
@@ -2879,6 +3185,7 @@ function publishCall(id) {
   if(!call) return;
   call.status='open'; call.rrLastSent=Date.now();
   save(); renderCalls(); renderHome(); showToast('📢 Call published');
+  logCallEvent(call, 'published', {dispatcher:SESSION.unit});
   if(confirm('Send WhatsApp dispatch message?')) {
     window.open(`https://wa.me/?text=${encodeURIComponent(buildDispatchWhatsApp(call))}`,'_blank');
   }
@@ -3044,9 +3351,9 @@ function confirmCompleteCall() {
   const sendWA=document.getElementById('completeSendWA').checked;
   call.status='done';
   call.completedAt=Date.now();
-  call.completionOutcome=outcome;
-  call.completionNote=outcome==='CNC'?cnc:'';
+  call.completionOutcome=outcome;  call.completionNote=outcome==='CNC'?cnc:'';
   call.completionNotes=notes;
+  logCallEvent(call, 'completed', {outcome, cncReason:outcome==='CNC'?cnc:null, responders:(call.responders||[]).length, durationMin:Math.round((call.completedAt-call.createdAt)/60000)});
   save(); hideModal('callCompleteModal');
   renderCalls(); renderHome(); showToast('Call completed');
   if(sendWA) {
@@ -3139,6 +3446,49 @@ function setMemberFilter(f,el) {
   document.querySelectorAll('#memberFilters .chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active'); renderMemberDir();
 }
+function openEditMemberRole(unit) {
+  const m = STATE.members.find(x => String(x.unit) === String(unit));
+  if(!m) { showToast('Member not found'); return; }
+  document.getElementById('editMbrUnit').value = unit;
+  const fullName = `${m.first||''} ${m.last||''}`.trim();
+  document.getElementById('editMbrInfo').innerHTML = `<b>BC-${m.unit}</b> ${fullName}`;
+  document.getElementById('editMbrRole').value = (m.role||'member').split(',')[0].trim();
+  document.getElementById('editMbrPhone').value = m.phone || '';
+  showModal('editMemberRoleModal');
+}
+function saveEditMemberRole() {
+  const unit = document.getElementById('editMbrUnit').value;
+  const m = STATE.members.find(x => String(x.unit) === String(unit));
+  if(!m) return;
+  const oldRole = m.role;
+  m.role = document.getElementById('editMbrRole').value;
+  m.phone = (document.getElementById('editMbrPhone').value||'').trim() || m.phone;
+  save();
+  hideModal('editMemberRoleModal');
+  renderMemberDir();
+  if(typeof renderEqMemberList === 'function') renderEqMemberList();
+  try { sheetPOST({action:'updateMember', memberId:unit, role:m.role, phone:m.phone}); } catch(e){}
+  showToast(`✅ BC-${unit} role: ${oldRole||'—'} → ${m.role}`);
+}
+
+function submitAddMember() {
+  const unit = (document.getElementById('addMbrUnit').value||'').trim();
+  const first = (document.getElementById('addMbrFirst').value||'').trim();
+  const last = (document.getElementById('addMbrLast').value||'').trim();
+  const phone = (document.getElementById('addMbrPhone').value||'').trim();
+  const role = document.getElementById('addMbrRole').value || 'member';
+  if(!unit || !first || !last) { showToast('Enter BC #, first and last name'); return; }
+  if(STATE.members.find(m => String(m.unit)===String(unit))) { showToast(`BC-${unit} already exists`); return; }
+  STATE.members.push({unit, first, last, phone, role, addedAt:Date.now()});
+  save();
+  ['addMbrUnit','addMbrFirst','addMbrLast','addMbrPhone'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('addMbrRole').value='member';
+  hideModal('addMemberModal');
+  renderMemberDir();
+  if(typeof renderEqMemberList === 'function') renderEqMemberList();
+  try { sheetPOST({action:'addMember', memberId:unit, firstName:first, lastName:last, phone}); } catch(e){}
+  showToast(`✅ Added BC-${unit} ${first}`);
+}
 
 function renderMemberDir() {
   const el=document.getElementById('memberDir');
@@ -3169,6 +3519,7 @@ function renderMemberDir() {
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
         ${m.phone?`<button class="responder-call-btn" onclick="event.stopPropagation();window.location='tel:${m.phone}'">📞</button>`:''}
+        ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Edit role">✏️</button>`:''}
         ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();deleteMemberLocal('${m.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
       </div>
     </div>`).join('');
@@ -3240,7 +3591,198 @@ function addNumber() {
 // ──────────────────────────────────────────────
 //  STATS
 // ──────────────────────────────────────────────
+function goAdmin(subtab) {
+  // Open the existing page-admin and select the requested sub-tab
+  showTab('admin');
+  // Skip the password gate if SESSION is already admin
+  if(SESSION.role==='admin') {
+    const gate = document.getElementById('adminGate');
+    const panel = document.getElementById('adminPanel');
+    if(gate) gate.style.display='none';
+    if(panel) panel.style.display='block';
+  }
+  // Switch to the requested sub-tab
+  const btn = [...document.querySelectorAll('#adminPanel .sub-tab')].find(b => b.textContent.toLowerCase().includes(subtab));
+  if(btn && typeof setAdminTab === 'function') setAdminTab(subtab, btn);
+}
 function setMoreTab(tab,el) {
+  ['numbers','stats','schedule','equipment','vehicles'].forEach(t=>{
+    const e=document.getElementById(`more-${t}`); if(e) e.style.display=t===tab?'':'none';
+  });
+  document.querySelectorAll('#page-more .sub-tab').forEach(x=>x.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(tab==='stats')    initStats();
+  if(tab==='schedule') renderSchedule();
+  if(tab==='vehicles') renderVehicles();
+  if(tab==='numbers')  renderNumbers();
+  if(tab==='equipment') renderMoreEquipment();
+}
+
+// ── Equipment admin (in Admin page) ──
+function renderMoreEquipment() {
+  // Populate location dropdown
+  const locSel = document.getElementById('newEqLoc2');
+  if(locSel) {
+    const locs = STATE.locations || ['COBC'];
+    const cur = locSel.value;
+    locSel.innerHTML = locs.map(l=>`<option value="${l}" ${l===cur?'selected':''}>${l}</option>`).join('');
+  }
+  renderEqLocList2();
+  renderHlocList2();
+  renderEqAdminList2();
+}
+function renderEqLocList2() {
+  const el = document.getElementById('eqLocList2');
+  if(!el) return;
+  const locs = STATE.locations || ['COBC'];
+  el.innerHTML = locs.map((l,i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2);">
+      <span style="font-size:14px;font-weight:600;">${l}</span>
+      ${l==='COBC'?'<span style="font-size:11px;color:var(--text3);">default</span>':`<button class="btn-sm btn-ghost" style="font-size:11px;padding:5px 10px;" onclick="removeLocationFromMore(${i})">Remove</button>`}
+    </div>`).join('');
+}
+function addLocationFromMore() {
+  const v = (document.getElementById('newLocName2').value||'').trim();
+  if(!v) { showToast('Enter location name'); return; }
+  STATE.locations = STATE.locations || ['COBC'];
+  if(STATE.locations.includes(v)) { showToast('Already exists'); return; }
+  STATE.locations.push(v); save();
+  document.getElementById('newLocName2').value='';
+  renderEqLocList2();
+  if(typeof renderEqLocList==='function') renderEqLocList();
+  try { sheetPOST({action:'updateLocations', locations:STATE.locations}); } catch(e){}
+  showToast(`📍 ${v} added`);
+}
+function removeLocationFromMore(i) {
+  if(!STATE.locations || STATE.locations[i]==='COBC') return;
+  const name = STATE.locations[i];
+  if(!confirm(`Remove location "${name}"?`)) return;
+  STATE.locations.splice(i,1); save();
+  renderEqLocList2();
+  if(typeof renderEqLocList==='function') renderEqLocList();
+  try { sheetPOST({action:'updateLocations', locations:STATE.locations}); } catch(e){}
+  showToast(`Removed ${name}`);
+}
+async function addEquipmentFromMore() {
+  const name = (document.getElementById('newEqName2').value||'').trim();
+  const loc  = document.getElementById('newEqLoc2').value || 'COBC';
+  if(!name) { showToast('Enter item name'); return; }
+  // Auto-detect category from name (uses existing getCat helper if available)
+  const cat = (typeof getCat==='function') ? getCat(name) : 'Other';
+  let newRow = null;
+  try {
+    const r = await sheetPOST({action:'addItem', name, location:loc});
+    if(r && r.success && r.row) newRow = r.row;
+  } catch(e) {}
+  const id = newRow ? `EQ-${String(newRow).padStart(4,'0')}` : `EQ-L${Date.now()}`;
+  const item = {id, row:newRow||null, name, category:cat, location:loc, status:'in', condition:'ok', equipStatus:'OK', equipNote:'', isCNC:false, cncNote:'', ccnc:'CC', history:[], notes:'', fromSheet:!!newRow};
+  STATE.equipment.push(item); save();
+  document.getElementById('newEqName2').value='';
+  renderInventory(); renderEquipmentDashboard(); renderEqAdminList2(); renderHlocList2();
+  if(typeof renderEqAdminList==='function') renderEqAdminList();
+  populateReportItemSelect();
+  showToast(`✅ ${name} added`);
+  if(typeof showQRForItem==='function') showQRForItem(item);
+}
+function renderHlocList2() {
+  const el = document.getElementById('hlocList2');
+  if(!el) return;
+  const q = (document.getElementById('hlocSearch2')?.value||'').toLowerCase().trim();
+  const locs = STATE.locations || ['COBC'];
+  const items = STATE.equipment
+    .filter(e => !q || e.name.toLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+  if(!items.length) { el.innerHTML='<div style="padding:14px;color:var(--text3);font-size:13px;">No items</div>'; return; }
+  el.innerHTML = items.slice(0,200).map(e => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2);">
+      <div style="flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
+      <select id="hloc2-sel-${e.id}" style="flex-shrink:0;width:130px;padding:6px 8px;font-size:12px;border:1.5px solid var(--border);border-radius:8px;" onchange="hlocChanged2('${e.id}')">
+        ${locs.map(l => `<option value="${l}" ${l===e.location?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <button id="hloc2-btn-${e.id}" class="btn-sm btn-primary" style="display:none;font-size:11px;padding:6px 10px;" onclick="saveHloc2('${e.id}')">Save</button>
+      <span id="hloc2-ok-${e.id}" style="display:none;color:var(--green);font-size:11px;font-weight:700;">✓</span>
+    </div>`).join('') + (items.length>200 ? `<div style="padding:10px;color:var(--text3);font-size:12px;text-align:center;">Showing first 200 of ${items.length} — use search</div>` : '');
+}
+function hlocChanged2(id) {
+  const sel = document.getElementById('hloc2-sel-'+id);
+  const btn = document.getElementById('hloc2-btn-'+id);
+  const ok  = document.getElementById('hloc2-ok-'+id);
+  const item = STATE.equipment.find(e=>e.id===id);
+  if(!item || !sel || !btn) return;
+  if(ok) ok.style.display='none';
+  btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
+}
+async function saveHloc2(id) {
+  const sel = document.getElementById('hloc2-sel-'+id);
+  const btn = document.getElementById('hloc2-btn-'+id);
+  const ok  = document.getElementById('hloc2-ok-'+id);
+  const item = STATE.equipment.find(e=>e.id===id);
+  if(!item || !sel) return;
+  const newLoc = sel.value;
+  if(newLoc === item.location) return;
+  btn.disabled = true; btn.textContent = '…';
+  item.location = newLoc; save();
+  let success = false;
+  if(item.row) {
+    try { const r = await sheetPOST({action:'updateHomeLocation', row:item.row, location:newLoc}); success = r && r.success; } catch(e){}
+  }
+  btn.disabled = false; btn.textContent = 'Save'; btn.style.display = 'none';
+  if(ok) { ok.style.display='inline'; setTimeout(()=>ok.style.display='none', 2500); }
+  renderInventory(); renderEquipmentDashboard();
+  showToast(success ? `📍 ${item.name} → ${newLoc}` : `Saved locally — sheet sync failed`);
+}
+function renderEqAdminList2() {
+  const list = document.getElementById('eqAdminList2');
+  const count = document.getElementById('eqAdminCount2');
+  if(!list) return;
+  const q = (document.getElementById('eqAdminSearch2')?.value||'').toLowerCase().trim();
+  const items = STATE.equipment
+    .filter(e => !q || e.name.toLowerCase().includes(q) || (e.location||'').toLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+  if(count) count.textContent = STATE.equipment.length;
+  if(!items.length) { list.innerHTML='<div style="padding:14px;color:var(--text3);font-size:13px;">No equipment yet</div>'; return; }
+  const statusColors = {'OK':'#16a34a','Missing':'#dc2626','Damaged':'#d97706','Need More':'#2563eb','Not Active':'#64748b'};
+  list.innerHTML = items.slice(0,200).map(e => {
+    const sb = e.status==='out' ? '<span class="badge badge-red">OUT</span>' : '<span class="badge badge-green">IN</span>';
+    const st = e.equipStatus || 'OK';
+    const qrBtn = `<button class="btn-sm btn-ghost" style="font-size:11px;padding:4px 9px;" onclick="event.stopPropagation();showQRForItem(STATE.equipment.find(x=>x.id==='${e.id}'))">QR</button>`;
+    const statusBtns = ['OK','Missing','Damaged','Need More','Not Active'].map(s=>{
+      const active = st===s;
+      const col = statusColors[s];
+      return `<button onclick="setAdminEqStatus('${e.id}','${s}')" style="flex:1;min-width:0;padding:5px 2px;font-size:10px;font-weight:700;border:1.5px solid ${active?col:'var(--border)'};border-radius:6px;background:${active?col:'#fff'};color:${active?'#fff':'var(--text2)'};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s}</button>`;
+    }).join('');
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border2);">
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${e.name}</div>
+          <div style="font-size:11px;color:var(--text3);">${e.location} · ${e.id}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;align-items:center;">${sb}${qrBtn}</div>
+      </div>
+      <div style="display:flex;gap:3px;">${statusBtns}</div>
+    </div>`;
+  }).join('') + (items.length>200 ? `<div style="padding:10px;color:var(--text3);font-size:12px;text-align:center;">Showing first 200 of ${items.length}</div>` : '');
+}
+
+async function setAdminEqStatus(id, status) {
+  const item = STATE.equipment.find(e=>e.id===id);
+  if(!item) return;
+  item.equipStatus = status;
+  if(status==='OK') { item.equipNote=''; item.ccnc='CC'; item.isCNC=false; item.cncNote=''; }
+  save();
+  renderEqAdminList2();
+  renderInventory(); renderEquipmentDashboard();
+  if(typeof renderChkFull==='function') renderChkFull();
+  // Push to Google Sheet
+  if(item.row) {
+    try {
+      await sheetPOST({action:'updateEquipmentStatus', row:item.row, status, note:'', resetNote:status==='OK'});
+    } catch(e) {}
+  }
+  showToast(`${item.name} → ${status}`);
+}
+
+function _OLD_setMoreTab_unused(tab,el) {
   ['numbers','stats','schedule','vehicles'].forEach(t=>{
     const e=document.getElementById(`more-${t}`); if(e) e.style.display=t===tab?'':'none';
   });
@@ -3258,7 +3800,7 @@ function setMoreTab(tab,el) {
 // ══════════════════════════════════════════════
 // Each slot: {p: primary name, s: secondary name}
 // Days: 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
-const DISPATCH_SCHEDULE=[
+let DISPATCH_SCHEDULE=[
   {shift:'07:00-09:00',slots:[
     {p:'BC503 Eidelman',    s:'BC97 Itzkowitz'},    // Sun
     {p:'BC155 Birnbaum',    s:'BC155 Birnbaum'},    // Mon
@@ -3351,6 +3893,78 @@ const DISPATCH_SCHEDULE=[
   ]},
 ];
 
+// Load custom schedule from STATE if admin has edited it
+(function loadCustomSchedule(){
+  try {
+    if(typeof STATE !== 'undefined' && STATE && STATE.dispatchSchedule && Array.isArray(STATE.dispatchSchedule) && STATE.dispatchSchedule.length === DISPATCH_SCHEDULE.length) {
+      DISPATCH_SCHEDULE = STATE.dispatchSchedule.map((row,i) => ({
+        shift: row.shift || DISPATCH_SCHEDULE[i].shift,
+        slots: row.slots || DISPATCH_SCHEDULE[i].slots
+      }));
+    }
+  } catch(e){}
+})();
+
+// ── Schedule edit modal ──
+function openScheduleEdit(shiftIdx, dayIdx) {
+  if(SESSION.role !== 'admin') { showToast('Admin only'); return; }
+  const row = DISPATCH_SCHEDULE[shiftIdx];
+  const slot = row.slots[dayIdx];
+  document.getElementById('schedEditShift').textContent = `${SCHED_DAYS_FULL[dayIdx]} · ${row.shift}`;
+  document.getElementById('schedEditShiftIdx').value = shiftIdx;
+  document.getElementById('schedEditDayIdx').value = dayIdx;
+  // Build options: OPEN, CHIEFS, then all member names in BC# format
+  const memberOpts = (STATE.members||[])
+    .slice()
+    .sort((a,b) => parseInt(String(a.unit).replace(/^BC-?/i,''))-parseInt(String(b.unit).replace(/^BC-?/i,'')))
+    .map(m => {
+      const u = String(m.unit).replace(/^BC-?/i,'');
+      const name = (m.first || m.firstName || '') + (m.last||m.lastName ? ' ' + (m.last||m.lastName) : '');
+      const label = `BC${u} ${name.trim()}`.trim();
+      return `<option value="${label}">${label}</option>`;
+    }).join('');
+  const baseOpts = `<option value="OPEN">— OPEN —</option><option value="CHIEFS">CHIEFS</option>` + memberOpts;
+  // Allow current value even if not in member list (legacy entries)
+  const ensureOpt = (val) => {
+    if(!val) return '';
+    if(val==='OPEN' || val==='CHIEFS') return '';
+    if(memberOpts.includes(`value="${val}"`)) return '';
+    return `<option value="${val}">${val}</option>`;
+  };
+  document.getElementById('schedEditPrimary').innerHTML = baseOpts + ensureOpt(slot.p);
+  document.getElementById('schedEditPrimary').value = slot.p || 'OPEN';
+  document.getElementById('schedEditSecondary').innerHTML = baseOpts + ensureOpt(slot.s);
+  document.getElementById('schedEditSecondary').value = slot.s || 'OPEN';
+  showModal('schedEditModal');
+}
+
+function saveScheduleEdit() {
+  const shiftIdx = parseInt(document.getElementById('schedEditShiftIdx').value);
+  const dayIdx = parseInt(document.getElementById('schedEditDayIdx').value);
+  const primary = document.getElementById('schedEditPrimary').value;
+  const secondary = document.getElementById('schedEditSecondary').value;
+  if(!DISPATCH_SCHEDULE[shiftIdx] || !DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx]) return;
+  DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx] = { p: primary, s: secondary };
+  STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r => ({shift:r.shift, slots:[...r.slots]}));
+  save();
+  hideModal('schedEditModal');
+  renderSchedule();
+  showToast('✅ Schedule updated');
+}
+
+function resetScheduleSlot() {
+  if(!confirm('Reset this slot to default?')) return;
+  // Find seed value (we don't keep a separate const, so just set both to OPEN as a safe default)
+  const shiftIdx = parseInt(document.getElementById('schedEditShiftIdx').value);
+  const dayIdx = parseInt(document.getElementById('schedEditDayIdx').value);
+  DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx] = { p:'OPEN', s:'OPEN' };
+  STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r => ({shift:r.shift, slots:[...r.slots]}));
+  save();
+  hideModal('schedEditModal');
+  renderSchedule();
+  showToast('Slot reset to OPEN');
+}
+
 const SCHED_DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const SCHED_DAYS_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 let schedCurDay=new Date().getDay();
@@ -3409,12 +4023,19 @@ function renderSchedule() {
       </div>`;
   }
 
-  // Day chips
+  // Day chips — show day-of-week + actual date for the current week
   const chipsEl=document.getElementById('schedDayChips');
-  chipsEl.innerHTML=SCHED_DAYS.map((d,i)=>`
-    <div class="chip${schedCurDay===i?' active':''}" onclick="schedCurDay=${i};renderScheduleDay();document.querySelectorAll('#schedDayChips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">
-      ${d}${dow===i?' ★':''}
-    </div>`).join('');
+  const todayDow = now.getDay();
+  chipsEl.innerHTML=SCHED_DAYS.map((d,i)=>{
+    const offset = i - todayDow; // days from today
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+    const dateStr = date.toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
+    const isToday = todayDow===i;
+    return `<div class="chip${schedCurDay===i?' active':''}" style="display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:6px 10px;min-width:54px;" onclick="schedCurDay=${i};renderScheduleDay();document.querySelectorAll('#schedDayChips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">
+      <div style="font-size:11px;font-weight:700;">${d}${isToday?' ★':''}</div>
+      <div style="font-size:10px;opacity:.7;margin-top:1px;">${dateStr}</div>
+    </div>`;
+  }).join('');
 
   renderScheduleDay();
 }
@@ -3442,6 +4063,7 @@ function renderScheduleDay() {
           <div style="font-size:14px;font-weight:700;color:${nameColor};">${isOpen?'OPEN':isChiefs?'Chiefs':slot.p}</div>
           ${slot.s&&slot.s!=='OPEN'&&slot.s!==slot.p?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">2nd: ${slot.s}</div>`:''}
         </div>
+        ${SESSION.role==='admin'?`<button onclick="openScheduleEdit(${si},${schedCurDay})" style="background:rgba(15,37,64,.08);border:1px solid var(--border);color:var(--navy);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;">✏️</button>`:''}
         ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;flex-shrink:0;">📞</a>`:''}
       </div>
     </div>`;
@@ -4249,7 +4871,10 @@ function submitCobcet() {
 
 function setEqTab(tab,el) {
   if(tab==='checklist') {
-    if(sessionStorage.getItem('cobcet_ok')==='1') {
+    // Auto-bypass cobcet gate for admin/dispatch/equipment roles
+    const privileged = ['admin','dispatch','equipment'].includes(SESSION.role);
+    if(privileged || sessionStorage.getItem('cobcet_ok')==='1') {
+      sessionStorage.setItem('cobcet_ok','1');
       // Already unlocked — proceed
     } else {
       // Show in-app password modal instead of prompt()
@@ -4261,7 +4886,7 @@ function setEqTab(tab,el) {
     }
   }
   eqTab=tab;
-  ['dashboard','inventory','checklist','reports'].forEach(t=>{
+  ['dashboard','inventory','checklist','reports','admin'].forEach(t=>{
     const e=document.getElementById(`eq-${t}`);
     if(e) e.style.display=t===tab?'':'none';
   });
@@ -4271,6 +4896,89 @@ function setEqTab(tab,el) {
   if(tab==='inventory')  { renderEqCatChips(); renderInventory(); }
   if(tab==='checklist')  renderChkFull();
   if(tab==='reports')    { renderReports(); populateReportItemSelect(); }
+  if(tab==='admin')      { renderEqAdminTab(); }
+}
+
+// ── EQUIPMENT ADMIN tab (accordion) ──
+function toggleAdmAcc(headEl) {
+  headEl.classList.toggle('open');
+  const body = headEl.nextElementSibling;
+  if(body) body.classList.toggle('open');
+}
+function renderEqAdminTab() {
+  // Populate location dropdown for Add Item
+  const locSel = document.getElementById('newEqLoc');
+  if(locSel) {
+    const locs = STATE.locations || ['COBC'];
+    const cur = locSel.value;
+    locSel.innerHTML = locs.map(l=>`<option value="${l}" ${l===cur?'selected':''}>${l}</option>`).join('');
+  }
+  renderEqLocList();
+  renderHlocList();
+  renderEqMemberList();
+  renderEqAdminList();
+}
+function renderEqLocList() {
+  const el = document.getElementById('eqLocList');
+  if(!el) return;
+  const locs = STATE.locations || ['COBC'];
+  el.innerHTML = locs.map((l,i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border2);">
+      <span style="font-size:14px;font-weight:600;">${l}</span>
+      ${l==='COBC'?'<span style="font-size:11px;color:var(--text3);">default</span>':`<button class="btn-sm btn-ghost" style="font-size:11px;padding:5px 10px;" onclick="removeLocation(${i})">Remove</button>`}
+    </div>`).join('');
+}
+function renderEqMemberList() {
+  const el = document.getElementById('eqMemList');
+  const count = document.getElementById('eqAdmMemCount');
+  if(!el) return;
+  const q = (document.getElementById('eqMemSearch')?.value||'').toLowerCase().trim();
+  const all = (STATE.members||[]);
+  if(count) count.textContent = all.length;
+  const filtered = all
+    .filter(m => {
+      if(!q) return true;
+      const name = `${m.first||''} ${m.last||''}`.toLowerCase();
+      return name.includes(q) || String(m.unit||'').includes(q) || (m.phone||'').includes(q);
+    })
+    .sort((a,b) => parseInt(String(a.unit).replace(/\D/g,''))-parseInt(String(b.unit).replace(/\D/g,'')));
+  if(!filtered.length) { el.innerHTML = '<div style="padding:14px;color:var(--text3);font-size:13px;text-align:center;">No members found</div>'; return; }
+  const roleColors = {admin:'#7c3aed',dispatch:'#2563eb',equipment:'#d97706',member:'#16a34a',observer:'#64748b'};
+  el.innerHTML = filtered.slice(0,200).map(m => {
+    const fullName = `${m.first||''} ${m.last||''}`.trim() || '—';
+    const phone = m.phone || '';
+    const role = m.role || 'member';
+    const rc = roleColors[role] || '#16a34a';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2);">
+      <div style="width:32px;height:32px;background:${rc};color:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${String(m.unit).padStart(2,'0')}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;">${fullName}</div>
+        <div style="font-size:11px;color:var(--text3);">BC-${m.unit}${phone?' · '+phone:''} · <span style="color:${rc};font-weight:700;text-transform:uppercase;">${role}</span></div>
+      </div>
+      <button class="btn-sm btn-ghost" style="font-size:10px;padding:5px 9px;color:var(--red);" onclick="deleteMemberEq('${m.unit}')">Delete</button>
+    </div>`;
+  }).join('') + (filtered.length>200 ? `<div style="padding:8px;color:var(--text3);font-size:11px;text-align:center;">${filtered.length-200} more — use search</div>` : '');
+}
+function deleteMemberEq(unit) {
+  if(!confirm(`Delete member BC-${unit}? This cannot be undone.`)) return;
+  STATE.members = STATE.members.filter(m => String(m.unit) !== String(unit));
+  save(); renderEqMemberList(); if(typeof renderMemberDir==='function') renderMemberDir();
+  try { sheetPOST({action:'deleteMember', memberId:unit}); } catch(e){}
+  showToast(`Removed BC-${unit}`);
+}
+function addMemberFromEq() {
+  const unit = (document.getElementById('newMemberUnitEq').value||'').trim();
+  const first = (document.getElementById('newMemberFirstEq').value||'').trim();
+  const last = (document.getElementById('newMemberLastEq').value||'').trim();
+  const phone = (document.getElementById('newMemberPhoneEq').value||'').trim();
+  const role = document.getElementById('newMemberRoleEq').value || 'member';
+  if(!unit || !first || !last) { showToast('Enter BC #, first and last name'); return; }
+  if(STATE.members.find(m => String(m.unit)===String(unit))) { showToast(`BC-${unit} already exists`); return; }
+  STATE.members.push({unit, first, last, phone, role});
+  save(); renderEqMemberList(); if(typeof renderMemberDir==='function') renderMemberDir();
+  ['newMemberUnitEq','newMemberFirstEq','newMemberLastEq','newMemberPhoneEq'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
+  try { sheetPOST({action:'addMember', memberId:unit, firstName:first, lastName:last, phone}); } catch(e){}
+  showToast(`✅ Added BC-${unit} ${first}`);
 }
 
 function setEqFilter(f,el) {
@@ -4316,10 +5024,11 @@ async function deleteEquipmentItem(id) {
   if(eq.row) { try{ await sheetPOST({action:'deleteItem',row:eq.row}); }catch(e){} }
 }
 function renderEquipmentDashboard() {
-  const total=STATE.equipment.length;
-  const out=STATE.equipment.filter(e=>e.status==='out').length;
-  const issues=STATE.equipment.filter(e=>e.isCNC||['Missing','Damaged'].includes(e.equipStatus)).length;
-  const inn=STATE.equipment.filter(e=>e.status==='in').length;
+  const active=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
+  const total=active.length;
+  const out=active.filter(e=>e.status==='out').length;
+  const issues=active.filter(e=>e.isCNC||['Missing','Damaged'].includes(e.equipStatus)).length;
+  const inn=active.filter(e=>e.status==='in').length;
   document.getElementById('eq-total').textContent=total;
   document.getElementById('eq-out').textContent=out;
   document.getElementById('eq-issues').textContent=issues;
@@ -4423,7 +5132,7 @@ function renderInventory() {
         <button style="padding:11px;background:var(--red);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'OUT')">Check OUT</button>
       </div>`:''}
       ${canEdit&&['Missing','Damaged','Need More'].includes(e.equipStatus)?`<button style="width:100%;margin-top:6px;padding:8px;background:#fff;color:var(--green);border:2px solid var(--green);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;" onclick="resetEqStatus(${e.row||0})">Mark as OK</button>`:''}
-      ${SESSION.role==='admin'?`<button onclick="deleteEquipmentItem('${e.id}')" style="width:100%;margin-top:6px;padding:8px;background:#fff;color:var(--red);border:1.5px solid var(--red);border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;">Delete Item</button>`:''}
+      ${SESSION.role==='admin'?'':''}
     </div>`;
   }).join('');
 }
@@ -4629,23 +5338,231 @@ function sendChkWhatsApp() {
   if(unchecked.length){msg+='\n\nNot checked ('+unchecked.length+'):\n';unchecked.slice(0,10).forEach(function(e){msg+='- '+e.name+'\n';});}
   if(out.length){msg+='\n\nCurrently OUT ('+out.length+'):\n';out.forEach(function(e){msg+='- '+e.name+(e.checkedOutBy?' (BC-'+e.checkedOutBy+')':'')+'\n';});}
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
-}function sendChkWhatsApp() {
-  if(!chkCurLoc) return;
-  var li=STATE.equipment.filter(function(e){return e.location===chkCurLoc&&e.equipStatus!=='Not Active';});
-  var done=li.filter(function(e){return !!chkStatus[e.row||e.id];});
-  var issues=li.filter(function(e){return chkStatus[e.row||e.id]&&chkStatus[e.row||e.id]!=='OK';});
-  var unchecked=li.filter(function(e){return !chkStatus[e.row||e.id];});
-  var out=li.filter(function(e){return e.status==='out';});
-  var msg='*COBC Equipment Check - '+chkCurLoc+'*\n';
-  msg+='Date: '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+'\n\n';
-  msg+='Checked: '+done.length+'/'+li.length+' items\n';
-  if(issues.length){
-    msg+='\nISSUES ('+issues.length+'):\n';
-    issues.forEach(function(e){var note=chkNotes[e.row||e.id]?' - '+chkNotes[e.row||e.id]:'';msg+='- '+e.name+' - '+chkStatus[e.row||e.id]+note+'\n';});
-  } else { msg+='\nNo issues found'; }
-  if(unchecked.length){msg+='\n\nNot checked ('+unchecked.length+'):\n';unchecked.slice(0,10).forEach(function(e){msg+='- '+e.name+'\n';});}
-  if(out.length){msg+='\n\nCurrently OUT ('+out.length+'):\n';out.forEach(function(e){msg+='- '+e.name+(e.checkedOutBy?' (BC-'+e.checkedOutBy+')':'')+'\n';});}
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
+function setAdminTab(tab, btn) {
+  document.querySelectorAll('#adminPanel .sub-tab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  ['members','dispatch','equipment','locations'].forEach(t => {
+    const el = document.getElementById('admin-'+t);
+    if(el) el.style.display = (t===tab) ? 'block' : 'none';
+  });
+  if(tab==='equipment') {
+    // Populate the Home Location dropdown for Add Equipment
+    const sel = document.getElementById('newEqLoc');
+    if(sel) {
+      const locs = STATE.locations || ['COBC'];
+      sel.innerHTML = locs.map(l=>`<option>${l}</option>`).join('');
+    }
+    renderEqAdminList();
+    renderHlocList();
+  }
+  if(tab==='locations') renderLocationList();
+}
+function renderLocationList() {
+  const el = document.getElementById('locationList');
+  if(!el) return;
+  const locs = STATE.locations || ['COBC'];
+  el.innerHTML = locs.map((l,i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:10px;padding:11px 14px;margin-bottom:6px;box-shadow:var(--shadow);">
+      <div style="font-size:14px;font-weight:600;">${l}</div>
+      ${l==='COBC'?'<span style="font-size:11px;color:var(--text3);">(default)</span>':`<button class="btn-sm btn-ghost" style="font-size:11px;" onclick="removeLocation(${i})">Remove</button>`}
+    </div>`).join('');
+}
+function addLocation() {
+  const v = (document.getElementById('newLocName').value||'').trim();
+  if(!v) { showToast('Enter a location name'); return; }
+  STATE.locations = STATE.locations || ['COBC'];
+  if(STATE.locations.includes(v)) { showToast('Already exists'); return; }
+  STATE.locations.push(v); save();
+  document.getElementById('newLocName').value='';
+  renderLocationList();
+  try { sheetPOST({action:'updateLocations', locations:STATE.locations}); } catch(e) {}
+  showToast(`📍 ${v} added`);
+}
+function removeLocation(i) {
+  if(!STATE.locations || STATE.locations[i]==='COBC') return;
+  const name = STATE.locations[i];
+  if(!confirm(`Remove location "${name}"?`)) return;
+  STATE.locations.splice(i,1); save();
+  renderLocationList();
+  try { sheetPOST({action:'updateLocations', locations:STATE.locations}); } catch(e) {}
+  showToast(`Removed ${name}`);
+}
+
+// ── ADMIN: Add Equipment + QR Generation ──
+async function addEquipment() {
+  const name = (document.getElementById('newEqName').value||'').trim();
+  const cat  = document.getElementById('newEqCat').value;
+  const loc  = document.getElementById('newEqLoc').value || 'COBC';
+  if(!name) { showToast('Enter an item name'); return; }
+  // Save to sheet first to get a real row #
+  let newRow = null;
+  try {
+    const r = await sheetPOST({action:'addItem', name, location:loc});
+    if(r && r.success && r.row) newRow = r.row;
+  } catch(e) {}
+  // Build local record
+  const id = newRow ? `EQ-${String(newRow).padStart(4,'0')}` : `EQ-L${Date.now()}`;
+  const item = {
+    id, row:newRow||null, name, category:cat, location:loc,
+    status:'in', condition:'ok', equipStatus:'OK', equipNote:'',
+    isCNC:false, cncNote:'', ccnc:'CC', history:[], notes:'',
+    fromSheet: !!newRow
+  };
+  STATE.equipment.push(item); save();
+  document.getElementById('newEqName').value='';
+  renderInventory(); renderEquipmentDashboard(); renderEqAdminList(); renderHlocList();
+  populateReportItemSelect();
+  showToast(`✅ ${name} added`);
+  // Show QR code modal so dispatcher can print/save it
+  showQRForItem(item);
+}
+
+function showQRForItem(item) {
+  const modal = document.getElementById('qrDisplayModal');
+  if(!modal) return;
+  if(window.__loadQRLib) window.__loadQRLib();
+  document.getElementById('qrItemName').textContent = item.name;
+  document.getElementById('qrItemMeta').textContent = `${item.location} · ${item.id}`;
+  const wrap = document.getElementById('qrCodeWrap');
+  wrap.innerHTML='';
+  const payload = item.id;
+  showModal('qrDisplayModal');
+
+  // Render QR — retry up to ~3s in case the CDN script is still loading
+  let attempts = 0;
+  function tryRender() {
+    attempts++;
+    const stubMarker = window.QRCode && window.QRCode.toCanvas && window.QRCode.toCanvas.toString().includes('cb(null)');
+    const ready = window.QRCode && typeof window.QRCode.toCanvas === 'function' && !stubMarker;
+    if(ready) {
+      try {
+        wrap.innerHTML='';
+        const canvas = document.createElement('canvas');
+        wrap.appendChild(canvas);
+        window.QRCode.toCanvas(canvas, payload, {width:240, margin:1, color:{dark:'#0f2540',light:'#ffffff'}}, function(err){
+          if(err) wrap.innerHTML = '<div style="padding:30px;color:var(--red);font-size:13px;">QR error: '+err+'</div>';
+        });
+      } catch(e) {
+        wrap.innerHTML = '<div style="padding:30px;color:var(--red);font-size:13px;">QR generation failed</div>';
+      }
+    } else if(attempts < 15) {
+      wrap.innerHTML='<div style="padding:30px;color:var(--text3);font-size:13px;">⌛ Loading QR library…</div>';
+      setTimeout(tryRender, 200);
+    } else {
+      // All retries failed — fall back to a Google Charts QR (still works offline of the lib)
+      const url = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data='+encodeURIComponent(payload);
+      wrap.innerHTML = `<img src="${url}" width="240" height="240" alt="QR for ${payload}" style="border-radius:4px;" onerror="this.outerHTML='<div style=\\'padding:30px;color:var(--red);font-size:13px;\\'>QR library + fallback both failed</div>'"/>`;
+    }
+  }
+  tryRender();
+}
+
+function printQR() {
+  const name = document.getElementById('qrItemName').textContent;
+  const meta = document.getElementById('qrItemMeta').textContent;
+  const wrap = document.getElementById('qrCodeWrap');
+  let imgHTML = '';
+  const canvas = wrap.querySelector('canvas');
+  const img = wrap.querySelector('img');
+  if(canvas) {
+    imgHTML = `<img src="${canvas.toDataURL('image/png')}" style="border:1px solid #ddd;padding:10px;background:#fff;"/>`;
+  } else if(img) {
+    imgHTML = `<img src="${img.src}" style="border:1px solid #ddd;padding:10px;background:#fff;"/>`;
+  } else {
+    showToast('Nothing to print'); return;
+  }
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>${name} — QR</title>
+    <style>body{font-family:-apple-system,sans-serif;text-align:center;padding:40px;}h1{font-size:22px;margin:0 0 6px;color:#0f2540;}div.m{font-size:13px;color:#666;margin-bottom:18px;}p{font-size:11px;color:#888;margin-top:14px;}</style></head>
+    <body><h1>${name}</h1><div class="m">${meta}</div>${imgHTML}<p>Scan with COBC Dispatch app</p>
+    <script>setTimeout(()=>window.print(),300);<\/script></body></html>`);
+  w.document.close();
+}
+
+// ── ADMIN: All Equipment list ──
+function renderEqAdminList() {
+  const list = document.getElementById('eqAdminList');
+  const count = document.getElementById('eqAdminCount');
+  if(!list) return;
+  const q = (document.getElementById('eqAdminSearch')?.value||'').toLowerCase().trim();
+  const items = STATE.equipment
+    .filter(e => !q || e.name.toLowerCase().includes(q) || (e.location||'').toLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+  if(count) count.textContent = STATE.equipment.length;
+  if(!items.length) { list.innerHTML='<div style="padding:14px;color:var(--text3);font-size:13px;">No equipment yet</div>'; return; }
+  list.innerHTML = items.slice(0,200).map(e => {
+    const sb = e.status==='out' ? '<span class="badge badge-red">OUT</span>' : '<span class="badge badge-green">IN</span>';
+    const eb = (e.equipStatus && e.equipStatus!=='OK') ? `<span class="badge badge-amber" style="font-size:10px;">${e.equipStatus}</span>` : '';
+    const qrBtn = `<button class="btn-sm btn-ghost" style="font-size:11px;padding:5px 10px;" onclick="showQRForItem(STATE.equipment.find(x=>x.id==='${e.id}'))">QR</button>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border2);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${e.name}</div>
+        <div style="font-size:11px;color:var(--text3);">${e.location} · ${e.id}</div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0;align-items:center;">${sb}${eb}${qrBtn}</div>
+    </div>`;
+  }).join('') + (items.length>200 ? `<div style="padding:10px;color:var(--text3);font-size:12px;text-align:center;">Showing first 200 of ${items.length}</div>` : '');
+}
+
+// ── ADMIN: Home Locations editor ──
+function renderHlocList() {
+  const el = document.getElementById('hlocList');
+  if(!el) return;
+  const q = (document.getElementById('hlocSearch')?.value||'').toLowerCase().trim();
+  const locs = STATE.locations || ['COBC'];
+  const items = STATE.equipment
+    .filter(e => !q || e.name.toLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+  if(!items.length) { el.innerHTML='<div style="padding:14px;color:var(--text3);font-size:13px;">No items</div>'; return; }
+  const opts = locs.map(l => `<option value="${l}">${l}</option>`).join('');
+  el.innerHTML = items.slice(0,200).map(e => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2);">
+      <div style="flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
+      <select id="hloc-sel-${e.id}" style="flex-shrink:0;width:130px;padding:6px 8px;font-size:12px;border:1.5px solid var(--border);border-radius:8px;" onchange="hlocChanged('${e.id}')">
+        ${locs.map(l => `<option value="${l}" ${l===e.location?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <button id="hloc-btn-${e.id}" class="btn-sm btn-primary" style="display:none;font-size:11px;padding:6px 10px;" onclick="saveHloc('${e.id}')">Save</button>
+      <span id="hloc-ok-${e.id}" style="display:none;color:var(--green);font-size:11px;font-weight:700;">✓</span>
+    </div>`).join('') + (items.length>200 ? `<div style="padding:10px;color:var(--text3);font-size:12px;text-align:center;">Showing first 200 of ${items.length} — use search to narrow</div>` : '');
+}
+
+function hlocChanged(id) {
+  const sel = document.getElementById('hloc-sel-'+id);
+  const btn = document.getElementById('hloc-btn-'+id);
+  const ok  = document.getElementById('hloc-ok-'+id);
+  const item = STATE.equipment.find(e=>e.id===id);
+  if(!item || !sel || !btn) return;
+  if(ok) ok.style.display='none';
+  btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
+}
+
+async function saveHloc(id) {
+  const sel = document.getElementById('hloc-sel-'+id);
+  const btn = document.getElementById('hloc-btn-'+id);
+  const ok  = document.getElementById('hloc-ok-'+id);
+  const item = STATE.equipment.find(e=>e.id===id);
+  if(!item || !sel) return;
+  const newLoc = sel.value;
+  if(newLoc === item.location) return;
+  btn.disabled = true; btn.textContent = '…';
+  // Update locally first
+  item.location = newLoc;
+  save();
+  // Persist to sheet
+  let success = false;
+  if(item.row) {
+    try {
+      const r = await sheetPOST({action:'updateHomeLocation', row:item.row, location:newLoc});
+      success = r && r.success;
+    } catch(e) {}
+  }
+  btn.disabled = false; btn.textContent = 'Save';
+  btn.style.display = 'none';
+  if(ok) { ok.style.display='inline'; setTimeout(()=>ok.style.display='none', 2500); }
+  renderInventory(); renderEquipmentDashboard(); renderChkFull(); renderEqAdminList();
+  showToast(success ? `📍 ${item.name} → ${newLoc}` : `Saved locally — sheet sync failed`);
 }
 
 // ── REPORTS ──
