@@ -10,14 +10,7 @@
 <title>COBC — Bergen Chaverim</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "8937df24-f2d2-440b-bb92-e8244db860b6",
-    });
-  });
 // QR stub. Real lib lazy-loaded on first QR display.
 window.QRCode=window.QRCode||{toCanvas:function(c,t,o,cb){if(typeof o==='function')cb=o;if(cb)cb(null);},toDataURL:function(t,o,cb){if(typeof o==='function')cb=o;const r='';if(cb)cb(null,r);return Promise.resolve(r);}};
 window.__qrLibTried=false;
@@ -37,6 +30,8 @@ window.__loadQRLib=function(){
 };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0f2540;color:#1c1c1e;overscroll-behavior:none;}
@@ -527,6 +522,7 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <div class="section-label">Active Calls</div>
       <div id="homeCallsList"></div>
+      <div id="homeNotifBanner"></div>
       <div class="section-label">Equipment Alerts</div>
       <div id="homeEqAlerts"></div>
       <div class="section-label">Quick Actions</div>
@@ -1299,7 +1295,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="modal-handle"></div>
     <div class="modal-title">📻 Radio Responders</div>
     <input type="hidden" id="radioCallId"/>
-    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">Add everyone responding via radio at once. Each will be notified via WhatsApp.</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">Add everyone responding via radio at once. One group WhatsApp message will be sent — no private messages.</div>
     <!-- Search -->
     <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="radioSearch" placeholder="Search by name or BC#..." oninput="renderRadioSearch()"/></div>
     <div id="radioSearchResults" style="display:none;max-height:160px;overflow-y:auto;background:#fff;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;"></div>
@@ -1307,7 +1303,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;">Selected</div>
     <div id="radioSelectedList" style="margin-bottom:10px;min-height:36px;"></div>
     <div class="input-group"><label class="input-label">ETA (minutes)</label><input class="input" type="number" id="radioETA" value="5" min="1"/></div>
-    <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="submitRadioResponders()">Add All + Notify via WhatsApp</button>
+    <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="submitRadioResponders()">Add All + Post to Group</button>
     <button class="btn-full btn-ghost" onclick="hideModal('radioModal')">Cancel</button>
   </div>
 </div>
@@ -1580,6 +1576,103 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 //  COBC APP v2.1 — DATA + LOGIC
 // ═══════════════════════════════════════════════════════
+
+// ───────────────────────────────────────────────────────
+//  PUSH NOTIFICATIONS (Firebase Cloud Messaging)
+// ───────────────────────────────────────────────────────
+// ⚠️ REPLACE THE VALUES BELOW with your Firebase config + Apps Script URL
+const FCM_CONFIG = {
+  apiKey: "AIzaSyBYAz3ohsJGX_zo-Yq3faZ2m0uv4tfuSl8",
+  authDomain: "cobc-dispatch.firebaseapp.com",
+  projectId: "cobc-dispatch",
+  storageBucket: "cobc-dispatch.firebasestorage.app",
+  messagingSenderId: "292943991082",
+  appId: "1:292943991082:web:3d4b83f0ea2feb1a230e53"
+};
+const FCM_VAPID_KEY  = "BD8o_wgfv2pPsHgI238OZGEMPEG8ZbvtSoL7p6VjwrM8oTXH3e86gvKUix5sLM37Ol4lFTrSeUTbgET6stuBWl0";          // ✅ set
+const PUSH_SEND_URL  = "https://script.google.com/macros/s/AKfycbyrOTdBNqyvoDOBRx_n_BuxvSXP6IvrndPQv0dKBKCoQyhOTXT1KoxBHlbArty9eBxsFQ/exec";    // ✅ set
+const PUSH_SHARED_KEY = "cobc-2026-shared-secret";      // matches Apps Script
+
+let _fcmApp = null, _fcmMessaging = null, _fcmToken = null;
+
+async function initPushModule() {
+  // Don't even try if SDK / config not loaded
+  if (!window.firebase || FCM_CONFIG.apiKey.startsWith("PASTE_")) return;
+  try {
+    if (!_fcmApp) _fcmApp = firebase.initializeApp(FCM_CONFIG);
+    _fcmMessaging = firebase.messaging();
+    // If we previously stored a token for this device, restore foreground handler
+    _fcmMessaging.onMessage((payload) => {
+      const t = payload.notification?.title || payload.data?.title || 'COBC';
+      const b = payload.notification?.body  || payload.data?.body  || '';
+      // Foreground: show toast + browser notif if granted
+      showToast('🔔 ' + t);
+      if (Notification.permission === 'granted') {
+        new Notification(t, { body: b, icon: '/cobc-dispatch/icon-192.png' });
+      }
+    });
+  } catch (e) { console.warn('Push init failed:', e); }
+}
+
+async function enablePushForThisDevice() {
+  if (!SESSION || !SESSION.unit) { showToast('Log in first'); return; }
+  if (!('Notification' in window)) { showToast('Notifications not supported on this device'); return; }
+  if (!_fcmMessaging) await initPushModule();
+  if (!_fcmMessaging) { showToast('Push not configured yet'); return; }
+
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { showToast('Notifications denied'); return; }
+
+    const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js');
+    const token = await _fcmMessaging.getToken({
+      vapidKey: FCM_VAPID_KEY,
+      serviceWorkerRegistration: reg
+    });
+    if (!token) { showToast('Could not get push token'); return; }
+    _fcmToken = token;
+
+    // Register token with our Apps Script (which stores it tied to this BC#)
+    await fetch(PUSH_SEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'register',
+        key: PUSH_SHARED_KEY,
+        unit: SESSION.unit,
+        name: SESSION.name,
+        role: SESSION.role,
+        token: token
+      })
+    });
+
+    // Also remember it locally for the UI
+    localStorage.setItem('cobc_fcm_token_' + SESSION.unit, token);
+    showToast('✅ Notifications enabled');
+  } catch (e) {
+    console.error('Push enable error:', e);
+    showToast('⚠️ Could not enable notifications');
+  }
+}
+
+async function sendPush(payload) {
+  // payload: { target: 'all' | 'dispatchers' | 'unit', unit?: '24', title, body, url?, urgent? }
+  if (!PUSH_SEND_URL || PUSH_SEND_URL.startsWith("PASTE_")) return;
+  try {
+    await fetch(PUSH_SEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'send', key: PUSH_SHARED_KEY, ...payload })
+    });
+  } catch (e) { console.warn('Push send failed:', e); }
+}
+
+// Boot push when the page is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPushModule);
+} else {
+  initPushModule();
+}
 
 const ROLES = {
   admin:     { label:'ADMIN',      pass:'cobcadmin', color:'#7c3aed' },
@@ -2224,6 +2317,11 @@ function doLogin() {
 }
 
 function finishLogin() {
+  // Clear any prior cobcet checklist unlock so non-privileged users get re-gated
+  try {
+    const privileged = ['admin','dispatch','equipment'].includes(SESSION.role);
+    if(!privileged) sessionStorage.removeItem('cobcet_ok');
+  } catch(e){}
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('roleLabel').textContent = SESSION.role.toUpperCase();
@@ -2329,6 +2427,7 @@ function initApp() {
 
 function signOut() {
   if(!confirm('Sign out?')) return;
+  try { sessionStorage.removeItem('cobcet_ok'); } catch(e){}
   SESSION={role:null,unit:null,name:null};
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('loginUnit').value='';
@@ -2455,6 +2554,20 @@ function renderHome() {
     ae.innerHTML='';
     out.slice(0,3).forEach(e=>{ae.innerHTML+=`<div class="alert alert-amber"><span class="alert-icon">📤</span><div class="alert-body"><div class="alert-title">${e.name} is OUT</div><div class="alert-sub">BC ${e.checkedOutBy||'?'} · Call #${e.callNum||'?'}</div></div></div>`;});
     issues.forEach(e=>{ae.innerHTML+=`<div class="alert alert-red"><span class="alert-icon">⚠️</span><div class="alert-body"><div class="alert-title">${e.name} — ${e.condition}</div><div class="alert-sub">${e.location}</div></div></div>`;});
+  }
+
+  // Notification banner — shows only if not yet enabled on this device
+  const notifBanner = document.getElementById('homeNotifBanner');
+  if (notifBanner && SESSION?.unit) {
+    const has = !!localStorage.getItem('cobc_fcm_token_' + SESSION.unit);
+    const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+    if (has && perm === 'granted') {
+      notifBanner.innerHTML = '<div class="alert alert-green"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Notifications on</div><div class="alert-sub">You\'ll get alerts for new calls + approvals</div></div></div>';
+    } else if (perm === 'denied') {
+      notifBanner.innerHTML = '<div class="alert alert-amber"><span class="alert-icon">🔕</span><div class="alert-body"><div class="alert-title">Notifications blocked</div><div class="alert-sub">Enable in phone Settings → Safari/Chrome → this site</div></div></div>';
+    } else {
+      notifBanner.innerHTML = '<div class="alert alert-amber" style="cursor:pointer;" onclick="enablePushForThisDevice()"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Tap to enable push notifications</div><div class="alert-sub">Get alerts when new calls are dispatched</div></div></div>';
+    }
   }
 }
 
@@ -2689,6 +2802,16 @@ function createCall() {
     showToast('Notes: Call saved as draft');
   } else {
     showToast('✅ Call created & dispatched');
+    // PUSH HOOK #1 — new call → all members
+    const _typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    sendPush({
+      target: 'all',
+      title: '🚨 New COBC Call',
+      body: `${_typeLabel} — ${call.address}, ${call.town}`,
+      url: '/cobc-dispatch/',
+      urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
+      callId: call.id
+    });
     // Auto-generate WhatsApp dispatch message
     const msg=buildDispatchWhatsApp(call);
     // Offer to open WhatsApp
@@ -2854,6 +2977,17 @@ function confirmRespond() {
   save(); hideModal('respondModal');
   renderCalls(); renderHome();
 
+  // PUSH HOOK #2 — member wants to respond → currently-scheduled dispatchers + admins
+  const _typeLabelReq = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  sendPush({
+    target: 'dispatchers',
+    title: '📞 Response Request',
+    body: `BC-${SESSION.unit} ${SESSION.name}${isObserver?' (Observer)':''} wants ${_typeLabelReq} (ETA ${eta} min)`,
+    url: '/cobc-dispatch/',
+    urgent: 'true',
+    callId: call.id
+  });
+
   // Get on-duty dispatcher from schedule
   const dispatcher = getOnDutyDispatcher();
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -2896,6 +3030,17 @@ function approveResponder(callId,unit) {
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
   save(); renderCalls(); renderHome();
   showToast(`✅ BC-${unit} ${req.name} approved`);
+  // PUSH HOOK #3 — member approved → that specific member
+  const _typeLabelApp = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  sendPush({
+    target: 'unit',
+    unit: String(unit),
+    title: '✅ Approved to Respond',
+    body: `${_typeLabelApp} — ${call.address}, ${call.town}`,
+    url: '/cobc-dispatch/',
+    urgent: 'true',
+    callId: call.id
+  });
   // WhatsApp to group
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const groupMsg='*BC-'+unit+' '+req.name+' is responding*\n'+typeLabel+' - '+call.address+', '+call.town+'\nETA: '+req.eta+' min'+(req.notes?'\nNotes: '+req.notes:'');
@@ -2925,6 +3070,15 @@ function rejectResponder(callId,unit) {
   logCallEvent(call, 'responder_rejected', {responder:unit, rejectedBy:SESSION.unit});
   save(); renderCalls(); renderHome();
   showToast(`❌ BC-${unit} rejected`);
+  // PUSH HOOK #4 — member rejected → that specific member
+  sendPush({
+    target: 'unit',
+    unit: String(unit),
+    title: 'Coverage filled',
+    body: `Thanks for offering — we have enough on the ${call.address} call.`,
+    url: '/cobc-dispatch/',
+    callId: call.id
+  });
   const m=STATE.members.find(x=>String(x.unit)===String(unit));
   if(m?.phone) {
     setTimeout(()=>{
@@ -3052,7 +3206,9 @@ async function submitRadioResponders() {
   openCallDetail(id); renderCalls(); renderHome();
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
 
-  // Send WhatsApp group announcement for all responders at once
+  // Send WhatsApp group announcement for all radio responders at once.
+  // Radio-added members are NOT messaged individually — they're already on the radio.
+  // Personal WhatsApp confirmations are only sent for app-approved responders.
   const names=radioSelectedMembers.map(m=>`BC-${m.unit} ${m.first} ${m.last}`).join(', ');
   const groupMsg=`*Responding to call*
 ${names}
@@ -3061,22 +3217,6 @@ ETA: ${eta} min`;
   setTimeout(()=>{
     window.open('https://wa.me/?text='+encodeURIComponent(groupMsg),'_blank');
   },300);
-
-  // Send personal WA to each member
-  for(let i=0;i<radioSelectedMembers.length;i++) {
-    const m=radioSelectedMembers[i];
-    if(!m.phone) continue;
-    const clean=m.phone.replace(/\D/g,'');
-    const num=clean.length===10?'1'+clean:clean;
-    const personalMsg=`You have been confirmed to respond
-${typeLabel} - ${call.address}, ${call.town}
-ETA: ${eta} min
-
-Stay safe! - COBC Dispatch`;
-    setTimeout(()=>{
-      window.open(`https://wa.me/${num}?text=`+encodeURIComponent(personalMsg),'_blank');
-    },600+(i*400));
-  }
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
