@@ -1604,12 +1604,10 @@ async function initPushModule() {
     // If we previously stored a token for this device, restore foreground handler
     _fcmMessaging.onMessage((payload) => {
       const t = payload.notification?.title || payload.data?.title || 'COBC';
-      const b = payload.notification?.body  || payload.data?.body  || '';
-      // Foreground: show toast + browser notif if granted
+      // Foreground only: show in-app toast.
+      // We DON'T show a system Notification here — the service worker already does.
+      // Showing both would create duplicates.
       showToast('🔔 ' + t);
-      if (Notification.permission === 'granted') {
-        new Notification(t, { body: b, icon: '/cobc-dispatch/icon-192.png' });
-      }
     });
   } catch (e) { console.warn('Push init failed:', e); }
 }
