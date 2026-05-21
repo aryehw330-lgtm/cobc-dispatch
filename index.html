@@ -1599,6 +1599,16 @@ async function initPushModule() {
   // Don't even try if SDK / config not loaded
   if (!window.firebase || FCM_CONFIG.apiKey.startsWith("PASTE_")) return;
   try {
+          // Silently clean up any stale SWs (e.g. leftover OneSignal) on every init
+          if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(regs => {
+                                regs.forEach(r => {
+                                              if (r.active?.scriptURL && !r.active.scriptURL.includes('firebase-messaging-sw.js')) {
+                                                              r.unregister();
+                                              }
+                                });
+                    });
+          }
     if (!_fcmApp) _fcmApp = firebase.initializeApp(FCM_CONFIG);
     _fcmMessaging = firebase.messaging();
     // If we previously stored a token for this device, restore foreground handler
