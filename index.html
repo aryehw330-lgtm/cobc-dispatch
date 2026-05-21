@@ -2082,7 +2082,7 @@ async function refreshEzSpareInventory() {
         save();
       }
     }
-  
+  } catch(e){}
   // Re-render whatever size is currently selected to refresh available-units list
   onEzSpareSizeChange();
   if(hint) {
