@@ -1635,7 +1635,7 @@ async function enablePushForThisDevice() {
 // Unregister any stale service workers (e.g. old OneSignal SW) before registering ours
             const _oldRegs = await navigator.serviceWorker.getRegistrations();
             for (const _r of _oldRegs) {
-                        if (true) // unregister ALL SWs (avoids duplicates) {
+                        if (true) { // unregister ALL SWs (avoids duplicates)
                                       await _r.unregister();
                         }
             }
