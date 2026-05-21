@@ -1622,7 +1622,14 @@ async function enablePushForThisDevice() {
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') { showToast('Notifications denied'); return; }
 
-    const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js');
+// Unregister any stale service workers (e.g. old OneSignal SW) before registering ours
+            const _oldRegs = await navigator.serviceWorker.getRegistrations();
+            for (const _r of _oldRegs) {
+                        if (_r.active?.scriptURL && !_r.active.scriptURL.includes('firebase-messaging-sw.js')) {
+                                      await _r.unregister();
+                        }
+            }
+            const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js');
     const token = await _fcmMessaging.getToken({
       vapidKey: FCM_VAPID_KEY,
       serviceWorkerRegistration: reg
