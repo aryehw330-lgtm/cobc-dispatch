@@ -2198,7 +2198,7 @@ const DEFAULT_NUMBERS = [
 ];
 
 // ── State ──
-let STATE = load();
+let STATE = load(); syncCallsFromServer(); setInterval(syncCallsFromServer, 15000);
 
 function defaultState() {
   return {
@@ -2268,7 +2268,42 @@ function load() {
 }
 function save() {
   try { localStorage.setItem('cobc_v21', JSON.stringify(STATE)); } catch(e){}
-}
+  }}
+  // ── CALL SYNC ── push one call to shared backend ──────────────────────────
+  function pushCallToServer(call) {
+      if (!PUSH_SEND_URL || PUSH_SEND_URL === 'YOUR_APPS_SCRIPT_URL') return;
+      fetch(PUSH_SEND_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({key: SHARED_KEY, action: 'upsertCall', call: call})
+      }).catch(() => {}); // fire-and-forget
+  }
+  // ── CALL SYNC ── pull latest calls from shared backend ─────────────────────
+  async function syncCallsFromServer() {
+      if (!PUSH_SEND_URL || PUSH_SEND_URL === 'YOUR_APPS_SCRIPT_URL') return;
+    try {
+          const url = PUSH_SEND_URL.replace('/exec', '/exec') + '?key=' + encodeURIComponent(SHARED_KEY);
+          const r = await fetch(url, {method: 'GET'});
+      const data = await r.json();
+          if (!data.ok || !Array.isArray(data.calls)) return;
+                                            // Merge server calls into STATE: server wins for any call we don't have locally
+          const localIds = new Set(STATE.calls.map(c => c.id));
+          let changed = false;
+      data.calls.forEach(sc => {
+              const li = STATE.calls.findIndex(c => c.id === sc.id);
+              if (li === -1) {
+                        STATE.calls.push(sc);
+                        changed = true;
+              } else {
+                        // Server wins (replace local copy) — keeps all devices in sync
+                        STATE.calls[li] = sc;
+                        changed = true;
+              }
+      });
+        // Remove calls that are on server but should no longer exist — skip (server is source of truth for adds/edits only)
+      if (changed) { save(); pushCallToServer(call); renderCalls(); renderHome(); }
+  } catch(e) {}
+  }
 
 // Migrate old key
 (function migrate() {
@@ -2796,7 +2831,7 @@ function createCall() {
     ezSpareUnit: (document.getElementById('ezSpareUnit')?.value || null),
   };
 
-  STATE.calls.push(call); save();
+  STATE.calls.push(call); save(); pushCallToServer(call);
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
   hideModal('newCallModal');
   ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
@@ -3045,7 +3080,7 @@ function approveResponder(callId,unit) {
   call.responders.push({...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()});
   call.status='active';
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
-  save(); renderCalls(); renderHome();
+  save(); pushCallToServer(call); renderCalls(); renderHome();
   showToast(`✅ BC-${unit} ${req.name} approved`);
   // PUSH HOOK #3 — member approved → that specific member
   const _typeLabelApp = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -3085,7 +3120,7 @@ function rejectResponder(callId,unit) {
   call.rejectedResponders=call.rejectedResponders||[];
   call.rejectedResponders.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:Date.now()});
   logCallEvent(call, 'responder_rejected', {responder:unit, rejectedBy:SESSION.unit});
-  save(); renderCalls(); renderHome();
+  save(); pushCallToServer(call); renderCalls(); renderHome();
   showToast(`❌ BC-${unit} rejected`);
   // PUSH HOOK #4 — member rejected → that specific member
   sendPush({
@@ -3375,7 +3410,7 @@ function publishCall(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   call.status='open'; call.rrLastSent=Date.now();
-  save(); renderCalls(); renderHome(); showToast('📢 Call published');
+  save(); pushCallToServer(call); renderCalls(); renderHome(); showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
   if(confirm('Send WhatsApp dispatch message?')) {
     window.open(`https://wa.me/?text=${encodeURIComponent(buildDispatchWhatsApp(call))}`,'_blank');
@@ -3393,11 +3428,11 @@ function toggleVehicleOnCall(callId, vName) {
 
 function updateCallStatus(id,status) {
   const call=STATE.calls.find(c=>c.id===id);
-  if(call) { call.status=status; save(); renderCalls(); renderHome(); showToast(`Call → ${status}`); }
+  if(call) { call.status=status; save(); pushCallToServer(call); renderCalls(); renderHome(); showToast(`Call → ${status}`); }
 }
 function deleteCall(id) {
   if(!confirm('Delete this call?')) return;
-  STATE.calls=STATE.calls.filter(c=>c.id!==id); save(); renderCalls(); renderHome(); showToast('Call deleted');
+  STATE.calls=STATE.calls.filter(c=>c.id!==id); save(); pushCallToServer(call); renderCalls(); renderHome(); showToast('Call deleted');
 }
 
 // ── CALL EDIT ──
@@ -3517,7 +3552,7 @@ function saveCallEdit() {
     call.ezSpareUnit = null;
   }
   save(); hideModal('callEditModal');
-  renderCalls(); renderHome(); showToast('Call updated');  // PUSH: notify all of edit  const _eLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);  setTimeout(()=>sendPush({target:'all',title:'✏️ Call Updated',body:`${_eLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);  // PUSH: notify all of edit
+  renderCalls(); renderHome(); showToast('Call updated'); pushCallToServer(call);  // PUSH: notify all of edit  const _eLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);  setTimeout(()=>sendPush({target:'all',title:'✏️ Call Updated',body:`${_eLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);  // PUSH: notify all of edit
   openCallDetail(id);
 }
 
@@ -3546,7 +3581,7 @@ function confirmCompleteCall() {
   call.completionNotes=notes;
   logCallEvent(call, 'completed', {outcome, cncReason:outcome==='CNC'?cnc:null, responders:(call.responders||[]).length, durationMin:Math.round((call.completedAt-call.createdAt)/60000)});
   save(); hideModal('callCompleteModal');
-  renderCalls(); renderHome(); showToast('Call completed');
+  renderCalls(); renderHome(); showToast('Call completed'); pushCallToServer(call);
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
