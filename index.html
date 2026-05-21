@@ -3130,6 +3130,9 @@ function submitBackup() {
   save(); hideModal('backupModal');
   renderCalls(); renderHome();
   showToast('🆘 Backup request sent');
+    // PUSH #5: backup request → all
+    const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
+    setTimeout(()=>sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
   // WhatsApp
   const callType=CALL_TYPE_LABELS[call.type]||call.type;
   let msg=`🆘 *COBC Backup Requested*\n${callType} at ${call.address}, ${call.town}\nRequested by BC ${SESSION.unit}`;
@@ -3222,6 +3225,10 @@ async function submitRadioResponders() {
   save(); hideModal('radioModal');
   openCallDetail(id); renderCalls(); renderHome();
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
+    // PUSH #6: radio responders added
+    const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    const _rNames=radioSelectedMembers.map(m=>`BC-${m.unit}`).join(', ');
+       setTimeout(()=>sendPush({target:'dispatchers',title:'📻 Responding by Radio',body:`${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
 
   // Send WhatsApp group announcement for all radio responders at once.
   // Radio-added members are NOT messaged individually — they're already on the radio.
@@ -3342,7 +3349,7 @@ function openCallDetail(id) {
     html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Radio</button>`;
     if(call.status==='draft') html+=`<button class="btn-sm btn-primary" onclick="publishCall('${id}');hideModal('callDetailModal')">📢 Publish</button>`;
     if(call.status==='open') html+=`<button class="btn-sm btn-green" onclick="updateCallStatus('${id}','active');renderCallDetail('${id}')">▶ Active</button>`;
-    if(call.status!=='done') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
+    if(call.status==='done') html+=`<button class="btn-sm btn-amber" onclick="updateCallStatus('${id}','open');renderCallDetail('${id}')">🔄 Re-open</button>`;    if(call.status!=='done') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">App: WhatsApp</button>`;
     html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
@@ -3510,7 +3517,7 @@ function saveCallEdit() {
     call.ezSpareUnit = null;
   }
   save(); hideModal('callEditModal');
-  renderCalls(); renderHome(); showToast('Call updated');
+  renderCalls(); renderHome(); showToast('Call updated');  // PUSH: notify all of edit  const _eLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);  setTimeout(()=>sendPush({target:'all',title:'✏️ Call Updated',body:`${_eLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);  // PUSH: notify all of edit
   openCallDetail(id);
 }
 
@@ -3540,6 +3547,9 @@ function confirmCompleteCall() {
   logCallEvent(call, 'completed', {outcome, cncReason:outcome==='CNC'?cnc:null, responders:(call.responders||[]).length, durationMin:Math.round((call.completedAt-call.createdAt)/60000)});
   save(); hideModal('callCompleteModal');
   renderCalls(); renderHome(); showToast('Call completed');
+    // PUSH #4: call completed → all
+    const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
   if(sendWA) {
     const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const respList=(call.responders||[]).map(r=>`BC-${r.unit} ${r.name}`).join(', ')||'None assigned';
