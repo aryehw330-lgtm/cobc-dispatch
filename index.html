@@ -2289,8 +2289,7 @@ function initFirestore() {
       }
     });
     save();
-    renderCalls();
-    renderHome();
+    if(typeof SESSION !== 'undefined') { renderCalls(); renderHome(); }
   }, err => console.warn('Firestore sync error:', err));
 }
 
