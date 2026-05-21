@@ -1610,6 +1610,7 @@ async function initPushModule() {
                     });
           }
     if (!_fcmApp) _fcmApp = firebase.initializeApp(FCM_CONFIG);
+  initFirestore(); // start Firestore real-time sync
     _fcmMessaging = firebase.messaging();
     // If we previously stored a token for this device, restore foreground handler
     _fcmMessaging.onMessage((payload) => {
@@ -2200,7 +2201,7 @@ const DEFAULT_NUMBERS = [
 ];
 
 // ── State ──
-let STATE = load(); initFirestore();
+let STATE = load();
 
 function defaultState() {
   return {
