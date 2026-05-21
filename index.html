@@ -1635,7 +1635,7 @@ async function enablePushForThisDevice() {
 // Unregister any stale service workers (e.g. old OneSignal SW) before registering ours
             const _oldRegs = await navigator.serviceWorker.getRegistrations();
             for (const _r of _oldRegs) {
-                        if (_r.active?.scriptURL && !_r.active.scriptURL.includes('firebase-messaging-sw.js')) {
+                        if (true) // unregister ALL SWs (avoids duplicates) {
                                       await _r.unregister();
                         }
             }
@@ -2819,7 +2819,8 @@ function createCall() {
     showToast('✅ Call created & dispatched');
     // PUSH HOOK #1 — new call → all members
     const _typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    sendPush({
+setTimeout(() => {
+      sendPush({
       target: 'all',
       title: '🚨 New COBC Call',
       body: `${_typeLabel} — ${call.address}, ${call.town}`,
@@ -2827,6 +2828,7 @@ function createCall() {
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
       callId: call.id
     });
+  }, 0); // deferred so confirm() doesn't block the fetch on iOS
     // Auto-generate WhatsApp dispatch message
     const msg=buildDispatchWhatsApp(call);
     // Offer to open WhatsApp
