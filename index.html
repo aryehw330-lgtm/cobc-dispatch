@@ -2082,7 +2082,7 @@ async function refreshEzSpareInventory() {
         save();
       }
     }
-  } catch(e){}
+  
   // Re-render whatever size is currently selected to refresh available-units list
   onEzSpareSizeChange();
   if(hint) {
@@ -2268,7 +2268,7 @@ function load() {
 }
 function save() {
   try { localStorage.setItem('cobc_v21', JSON.stringify(STATE)); } catch(e){}
-  }}
+  }
   // ── CALL SYNC ── push one call to shared backend ──────────────────────────
   function pushCallToServer(call) {
       if (!PUSH_SEND_URL || PUSH_SEND_URL === 'YOUR_APPS_SCRIPT_URL') return;
