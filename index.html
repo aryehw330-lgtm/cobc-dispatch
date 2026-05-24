@@ -1513,6 +1513,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editMbrPhone" placeholder="555-000-0000"/></div>
     <button class="btn-full btn-primary" onclick="saveEditMemberRole()" style="margin-bottom:8px;">Save Changes</button>
+      <button class="btn-full btn-secondary" style="background:rgba(251,191,36,0.15);color:#fbbf24;border-color:rgba(251,191,36,0.3)" onclick="adminResetPin(document.getElementById('editMbrUnit').textContent.trim())">🔑 Reset PIN</button>
     <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Cancel</button>
   </div>
 </div>
@@ -1692,155 +1693,15 @@ if (document.readyState === 'loading') {
   initPushModule();
 }
 
-const ROLES = {
-  admin:     { label:'ADMIN',      pass:'cobcadmin', color:'#7c3aed' },
-  dispatch:  { label:'DISPATCH',   pass:'cobcdisp',  color:'#2563eb' },
-  equipment: { label:'EQUIP TEAM', pass:'cobcet',    color:'#d97706' },
-  member:    { label:'MEMBER',     pass:null,        color:'#16a34a' },
-  observer:  { label:'OBSERVER',   pass:null,        color:'#7c3aed' },
-};
+// Login roles stored in Firestore members collection.
 
-// ── Seed Members (from Google Sheet — BC roster) ──
-const SEED_MEMBERS=[{"unit":"05","first":"Yehuda","last":"Miller","phone":"845-558-4497","role":"member","addedAt":1700000000000},{"unit":"06","first":"Chaim","last":"Huisman","phone":"201-456-7701","role":"Admin, Dispatch, member","addedAt":1700000000000},{"unit":"07","first":"Chaim","last":"Stadtmauer","phone":"973-865-0588","role":"member","addedAt":1700000000000},{"unit":"08","first":"Elliott","last":"Gilden","phone":"201-280-7062","role":"member","addedAt":1700000000000},{"unit":"09","first":"Edward","last":"Abramovitz","phone":"203-988-6334","role":"member","addedAt":1700000000000},{"unit":"10","first":"Yehuda","last":"Feig","phone":"201-491-3423","role":"member","addedAt":1700000000000},{"unit":"11","first":"Nosson","last":"Moldaver","phone":"732-233-8595","role":"member","addedAt":1700000000000},{"unit":"12","first":"David","last":"Roberts","phone":"201-562-7844","role":"member","addedAt":1700000000000},{"unit":"13","first":"Stuart","last":"Krupnik","phone":"347-371-1132","role":"member","addedAt":1700000000000},{"unit":"14","first":"Simon","last":"Berrebi","phone":"347-768-0807","role":"member","addedAt":1700000000000},{"unit":"15","first":"Moshe","last":"Kozlow","phone":"201-655-3279","role":"member","addedAt":1700000000000},{"unit":"16","first":"Ari","last":"Wartelsky","phone":"917-841-4115","role":"member","addedAt":1700000000000},{"unit":"17","first":"Motti","last":"Rosenthal","phone":"718-614-6002","role":"member","addedAt":1700000000000},{"unit":"18","first":"Ahron","last":"Mallin","phone":"917-596-9528","role":"member","addedAt":1700000000000},{"unit":"19","first":"Sruli","last":"Scharf","phone":"201-321-2073","role":"member","addedAt":1700000000000},{"unit":"20","first":"Burry","last":"Greenbaum","phone":"718-974-1571","role":"member","addedAt":1700000000000},{"unit":"21","first":"Yehuda","last":"Lisker","phone":"201-723-7228","role":"member","addedAt":1700000000000},{"unit":"22","first":"Yoni","last":"Celnik","phone":"845-364-1318","role":"member","addedAt":1700000000000},{"unit":"23","first":"Daniel","last":"Hyman","phone":"917-767-4040","role":"member","addedAt":1700000000000},{"unit":"24","first":"Gershon","last":"Weinreb","phone":"570-909-6530","role":"member","addedAt":1700000000000},{"unit":"25","first":"Daniel","last":"Rubinoff","phone":"917-345-3447","role":"member","addedAt":1700000000000},{"unit":"26","first":"Mickey","last":"Cohen","phone":"201-937-2192","role":"member","addedAt":1700000000000},{"unit":"27","first":"Yitzchok","last":"Berger","phone":"917-697-0043","role":"member","addedAt":1700000000000},{"unit":"28","first":"Benny","last":"Kessler","phone":"718-915-8057","role":"member","addedAt":1700000000000},{"unit":"29","first":"Aaron","last":"Heideman","phone":"732-609-6154","role":"Dispatch, equipment, member","addedAt":1700000000000},{"unit":"30","first":"Matis","last":"Gluck","phone":"845-641-2001","role":"member","addedAt":1700000000000},{"unit":"31","first":"Rachmiel","last":"","phone":"718-909-9352","role":"member","addedAt":1700000000000},{"unit":"32","first":"Avi","last":"Weiskopf","phone":"201-707-4616","role":"member","addedAt":1700000000000},{"unit":"33","first":"Chaim","last":"Gottesman","phone":"201-280-2386","role":"Admin, Dispatch, Equipment, member","addedAt":1700000000000},{"unit":"34","first":"Yehuda","last":"Kreitman","phone":"732-440-8457","role":"Dispatch, member","addedAt":1700000000000},{"unit":"36","first":"Aaron","last":"Sheffy","phone":"551-804-3385","role":"member","addedAt":1700000000000},{"unit":"37","first":"Micah","last":"Epstein","phone":"914-806-3334","role":"member","addedAt":1700000000000},{"unit":"38","first":"Aryeh","last":"Wizman","phone":"845-531-9110","role":"Admin, Dispatch, Equipment, member","addedAt":1700000000000},{"unit":"39","first":"Rami","last":"Glatt","phone":"718-536-6574","role":"member","addedAt":1700000000000},{"unit":"40","first":"Shloimy","last":"Ciment","phone":"845-587-0053","role":"member","addedAt":1700000000000},{"unit":"41","first":"Michael","last":"Goldsmith","phone":"201-370-5664","role":"member","addedAt":1700000000000},{"unit":"42","first":"Kenneth","last":"Goldman","phone":"201-638-6515","role":"member","addedAt":1700000000000},{"unit":"43","first":"Avi","last":"Okin","phone":"862-438-4094","role":"member","addedAt":1700000000000},{"unit":"44","first":"Isaac","last":"Vizel","phone":"917-672-1999","role":"member","addedAt":1700000000000},{"unit":"45","first":"Mark","last":"Eisenberger","phone":"917-363-8106","role":"member","addedAt":1700000000000},{"unit":"46","first":"Dov","last":"Eisenberger","phone":"917-538-5462","role":"member","addedAt":1700000000000},{"unit":"47","first":"Fischel","last":"Bensinger","phone":"305-389-3907","role":"member","addedAt":1700000000000},{"unit":"48","first":"Dovid","last":"Lisker","phone":"201-214-0803","role":"member","addedAt":1700000000000},{"unit":"49","first":"Mitchell","last":"Schaffer","phone":"201-519-6904","role":"member","addedAt":1700000000000},{"unit":"50","first":"Moti","last":"Rimer","phone":"646-772-3455","role":"member","addedAt":1700000000000},{"unit":"51","first":"Isaac","last":"Dayan","phone":"847-226-6892","role":"member","addedAt":1700000000000},{"unit":"52","first":"Judah","last":"Samuel","phone":"201-888-0214","role":"member","addedAt":1700000000000},{"unit":"53","first":"Shloimie","last":"Kreindler","phone":"443-939-9979","role":"Dispatch, member","addedAt":1700000000000},{"unit":"54","first":"Dovie","last":"Hirsch","phone":"201-354-0550","role":"Dispatch, member","addedAt":1700000000000},{"unit":"55","first":"Henry","last":"Bernstein","phone":"516-554-4063","role":"member","addedAt":1700000000000},{"unit":"59","first":"Chaim","last":"Ezagui","phone":"347-785-8798","role":"Dispatch, member","addedAt":1700000000000},{"unit":"60","first":"Noah","last":"Isaacs","phone":"201-803-8614","role":"member","addedAt":1700000000000},{"unit":"61","first":"Moshe","last":"Katz","phone":"516-209-1427","role":"member","addedAt":1700000000000},{"unit":"62","first":"","last":"Gendler","phone":"347-409-5754","role":"member","addedAt":1700000000000},{"unit":"63","first":"Aaron","last":"Bauman","phone":"347-543-2941","role":"member","addedAt":1700000000000},{"unit":"64","first":"Kivi","last":"Gorden","phone":"610-513-0776","role":"member","addedAt":1700000000000},{"unit":"65","first":"Eli","last":"Teichman","phone":"845-558-5247","role":"member","addedAt":1700000000000},{"unit":"66","first":"Andy","last":"Schultz","phone":"914-574-7057","role":"member","addedAt":1700000000000},{"unit":"67","first":"Willie","last":"Silberstein","phone":"201-681-8876","role":"member","addedAt":1700000000000},{"unit":"68","first":"Yehuda","last":"Schwartz","phone":"917-288-2546","role":"member","addedAt":1700000000000},{"unit":"69","first":"Dovi","last":"Pfeffer","phone":"848-210-5060","role":"member","addedAt":1700000000000},{"unit":"70","first":"Yosi","last":"Gibraltar","phone":"","role":"member","addedAt":1700000000000},{"unit":"71","first":"Avi","last":"Klein","phone":"347-731-5525","role":"Dispatch, member","addedAt":1700000000000},{"unit":"72","first":"Moshe","last":"Skoczylas","phone":"718-974-7347","role":"member","addedAt":1700000000000},{"unit":"73","first":"Danny","last":"Senter","phone":"201-491-4602","role":"member","addedAt":1700000000000},{"unit":"74","first":"Rudman","last":"Zvi","phone":"","role":"member","addedAt":1700000000000},{"unit":"75","first":"David","last":"Kestenbaum","phone":"516-318-2697","role":"member","addedAt":1700000000000},{"unit":"76","first":"Aharon","last":"Klarberg","phone":"973-567-0772","role":"member","addedAt":1700000000000},{"unit":"77","first":"Willie","last":"Balk","phone":"216-392-2244","role":"member","addedAt":1700000000000},{"unit":"78","first":"Izzy","last":"Infield","phone":"201-245-4666","role":"member","addedAt":1700000000000},{"unit":"79","first":"David","last":"Itzkowits","phone":"347-227-9014","role":"member","addedAt":1700000000000},{"unit":"80","first":"Mayer","last":"Sabo","phone":"201-566-4759","role":"member","addedAt":1700000000000},{"unit":"81","first":"Aaron","last":"Lerer","phone":"845-213-7323","role":"member","addedAt":1700000000000},{"unit":"82","first":"Naftali","last":"Nunberg","phone":"917-912-8913","role":"member","addedAt":1700000000000},{"unit":"83","first":"Michel","last":"Klarburg","phone":"973-851-0510","role":"member","addedAt":1700000000000},{"unit":"86","first":"Israel","last":"Romand","phone":"845-499-0540","role":"member","addedAt":1700000000000},{"unit":"87","first":"Phillip","last":"Katz","phone":"917-549-5540","role":"member","addedAt":1700000000000},{"unit":"88","first":"Yitz","last":"Stern","phone":"845-596-7988","role":"member","addedAt":1700000000000},{"unit":"89","first":"Mordechai","last":"Solinsky","phone":"347-486-4434","role":"member","addedAt":1700000000000},{"unit":"90","first":"Sam","last":"Ulrich","phone":"858-401-0863","role":"member","addedAt":1700000000000},{"unit":"91","first":"Leibi","last":"Stern","phone":"","role":"member","addedAt":1700000000000},{"unit":"92","first":"Michael","last":"Scharf","phone":"201-468-1166","role":"member","addedAt":1700000000000},{"unit":"93","first":"Yair","last":"Menchel","phone":"516-672-1325","role":"member","addedAt":1700000000000},{"unit":"94","first":"Zvi","last":"Bin-Nun","phone":"551-795-3394","role":"member","addedAt":1700000000000},{"unit":"95","first":"Zev","last":"Darack","phone":"973-202-9867","role":"member","addedAt":1700000000000},{"unit":"96","first":"Binyamin","last":"Schulgasser","phone":"973-943-0413","role":"member","addedAt":1700000000000},{"unit":"97","first":"Solomon","last":"Itzkowitz","phone":"929-261-6554","role":"Admin, Dispatch, Equipment, member","addedAt":1700000000000},{"unit":"99","first":"Yakov","last":"Cohen","phone":"201-957-3523","role":"member","addedAt":1700000000000},{"unit":"100","first":"Emanuel","last":"Klein","phone":"718-807-5604","role":"member","addedAt":1700000000000},{"unit":"102","first":"Joel","last":"Varnai","phone":"646-597-0935","role":"member","addedAt":1700000000000},{"unit":"103","first":"Shalom","last":"Peretz","phone":"845-270-8447","role":"member","addedAt":1700000000000},{"unit":"104","first":"Mo","last":"Berow","phone":"973-270-3015","role":"member","addedAt":1700000000000},{"unit":"105","first":"Daniel","last":"Fuksbrumer","phone":"917-439-3984","role":"member","addedAt":1700000000000},{"unit":"106","first":"Yoni","last":"Kaufman","phone":"917-608-4904","role":"member","addedAt":1700000000000},{"unit":"107","first":"Daniel","last":"Gross","phone":"917-974-9630","role":"observer","addedAt":1700000000000},{"unit":"108","first":"David","last":"Rivkin","phone":"201-580-0456","role":"member","addedAt":1700000000000},{"unit":"110","first":"Isaac","last":"Mass","phone":"201-630-1518","role":"member","addedAt":1700000000000},{"unit":"111","first":"Leiby","last":"Itzkowitz","phone":"929-445-0429","role":"Dispatch, member","addedAt":1700000000000},{"unit":"112","first":"Benzi","last":"Herbst","phone":"718-810-3968","role":"member","addedAt":1700000000000},{"unit":"114","first":"Avidan","last":"Rothman","phone":"973-280-1691","role":"member","addedAt":1700000000000},{"unit":"115","first":"Zach","last":"Berman","phone":"845-216-8279","role":"member","addedAt":1700000000000},{"unit":"116","first":"Steven","last":"Hoenig","phone":"201-240-8749","role":"member","addedAt":1700000000000},{"unit":"117","first":"Jeffrey","last":"Rosenfeld","phone":"917-664-8374","role":"member","addedAt":1700000000000},{"unit":"118","first":"Zev","last":"Savetsky","phone":"201-805-2476","role":"member","addedAt":1700000000000},{"unit":"119","first":"Nechemia","last":"Berman","phone":"845-622-0094","role":"member","addedAt":1700000000000},{"unit":"120","first":"Yehuda","last":"Breuer","phone":"845-399-0523","role":"member","addedAt":1700000000000},{"unit":"121","first":"David","last":"Dahan","phone":"551-326-1160","role":"observer","addedAt":1700000000000},{"unit":"122","first":"Ephraim","last":"Rudin","phone":"973-368-7639","role":"Dispatch, member","addedAt":1700000000000},{"unit":"123","first":"Mendy","last":"Green","phone":"845-213-0748","role":"member","addedAt":1700000000000},{"unit":"124","first":"Binyamin","last":"Kroll","phone":"973-462-3851","role":"Dispatch, member","addedAt":1700000000000},{"unit":"125","first":"Jack","last":"Attali","phone":"917-626-1069","role":"observer","addedAt":1700000000000},{"unit":"126","first":"Sam","last":"Lovi","phone":"347-985-6088","role":"member","addedAt":1700000000000},{"unit":"127","first":"Nathan","last":"Rose","phone":"914-714-4138","role":"member","addedAt":1700000000000},{"unit":"128","first":"Pinchas","last":"Feinstein","phone":"646-244-1137","role":"member","addedAt":1700000000000},{"unit":"129","first":"Zecharia","last":"Gurell","phone":"201-334-2325","role":"member","addedAt":1700000000000},{"unit":"130","first":"Didi","last":"Forman","phone":"972-53-272-8815","role":"member","addedAt":1700000000000},{"unit":"131","first":"Zach","last":"Cohen","phone":"201-803-6143","role":"member","addedAt":1700000000000},{"unit":"133","first":"Zevy","last":"Glicksman","phone":"917-655-2075","role":"Dispatch, member","addedAt":1700000000000},{"unit":"140","first":"Khodik","last":"Kalmen","phone":"201-970-1818","role":"member","addedAt":1700000000000},{"unit":"148","first":"Shloime","last":"Mintz","phone":"","role":"member","addedAt":1700000000000},{"unit":"149","first":"Juda","last":"Glick","phone":"718-613-9575","role":"member","addedAt":1700000000000},{"unit":"150","first":"Isaac","last":"Forgash","phone":"201-509-0986","role":"Equipment, member","addedAt":1700000000000},{"unit":"154","first":"Matthew","last":"Fried","phone":"917-371-2669","role":"member","addedAt":1700000000000},{"unit":"155","first":"Yisrael Mayer","last":"Birnbaum","phone":"347-448-1796","role":"Dispatch, member","addedAt":1700000000000},{"unit":"157","first":"Daniel","last":"Steinermam","phone":"201-575-3569","role":"member","addedAt":1700000000000},{"unit":"160","first":"Avi","last":"Greenberg","phone":"845-422-3090","role":"member","addedAt":1700000000000},{"unit":"161","first":"Abraham","last":"Green","phone":"","role":"member","addedAt":1700000000000},{"unit":"162","first":"Zev Yida","last":"Farkas","phone":"","role":"member","addedAt":1700000000000},{"unit":"163","first":"Daniel","last":"Blum","phone":"347-533-0596","role":"member","addedAt":1700000000000},{"unit":"164","first":"Shmuel","last":"Remer","phone":"551-999-7592","role":"member","addedAt":1700000000000},{"unit":"169","first":"Avrumy","last":"Schwartz","phone":"929-355-3943","role":"member","addedAt":1700000000000},{"unit":"171","first":"Chaim","last":"Abenson","phone":"845-866-1647","role":"member","addedAt":1700000000000},{"unit":"178","first":"Yisroel","last":"Gutman","phone":"347-693-0315","role":"member","addedAt":1700000000000},{"unit":"180","first":"Abbey","last":"Cooper","phone":"201-543-1267","role":"member","addedAt":1700000000000},{"unit":"191","first":"Kenny","last":"Fried","phone":"917-544-0383","role":"member","addedAt":1700000000000},{"unit":"200","first":"Jan","last":"Meyer","phone":"201-888-4566","role":"member","addedAt":1700000000000},{"unit":"234","first":"Mordechai","last":"Kupferstein","phone":"718-679-7278","role":"member","addedAt":1700000000000},{"unit":"257","first":"Moshe","last":"Teicher","phone":"786-999-5939","role":"Dispatch, member","addedAt":1700000000000},{"unit":"369","first":"Rafael","last":"Pomerantz","phone":"929-253-4860","role":"Dispatch, member","addedAt":1700000000000},{"unit":"500","first":"Dalia","last":"Romand","phone":"914-220-2702","role":"Dispatch, member","addedAt":1700000000000},{"unit":"501","first":"Rivky","last":"Sandal","phone":"845-629-1212","role":"member","addedAt":1700000000000},{"unit":"502","first":"Lazar","last":"Weider","phone":"845-248-8636","role":"member","addedAt":1700000000000},{"unit":"503","first":"Shmuel","last":"Eidelman","phone":"732-429-5195","role":"Dispatch, member","addedAt":1700000000000},{"unit":"504","first":"Jacob","last":"Rosenberg","phone":"201-686-1731","role":"member","addedAt":1700000000000},{"unit":"505","first":"Shloime","last":"Mintz","phone":"201-370-1097","role":"Dispatch, member","addedAt":1700000000000},{"unit":"506","first":"Shlomo","last":"Erlanger","phone":"551-238-5060","role":"member","addedAt":1700000000000},{"unit":"507","first":"Shragie","last":"Rubelow","phone":"848-525-7435","role":"Dispatch, member","addedAt":1700000000000},{"unit":"508","first":"Yehuda","last":"Rhine","phone":"929-210-1524","role":"member","addedAt":1700000000000}];
-
-const DEFAULT_LOCATIONS = ['COBC','Garage TABC','Teaneck Garage','Teaneck Shed','Englewood Shed','Truck 02','Truck 03','COBC 04',"Rami's Garage"];
-
-// ══════════════════════════════════════════════
-//  APPS SCRIPT API — Google Sheet backend
-//  Equipment Sheet: 1iOE4c-BBatkH8zljpQTFmrzZZe_Q4uvBDWAQCos51PE
-//  Members Sheet:   1Leh-KVqnLai650Se4JftnG1zTz6FbuCcbOUqUGmlfEk
-// ══════════════════════════════════════════════
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwOPOlN9kZXZbxit5PRDdcHBsoW8PmDzfp0MLe_AqPvNKbSZMVNFHBOfqNi-BrvVusN/exec';
-
-async function sheetGET(params) {
-  try {
-    const qs = Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
-    const r = await fetch(APPS_SCRIPT_URL + '?' + qs);
-    return await r.json();
-  } catch(e) { console.warn('sheetGET failed:', e); return null; }
-}
-
-async function sheetPOST(body) {
-  try {
-    const r = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify(body)
-    });
-    return await r.json();
-  } catch(e) { console.warn('sheetPOST failed:', e); return {success:false,error:e.toString()}; }
-}
-
-// postJ alias for backward compatibility with equipment checklist code
-function postJ(body) { return sheetPOST(body); }
-
-// Convert sheet row → internal equipment object
-function sheetRowToEq(item) {
-  return {
-    id: `EQ-${String(item.row).padStart(4,'0')}`,
-    row: item.row,
-    name: item.name,
-    category: guessCat(item.name),
-    location: item.homeLocation || 'COBC',
-    status: item.status === 'OUT' ? 'out' : 'in',
-    condition: conditionFromSheet(item.equipStatus || 'OK'),
-    equipStatus: item.equipStatus || 'OK',
-    equipNote: item.equipNote || '',
-    ccnc: item.ccnc || 'CC',
-    isCNC: item.isCNC || false,
-    cncNote: item.cncNote || '',
-    checkedOutBy: item.member || null,
-    callNum: item.call || null,
-    lastUpdated: item.lastUpdated || '',
-    history: [],
-    fromSheet: true,
-  };
-}
-
-function guessCat(name) {
-  const n = (name||'').toLowerCase();
-  if(n.includes('fan'))           return 'Fan';
-  if(n.includes('heater'))        return 'Heater';
-  if(n.includes('a/c')||n.includes('ac ')) return 'A/C';
-  if(n.includes('generator'))     return 'Generator';
-  if(n.includes('light tower'))   return 'Light Tower';
-  if(n.includes('shop vac'))      return 'Shop Vac';
-  if(n.includes('ez-spare')||n.includes('ez spare')) return 'EZ Spare';
-  if(n.includes('pump'))          return 'Pump';
-  if(n.includes('ramp'))          return 'Ramp';
-  if(n.includes('chainsaw'))      return 'Chainsaw';
-  return 'Other';
-}
-
-function conditionFromSheet(s) {
-  if(!s || s==='OK')    return 'ok';
-  if(s==='Missing')     return 'missing';
-  if(s==='Damaged')     return 'damaged';
-  if(s==='Need More')   return 'missing';
-  if(s==='Not Active')  return 'inactive';
-  return 'ok';
-}
-
-let _sheetSyncing = false;
-
-async function loadInventoryFromSheet() {
-  if(_sheetSyncing) return;
-  _sheetSyncing = true;
-  showSheetStatus('loading');
-  try {
-    // Load inventory
-    const data = await sheetGET({action:'getInventory'});
-    if(data?.items?.length) {
-      // Sheet is source of truth — replace local equipment entirely on successful sync
-      STATE.equipment  = data.items.map(sheetRowToEq);
-      populateReportItemSelect();
-      renderEquipmentDashboard();
-      renderInventory();
-      renderChkFull();
-      renderHome();
-      showSheetStatus('ok', `${data.items.length} items synced`);
-    } else {
-      showSheetStatus('error', 'No items returned — check connection');
-    }
-
-    // Load locations
-    const locData = await sheetGET({action:'getLocations'});
-    if(locData?.locations?.length) {
-      STATE.locations = [...new Set([...DEFAULT_LOCATIONS, ...locData.locations])];
-    }
-
-    // Load members + update roles from sheet column E
-    const memData = await sheetGET({action:'getMembers'});
-    if(memData?.members?.length) {
-      // Update roles for existing members (sheet column E is authoritative)
-      memData.members.forEach(sm => {
-        const u = String(sm.unit||'').replace(/^BC-?/i,'').replace(/^0+/,'');
-        // Store raw role string (may be "Admin, Dispatch, member" etc.)
-        const sheetRole = (sm.role||sm.status||'member');
-        const idx = STATE.members.findIndex(x=>String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'')===u);
-        if(idx >= 0) STATE.members[idx].role = sheetRole;
-      });
-      // Add any new members
-      const savedUnits = new Set(STATE.members.map(m=>String(m.unit).replace(/^BC-?/i,'').replace(/^0+/,'')));
-      const newMembers = memData.members
-        .filter(m => m.unit && !savedUnits.has(String(m.unit).replace(/^BC-?/i,'').replace(/^0+/,'')))
-        .map(m => ({
-          unit: String(m.unit).replace(/^BC-?/i,''),
-          first: m.firstName||m.first||'',
-          last:  m.lastName||m.last||'',
-          phone: m.phone||'',
-          role:  (m.role||m.status||'member').toLowerCase(),
-          addedAt: Date.now()
-        }));
-      if(newMembers.length) STATE.members = [...STATE.members, ...newMembers];
-      renderMemberDir();
-    }
-    save();
-  } catch(err) {
-    showSheetStatus('error', 'Sheet offline — cached data');
-    console.warn('loadInventoryFromSheet error:', err);
-  }
-  _sheetSyncing = false;
-}
+async // Firestore data helpers
+function guessCat(name){const n=(name||'').toLowerCase();if(n.includes('fan'))return'Fan';if(n.includes('heater'))return'Heater';if(n.includes('light tower'))return'Light Tower';if(n.includes('shop vac'))return'Shop Vac';if(n.includes('a/c')||n.includes('ac '))return'A/C';if(n.includes('ez-spare')||n.includes('ez spare'))return'EZ-Spare';if(n.includes('generator')||n.includes('gen '))return'Generator';if(n.includes('sump')||n.includes('pump'))return'Pump';if(n.includes('ramp'))return'Ramp';if(n.includes('chainsaw'))return'Chainsaw';return'Other';}
+function conditionFromSheet(s){return s||'OK';}
+function sheetGET(){return Promise.resolve({});}
+function sheetPOST(){return Promise.resolve({});}
+function postJ(){return Promise.resolve({});}
+async function loadInventoryFromSheet(){showSheetStatus('loading');try{const db=firebase.firestore();const[eqSnap,memberSnap,locDoc]=await Promise.all([db.collection('equipment').orderBy('row').get(),db.collection('members').get(),db.collection('config').doc('locations').get()]);STATE.equipment=eqSnap.docs.map(d=>({id:d.id,...d.data()}));STATE.members=memberSnap.docs.map(d=>({id:d.id,...d.data()}));STATE.locations=locDoc.exists?[...new Set(locDoc.data().locations||[])]:[];renderInventory&&renderInventory();renderChkFull&&renderChkFull();renderHome&&renderHome();renderMemberDir&&renderMemberDir();save();showSheetStatus('ok');}catch(e){console.warn('loadInventoryFromSheet error:',e);showSheetStatus('err');}}
 
 function showSheetStatus(state, msg='') {
   // Update the equipment page sync indicator
@@ -2051,48 +1912,8 @@ function selectNoSpareAction(action, btn) {
     ezSec.style.display='none';
   }
 }
-async function manualSync() {
-  const btn = document.getElementById('topbarSync');
-  if(!btn || btn.classList.contains('spinning')) return;
-  btn.classList.remove('ok','error');
-  btn.classList.add('spinning');
-  try {
-    if(typeof loadInventoryFromSheet === 'function') {
-      await loadInventoryFromSheet();
-    }
-    btn.classList.remove('spinning');
-    btn.classList.add('ok');
-    showToast('✅ Synced from Google Sheet');
-    setTimeout(()=>btn.classList.remove('ok'), 3000);
-  } catch(e) {
-    btn.classList.remove('spinning');
-    btn.classList.add('error');
-    showToast('⚠️ Sync failed — check connection');
-    setTimeout(()=>btn.classList.remove('error'), 3000);
-  }
-}
-async function refreshEzSpareInventory() {
-  // (defined above by hoisting the manualSync block)
-  const hint = document.getElementById('ezSpareRefreshHint');
-  if(hint) hint.textContent = '⏳ Syncing inventory…';
-  try {
-    if(typeof sheetGET === 'function') {
-      const data = await sheetGET({action:'getInventory'});
-      if(data?.items?.length && typeof sheetRowToEq === 'function') {
-        const sheetNames = new Set(data.items.map(i=>i.name.toLowerCase()));
-        const localOnly = (STATE.equipment||[]).filter(e=>!e.fromSheet && !sheetNames.has(e.name.toLowerCase()));
-        STATE.equipment = [...data.items.map(sheetRowToEq), ...localOnly];
-        save();
-      }
-    }
-  } catch(e){}
-  // Re-render whatever size is currently selected to refresh available-units list
-  onEzSpareSizeChange();
-  if(hint) {
-    const t = new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    hint.innerHTML = `<a href="#" onclick="event.preventDefault();refreshEzSpareInventory()" style="color:var(--blue);text-decoration:none;">↻ Refresh inventory</a> <span style="opacity:.5;">· last sync ${t}</span>`;
-  }
-}
+async function manualSync(){showSheetStatus('loading');loadInventoryFromSheet().then(()=>showToast('Data refreshed')).catch(()=>{showToast('Refresh failed');showSheetStatus('err');});}
+async function refreshEzSpareInventory(){try{renderInventory&&renderInventory();renderChkFull&&renderChkFull();showSheetStatus('ok');}catch(e){console.warn(e);}}
 function onCarMakeChange_legacy_removed(){}
 function onEzSpareSizeChange() {
   const size = document.getElementById('ezSpareSize').value;
@@ -2273,102 +2094,18 @@ function load() {
 let _db = null;
 let _unsubscribeCalls = null;
 
-function initFirestore() {
-  _db = firebase.firestore();
-  // Real-time listener: any change to /calls collection syncs immediately
-  _unsubscribeCalls = _db.collection('calls').onSnapshot(snapshot => {
-    snapshot.docChanges().forEach(change => {
-      const sc = change.doc.data();
-      if (!sc || !sc.id) return;
-      if (change.type === 'removed') {
-        STATE.calls = STATE.calls.filter(c => c.id !== sc.id);
-      } else {
-        const li = STATE.calls.findIndex(c => c.id === sc.id);
-        if (li >= 0) { STATE.calls[li] = sc; }
-        else { STATE.calls.push(sc); }
-      }
-    });
-    save();
-    if(typeof SESSION !== 'undefined') { renderCalls(); renderHome(); }
-  }, err => console.warn('Firestore sync error:', err));
-}
+function initFirestore(){const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;const calls={};snap.forEach(doc=>{calls[doc.id]=doc.data();});STATE.calls=calls;save();renderCalls&&renderCalls();renderHome&&renderHome();}catch(e){console.warn('calls snapshot error:',e);}},e=>console.warn('calls listener error:',e));db.collection('equipment').orderBy('row').onSnapshot(snap=>{STATE.equipment=snap.docs.map(d=>({id:d.id,...d.data()}));save();if(typeof SESSION!=='undefined'){renderInventory&&renderInventory();renderHome&&renderHome();}},e=>console.warn('equipment snapshot error:',e));db.collection('members').onSnapshot(snap=>{STATE.members=snap.docs.map(d=>({id:d.id,...d.data()}));save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>console.warn('members snapshot error:',e));db.collection('config').doc('locations').onSnapshot(snap=>{if(snap.exists){STATE.locations=[...new Set(snap.data().locations||[])];}save();if(typeof SESSION!=='undefined'){renderLocationList&&renderLocationList();}},e=>console.warn('locations snapshot error:',e));}
 
-function firestoreUpsertCall(call) {
-  if (!_db || !call || !call.id) return;
-  _db.collection('calls').doc(call.id).set(call).catch(e => console.warn('Firestore write error:', e));
-}
+async function firestoreUpsertCall(call){try{await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
 
 function save() {
   try { localStorage.setItem('cobc_v21', JSON.stringify(STATE)); } catch(e){}
   }
   // ── CALL SYNC ── push one call to shared backend ──────────────────────────
 
-function doLogin() {
-  const unit = document.getElementById('loginUnit').value.trim().replace(/^BC-?/i,'');
-  const pass = document.getElementById('loginPass').value.trim();
-  const err  = document.getElementById('loginError');
-  err.textContent = '';
-  if(!unit) { err.textContent = 'Enter your BC number'; return; }
+function doLogin(){const unitRaw=(document.getElementById('loginUnit')?.value||'').trim().toUpperCase();const pass=(document.getElementById('loginPass')?.value||'').trim();const err=document.getElementById('loginError');if(err)err.textContent='';if(!unitRaw){if(err)err.textContent='Enter your unit number';return;}if(!pass){if(err)err.textContent='Enter your PIN';return;}let unit=unitRaw;if(/^\d+$/.test(unit))unit='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))unit='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');const btn=document.getElementById('loginBtn');if(btn)btn.disabled=true;firebase.firestore().collection('members').doc(unit).get().then(doc=>{if(btn)btn.disabled=false;if(!doc.exists){if(err)err.textContent='Member not found ('+unit+')';return;}const m=doc.data();if(String(m.pin)!==String(pass)){if(err)err.textContent='Incorrect PIN';return;}finishLogin(m);}).catch(e=>{if(btn)btn.disabled=false;if(err)err.textContent='Login error — check connection';console.error('doLogin error:',e);});}
 
-  // Look up member to get name + phone
-  const m = STATE.members.find(x =>
-    String(x.unit).replace(/^BC-?/i,'').replace(/^0+/,'') === unit.replace(/^0+/,'')
-  );
-  if(!m) { err.textContent = 'BC# not found — check your number'; return; }
-
-  const name = `${m.first} ${m.last}`.trim() || `BC-${unit}`;
-  const phone = m.phone || null;
-
-  // Password alone determines role — no sheet role checking
-  if(pass === 'cobcadmin') {
-    SESSION = { role:'admin', unit:m.unit, name, phone };
-    finishLogin(); return;
-  }
-  if(pass === 'cobcdisp') {
-    SESSION = { role:'dispatch', unit:m.unit, name, phone };
-    finishLogin(); return;
-  }
-  if(pass === '4357') {
-    SESSION = { role:'member', unit:m.unit, name, phone };
-    finishLogin(); return;
-  }
-
-  err.textContent = 'Incorrect password';
-}
-
-function finishLogin() {
-  // Clear any prior cobcet checklist unlock so non-privileged users get re-gated
-  try {
-    const privileged = ['admin','dispatch','equipment'].includes(SESSION.role);
-    if(!privileged) sessionStorage.removeItem('cobcet_ok');
-  } catch(e){}
-  document.getElementById('login-screen').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  document.getElementById('roleLabel').textContent = SESSION.role.toUpperCase();
-  const topSub = document.getElementById('topbarSub');
-  if(topSub) topSub.textContent = SESSION.name || `BC-${SESSION.unit}`;
-
-  const isAdmin    = SESSION.role === 'admin';
-  const isDispatch = ['admin','dispatch'].includes(SESSION.role);
-
-  // New Call buttons — visible for dispatch + admin, hidden for members
-  const btnDisplay = isDispatch ? '' : 'none';
-  ['homeNewCallBtn','newCallBtn'].forEach(id => {
-    const e = document.getElementById(id);
-    if(e) e.style.display = btnDisplay;
-  });
-
-  // Checklist tab — visible to all, password prompt inside
-  const chkTab = document.getElementById('eqChecklistTab');
-  if(chkTab) chkTab.style.display = '';
-  // Equipment Admin tab — admin role only
-  const eqAdmTab = document.getElementById('eqAdminTab');
-  if(eqAdmTab) eqAdmTab.style.display = SESSION.role==='admin' ? '' : 'none';
-
-  initApp();
-  showTab('home');
-  save();
-}
+function finishLogin(member){const role=(member.role||'member').toLowerCase();SESSION={unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||''};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}document.getElementById('login-screen').classList.add('hidden');document.getElementById('app').classList.remove('hidden');const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=SESSION.name+' · '+(SESSION.unit||'');const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';if(document.getElementById('loginPass'))document.getElementById('loginPass').value='';if(document.getElementById('loginUnit'))document.getElementById('loginUnit').value='';}
 
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('loginUnit').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
@@ -2388,6 +2125,8 @@ function clearOnDutyOverride() {
   delete STATE.onDuty;
   save(); showToast('Override cleared — using schedule');
 }
+function renderAdminMembers(){renderMemberDir&&renderMemberDir();}
+function adminResetPin(unit){const newPin=prompt('Set new PIN for '+unit+' (4+ digits):');if(!newPin||newPin.length<4){showToast('PIN must be 4+ digits');return;}firebase.firestore().collection('members').doc(unit).set({pin:newPin},{merge:true}).then(()=>showToast('PIN updated for '+unit)).catch(e=>{showToast('Error');console.error(e);});}
 function initApp() {
   // Initialize new call modal
   document.getElementById('carInfoSection').style.display='block'; // flat tire is default
@@ -3462,26 +3201,7 @@ function selectEditNoSpareAction(action, btn) {
     ezSec.style.display='none';
   }
 }
-async function refreshEditEzSpareInventory(preselectUnitId) {
-  const hint = document.getElementById('editEzSpareRefreshHint');
-  if(hint) hint.textContent = '⏳ Syncing inventory…';
-  try {
-    if(typeof sheetGET === 'function') {
-      const data = await sheetGET({action:'getInventory'});
-      if(data?.items?.length && typeof sheetRowToEq === 'function') {
-        const sheetNames = new Set(data.items.map(i=>i.name.toLowerCase()));
-        const localOnly = (STATE.equipment||[]).filter(e=>!e.fromSheet && !sheetNames.has(e.name.toLowerCase()));
-        STATE.equipment = [...data.items.map(sheetRowToEq), ...localOnly];
-        save();
-      }
-    }
-  } catch(e){}
-  onEditEzSpareSizeChange(preselectUnitId);
-  if(hint) {
-    const t = new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    hint.innerHTML = `<a href="#" onclick="event.preventDefault();refreshEditEzSpareInventory()" style="color:var(--blue);text-decoration:none;">↻ Refresh inventory</a> <span style="opacity:.5;">· last sync ${t}</span>`;
-  }
-}
+async function refreshEditEzSpareInventory(){renderInventory&&renderInventory();}
 function onEditEzSpareSizeChange(preselectUnitId) {
   const size = document.getElementById('editEzSpareSize').value;
   const unitSel = document.getElementById('editEzSpareUnit');
@@ -3625,21 +3345,8 @@ function checkReRequests() {
 // ──────────────────────────────────────────────
 let memberFilter='all';
 
-function deleteMemberLocal(unit) {
-  if(!confirm('Delete BC-'+unit+'?')) return;
-  STATE.members = STATE.members.filter(m => String(m.unit) !== String(unit));
-  save(); renderMemberDir(); showToast('Member deleted');
-}
-function addMemberLocal() {
-  const unit=(document.getElementById('newMemberUnitInline')?.value||'').trim();
-  const first=(document.getElementById('newMemberFirstInline')?.value||'').trim();
-  const last=(document.getElementById('newMemberLastInline')?.value||'').trim();
-  const phone=(document.getElementById('newMemberPhoneInline')?.value||'').trim();
-  if(!unit||!first||!last){showToast('Enter BC#, first and last name');return;}
-  if(STATE.members.find(m=>String(m.unit)===unit)){showToast('BC-'+unit+' already exists');return;}
-  STATE.members.push({unit,first,last,phone,role:'member',addedAt:Date.now()});
-  save(); renderMemberDir(); showToast('BC-'+unit+' '+first+' '+last+' added');
-}
+function deleteMemberLocal(unit){if(!confirm('Delete member '+unit+'?'))return;firebase.firestore().collection('members').doc(unit).delete().then(()=>showToast('Member deleted')).catch(e=>{showToast('Error deleting member');console.error(e);});}
+function addMemberLocal(){const modal=document.getElementById('addMemberModal');if(modal)showModal('addMemberModal');else showToast('Use admin panel to add members');}
 function setMemberFilter(f,el) {
   memberFilter=f;
   document.querySelectorAll('#memberFilters .chip').forEach(c=>c.classList.remove('active'));
@@ -3655,39 +3362,9 @@ function openEditMemberRole(unit) {
   document.getElementById('editMbrPhone').value = m.phone || '';
   showModal('editMemberRoleModal');
 }
-function saveEditMemberRole() {
-  const unit = document.getElementById('editMbrUnit').value;
-  const m = STATE.members.find(x => String(x.unit) === String(unit));
-  if(!m) return;
-  const oldRole = m.role;
-  m.role = document.getElementById('editMbrRole').value;
-  m.phone = (document.getElementById('editMbrPhone').value||'').trim() || m.phone;
-  save();
-  hideModal('editMemberRoleModal');
-  renderMemberDir();
-  if(typeof renderEqMemberList === 'function') renderEqMemberList();
-  try { sheetPOST({action:'updateMember', memberId:unit, role:m.role, phone:m.phone}); } catch(e){}
-  showToast(`✅ BC-${unit} role: ${oldRole||'—'} → ${m.role}`);
-}
+function saveEditMemberRole(){const unit=document.getElementById('editMbrUnit')?.textContent?.trim();const role=document.getElementById('editMbrRole')?.value?.trim();const phone=document.getElementById('editMbrPhone')?.value?.trim();if(!unit)return;firebase.firestore().collection('members').doc(unit).set({role,phone},{merge:true}).then(()=>{showToast('Member updated');hideModal('editMemberRoleModal');}).catch(e=>{showToast('Error saving member');console.error(e);});}
 
-function submitAddMember() {
-  const unit = (document.getElementById('addMbrUnit').value||'').trim();
-  const first = (document.getElementById('addMbrFirst').value||'').trim();
-  const last = (document.getElementById('addMbrLast').value||'').trim();
-  const phone = (document.getElementById('addMbrPhone').value||'').trim();
-  const role = document.getElementById('addMbrRole').value || 'member';
-  if(!unit || !first || !last) { showToast('Enter BC #, first and last name'); return; }
-  if(STATE.members.find(m => String(m.unit)===String(unit))) { showToast(`BC-${unit} already exists`); return; }
-  STATE.members.push({unit, first, last, phone, role, addedAt:Date.now()});
-  save();
-  ['addMbrUnit','addMbrFirst','addMbrLast','addMbrPhone'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  document.getElementById('addMbrRole').value='member';
-  hideModal('addMemberModal');
-  renderMemberDir();
-  if(typeof renderEqMemberList === 'function') renderEqMemberList();
-  try { sheetPOST({action:'addMember', memberId:unit, firstName:first, lastName:last, phone}); } catch(e){}
-  showToast(`✅ Added BC-${unit} ${first}`);
-}
+function submitAddMember(){const unit=(document.getElementById('addMbrUnit')?.value||'').trim().toUpperCase();const first=(document.getElementById('addMbrFirst')?.value||'').trim();const last=(document.getElementById('addMbrLast')?.value||'').trim();const phone=(document.getElementById('addMbrPhone')?.value||'').trim();const role=(document.getElementById('addMbrRole')?.value||'member').trim();if(!unit||!first||!last){showToast('Unit, first and last name required');return;}let norm=unit;if(/^\d+$/.test(unit))norm='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');firebase.firestore().collection('members').doc(norm).set({unit:norm,firstName:first,lastName:last,name:first+' '+last,phone,role,pin:'1234',addedAt:Date.now()}).then(()=>{['addMbrUnit','addMbrFirst','addMbrLast','addMbrPhone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});hideModal('addMemberModal');showToast('Member added');}).catch(e=>{showToast('Error adding member');console.error(e);});}
 
 function renderMemberDir() {
   const el=document.getElementById('memberDir');
@@ -3840,49 +3517,9 @@ function renderEqLocList2() {
       ${l==='COBC'?'<span style="font-size:11px;color:var(--text3);">default</span>':`<button class="btn-sm btn-ghost" style="font-size:11px;padding:5px 10px;" onclick="removeLocationFromMore(${i})">Remove</button>`}
     </div>`).join('');
 }
-function addLocationFromMore() {
-  const v = (document.getElementById('newLocName2').value||'').trim();
-  if(!v) { showToast('Enter location name'); return; }
-  STATE.locations = STATE.locations || ['COBC'];
-  if(STATE.locations.includes(v)) { showToast('Already exists'); return; }
-  STATE.locations.push(v); save();
-  document.getElementById('newLocName2').value='';
-  renderEqLocList2();
-  if(typeof renderEqLocList==='function') renderEqLocList();
-  try { sheetPOST({action:'updateLocations', locations:STATE.locations}); } catch(e){}
-  showToast(`📍 ${v} added`);
-}
-function removeLocationFromMore(i) {
-  if(!STATE.locations || STATE.locations[i]==='COBC') return;
-  const name = STATE.locations[i];
-  if(!confirm(`Remove location "${name}"?`)) return;
-  STATE.locations.splice(i,1); save();
-  renderEqLocList2();
-  if(typeof renderEqLocList==='function') renderEqLocList();
-  try { sheetPOST({action:'updateLocations', locations:STATE.locations}); } catch(e){}
-  showToast(`Removed ${name}`);
-}
-async function addEquipmentFromMore() {
-  const name = (document.getElementById('newEqName2').value||'').trim();
-  const loc  = document.getElementById('newEqLoc2').value || 'COBC';
-  if(!name) { showToast('Enter item name'); return; }
-  // Auto-detect category from name (uses existing getCat helper if available)
-  const cat = (typeof getCat==='function') ? getCat(name) : 'Other';
-  let newRow = null;
-  try {
-    const r = await sheetPOST({action:'addItem', name, location:loc});
-    if(r && r.success && r.row) newRow = r.row;
-  } catch(e) {}
-  const id = newRow ? `EQ-${String(newRow).padStart(4,'0')}` : `EQ-L${Date.now()}`;
-  const item = {id, row:newRow||null, name, category:cat, location:loc, status:'in', condition:'ok', equipStatus:'OK', equipNote:'', isCNC:false, cncNote:'', ccnc:'CC', history:[], notes:'', fromSheet:!!newRow};
-  STATE.equipment.push(item); save();
-  document.getElementById('newEqName2').value='';
-  renderInventory(); renderEquipmentDashboard(); renderEqAdminList2(); renderHlocList2();
-  if(typeof renderEqAdminList==='function') renderEqAdminList();
-  populateReportItemSelect();
-  showToast(`✅ ${name} added`);
-  if(typeof showQRForItem==='function') showQRForItem(item);
-}
+function addLocationFromMore(){const name=(document.getElementById('newLocName2')?.value||'').trim();if(!name){showToast('Enter a location name');return;}const locs=[...(STATE.locations||[])];if(locs.includes(name)){showToast('Already exists');return;}locs.push(name);firebase.firestore().collection('config').doc('locations').set({locations:locs,updatedAt:Date.now()}).then(()=>{document.getElementById('newLocName2').value='';showToast('Location added');}).catch(e=>{showToast('Error');console.error(e);});}
+function removeLocationFromMore(name){if(!name)return;const locs=(STATE.locations||[]).filter(l=>l!==name);firebase.firestore().collection('config').doc('locations').set({locations:locs,updatedAt:Date.now()}).then(()=>showToast('Location removed')).catch(e=>{showToast('Error');console.error(e);});}
+async function addEquipmentFromMore(){const name=(document.getElementById('newEqName2')?.value||'').trim();const loc=(document.getElementById('newEqLoc2')?.value||'COBC').trim();if(!name){showToast('Enter equipment name');return;}const maxRow=(STATE.equipment||[]).reduce((m,e)=>Math.max(m,e.row||0),0);const newRow=maxRow+1;const id='EQ-'+String(newRow).padStart(4,'0');firebase.firestore().collection('equipment').doc(id).set({id,row:newRow,name,homeLocation:loc,status:'IN',member:'',call:'',lastUpdated:new Date().toLocaleString(),ccnc:'CC',isCNC:false,cncNote:'',equipStatus:'OK',equipNote:''}).then(()=>{document.getElementById('newEqName2').value='';showToast('Equipment added');}).catch(e=>{showToast('Error');console.error(e);});}
 function renderHlocList2() {
   const el = document.getElementById('hlocList2');
   if(!el) return;
@@ -3911,25 +3548,7 @@ function hlocChanged2(id) {
   if(ok) ok.style.display='none';
   btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
 }
-async function saveHloc2(id) {
-  const sel = document.getElementById('hloc2-sel-'+id);
-  const btn = document.getElementById('hloc2-btn-'+id);
-  const ok  = document.getElementById('hloc2-ok-'+id);
-  const item = STATE.equipment.find(e=>e.id===id);
-  if(!item || !sel) return;
-  const newLoc = sel.value;
-  if(newLoc === item.location) return;
-  btn.disabled = true; btn.textContent = '…';
-  item.location = newLoc; save();
-  let success = false;
-  if(item.row) {
-    try { const r = await sheetPOST({action:'updateHomeLocation', row:item.row, location:newLoc}); success = r && r.success; } catch(e){}
-  }
-  btn.disabled = false; btn.textContent = 'Save'; btn.style.display = 'none';
-  if(ok) { ok.style.display='inline'; setTimeout(()=>ok.style.display='none', 2500); }
-  renderInventory(); renderEquipmentDashboard();
-  showToast(success ? `📍 ${item.name} → ${newLoc}` : `Saved locally — sheet sync failed`);
-}
+async function saveHloc2(id){const sel=document.getElementById('hloc2-sel-'+id);const btn=document.getElementById('hloc2-btn-'+id);const ok=document.getElementById('hloc2-ok-'+id);if(!sel)return;if(btn)btn.disabled=true;firebase.firestore().collection('equipment').doc(id).set({homeLocation:sel.value},{merge:true}).then(()=>{if(ok)ok.textContent='✓';showToast('Updated');setTimeout(()=>{if(ok)ok.textContent='';if(btn)btn.disabled=false;},1500);}).catch(e=>{showToast('Error');if(btn)btn.disabled=false;console.error(e);});}
 function renderEqAdminList2() {
   const list = document.getElementById('eqAdminList2');
   const count = document.getElementById('eqAdminCount2');
@@ -3963,23 +3582,7 @@ function renderEqAdminList2() {
   }).join('') + (items.length>200 ? `<div style="padding:10px;color:var(--text3);font-size:12px;text-align:center;">Showing first 200 of ${items.length}</div>` : '');
 }
 
-async function setAdminEqStatus(id, status) {
-  const item = STATE.equipment.find(e=>e.id===id);
-  if(!item) return;
-  item.equipStatus = status;
-  if(status==='OK') { item.equipNote=''; item.ccnc='CC'; item.isCNC=false; item.cncNote=''; }
-  save();
-  renderEqAdminList2();
-  renderInventory(); renderEquipmentDashboard();
-  if(typeof renderChkFull==='function') renderChkFull();
-  // Push to Google Sheet
-  if(item.row) {
-    try {
-      await sheetPOST({action:'updateEquipmentStatus', row:item.row, status, note:'', resetNote:status==='OK'});
-    } catch(e) {}
-  }
-  showToast(`${item.name} → ${status}`);
-}
+async function setAdminEqStatus(id,status){firebase.firestore().collection('equipment').doc(id).set({equipStatus:status,lastUpdated:new Date().toLocaleString()},{merge:true}).then(()=>showToast('Status updated')).catch(e=>{showToast('Error');console.error(e);});}
 
 function _OLD_setMoreTab_unused(tab,el) {
   ['numbers','stats','schedule','vehicles'].forEach(t=>{
@@ -5179,27 +4782,8 @@ function renderEqMemberList() {
     </div>`;
   }).join('') + (filtered.length>200 ? `<div style="padding:8px;color:var(--text3);font-size:11px;text-align:center;">${filtered.length-200} more — use search</div>` : '');
 }
-function deleteMemberEq(unit) {
-  if(!confirm(`Delete member BC-${unit}? This cannot be undone.`)) return;
-  STATE.members = STATE.members.filter(m => String(m.unit) !== String(unit));
-  save(); renderEqMemberList(); if(typeof renderMemberDir==='function') renderMemberDir();
-  try { sheetPOST({action:'deleteMember', memberId:unit}); } catch(e){}
-  showToast(`Removed BC-${unit}`);
-}
-function addMemberFromEq() {
-  const unit = (document.getElementById('newMemberUnitEq').value||'').trim();
-  const first = (document.getElementById('newMemberFirstEq').value||'').trim();
-  const last = (document.getElementById('newMemberLastEq').value||'').trim();
-  const phone = (document.getElementById('newMemberPhoneEq').value||'').trim();
-  const role = document.getElementById('newMemberRoleEq').value || 'member';
-  if(!unit || !first || !last) { showToast('Enter BC #, first and last name'); return; }
-  if(STATE.members.find(m => String(m.unit)===String(unit))) { showToast(`BC-${unit} already exists`); return; }
-  STATE.members.push({unit, first, last, phone, role});
-  save(); renderEqMemberList(); if(typeof renderMemberDir==='function') renderMemberDir();
-  ['newMemberUnitEq','newMemberFirstEq','newMemberLastEq','newMemberPhoneEq'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
-  try { sheetPOST({action:'addMember', memberId:unit, firstName:first, lastName:last, phone}); } catch(e){}
-  showToast(`✅ Added BC-${unit} ${first}`);
-}
+function deleteMemberEq(unit){if(!confirm('Delete member '+unit+'?'))return;firebase.firestore().collection('members').doc(unit).delete().then(()=>showToast('Member deleted')).catch(e=>{showToast('Error');console.error(e);});}
+function addMemberFromEq(){const unit=(document.getElementById('newMemberUnitEq')?.value||'').trim().toUpperCase();const first=(document.getElementById('newMemberFirstEq')?.value||'').trim();const last=(document.getElementById('newMemberLastEq')?.value||'').trim();const phone=(document.getElementById('newMemberPhoneEq')?.value||'').trim();const role=(document.getElementById('newMemberRoleEq')?.value||'member').trim();if(!unit||!first||!last){showToast('Unit, first and last required');return;}let norm=unit;if(/^\d+$/.test(unit))norm='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');firebase.firestore().collection('members').doc(norm).set({unit:norm,firstName:first,lastName:last,name:first+' '+last,phone,role,pin:'1234',addedAt:Date.now()}).then(()=>{['newMemberUnitEq','newMemberFirstEq','newMemberLastEq','newMemberPhoneEq'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});showToast('Member added');}).catch(e=>{showToast('Error');console.error(e);});}
 
 function setEqFilter(f,el) {
   eqFilter=f;
@@ -5235,14 +4819,7 @@ function setEqCat(cat,el) {
 
 // ── EQUIPMENT DASHBOARD ──
 
-async function deleteEquipmentItem(id) {
-  const eq = STATE.equipment.find(e => e.id === id);
-  if(!eq) return;
-  if(!confirm('Delete '+eq.name+'?')) return;
-  STATE.equipment = STATE.equipment.filter(e => e.id !== id);
-  save(); renderInventory(); renderEquipmentDashboard(); showToast(eq.name+' deleted');
-  if(eq.row) { try{ await sheetPOST({action:'deleteItem',row:eq.row}); }catch(e){} }
-}
+async function deleteEquipmentItem(id){if(!confirm('Delete equipment '+id+'?'))return;firebase.firestore().collection('equipment').doc(id).delete().then(()=>showToast('Equipment deleted')).catch(e=>{showToast('Error');console.error(e);});}
 function renderEquipmentDashboard() {
   const active=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
   const total=active.length;
@@ -5396,47 +4973,9 @@ function renderCOSearch() {
   res.style.display='block';
   res.innerHTML=matches.map(e=>`<div onclick="coModalItems.push(STATE.equipment.find(x=>x.row===${e.row}));renderCOModalList();document.getElementById('coModalSearch').value='';document.getElementById('coModalSearchResults').style.display='none';" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--navy);">${e.name} <span style="color:var(--text3);font-weight:400;">— ${e.location}</span></div>`).join('');
 }
-async function submitCO(action) {
-  if(!coModalItems.length){showToast('Select at least one item');return;}
-  const member=document.getElementById('coModalMember').value.trim();
-  const call=document.getElementById('coModalCall').value.trim();
-  const ccnc=document.getElementById('coModalCCNC').value;
-  const cncNote=document.getElementById('coModalCNCNote').value.trim();
-  if(!member){showToast('Enter your BC member number');return;}
-  if(!call){showToast('Enter the call number');return;}
-  if(!ccnc){showToast('Select CC or CNC');return;}
-  if(ccnc==='CNC'&&!cncNote){showToast('Describe where the item is');return;}
-  const items=[...coModalItems];
-  hideModal('checkoutModal'); coModalItems=[];
-  showToast(`Processing ${items.length} item${items.length>1?'s':''}...`);
-  for(const item of items) {
-    const idx=STATE.equipment.findIndex(e=>e.row===item.row);
-    if(idx>=0){
-      STATE.equipment[idx].status=action==='IN'?'in':'out';
-      STATE.equipment[idx].checkedOutBy=action==='OUT'?member:null;
-      STATE.equipment[idx].callNum=action==='OUT'?call:null;
-      STATE.equipment[idx].isCNC=ccnc==='CNC';
-      STATE.equipment[idx].cncNote=cncNote;
-      STATE.equipment[idx].ccnc=ccnc==='CNC'?'CNC - '+cncNote:ccnc;
-      STATE.equipment[idx].lastUpdated=new Date().toLocaleString();
-    }
-    STATE.activity.push({name:item.name,id:item.id,action:action==='IN'?'in':'out',unit:member,callNum:call,time:Date.now()});
-    if(item.row) {
-      try { await sheetPOST({action:'checkInOut',row:item.row,status:action,member,call,ccSel:ccnc,cncNote}); } catch(e){}
-    }
-  }
-  save(); renderEquipmentDashboard(); renderInventory(); renderHome();
-  showToast(`${items.length} item${items.length>1?'s':''} checked ${action}`);
-}
+async function submitCO(action,id){const member=(document.getElementById('coModalMember')?.value||'');const call=(document.getElementById('coModalCall')?.value||'');const ccnc=(document.getElementById('coModalCCNC')?.value||'CC');const cncNote=(document.getElementById('coModalCNCNote')?.value||'');const items=(STATE._coItems||[id]).filter(Boolean);const ts=new Date().toLocaleString();const db=firebase.firestore();Promise.all(items.map(itemId=>{const update=action==='OUT'?{status:'OUT',member,call,ccnc,cncNote,lastUpdated:ts}:{status:'IN',member:'',call:'',ccnc:'CC',cncNote:'',lastUpdated:ts};return db.collection('equipment').doc(itemId).set(update,{merge:true});})).then(()=>{hideModal('coModal');showToast(action==='OUT'?'Checked out':'Checked in');STATE._coItems=null;}).catch(e=>{showToast('Error updating equipment');console.error(e);});}
 
-async function resetEqStatus(row) {
-  const eq=STATE.equipment.find(e=>e.row===row);
-  if(!eq) return;
-  eq.equipStatus='OK'; eq.condition='ok'; eq.isCNC=false; eq.cncNote=''; eq.ccnc='CC';
-  save(); renderEquipmentDashboard(); renderInventory();
-  showToast('Marked as OK');
-  if(row) { try{ await sheetPOST({action:'updateEquipmentStatus',row,status:'OK',note:'',resetNote:true}); }catch(e){} }
-}
+async function resetEqStatus(id){firebase.firestore().collection('equipment').doc(id).set({equipStatus:'OK',equipNote:'',lastUpdated:new Date().toLocaleString()},{merge:true}).then(()=>showToast('Status reset')).catch(e=>{showToast('Error');console.error(e);});}
 
 // ── CHECKLIST ──
 let chkCurLoc=null, chkFilter='all', chkStatus={}, chkNotes={};
@@ -5520,27 +5059,8 @@ function renderChkItems() {
   }).join('');
 }
 
-function setChkStatus(key, status) {
-  chkStatus[key]=status;
-  if(status==='OK') chkNotes[key]='';
-  const note=chkNotes[key]||'';
-  postJ({action:'updateEquipmentStatus',row:key,status,note,resetNote:status==='OK'}).then(data=>{
-    if(data?.success){
-      const idx=STATE.equipment.findIndex(e=>(e.row||e.id)===key);
-      if(idx>=0){STATE.equipment[idx].equipStatus=status;if(status==='OK'){STATE.equipment[idx].equipNote='';}else{STATE.equipment[idx].equipNote=note?status+' - '+note:status;}}
-      save(); renderEquipmentDashboard();
-    }
-  }).catch(()=>{});
-  renderChkItems();
-}
-function saveChkNote(key) {
-  const status=chkStatus[key]||''; const note=chkNotes[key]||'';
-  if(!status||status==='OK') return;
-  postJ({action:'updateEquipmentStatus',row:key,status,note,resetNote:false}).catch(()=>{});
-  const idx=STATE.equipment.findIndex(e=>(e.row||e.id)===key);
-  if(idx>=0) STATE.equipment[idx].equipNote=note?status+' - '+note:status;
-  save();
-}
+function setChkStatus(key,status){const eq=(STATE.equipment||[]).find(e=>String(e.id)===String(key)||String(e.row)===String(key));if(!eq)return;firebase.firestore().collection('equipment').doc(eq.id).set({equipStatus:status,lastUpdated:new Date().toLocaleString()},{merge:true}).catch(e=>console.warn(e));eq.equipStatus=status;renderChkItems&&renderChkItems();}
+function saveChkNote(key){const input=document.getElementById('chkNote-'+key);if(!input)return;const note=input.value.trim();const eq=(STATE.equipment||[]).find(e=>String(e.id)===String(key)||String(e.row)===String(key));if(!eq)return;firebase.firestore().collection('equipment').doc(eq.id).set({equipNote:note,lastUpdated:new Date().toLocaleString()},{merge:true}).then(()=>showToast('Note saved')).catch(e=>console.warn(e));eq.equipNote=note;}
 function sendChkWhatsApp() {
   if(!chkCurLoc) return;
   var li=STATE.equipment.filter(function(e){return e.location===chkCurLoc&&e.equipStatus!=='Not Active';});
@@ -5589,55 +5109,11 @@ function renderLocationList() {
       ${l==='COBC'?'<span style="font-size:11px;color:var(--text3);">(default)</span>':`<button class="btn-sm btn-ghost" style="font-size:11px;" onclick="removeLocation(${i})">Remove</button>`}
     </div>`).join('');
 }
-function addLocation() {
-  const v = (document.getElementById('newLocName').value||'').trim();
-  if(!v) { showToast('Enter a location name'); return; }
-  STATE.locations = STATE.locations || ['COBC'];
-  if(STATE.locations.includes(v)) { showToast('Already exists'); return; }
-  STATE.locations.push(v); save();
-  document.getElementById('newLocName').value='';
-  renderLocationList();
-  try { sheetPOST({action:'updateLocations', locations:STATE.locations}); } catch(e) {}
-  showToast(`📍 ${v} added`);
-}
-function removeLocation(i) {
-  if(!STATE.locations || STATE.locations[i]==='COBC') return;
-  const name = STATE.locations[i];
-  if(!confirm(`Remove location "${name}"?`)) return;
-  STATE.locations.splice(i,1); save();
-  renderLocationList();
-  try { sheetPOST({action:'updateLocations', locations:STATE.locations}); } catch(e) {}
-  showToast(`Removed ${name}`);
-}
+function addLocation(){const name=(document.getElementById('newLocName')?.value||'').trim();if(!name){showToast('Enter a location name');return;}const locs=[...(STATE.locations||[])];if(locs.includes(name)){showToast('Already exists');return;}locs.push(name);firebase.firestore().collection('config').doc('locations').set({locations:locs,updatedAt:Date.now()}).then(()=>{document.getElementById('newLocName').value='';showToast('Location added');}).catch(e=>{showToast('Error');console.error(e);});}
+function removeLocation(name){if(!name)return;const locs=(STATE.locations||[]).filter(l=>l!==name);firebase.firestore().collection('config').doc('locations').set({locations:locs,updatedAt:Date.now()}).then(()=>showToast('Location removed')).catch(e=>{showToast('Error');console.error(e);});}
 
 // ── ADMIN: Add Equipment + QR Generation ──
-async function addEquipment() {
-  const name = (document.getElementById('newEqName').value||'').trim();
-  const cat  = document.getElementById('newEqCat').value;
-  const loc  = document.getElementById('newEqLoc').value || 'COBC';
-  if(!name) { showToast('Enter an item name'); return; }
-  // Save to sheet first to get a real row #
-  let newRow = null;
-  try {
-    const r = await sheetPOST({action:'addItem', name, location:loc});
-    if(r && r.success && r.row) newRow = r.row;
-  } catch(e) {}
-  // Build local record
-  const id = newRow ? `EQ-${String(newRow).padStart(4,'0')}` : `EQ-L${Date.now()}`;
-  const item = {
-    id, row:newRow||null, name, category:cat, location:loc,
-    status:'in', condition:'ok', equipStatus:'OK', equipNote:'',
-    isCNC:false, cncNote:'', ccnc:'CC', history:[], notes:'',
-    fromSheet: !!newRow
-  };
-  STATE.equipment.push(item); save();
-  document.getElementById('newEqName').value='';
-  renderInventory(); renderEquipmentDashboard(); renderEqAdminList(); renderHlocList();
-  populateReportItemSelect();
-  showToast(`✅ ${name} added`);
-  // Show QR code modal so dispatcher can print/save it
-  showQRForItem(item);
-}
+async function addEquipment(){const name=(document.getElementById('newEqName')?.value||'').trim();const loc=(document.getElementById('newEqLoc')?.value||'COBC').trim();if(!name){showToast('Enter equipment name');return;}const maxRow=(STATE.equipment||[]).reduce((m,e)=>Math.max(m,e.row||0),0);const newRow=maxRow+1;const id='EQ-'+String(newRow).padStart(4,'0');firebase.firestore().collection('equipment').doc(id).set({id,row:newRow,name,homeLocation:loc,status:'IN',member:'',call:'',lastUpdated:new Date().toLocaleString(),ccnc:'CC',isCNC:false,cncNote:'',equipStatus:'OK',equipNote:''}).then(()=>{document.getElementById('newEqName').value='';showToast('Equipment added');}).catch(e=>{showToast('Error');console.error(e);});}
 
 function showQRForItem(item) {
   const modal = document.getElementById('qrDisplayModal');
@@ -5758,32 +5234,7 @@ function hlocChanged(id) {
   btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
 }
 
-async function saveHloc(id) {
-  const sel = document.getElementById('hloc-sel-'+id);
-  const btn = document.getElementById('hloc-btn-'+id);
-  const ok  = document.getElementById('hloc-ok-'+id);
-  const item = STATE.equipment.find(e=>e.id===id);
-  if(!item || !sel) return;
-  const newLoc = sel.value;
-  if(newLoc === item.location) return;
-  btn.disabled = true; btn.textContent = '…';
-  // Update locally first
-  item.location = newLoc;
-  save();
-  // Persist to sheet
-  let success = false;
-  if(item.row) {
-    try {
-      const r = await sheetPOST({action:'updateHomeLocation', row:item.row, location:newLoc});
-      success = r && r.success;
-    } catch(e) {}
-  }
-  btn.disabled = false; btn.textContent = 'Save';
-  btn.style.display = 'none';
-  if(ok) { ok.style.display='inline'; setTimeout(()=>ok.style.display='none', 2500); }
-  renderInventory(); renderEquipmentDashboard(); renderChkFull(); renderEqAdminList();
-  showToast(success ? `📍 ${item.name} → ${newLoc}` : `Saved locally — sheet sync failed`);
-}
+async function saveHloc(id){const sel=document.getElementById('hloc-sel-'+id);const btn=document.getElementById('hloc-btn-'+id);const ok=document.getElementById('hloc-ok-'+id);if(!sel)return;if(btn)btn.disabled=true;firebase.firestore().collection('equipment').doc(id).set({homeLocation:sel.value},{merge:true}).then(()=>{if(ok)ok.textContent='✓';showToast('Updated');setTimeout(()=>{if(ok)ok.textContent='';if(btn)btn.disabled=false;},1500);}).catch(e=>{showToast('Error');if(btn)btn.disabled=false;console.error(e);});}
 
 // ── REPORTS ──
 function selRptType(type,btn) {
@@ -5818,31 +5269,9 @@ function renderReports() {
     '<div class="alert alert-green"><span class="alert-icon">+</span><div class="alert-body"><div class="alert-title">No open reports</div></div></div>';
 }
 
-async function submitReport() {
-  const type=rptCurType;
-  const item=document.getElementById('reportItem')?.value;
-  const member=document.getElementById('reportMember')?.value?.trim()||SESSION.unit;
-  const notes=document.getElementById('reportNotes')?.value?.trim()||'';
-  if(!type){showToast('Select a report type');return;}
-  if(!item){showToast('Select an item');return;}
-  const report={id:'R'+Date.now(),type,item,notes,time:Date.now(),unit:member,resolved:false};
-  STATE.reports.push(report); save();
-  if(document.getElementById('reportNotes')) document.getElementById('reportNotes').value='';
-  showToast('Report submitted'); renderReports();
-  const eq=STATE.equipment.find(e=>e.name===item);
-  try {
-    await sheetPOST({action:'submitReport',item,location:eq?.location||'',type,note:notes,member});
-    if(eq?.row&&(type==='Missing'||type==='Damaged')) {
-      await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:type,note:notes});
-      eq.equipStatus=type; eq.condition=type.toLowerCase(); save();
-    }
-  } catch(e){ showToast('Sheet sync failed — saved locally'); }
-}
+async function submitReport(){const itemId=(document.getElementById('reportItem')?.value||'');const member=(document.getElementById('reportMember')?.value||SESSION?.unit||'');const notes=(document.getElementById('reportNotes')?.value||'');if(!itemId||!notes){showToast('Select item and describe issue');return;}const db=firebase.firestore();const reportId='RPT-'+Date.now();db.collection('reports').doc(reportId).set({id:reportId,itemId,member,notes,status:'open',createdAt:Date.now(),resolvedAt:null}).then(()=>db.collection('equipment').doc(itemId).set({equipStatus:'ISSUE',equipNote:notes,lastUpdated:new Date().toLocaleString()},{merge:true})).then(()=>{if(document.getElementById('reportNotes'))document.getElementById('reportNotes').value='';hideModal('reportModal');showToast('Report submitted');}).catch(e=>{showToast('Error submitting report');console.error(e);});}
 
-function resolveReport(id) {
-  const r=STATE.reports.find(x=>x.id===id);
-  if(r){r.resolved=true;save();renderReports();showToast('Report resolved');}
-}
+function resolveReport(reportId,itemId){const db=firebase.firestore();db.collection('reports').doc(reportId).set({status:'resolved',resolvedAt:Date.now()},{merge:true}).then(()=>itemId?db.collection('equipment').doc(itemId).set({equipStatus:'OK',equipNote:'',lastUpdated:new Date().toLocaleString()},{merge:true}):Promise.resolve()).then(()=>{showToast('Report resolved');renderReports&&renderReports();}).catch(e=>{showToast('Error');console.error(e);});}
 
 // ── Alias for backward compat ──
 function postJ(body) { return sheetPOST(body); }
