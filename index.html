@@ -1596,6 +1596,7 @@ const FCM_VAPID_KEY  = "BD8o_wgfv2pPsHgI238OZGEMPEG8ZbvtSoL7p6VjwrM8oTXH3e86gvKU
 
 let _fcmApp = null, _fcmMessaging = null, _fcmToken = null;
 
+let STATE = load();
 async function initPushModule() {
   // Don't even try if SDK / config not loaded
   if (!window.firebase || FCM_CONFIG.apiKey.startsWith("PASTE_")) return;
@@ -1695,7 +1696,6 @@ if (document.readyState === 'loading') {
 
 // Login roles stored in Firestore members collection.
 
-async // Firestore data helpers
 function guessCat(name){const n=(name||'').toLowerCase();if(n.includes('fan'))return'Fan';if(n.includes('heater'))return'Heater';if(n.includes('light tower'))return'Light Tower';if(n.includes('shop vac'))return'Shop Vac';if(n.includes('a/c')||n.includes('ac '))return'A/C';if(n.includes('ez-spare')||n.includes('ez spare'))return'EZ-Spare';if(n.includes('generator')||n.includes('gen '))return'Generator';if(n.includes('sump')||n.includes('pump'))return'Pump';if(n.includes('ramp'))return'Ramp';if(n.includes('chainsaw'))return'Chainsaw';return'Other';}
 function conditionFromSheet(s){return s||'OK';}
 function sheetGET(){return Promise.resolve({});}
@@ -2022,7 +2022,6 @@ const DEFAULT_NUMBERS = [
 ];
 
 // ── State ──
-let STATE = load();
 
 function defaultState() {
   return {
@@ -2541,6 +2540,7 @@ function createCall() {
   };
 
   STATE.calls.push(call); save(); firestoreUpsertCall(call);
+  firebase.firestore().collection('calls').doc(call.id).set(call).catch(e=>console.error('calls sync:',e));
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
   hideModal('newCallModal');
   ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
