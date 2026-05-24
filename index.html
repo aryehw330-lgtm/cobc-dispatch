@@ -1596,6 +1596,8 @@ const FCM_VAPID_KEY  = "BD8o_wgfv2pPsHgI238OZGEMPEG8ZbvtSoL7p6VjwrM8oTXH3e86gvKU
 
 let _fcmApp = null, _fcmMessaging = null, _fcmToken = null;
 
+const SEED_MEMBERS = [];      // populated via Firestore members collection
+const DEFAULT_LOCATIONS = [];  // populated via Firestore locations collection
 let STATE = load();
 async function initPushModule() {
   // Don't even try if SDK / config not loaded
