@@ -31,8 +31,8 @@ window.__loadQRLib=function(){
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<!-- firebase-messaging-compat.js loaded lazily in initPushModule() to avoid iOS PWA crash -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0f2540;color:#1c1c1e;overscroll-behavior:none;}
@@ -467,7 +467,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.55);margin-bottom:18px;text-align:center;letter-spacing:1.5px;text-transform:uppercase;">Member Sign-In</div>
     <input class="login-input" id="loginUnit" type="text" inputmode="numeric" placeholder="BC Unit Number" autocomplete="off"/>
     <input class="login-input" id="loginPass" type="password" placeholder="Password" autocomplete="off"/>
-    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
     <div class="login-error" id="loginError"></div>
     <div style="margin-top:16px;font-size:10.5px;color:rgba(255,255,255,.3);text-align:center;line-height:1.7;letter-spacing:.3px;">
       Your role is set automatically by your BC#<br/>
@@ -503,7 +503,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="section-title" id="homeGreeting">Welcome</div>
           <div class="section-sub" id="homeDate"></div>
         </div>
-        <button class="btn-sm btn-primary" id="homeNewCallBtn" onclick="showTab('dispatch');showModal('newCallModal')">+ New Call</button>
+        <button class="btn-sm btn-primary" id="homeNewCallBtn" onclick="showTab('dispatch');showModal('newCallModal')" style="display:none">+ New Call</button>
       </div>
       <!-- On-Duty Dispatcher Banner -->
       <div class="on-duty-banner" id="onDutyBanner">
@@ -539,7 +539,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="page hidden" id="page-dispatch">
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
-        <button id="newCallBtn" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;">+ New Call</button>
+        <button id="newCallBtn" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;display:none">+ New Call</button>
       </div>
       <!-- On duty compact -->
       <div id="dispatchOnDutyRow" style="display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:12px;box-shadow:var(--shadow);">
@@ -552,7 +552,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="chip" data-filter="active" onclick="setDispatchFilter('active',this)">▶ In Progress</div>
         <div class="chip" data-filter="open" onclick="setDispatchFilter('open',this)">Open</div>
         <div class="chip" data-filter="done" onclick="setDispatchFilter('done',this)">Completed</div>
-        <div class="chip" data-filter="draft" onclick="setDispatchFilter('draft',this)">Draft</div>
+        <div class="chip" data-filter="draft" onclick="setDispatchFilter('draft',this)" id="draftFilterChip">Draft</div>
       </div>
       <div id="callsList"></div>
     </div>
@@ -618,7 +618,10 @@ textarea.input{min-height:80px;resize:vertical;}
           <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Issues flagged</span><span style="font-weight:700;color:var(--red);" id="chkIssues">0</span></div>
         </div>
         <div id="chkList"></div>
-        <button id="chkWaBtn" onclick="sendChkWhatsApp()" style="display:none;width:100%;padding:13px;background:#25d366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px;">Send WhatsApp Summary</button>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button id="chkWaBtn" onclick="sendChkWhatsApp()" style="display:none;flex:1;padding:13px;background:#25d366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Send WhatsApp Summary</button>
+          <button id="chkSubmitBtn" onclick="submitChecklist()" style="display:none;flex:1;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">✅ Submit Checklist</button>
+        </div>
       </div>
       <!-- REPORTS -->
       <div id="eq-reports" style="display:none;">
@@ -731,6 +734,11 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- ══ ADMIN (Numbers / Stats / Schedule / Vehicles / Admin Tools) ══ -->
     <div class="page hidden" id="page-more">
       <div class="section-header"><div class="section-title">Admin</div></div>
+      <div id="adminMgmtBtnWrap" style="display:none;margin-bottom:12px;">
+        <button onclick="goAdmin('members')" style="width:100%;padding:14px;background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;border:none;border-radius:var(--radius);font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+          <span>⚙️ Management Panel</span><span style="font-size:12px;opacity:.7;">Members · Calls · Equipment →</span>
+        </button>
+      </div>
       <div class="sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;">
         <button class="sub-tab" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
         <button class="sub-tab active" onclick="setMoreTab('stats',this)">📊 Stats</button>
@@ -977,7 +985,10 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <!-- ══ ADMIN ══ -->
     <div class="page hidden" id="page-admin">
-      <div class="section-header"><div><div class="section-title">Admin</div><div class="section-sub">Management Panel</div></div></div>
+      <div class="section-header">
+        <div><div class="section-title">Management Panel</div><div class="section-sub">Admin Controls</div></div>
+        <button onclick="showTab('more')" style="background:var(--border2);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);">← Back</button>
+      </div>
       <div id="adminGate">
         <div class="card">
           <div class="card-title" style="margin-bottom:12px;">🔐 Admin Access</div>
@@ -986,11 +997,13 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
       </div>
       <div id="adminPanel" style="display:none;">
-        <div class="sub-tabs">
-          <button class="sub-tab active" onclick="setAdminTab('members',this)">Members</button>
-          <button class="sub-tab" onclick="setAdminTab('dispatch',this)">Dispatch</button>
-          <button class="sub-tab" onclick="setAdminTab('equipment',this)">Equipment</button>
-          <button class="sub-tab" onclick="setAdminTab('locations',this)">Locations</button>
+        <div class="sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;display:flex;">
+          <button class="sub-tab active" style="white-space:nowrap;" onclick="setAdminTab('members',this)">👥 Members</button>
+          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('calls',this)">📡 Calls</button>
+          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('dispatch',this)">📋 Dispatch</button>
+          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('equipment',this)">📦 Equipment</button>
+          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('locations',this)">📍 Locations</button>
+          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('history',this)">📝 Chk History</button>
         </div>
         <!-- Members -->
         <div id="admin-members">
@@ -1064,6 +1077,30 @@ textarea.input{min-height:80px;resize:vertical;}
             <button class="btn-full btn-primary" onclick="addLocation()">Add Location</button>
           </div>
           <div id="locationList"></div>
+        </div>
+
+        <!-- Calls Management -->
+        <div id="admin-calls" style="display:none;">
+          <div class="card" style="margin-bottom:10px;">
+            <div class="card-title" style="margin-bottom:8px;">📡 All Calls</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Manage, edit, or delete any call. To add a new call use the + button on the Dispatch tab.</div>
+            <div class="filter-chips" id="adminCallsFilter">
+              <div class="chip active" onclick="setAdminCallFilter('all',this)">All</div>
+              <div class="chip" onclick="setAdminCallFilter('open',this)">Open</div>
+              <div class="chip" onclick="setAdminCallFilter('active',this)">Active</div>
+              <div class="chip" onclick="setAdminCallFilter('done',this)">Done</div>
+            </div>
+          </div>
+          <div id="adminCallsList"></div>
+        </div>
+
+        <!-- Checklist History -->
+        <div id="admin-history" style="display:none;">
+          <div class="card" style="margin-bottom:10px;">
+            <div class="card-title" style="margin-bottom:8px;">📝 Checklist History</div>
+            <div style="font-size:12px;color:var(--text3);">Past equipment checklist submissions. To save a session, tap "Submit Checklist" on the Equipment → Checklist tab.</div>
+          </div>
+          <div id="adminHistoryList"></div>
         </div>
       </div>
     </div>
@@ -1512,8 +1549,12 @@ textarea.input{min-height:80px;resize:vertical;}
       </select>
     </div>
     <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editMbrPhone" placeholder="555-000-0000"/></div>
+    <div class="input-group">
+      <label class="input-label">Responds to (leave all unchecked = responds to everything)</label>
+      <div id="editMbrCallTypes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;"></div>
+    </div>
+    <div class="input-group"><label class="input-label">Reset PIN</label><input class="input" type="text" id="editMbrNewPin" placeholder="New PIN (leave blank to keep current)" inputmode="numeric"/></div>
     <button class="btn-full btn-primary" onclick="saveEditMemberRole()" style="margin-bottom:8px;">Save Changes</button>
-      <button class="btn-full btn-secondary" style="background:rgba(251,191,36,0.15);color:#fbbf24;border-color:rgba(251,191,36,0.3)" onclick="adminResetPin(document.getElementById('editMbrUnit').textContent.trim())">🔑 Reset PIN</button>
     <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Cancel</button>
   </div>
 </div>
@@ -1594,84 +1635,112 @@ const FCM_CONFIG = {
 const FCM_VAPID_KEY  = "BD8o_wgfv2pPsHgI238OZGEMPEG8ZbvtSoL7p6VjwrM8oTXH3e86gvKUix5sLM37Ol4lFTrSeUTbgET6stuBWl0";          // ✅ set
 
 
-let _fcmApp = null, _fcmMessaging = null, _fcmToken = null;
+let _fcmApp = null, _fcmMessaging = null, _fcmToken = null, _firebaseReady = false;
+
+// Global session — declared here so it's always defined (never ReferenceError)
+var SESSION = { role: null, unit: null, name: null };
 
 const SEED_MEMBERS = [];      // populated via Firestore members collection
 const DEFAULT_LOCATIONS = [];  // populated via Firestore locations collection
 let STATE = load();
-async function initPushModule() {
-  // Don't even try if SDK / config not loaded
+
+// ── Always initialize Firebase app + Firestore sync ──────────────────────────
+async function initFirebaseApp() {
   if (!window.firebase || FCM_CONFIG.apiKey.startsWith("PASTE_")) return;
+  if (_firebaseReady) return;
   try {
-          // Silently clean up any stale SWs (e.g. leftover OneSignal) on every init
-          if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(regs => {
-                                regs.forEach(r => {
-                                              if (r.active?.scriptURL && !r.active.scriptURL.includes('firebase-messaging-sw.js')) {
-                                                              r.unregister();
-                                              }
-                                });
-                    });
-          }
-    if (!_fcmApp) _fcmApp = firebase.initializeApp(FCM_CONFIG);
-  initFirestore(); // start Firestore real-time sync
+    try { _fcmApp = firebase.initializeApp(FCM_CONFIG); }
+    catch(e) { _fcmApp = firebase.app(); } // already initialized
+    _firebaseReady = true;
+    initFirestore(); // start Firestore real-time sync
+    // Attempt messaging (non-critical — silently fails on iOS non-standalone)
+    initPushModule().catch(()=>{});
+    // Restore saved session after Firebase is ready
+    _tryRestoreSession();
+  } catch(e) { console.warn('Firebase app init failed:', e); }
+}
+
+// ── Firebase Cloud Messaging (optional — loaded lazily to avoid iOS PWA crash) ──
+async function initPushModule() {
+  if (!_firebaseReady || _fcmMessaging) return;
+  try {
+    // Dynamically load the messaging SDK only when needed
+    if (!firebase.messaging) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
     _fcmMessaging = firebase.messaging();
-    // If we previously stored a token for this device, restore foreground handler
     _fcmMessaging.onMessage((payload) => {
       const t = payload.notification?.title || payload.data?.title || 'COBC';
-      // Foreground only: show in-app toast.
-      // We DON'T show a system Notification here — the service worker already does.
-      // Showing both would create duplicates.
       showToast('🔔 ' + t);
     });
-  } catch (e) { console.warn('Push init failed:', e); }
+  } catch(e) { /* messaging not available on this browser — that's OK */ }
 }
 
 async function enablePushForThisDevice() {
-  if (!SESSION || !SESSION.unit) { showToast('Log in first'); return; }
-  if (!('Notification' in window)) { showToast('Notifications not supported on this device'); return; }
-  if (!_fcmMessaging) await initPushModule();
-  if (!_fcmMessaging) { showToast('Push not configured yet'); return; }
+  if (!SESSION.unit) { showToast('Log in first'); return; }
+
+  // iOS: push only works in standalone (Home Screen) PWA mode
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = (window.navigator.standalone === true) ||
+                       window.matchMedia('(display-mode: standalone)').matches;
+  if (isIOS && !isStandalone) {
+    showToast('On iPhone: tap Share → Add to Home Screen, then open the app from there and enable notifications');
+    return;
+  }
+
+  if (!('Notification' in window)) { showToast('Notifications not supported on this browser'); return; }
+  if (!('serviceWorker' in navigator)) { showToast('Use Safari on iOS 16.4+ for notifications'); return; }
+
+  // Make sure messaging is initialized
+  if (!_fcmMessaging) { await initPushModule(); }
+  if (!_fcmMessaging) {
+    showToast('Push not available on this browser — use Safari');
+    return;
+  }
 
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted') { showToast('Notifications denied'); return; }
+    if (perm !== 'granted') { showToast('Notifications denied — check Settings'); return; }
 
-// Unregister any stale service workers (e.g. old OneSignal SW) before registering ours
-            const _oldRegs = await navigator.serviceWorker.getRegistrations();
-            for (const _r of _oldRegs) {
-                        if (true) { // unregister ALL SWs (avoids duplicates)
-                                      await _r.unregister();
-                        }
-            }
-            const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js');
-    const token = await _fcmMessaging.getToken({
-      vapidKey: FCM_VAPID_KEY,
-      serviceWorkerRegistration: reg
-    });
-    if (!token) { showToast('Could not get push token'); return; }
+    // Only unregister non-FCM service workers (don't break Firestore sync)
+    const oldRegs = await navigator.serviceWorker.getRegistrations();
+    for (const r of oldRegs) {
+      if (r.active?.scriptURL && !r.active.scriptURL.includes('firebase-messaging-sw.js')) {
+        await r.unregister();
+      }
+    }
+
+    const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js');
+    await navigator.serviceWorker.ready;
+
+    const token = await _fcmMessaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) { showToast('Could not get push token — try again'); return; }
     _fcmToken = token;
 
-    // Register token with our Apps Script (which stores it tied to this BC#)
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'register',
-        key: PUSH_SHARED_KEY,
-        unit: SESSION.unit,
-        name: SESSION.name,
-        role: SESSION.role,
-        token: token
-      })
+      body: JSON.stringify({ action: 'register', key: PUSH_SHARED_KEY,
+        unit: SESSION.unit, name: SESSION.name, role: SESSION.role, token })
     });
 
-    // Also remember it locally for the UI
     localStorage.setItem('cobc_fcm_token_' + SESSION.unit, token);
-    showToast('✅ Notifications enabled');
-  } catch (e) {
+    showToast('✅ Notifications enabled!');
+    renderHome && renderHome();
+  } catch(e) {
     console.error('Push enable error:', e);
-    showToast('⚠️ Could not enable notifications');
+    const msg = e?.message || '';
+    if (msg.includes('unsupported-browser') || msg.includes('not supported')) {
+      showToast('Push not supported — use Safari on iOS 16.4+');
+    } else {
+      showToast('⚠️ Notification error: ' + (msg.slice(0, 60) || 'unknown'));
+    }
   }
 }
 
@@ -1689,21 +1758,62 @@ async function sendPush(payload) {
   } catch (e) { console.warn('Push send failed:', e); }
 }
 
-// Boot push when the page is ready
+// Boot Firebase + Firestore when page is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initPushModule);
+  document.addEventListener('DOMContentLoaded', initFirebaseApp);
 } else {
-  initPushModule();
+  initFirebaseApp();
 }
 
 // Login roles stored in Firestore members collection.
 
 function guessCat(name){const n=(name||'').toLowerCase();if(n.includes('fan'))return'Fan';if(n.includes('heater'))return'Heater';if(n.includes('light tower'))return'Light Tower';if(n.includes('shop vac'))return'Shop Vac';if(n.includes('a/c')||n.includes('ac '))return'A/C';if(n.includes('ez-spare')||n.includes('ez spare'))return'EZ-Spare';if(n.includes('generator')||n.includes('gen '))return'Generator';if(n.includes('sump')||n.includes('pump'))return'Pump';if(n.includes('ramp'))return'Ramp';if(n.includes('chainsaw'))return'Chainsaw';return'Other';}
 function conditionFromSheet(s){return s||'OK';}
-function sheetGET(){return Promise.resolve({});}
-function sheetPOST(){return Promise.resolve({});}
-function postJ(){return Promise.resolve({});}
-async function loadInventoryFromSheet(){showSheetStatus('loading');try{const db=firebase.firestore();const[eqSnap,memberSnap,locDoc]=await Promise.all([db.collection('equipment').orderBy('row').get(),db.collection('members').get(),db.collection('config').doc('locations').get()]);STATE.equipment=eqSnap.docs.map(d=>({id:d.id,...d.data()}));STATE.members=memberSnap.docs.map(d=>({id:d.id,...d.data()}));STATE.locations=locDoc.exists?[...new Set(locDoc.data().locations||[])]:[];renderInventory&&renderInventory();renderChkFull&&renderChkFull();renderHome&&renderHome();renderMemberDir&&renderMemberDir();save();showSheetStatus('ok');}catch(e){console.warn('loadInventoryFromSheet error:',e);showSheetStatus('err');}}
+// ── Google Sheets / Apps Script backend (equipment home base) ──────────────
+const EQ_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwjnEHbt8v1aVKUO7361uc8XTodz5yBWGKoRgQ3H26UFOJeAQarVQAGaEuYj277Ed14rw/exec';
+function sheetGET(params={}){const qs=Object.entries(params).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');return fetch(EQ_SCRIPT_URL+(qs?'?'+qs:''),{redirect:'follow'}).then(r=>r.json());}
+function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());}
+function postJ(action,data={}){return sheetPOST({action,...data});}
+async function loadInventoryFromSheet(){
+  // Equipment + locations from Google Sheet; members from Firestore (dispatch needs roles)
+  const sub=document.getElementById('eqSyncStatus');
+  if(sub)sub.textContent='Syncing...';
+  try{
+    const[invData,locData,memberSnap]=await Promise.all([
+      sheetGET({action:'getInventory'}),
+      sheetGET({action:'getLocations'}),
+      firebase.firestore().collection('members').get()
+    ]);
+    STATE.equipment=(invData.items||[]).map(it=>({
+      id:'row-'+it.row,
+      row:it.row,
+      name:it.name,
+      location:it.homeLocation||'COBC',
+      status:it.status==='OUT'?'out':'in',
+      checkedOutBy:it.member||'',
+      callNum:it.call||'',
+      lastUpdated:it.lastUpdated||'',
+      ccnc:it.ccnc||'CC',
+      isCNC:!!it.isCNC,
+      cncNote:it.cncNote||'',
+      equipStatus:it.equipStatus||'OK',
+      equipNote:it.equipNote||'',
+      lastChecked:it.lastChecked||''
+    }));
+    STATE.locations=locData.locations||['COBC'];
+    STATE.members=memberSnap.docs.map(d=>({id:d.id,...d.data()}));
+    renderInventory&&renderInventory();
+    renderChkFull&&renderChkFull();
+    renderHome&&renderHome();
+    renderMemberDir&&renderMemberDir();
+    save();
+    if(sub)sub.textContent='Live';
+  }catch(e){
+    console.warn('loadInventoryFromSheet error:',e);
+    if(sub)sub.textContent='Offline — cached';
+    throw e;
+  }
+}
 
 function showSheetStatus(state, msg='') {
   // Update the equipment page sync indicator
@@ -1716,20 +1826,19 @@ function showSheetStatus(state, msg='') {
     document.body.appendChild(bar);
   }
   if(state==='loading') {
-    bar.style.cssText += 'background:#1a3a5c;color:#fff;opacity:1;';
     bar.style.background='#1a3a5c'; bar.style.color='#fff'; bar.style.opacity='1';
-    bar.textContent='Syncing equipment from Google Sheet...';
-    if(sub) sub.textContent='Syncing...';
+    bar.textContent='Syncing data…';
+    if(sub) sub.textContent='Syncing…';
   } else if(state==='ok') {
     bar.style.background='#16a34a'; bar.style.color='#fff'; bar.style.opacity='1';
-    bar.textContent='Sheet synced — '+msg;
-    if(sub) sub.textContent='Live from Sheet';
-    setTimeout(()=>{ bar.style.opacity='0'; }, 3000);
-  } else if(state==='error') {
+    bar.textContent='Data synced'+(msg?' — '+msg:'');
+    if(sub) sub.textContent='Live';
+    setTimeout(()=>{ bar.style.opacity='0'; }, 2500);
+  } else if(state==='error'||state==='err') {
     bar.style.background='#d97706'; bar.style.color='#fff'; bar.style.opacity='1';
-    bar.textContent='Sheet: '+msg;
+    bar.textContent=msg||'Offline — using cached data';
     if(sub) sub.textContent='Offline — cached';
-    setTimeout(()=>{ bar.style.opacity='0'; }, 5000);
+    setTimeout(()=>{ bar.style.opacity='0'; }, 4000);
   }
 }
 
@@ -1914,7 +2023,17 @@ function selectNoSpareAction(action, btn) {
     ezSec.style.display='none';
   }
 }
-async function manualSync(){showSheetStatus('loading');loadInventoryFromSheet().then(()=>showToast('Data refreshed')).catch(()=>{showToast('Refresh failed');showSheetStatus('err');});}
+async function manualSync(){
+  const btn=document.getElementById('topbarSync');
+  if(btn){btn.classList.add('spinning');btn.disabled=true;}
+  const done=()=>{if(btn){btn.classList.remove('spinning');btn.disabled=false;}};
+  try{
+    await loadInventoryFromSheet();
+    showToast('✅ Data refreshed');
+  }catch(e){
+    showToast('Could not sync — check connection');
+  }finally{done();}
+}
 async function refreshEzSpareInventory(){try{renderInventory&&renderInventory();renderChkFull&&renderChkFull();showSheetStatus('ok');}catch(e){console.warn(e);}}
 function onCarMakeChange_legacy_removed(){}
 function onEzSpareSizeChange() {
@@ -2095,7 +2214,20 @@ function load() {
 let _db = null;
 let _unsubscribeCalls = null;
 
-function initFirestore(){const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;const calls={};snap.forEach(doc=>{calls[doc.id]=doc.data();});STATE.calls=calls;save();renderCalls&&renderCalls();renderHome&&renderHome();}catch(e){console.warn('calls snapshot error:',e);}},e=>console.warn('calls listener error:',e));db.collection('equipment').orderBy('row').onSnapshot(snap=>{STATE.equipment=snap.docs.map(d=>({id:d.id,...d.data()}));save();if(typeof SESSION!=='undefined'){renderInventory&&renderInventory();renderHome&&renderHome();}},e=>console.warn('equipment snapshot error:',e));db.collection('members').onSnapshot(snap=>{STATE.members=snap.docs.map(d=>({id:d.id,...d.data()}));save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>console.warn('members snapshot error:',e));db.collection('config').doc('locations').onSnapshot(snap=>{if(snap.exists){STATE.locations=[...new Set(snap.data().locations||[])];}save();if(typeof SESSION!=='undefined'){renderLocationList&&renderLocationList();}},e=>console.warn('locations snapshot error:',e));}
+function initFirestore(){const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
+  const firestoreCalls=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
+  // Find calls that exist locally but not yet in Firestore (created offline or before sync)
+  const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id));
+  // Upload any missing local calls to Firestore (one-time migration)
+  localOnly.forEach(call=>firestoreUpsertCall(call));
+  // Merge: Firestore is source of truth, but keep local-only calls visible until they upload
+  STATE.calls=[...firestoreCalls,...localOnly];
+  save();renderCalls&&renderCalls();renderHome&&renderHome();}catch(e){console.warn('calls snapshot error:',e);}},e=>console.warn('calls listener error:',e));
+  // Members sync stays in Firestore (dispatch roles/auth live there)
+  db.collection('members').onSnapshot(snap=>{STATE.members=snap.docs.map(d=>({id:d.id,...d.data()}));save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>console.warn('members snapshot error:',e));
+  // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
+}
 
 async function firestoreUpsertCall(call){try{await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
 
@@ -2104,9 +2236,127 @@ function save() {
   }
   // ── CALL SYNC ── push one call to shared backend ──────────────────────────
 
-function doLogin(){const unitRaw=(document.getElementById('loginUnit')?.value||'').trim().toUpperCase();const pass=(document.getElementById('loginPass')?.value||'').trim();const err=document.getElementById('loginError');if(err)err.textContent='';if(!unitRaw){if(err)err.textContent='Enter your unit number';return;}if(!pass){if(err)err.textContent='Enter your PIN';return;}let unit=unitRaw;if(/^\d+$/.test(unit))unit='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))unit='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');const btn=document.getElementById('loginBtn');if(btn)btn.disabled=true;firebase.firestore().collection('members').doc(unit).get().then(doc=>{if(btn)btn.disabled=false;if(!doc.exists){if(err)err.textContent='Member not found ('+unit+')';return;}const m=doc.data();if(String(m.pin)!==String(pass)){if(err)err.textContent='Incorrect PIN';return;}finishLogin(m);}).catch(e=>{if(btn)btn.disabled=false;if(err)err.textContent='Login error — check connection';console.error('doLogin error:',e);});}
+// ── iOS PWA session restore ──────────────────────────────────────────────────
+// iOS PWA reloads the page when re-opened from Home Screen.
+// We save SESSION to localStorage so the user doesn't have to log in every time.
+function _tryRestoreSession() {
+  try {
+    const saved = localStorage.getItem('cobc_session');
+    if (!saved) return;
+    const s = JSON.parse(saved);
+    if (!s || !s.unit || !s.role) return;
+    // Already logged in? skip
+    if (SESSION.unit) return;
+    // Re-verify against Firestore (role may have changed)
+    firebase.firestore().collection('members').doc(s.unit).get().then(doc => {
+      if (!doc.exists) { localStorage.removeItem('cobc_session'); return; }
+      finishLogin(doc.data());
+    }).catch(() => {
+      // Offline — restore from cache without re-verify
+      SESSION = s;
+      const _lsOff=document.getElementById('login-screen');_lsOff.style.display='none';_lsOff.style.pointerEvents='none';_lsOff.style.visibility='hidden';
+      const rd = {admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};
+      const roleLabel = document.getElementById('roleLabel');
+      if (roleLabel) roleLabel.textContent = rd[s.role]||s.role;
+      const topSub = document.getElementById('topbarSub');
+      if (topSub) topSub.textContent = s.name+' · '+(s.unit||'');
+      _applyRoleUI(s.role);
+      setTimeout(()=>{ renderHome&&renderHome(); renderCalls&&renderCalls(); }, 300);
+    });
+  } catch(e) { try { localStorage.removeItem('cobc_session'); } catch(_){} }
+}
 
-function finishLogin(member){const role=(member.role||'member').toLowerCase();SESSION={unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||''};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}document.getElementById('login-screen').style.display='none';document.getElementById('app').classList.remove('hidden');const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=SESSION.name+' · '+(SESSION.unit||'');const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';if(document.getElementById('loginPass'))document.getElementById('loginPass').value='';if(document.getElementById('loginUnit'))document.getElementById('loginUnit').value='';}
+function _applyRoleUI(role) {
+  const isDispatch = ['admin','dispatch'].includes(role);
+  const mgmtBtn = document.getElementById('adminMgmtBtnWrap');
+  if (mgmtBtn) mgmtBtn.style.display = (role==='admin') ? 'block' : 'none';
+  const draftChip = document.getElementById('draftFilterChip');
+  if (draftChip) draftChip.style.display = isDispatch ? '' : 'none';
+  const chkSubmitBtn = document.getElementById('chkSubmitBtn');
+  if (chkSubmitBtn) chkSubmitBtn.style.display = (role==='admin'||role==='equipment') ? 'block' : 'none';
+  const chkTab = document.getElementById('eqChecklistTab');
+  const eqAdmTab = document.getElementById('eqAdminTab');
+  const priv = ['admin','dispatch','equipment'].includes(role);
+  if (chkTab) chkTab.style.display = priv ? '' : 'none';
+  if (eqAdmTab) eqAdmTab.style.display = (role==='admin'||role==='equipment') ? '' : 'none';
+  // New Call button — dispatch and admin only
+  const homeNew = document.getElementById('homeNewCallBtn');
+  const dispNew = document.getElementById('newCallBtn');
+  if (homeNew) homeNew.style.display = isDispatch ? '' : 'none';
+  if (dispNew) dispNew.style.display = isDispatch ? '' : 'none';
+}
+
+function doLogin(){
+  const unitRaw=(document.getElementById('loginUnit')?.value||'').trim().toUpperCase();
+  const pass=(document.getElementById('loginPass')?.value||'').trim();
+  const err=document.getElementById('loginError');
+  const loginBtn=document.getElementById('loginBtn');
+  if(err)err.textContent='';
+  if(!unitRaw){if(err)err.textContent='Enter your unit number';return;}
+  if(!pass){if(err)err.textContent='Enter your PIN';return;}
+  let unit=unitRaw;
+  if(/^\d+$/.test(unit))unit='BC-'+unit.padStart(2,'0');
+  else if(/^BC\d+$/i.test(unit))unit='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');
+
+  // Show loading state
+  if(loginBtn){loginBtn.textContent='Signing in…';loginBtn.disabled=true;}
+  const reset=()=>{if(loginBtn){loginBtn.textContent='Sign In';loginBtn.disabled=false;}};
+
+  // Ensure Firebase is ready (on iOS PWA it might not be initialized yet)
+  if(!_firebaseReady){
+    if(err)err.textContent='Connecting to server… please wait 5 seconds and try again';
+    initFirebaseApp().then(()=>{ reset(); }).catch(()=>reset());
+    return;
+  }
+
+  try {
+    firebase.firestore().collection('members').doc(unit).get().then(doc=>{
+      reset();
+      if(!doc.exists){if(err)err.textContent='Member not found ('+unit+')';return;}
+      const m=doc.data();
+      if(String(m.pin)!==String(pass)){if(err)err.textContent='Incorrect PIN';return;}
+      finishLogin(m);
+    }).catch(e=>{
+      reset();
+      if(err)err.textContent='Login error — check your connection and try again';
+      console.error('doLogin error:',e);
+    });
+  } catch(e) {
+    reset();
+    if(err)err.textContent='App not ready — please wait a moment and try again';
+    console.error('doLogin sync error:',e);
+    // Try to re-initialize Firebase
+    _firebaseReady=false; initFirebaseApp();
+  }
+}
+
+function finishLogin(member){const role=(member.role||'member').toLowerCase();SESSION={unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||''};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}const _loginScr=document.getElementById('login-screen');_loginScr.style.display='none';_loginScr.style.pointerEvents='none';_loginScr.style.visibility='hidden';document.getElementById('app').classList.remove('hidden');const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=SESSION.name+' · '+(SESSION.unit||'');const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';
+// Show Management Panel button for admins
+const mgmtBtn=document.getElementById('adminMgmtBtnWrap');if(mgmtBtn)mgmtBtn.style.display=(role==='admin')?'block':'none';
+// Hide draft filter chip for non-dispatch
+const draftChip=document.getElementById('draftFilterChip');if(draftChip)draftChip.style.display=['admin','dispatch'].includes(role)?'':'none';
+// Show submit checklist button for equipment/admin
+const chkSubmitBtn=document.getElementById('chkSubmitBtn');if(chkSubmitBtn)chkSubmitBtn.style.display=(role==='admin'||role==='equipment')?'block':'none';
+// New Call button — dispatch and admin only
+const _isDispatch=['admin','dispatch'].includes(role);
+const homeNew=document.getElementById('homeNewCallBtn');const dispNew=document.getElementById('newCallBtn');
+if(homeNew)homeNew.style.display=_isDispatch?'':'none';
+if(dispNew)dispNew.style.display=_isDispatch?'':'none';
+if(document.getElementById('loginPass'))document.getElementById('loginPass').value='';if(document.getElementById('loginUnit'))document.getElementById('loginUnit').value='';
+// Persist session for iOS PWA (page reloads on re-open)
+try{localStorage.setItem('cobc_session',JSON.stringify({unit:SESSION.unit,name:SESSION.name,role:SESSION.role,firstName:SESSION.firstName,lastName:SESSION.lastName}));}catch(e){}
+// Refresh rendered views now that SESSION is set
+setTimeout(()=>{
+  const h=new Date().getHours();
+  const greet=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
+  const greetEl=document.getElementById('homeGreeting');
+  if(greetEl)greetEl.textContent=greet+', '+(SESSION.name.split(' ')[0]||SESSION.unit);
+  const dateEl=document.getElementById('homeDate');
+  if(dateEl)dateEl.textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  renderHome&&renderHome();
+  renderCalls&&renderCalls();
+},100);
+}
 
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('loginUnit').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
@@ -2126,8 +2376,69 @@ function clearOnDutyOverride() {
   delete STATE.onDuty;
   save(); showToast('Override cleared — using schedule');
 }
-function renderAdminMembers(){renderMemberDir&&renderMemberDir();}
+function renderAdminMembers(){
+  renderMemberDir&&renderMemberDir();
+  // Also render the admin panel member list
+  const el=document.getElementById('memberList');
+  if(!el) return;
+  const list=[...STATE.members].sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
+  const count=document.getElementById('memberCount');
+  if(count) count.textContent=list.length;
+  if(!list.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">No members yet</div></div>';return;}
+  el.innerHTML=list.map(m=>{
+    const roleColor={'admin':'var(--red)','dispatch':'var(--blue)','equipment':'var(--teal)','observer':'var(--purple)','member':'var(--text3)'}[m.role||'member']||'var(--text3)';
+    return `<div style="background:#fff;border-radius:10px;padding:11px 14px;margin-bottom:7px;box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;">
+      <div style="width:38px;height:38px;border-radius:9px;background:var(--navy);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;">${m.unit}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;">${m.first||m.firstName||''} ${m.last||m.lastName||''}</div>
+        <div style="font-size:11px;color:var(--text3);">${m.phone||'No phone'}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#f1f5f9;color:${roleColor};">${(m.role||'member').toUpperCase()}</span>
+        <div style="display:flex;gap:4px;">
+          <button onclick="openEditMemberRole('${m.unit}')" style="background:var(--border2);color:var(--text2);border:none;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">✏️</button>
+          <button onclick="deleteMemberLocal('${m.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
 function adminResetPin(unit){const newPin=prompt('Set new PIN for '+unit+' (4+ digits):');if(!newPin||newPin.length<4){showToast('PIN must be 4+ digits');return;}firebase.firestore().collection('members').doc(unit).set({pin:newPin},{merge:true}).then(()=>showToast('PIN updated for '+unit)).catch(e=>{showToast('Error');console.error(e);});}
+
+// ── ADD MEMBER (admin panel form) ──
+function addMember(){
+  const unit=(document.getElementById('newMemberUnit')?.value||'').trim().toUpperCase();
+  const first=(document.getElementById('newMemberFirst')?.value||'').trim();
+  const last=(document.getElementById('newMemberLast')?.value||'').trim();
+  const phone=(document.getElementById('newMemberPhone')?.value||'').trim();
+  const role=(document.getElementById('newMemberRole')?.value||'member').trim();
+  if(!unit||!first||!last){showToast('Unit, first and last name required');return;}
+  let norm=unit;
+  if(/^\d+$/.test(unit)) norm='BC-'+unit.padStart(2,'0');
+  else if(/^BC\d+$/i.test(unit)) norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');
+  firebase.firestore().collection('members').doc(norm).set({
+    unit:norm,firstName:first,lastName:last,name:first+' '+last,phone,role,pin:'1234',addedAt:Date.now()
+  }).then(()=>{
+    ['newMemberUnit','newMemberFirst','newMemberLast','newMemberPhone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    showToast('✅ Member added'); renderAdminMembers();
+  }).catch(e=>{showToast('Error adding member');console.error(e);});
+}
+
+// ── UNLOCK ADMIN GATE ──
+function unlockAdmin(){
+  if(SESSION.role==='admin'){
+    document.getElementById('adminGate').style.display='none';
+    document.getElementById('adminPanel').style.display='block';
+    renderAdminMembers(); return;
+  }
+  const pass=(document.getElementById('adminPassInput')?.value||'').trim();
+  const stored=STATE.adminPassword||'cobc2024';
+  if(pass===stored){
+    document.getElementById('adminGate').style.display='none';
+    document.getElementById('adminPanel').style.display='block';
+    renderAdminMembers();
+  } else { showToast('Incorrect password'); }
+}
 function initApp() {
   // Initialize new call modal
   document.getElementById('carInfoSection').style.display='block'; // flat tire is default
@@ -2188,8 +2499,10 @@ function initApp() {
 function signOut() {
   if(!confirm('Sign out?')) return;
   try { sessionStorage.removeItem('cobcet_ok'); } catch(e){}
+  try { localStorage.removeItem('cobc_session'); } catch(e){}
   SESSION={role:null,unit:null,name:null};
-  document.getElementById('login-screen').classList.remove('hidden');
+  const ls=document.getElementById('login-screen');
+  if(ls){ls.style.display='';ls.style.pointerEvents='';ls.style.visibility='';ls.classList.remove('hidden');}
   document.getElementById('loginUnit').value='';
   document.getElementById('loginPass').value='';
 }
@@ -2316,17 +2629,26 @@ function renderHome() {
     issues.forEach(e=>{ae.innerHTML+=`<div class="alert alert-red"><span class="alert-icon">⚠️</span><div class="alert-body"><div class="alert-title">${e.name} — ${e.condition}</div><div class="alert-sub">${e.location}</div></div></div>`;});
   }
 
-  // Notification banner — shows only if not yet enabled on this device
+  // Notification banner
   const notifBanner = document.getElementById('homeNotifBanner');
   if (notifBanner && SESSION?.unit) {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = (window.navigator.standalone === true) ||
+                         window.matchMedia('(display-mode: standalone)').matches;
     const has = !!localStorage.getItem('cobc_fcm_token_' + SESSION.unit);
     const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
-    if (has && perm === 'granted') {
+
+    if (isIOS && !isStandalone) {
+      // On iOS Safari (not PWA) — prompt to install
+      notifBanner.innerHTML = '<div class="alert alert-amber" style="cursor:pointer;" onclick="showToast(\'Tap the Share button below, then tap Add to Home Screen\')"><span class="alert-icon">📲</span><div class="alert-body"><div class="alert-title">Add to Home Screen for push alerts</div><div class="alert-sub">Tap Share → Add to Home Screen → open app → enable notifications</div></div></div>';
+    } else if (has && perm === 'granted') {
       notifBanner.innerHTML = '<div class="alert alert-green"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Notifications on</div><div class="alert-sub">You\'ll get alerts for new calls + approvals</div></div></div>';
     } else if (perm === 'denied') {
-      notifBanner.innerHTML = '<div class="alert alert-amber"><span class="alert-icon">🔕</span><div class="alert-body"><div class="alert-title">Notifications blocked</div><div class="alert-sub">Enable in phone Settings → Safari/Chrome → this site</div></div></div>';
-    } else {
+      notifBanner.innerHTML = '<div class="alert alert-amber"><span class="alert-icon">🔕</span><div class="alert-body"><div class="alert-title">Notifications blocked</div><div class="alert-sub">Enable in Settings → Safari → this site → Notifications</div></div></div>';
+    } else if ('Notification' in window) {
       notifBanner.innerHTML = '<div class="alert alert-amber" style="cursor:pointer;" onclick="enablePushForThisDevice()"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Tap to enable push notifications</div><div class="alert-sub">Get alerts when new calls are dispatched</div></div></div>';
+    } else {
+      notifBanner.innerHTML = '';
     }
   }
 }
@@ -2429,7 +2751,10 @@ function renderCalls() {
   const el=document.getElementById('callsList');
   // Sort: active first, then open, then draft, then done
   const order={active:0,open:1,draft:2,done:3};
-  let list=[...STATE.calls].sort((a,b)=>(order[a.status]??3)-(order[b.status]??3)||(b.createdAt-a.createdAt));
+  const isDispatch=['admin','dispatch'].includes(SESSION.role);
+  let list=[...STATE.calls]
+    .filter(c=>isDispatch || c.status!=='draft') // drafts only visible to admin/dispatch
+    .sort((a,b)=>(order[a.status]??3)-(order[b.status]??3)||(b.createdAt-a.createdAt));
   if (dispatchFilter!=='all') {
     if (dispatchFilter==='active') {
       // "In Progress" = status active OR has approved/pending responders (and not done/draft)
@@ -2542,7 +2867,6 @@ function createCall() {
   };
 
   STATE.calls.push(call); save(); firestoreUpsertCall(call);
-  firebase.firestore().collection('calls').doc(call.id).set(call).catch(e=>console.error('calls sync:',e));
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
   hideModal('newCallModal');
   ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
@@ -3143,7 +3467,8 @@ function updateCallStatus(id,status) {
 }
 function deleteCall(id) {
   if(!confirm('Delete this call?')) return;
-  STATE.calls=STATE.calls.filter(c=>c.id!==id); save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('Call deleted');
+  firebase.firestore().collection('calls').doc(id).delete().catch(e=>console.error('Firestore delete error:',e));
+  STATE.calls=STATE.calls.filter(c=>c.id!==id); save(); renderCalls(); renderHome(); showToast('Call deleted');
 }
 
 // ── CALL EDIT ──
@@ -3354,17 +3679,50 @@ function setMemberFilter(f,el) {
   document.querySelectorAll('#memberFilters .chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active'); renderMemberDir();
 }
+const CALL_TYPES_FOR_MEMBER=[
+  {value:'flat_tire',label:'Flat Tire'},
+  {value:'flat_tire_no_spare',label:'Flat / No Spare'},
+  {value:'lockout',label:'Lockout'},
+  {value:'jump_start',label:'Jump Start'},
+  {value:'gas',label:'Gas'},
+  {value:'tow',label:'Tow'},
+  {value:'ambulance_assist',label:'Ambulance Assist'},
+  {value:'flood',label:'Flood'},
+  {value:'home_assist',label:'Home Assist'},
+  {value:'other',label:'Other'},
+];
 function openEditMemberRole(unit) {
   const m = STATE.members.find(x => String(x.unit) === String(unit));
   if(!m) { showToast('Member not found'); return; }
   document.getElementById('editMbrUnit').value = unit;
-  const fullName = `${m.first||''} ${m.last||''}`.trim();
-  document.getElementById('editMbrInfo').innerHTML = `<b>BC-${m.unit}</b> ${fullName}`;
+  const fullName = `${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim();
+  document.getElementById('editMbrInfo').innerHTML = `<b>${m.unit}</b> — ${fullName}`;
   document.getElementById('editMbrRole').value = (m.role||'member').split(',')[0].trim();
   document.getElementById('editMbrPhone').value = m.phone || '';
+  if(document.getElementById('editMbrNewPin')) document.getElementById('editMbrNewPin').value='';
+  // Render call type checkboxes
+  const existing=m.callTypes||[];
+  const ctEl=document.getElementById('editMbrCallTypes');
+  if(ctEl) ctEl.innerHTML=CALL_TYPES_FOR_MEMBER.map(ct=>`
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;background:#f8fafc;border-radius:7px;padding:6px 8px;">
+      <input type="checkbox" value="${ct.value}" ${existing.includes(ct.value)?'checked':''}/> ${ct.label}
+    </label>`).join('');
   showModal('editMemberRoleModal');
 }
-function saveEditMemberRole(){const unit=document.getElementById('editMbrUnit')?.textContent?.trim();const role=document.getElementById('editMbrRole')?.value?.trim();const phone=document.getElementById('editMbrPhone')?.value?.trim();if(!unit)return;firebase.firestore().collection('members').doc(unit).set({role,phone},{merge:true}).then(()=>{showToast('Member updated');hideModal('editMemberRoleModal');}).catch(e=>{showToast('Error saving member');console.error(e);});}
+function saveEditMemberRole(){
+  const unit=document.getElementById('editMbrUnit')?.value?.trim();
+  const role=document.getElementById('editMbrRole')?.value?.trim();
+  const phone=document.getElementById('editMbrPhone')?.value?.trim();
+  const newPin=(document.getElementById('editMbrNewPin')?.value||'').trim();
+  if(!unit)return;
+  // Collect call type checkboxes
+  const checkedTypes=[...document.querySelectorAll('#editMbrCallTypes input[type=checkbox]:checked')].map(cb=>cb.value);
+  const update={role,phone,callTypes:checkedTypes.length?checkedTypes:[]};
+  if(newPin&&newPin.length>=4) update.pin=newPin;
+  firebase.firestore().collection('members').doc(unit).set(update,{merge:true}).then(()=>{
+    showToast('Member updated ✅');hideModal('editMemberRoleModal');renderAdminMembers();
+  }).catch(e=>{showToast('Error saving member');console.error(e);});
+}
 
 function submitAddMember(){const unit=(document.getElementById('addMbrUnit')?.value||'').trim().toUpperCase();const first=(document.getElementById('addMbrFirst')?.value||'').trim();const last=(document.getElementById('addMbrLast')?.value||'').trim();const phone=(document.getElementById('addMbrPhone')?.value||'').trim();const role=(document.getElementById('addMbrRole')?.value||'member').trim();if(!unit||!first||!last){showToast('Unit, first and last name required');return;}let norm=unit;if(/^\d+$/.test(unit))norm='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');firebase.firestore().collection('members').doc(norm).set({unit:norm,firstName:first,lastName:last,name:first+' '+last,phone,role,pin:'1234',addedAt:Date.now()}).then(()=>{['addMbrUnit','addMbrFirst','addMbrLast','addMbrPhone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});hideModal('addMemberModal');showToast('Member added');}).catch(e=>{showToast('Error adding member');console.error(e);});}
 
@@ -3382,7 +3740,7 @@ function renderMemberDir() {
       return true;
     });
   }
-  if(search) list=list.filter(m=>`${m.first} ${m.last} ${m.unit}`.toLowerCase().includes(search));
+  if(search) list=list.filter(m=>`${m.first||m.firstName||''} ${m.last||m.lastName||''} ${m.unit}`.toLowerCase().includes(search));
   list.sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
   if(!list.length) {
     el.innerHTML='<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">No members found</div></div>';
@@ -3392,7 +3750,7 @@ function renderMemberDir() {
     <div class="list-item">
       <div class="list-icon ${m.role==='observer'?'list-icon-teal':m.role==='dispatch'?'list-icon-blue':'list-icon-gray'}" style="font-size:14px;font-weight:700;color:var(--navy2);">${m.unit}</div>
       <div class="list-body">
-        <div class="list-title">${m.first} ${m.last}${m.role==='observer'?'<span class="obs-badge">OBS</span>':''}</div>
+        <div class="list-title">${m.first||m.firstName||''} ${m.last||m.lastName||''}${m.role==='observer'?'<span class="obs-badge">OBS</span>':''}</div>
         <div class="list-sub">${m.phone||'No phone'} · <span style="color:var(--blue);font-size:10px;font-weight:700;">${(m.role||'member').split(',')[0].trim().toUpperCase()}</span></div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
@@ -3470,9 +3828,8 @@ function addNumber() {
 //  STATS
 // ──────────────────────────────────────────────
 function goAdmin(subtab) {
-  // Open the existing page-admin and select the requested sub-tab
   showTab('admin');
-  // Skip the password gate if SESSION is already admin
+  // Auto-unlock for admins
   if(SESSION.role==='admin') {
     const gate = document.getElementById('adminGate');
     const panel = document.getElementById('adminPanel');
@@ -3480,8 +3837,9 @@ function goAdmin(subtab) {
     if(panel) panel.style.display='block';
   }
   // Switch to the requested sub-tab
-  const btn = [...document.querySelectorAll('#adminPanel .sub-tab')].find(b => b.textContent.toLowerCase().includes(subtab));
-  if(btn && typeof setAdminTab === 'function') setAdminTab(subtab, btn);
+  const btn = [...document.querySelectorAll('#adminPanel .sub-tab')].find(b => b.textContent.toLowerCase().includes(subtab||'members'));
+  if(btn && typeof setAdminTab === 'function') setAdminTab(subtab||'members', btn);
+  else if(typeof setAdminTab==='function') setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
 }
 function setMoreTab(tab,el) {
   ['numbers','stats','schedule','equipment','vehicles'].forEach(t=>{
@@ -3519,9 +3877,19 @@ function renderEqLocList2() {
       ${l==='COBC'?'<span style="font-size:11px;color:var(--text3);">default</span>':`<button class="btn-sm btn-ghost" style="font-size:11px;padding:5px 10px;" onclick="removeLocationFromMore(${i})">Remove</button>`}
     </div>`).join('');
 }
-function addLocationFromMore(){const name=(document.getElementById('newLocName2')?.value||'').trim();if(!name){showToast('Enter a location name');return;}const locs=[...(STATE.locations||[])];if(locs.includes(name)){showToast('Already exists');return;}locs.push(name);firebase.firestore().collection('config').doc('locations').set({locations:locs,updatedAt:Date.now()}).then(()=>{document.getElementById('newLocName2').value='';showToast('Location added');}).catch(e=>{showToast('Error');console.error(e);});}
-function removeLocationFromMore(name){if(!name)return;const locs=(STATE.locations||[]).filter(l=>l!==name);firebase.firestore().collection('config').doc('locations').set({locations:locs,updatedAt:Date.now()}).then(()=>showToast('Location removed')).catch(e=>{showToast('Error');console.error(e);});}
-async function addEquipmentFromMore(){const name=(document.getElementById('newEqName2')?.value||'').trim();const loc=(document.getElementById('newEqLoc2')?.value||'COBC').trim();if(!name){showToast('Enter equipment name');return;}const maxRow=(STATE.equipment||[]).reduce((m,e)=>Math.max(m,e.row||0),0);const newRow=maxRow+1;const id='EQ-'+String(newRow).padStart(4,'0');firebase.firestore().collection('equipment').doc(id).set({id,row:newRow,name,homeLocation:loc,status:'IN',member:'',call:'',lastUpdated:new Date().toLocaleString(),ccnc:'CC',isCNC:false,cncNote:'',equipStatus:'OK',equipNote:''}).then(()=>{document.getElementById('newEqName2').value='';showToast('Equipment added');}).catch(e=>{showToast('Error');console.error(e);});}
+function addLocationFromMore(){const name=(document.getElementById('newLocName2')?.value||'').trim();if(!name){showToast('Enter a location name');return;}const locs=[...(STATE.locations||[])];if(locs.includes(name)){showToast('Already exists');return;}locs.push(name);STATE.locations=locs;sheetPOST({action:'updateLocations',locations:locs}).then(()=>{const el=document.getElementById('newLocName2');if(el)el.value='';showToast('Location added');save();renderEqLocList&&renderEqLocList();}).catch(e=>{showToast('Error');console.error(e);});}
+function removeLocationFromMore(idx){removeLocation(idx);}
+async function addEquipmentFromMore(){
+  const nameEl=document.getElementById('newEqName2');
+  const name=(nameEl?.value||'').trim();
+  const loc=(document.getElementById('newEqLoc2')?.value||'COBC').trim();
+  if(!name){showToast('Enter equipment name');return;}
+  try{
+    const r=await sheetPOST({action:'addItem',name,location:loc});
+    if(r&&r.success){if(nameEl)nameEl.value='';showToast('✅ Equipment added to sheet');await loadInventoryFromSheet();}
+    else{showToast('Error: '+(r?.error||'Unknown'));}
+  }catch(e){showToast('Error adding equipment');console.error(e);}
+}
 function renderHlocList2() {
   const el = document.getElementById('hlocList2');
   if(!el) return;
@@ -3550,7 +3918,23 @@ function hlocChanged2(id) {
   if(ok) ok.style.display='none';
   btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
 }
-async function saveHloc2(id){const sel=document.getElementById('hloc2-sel-'+id);const btn=document.getElementById('hloc2-btn-'+id);const ok=document.getElementById('hloc2-ok-'+id);if(!sel)return;if(btn)btn.disabled=true;firebase.firestore().collection('equipment').doc(id).set({homeLocation:sel.value},{merge:true}).then(()=>{if(ok)ok.textContent='✓';showToast('Updated');setTimeout(()=>{if(ok)ok.textContent='';if(btn)btn.disabled=false;},1500);}).catch(e=>{showToast('Error');if(btn)btn.disabled=false;console.error(e);});}
+async function saveHloc2(id){
+  const sel=document.getElementById('hloc2-sel-'+id);
+  const btn=document.getElementById('hloc2-btn-'+id);
+  const ok=document.getElementById('hloc2-ok-'+id);
+  if(!sel)return;
+  const item=STATE.equipment.find(e=>e.id===id);
+  if(!item){showToast('Item not found');return;}
+  if(btn)btn.disabled=true;
+  try{
+    await sheetPOST({action:'updateHomeLocation',row:item.row,location:sel.value});
+    item.location=sel.value;
+    if(ok){ok.style.display='inline';ok.textContent='✓';}
+    showToast('✅ Location updated');
+    setTimeout(()=>{if(ok)ok.style.display='none';if(btn)btn.disabled=false;},1500);
+    save();
+  }catch(e){showToast('Error');if(btn)btn.disabled=false;console.error(e);}
+}
 function renderEqAdminList2() {
   const list = document.getElementById('eqAdminList2');
   const count = document.getElementById('eqAdminCount2');
@@ -3584,7 +3968,17 @@ function renderEqAdminList2() {
   }).join('') + (items.length>200 ? `<div style="padding:10px;color:var(--text3);font-size:12px;text-align:center;">Showing first 200 of ${items.length}</div>` : '');
 }
 
-async function setAdminEqStatus(id,status){firebase.firestore().collection('equipment').doc(id).set({equipStatus:status,lastUpdated:new Date().toLocaleString()},{merge:true}).then(()=>showToast('Status updated')).catch(e=>{showToast('Error');console.error(e);});}
+async function setAdminEqStatus(id,status){
+  const eq=STATE.equipment.find(e=>e.id===id);
+  if(!eq)return;
+  try{
+    await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:''});
+    eq.equipStatus=status;if(status==='OK')eq.equipNote='';
+    showToast('Status updated');
+    renderEqAdminList&&renderEqAdminList();renderEqAdminList2&&renderEqAdminList2();
+    renderInventory&&renderInventory();save();
+  }catch(e){showToast('Error');console.error(e);}
+}
 
 function _OLD_setMoreTab_unused(tab,el) {
   ['numbers','stats','schedule','vehicles'].forEach(t=>{
@@ -4821,7 +5215,18 @@ function setEqCat(cat,el) {
 
 // ── EQUIPMENT DASHBOARD ──
 
-async function deleteEquipmentItem(id){if(!confirm('Delete equipment '+id+'?'))return;firebase.firestore().collection('equipment').doc(id).delete().then(()=>showToast('Equipment deleted')).catch(e=>{showToast('Error');console.error(e);});}
+async function deleteEquipmentItem(id){
+  const eq=STATE.equipment.find(e=>e.id===id);
+  const label=eq?eq.name:id;
+  if(!confirm('Mark "'+label+'" as Not Active? (Edit the Google Sheet to fully delete)'))return;
+  if(!eq){showToast('Item not found');return;}
+  try{
+    await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:'Not Active',note:''});
+    eq.equipStatus='Not Active';
+    showToast('Marked Not Active');
+    renderEqAdminList&&renderEqAdminList();renderInventory&&renderInventory();save();
+  }catch(e){showToast('Error');console.error(e);}
+}
 function renderEquipmentDashboard() {
   const active=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
   const total=active.length;
@@ -4975,9 +5380,51 @@ function renderCOSearch() {
   res.style.display='block';
   res.innerHTML=matches.map(e=>`<div onclick="coModalItems.push(STATE.equipment.find(x=>x.row===${e.row}));renderCOModalList();document.getElementById('coModalSearch').value='';document.getElementById('coModalSearchResults').style.display='none';" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--navy);">${e.name} <span style="color:var(--text3);font-weight:400;">— ${e.location}</span></div>`).join('');
 }
-async function submitCO(action,id){const member=(document.getElementById('coModalMember')?.value||'');const call=(document.getElementById('coModalCall')?.value||'');const ccnc=(document.getElementById('coModalCCNC')?.value||'CC');const cncNote=(document.getElementById('coModalCNCNote')?.value||'');const items=(STATE._coItems||[id]).filter(Boolean);const ts=new Date().toLocaleString();const db=firebase.firestore();Promise.all(items.map(itemId=>{const update=action==='OUT'?{status:'OUT',member,call,ccnc,cncNote,lastUpdated:ts}:{status:'IN',member:'',call:'',ccnc:'CC',cncNote:'',lastUpdated:ts};return db.collection('equipment').doc(itemId).set(update,{merge:true});})).then(()=>{hideModal('coModal');showToast(action==='OUT'?'Checked out':'Checked in');STATE._coItems=null;}).catch(e=>{showToast('Error updating equipment');console.error(e);});}
+async function submitCO(action){
+  const member=(document.getElementById('coModalMember')?.value||'').trim();
+  const call=(document.getElementById('coModalCall')?.value||'').trim();
+  const ccnc=(document.getElementById('coModalCCNC')?.value||'CC');
+  const cncNote=(document.getElementById('coModalCNCNote')?.value||'').trim();
+  if(!coModalItems.length){showToast('No items selected');return;}
+  const btn=document.querySelector('#checkoutModal .btn-full.btn-green,#checkoutModal .btn-full.btn-danger');
+  if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  try{
+    await Promise.all(coModalItems.map(it=>sheetPOST({action:'checkInOut',row:it.row,status:action,member,call,ccSel:ccnc,cncNote})));
+    // Update local state immediately for responsiveness
+    coModalItems.forEach(it=>{
+      const eq=STATE.equipment.find(e=>e.row===it.row);
+      if(eq){
+        eq.status=action==='OUT'?'out':'in';
+        eq.checkedOutBy=action==='OUT'?member:'';
+        eq.callNum=action==='OUT'?call:'';
+        eq.ccnc=action==='OUT'?(ccnc==='CNC'&&cncNote?'CNC - '+cncNote:ccnc):'CC';
+        eq.isCNC=action==='OUT'&&ccnc==='CNC';
+        eq.cncNote=action==='OUT'&&ccnc==='CNC'?cncNote:'';
+        eq.lastUpdated=new Date().toLocaleString();
+      }
+    });
+    hideModal('checkoutModal');
+    showToast(action==='OUT'?'✅ Checked out':'✅ Checked in');
+    renderInventory&&renderInventory();
+    renderEquipmentDashboard&&renderEquipmentDashboard();
+    save();
+  }catch(e){
+    showToast('⚠️ Error — check connection');
+    console.error(e);
+    if(btn){btn.disabled=false;btn.textContent=action==='OUT'?'Check OUT All':'Check IN All';}
+  }
+}
 
-async function resetEqStatus(id){firebase.firestore().collection('equipment').doc(id).set({equipStatus:'OK',equipNote:'',lastUpdated:new Date().toLocaleString()},{merge:true}).then(()=>showToast('Status reset')).catch(e=>{showToast('Error');console.error(e);});}
+async function resetEqStatus(rowOrId){
+  const eq=STATE.equipment.find(e=>String(e.row)===String(rowOrId)||e.id===rowOrId);
+  if(!eq)return;
+  try{
+    await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:'OK',note:''});
+    eq.equipStatus='OK';eq.equipNote='';eq.lastUpdated=new Date().toLocaleString();
+    showToast('✅ Status reset');
+    renderInventory&&renderInventory();renderChkItems&&renderChkItems();save();
+  }catch(e){showToast('Error resetting status');console.error(e);}
+}
 
 // ── CHECKLIST ──
 let chkCurLoc=null, chkFilter='all', chkStatus={}, chkNotes={};
@@ -5037,6 +5484,7 @@ function renderChkItems() {
   const cc=document.getElementById('chkChecked'); if(cc) cc.textContent=`${done}/${li.length}`;
   const ci=document.getElementById('chkIssues'); if(ci) ci.textContent=issues;
   const wb=document.getElementById('chkWaBtn'); if(wb) wb.style.display=li.length?'block':'none';
+  const sb=document.getElementById('chkSubmitBtn'); if(sb&&(SESSION.role==='admin'||SESSION.role==='equipment')) sb.style.display=li.length?'block':'none';
   const STATUS_COLORS={OK:'#2e7d32',Missing:'var(--red)',Damaged:'var(--amber)','Need More':'var(--blue)','Not Active':'#888'};
   const el=document.getElementById('chkList');
   if(!el) return;
@@ -5061,8 +5509,22 @@ function renderChkItems() {
   }).join('');
 }
 
-function setChkStatus(key,status){const eq=(STATE.equipment||[]).find(e=>String(e.id)===String(key)||String(e.row)===String(key));if(!eq)return;firebase.firestore().collection('equipment').doc(eq.id).set({equipStatus:status,lastUpdated:new Date().toLocaleString()},{merge:true}).catch(e=>console.warn(e));eq.equipStatus=status;renderChkItems&&renderChkItems();}
-function saveChkNote(key){const input=document.getElementById('chkNote-'+key);if(!input)return;const note=input.value.trim();const eq=(STATE.equipment||[]).find(e=>String(e.id)===String(key)||String(e.row)===String(key));if(!eq)return;firebase.firestore().collection('equipment').doc(eq.id).set({equipNote:note,lastUpdated:new Date().toLocaleString()},{merge:true}).then(()=>showToast('Note saved')).catch(e=>console.warn(e));eq.equipNote=note;}
+function setChkStatus(key,status){
+  const eq=(STATE.equipment||[]).find(e=>String(e.row)===String(key)||e.id===String(key));
+  if(!eq)return;
+  chkStatus[key]=status;
+  eq.equipStatus=status;
+  if(status==='OK'){eq.equipNote='';delete chkNotes[key];}
+  renderChkItems&&renderChkItems();
+  sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:chkNotes[key]||''}).catch(e=>console.warn('setChkStatus err:',e));
+}
+function saveChkNote(key){
+  const note=(chkNotes[key]||'').trim();
+  const eq=(STATE.equipment||[]).find(e=>String(e.row)===String(key)||e.id===String(key));
+  if(!eq)return;
+  eq.equipNote=note;
+  sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:eq.equipStatus||'OK',note}).catch(e=>console.warn('saveChkNote err:',e));
+}
 function sendChkWhatsApp() {
   if(!chkCurLoc) return;
   var li=STATE.equipment.filter(function(e){return e.location===chkCurLoc&&e.equipStatus!=='Not Active';});
@@ -5082,24 +5544,103 @@ function sendChkWhatsApp() {
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
 
+// ── ADMIN: CALLS MANAGEMENT ──
+let adminCallFilter='all';
+function setAdminCallFilter(f,el){
+  adminCallFilter=f;
+  document.querySelectorAll('#adminCallsFilter .chip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderAdminCalls();
+}
+function renderAdminCalls(){
+  const el=document.getElementById('adminCallsList');
+  if(!el) return;
+  let list=[...STATE.calls];
+  if(adminCallFilter!=='all') list=list.filter(c=>c.status===adminCallFilter);
+  list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(!list.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No calls found</div></div>';return;}
+  const STATUS_COLORS={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)',urgent:'var(--red)'};
+  el.innerHTML=list.map(c=>{
+    const ts=c.createdAt?new Date(c.createdAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+    const respCount=(c.responders||[]).length;
+    const sc=STATUS_COLORS[c.status]||'var(--text3)';
+    return `<div style="background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);border-left:4px solid ${sc};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;">${c.type||'Unknown'} — ${c.town||''}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">${c.address||'No address'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${ts} · ${respCount} responder${respCount!==1?'s':''} · <span style="color:${sc};font-weight:700;">${c.status||'unknown'}</span></div>
+        </div>
+        <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text3);flex-shrink:0;">${(c.id||'').slice(-6)}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button onclick="openCallEdit('${c.id}')" style="flex:1;padding:8px;background:#eff6ff;color:var(--blue);border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Edit</button>
+        ${c.status!=='done'?`<button onclick="updateCallStatus('${c.id}','done')" style="flex:1;padding:8px;background:#f0fdf4;color:var(--green);border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">✓ Close</button>`:''}
+        <button onclick="deleteCall('${c.id}');renderAdminCalls();" style="padding:8px 12px;background:#fee2e2;color:var(--red);border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── ADMIN: CHECKLIST HISTORY (from Google Sheet ChecklistLog) ──
+async function renderAdminHistory(){
+  const el=document.getElementById('adminHistoryList');
+  if(!el) return;
+  el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading…</div>';
+  try{
+    const data=await sheetPOST({action:'getChecklistLog'});
+    const log=[...(data.log||[])].reverse(); // newest first
+    if(!log.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No checklist history yet</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">Use Equipment → Checklist → Submit Checklist</div></div>';return;}
+    el.innerHTML=log.map(h=>`
+      <div style="background:#fff;border-radius:10px;padding:13px 14px;margin-bottom:8px;box-shadow:var(--shadow);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:14px;font-weight:700;">${h.location||'Unknown location'}</div>
+          <div style="font-size:11px;color:var(--text3);">${h.timestamp||''}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);">Submitted by BC-${h.bc||'?'}</div>
+      </div>`).join('');
+  }catch(e){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--red);font-size:13px;">Error loading history</div>';console.error(e);}
+}
+
+// ── SUBMIT CHECKLIST (save to Google Sheet ChecklistLog) ──
+async function submitChecklist(){
+  if(!chkCurLoc){showToast('No location selected');return;}
+  const li=STATE.equipment.filter(e=>e.location===chkCurLoc&&e.equipStatus!=='Not Active');
+  const checked=li.filter(e=>!!chkStatus[e.row||e.id]);
+  const issues=li.filter(e=>chkStatus[e.row||e.id]&&chkStatus[e.row||e.id]!=='OK');
+  if(!confirm(`Submit checklist for ${chkCurLoc}?\n${checked.length}/${li.length} items checked, ${issues.length} issue(s).`)) return;
+  // Send any pending status updates first
+  const pending=issues.filter(e=>chkStatus[e.row||e.id]);
+  try{
+    if(pending.length){
+      await Promise.all(pending.map(e=>sheetPOST({action:'updateEquipmentStatus',row:e.row,status:chkStatus[e.row||e.id],note:chkNotes[e.row||e.id]||''})));
+    }
+    const rows=li.map(e=>e.row).filter(Boolean);
+    const result=await sheetPOST({action:'submitChecklist',rows,bc:SESSION.unit||'?'});
+    if(result&&result.success){
+      showToast('✅ Checklist submitted!');
+      li.forEach(e=>{delete chkStatus[e.row||e.id];delete chkNotes[e.row||e.id];});
+      renderChkItems&&renderChkItems();
+    } else { showToast('Error: '+(result?.error||'Unknown')); }
+  }catch(e){showToast('Error saving checklist');console.error(e);}
+}
+
 function setAdminTab(tab, btn) {
   document.querySelectorAll('#adminPanel .sub-tab').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  ['members','dispatch','equipment','locations'].forEach(t => {
+  ['members','dispatch','equipment','locations','calls','history'].forEach(t => {
     const el = document.getElementById('admin-'+t);
     if(el) el.style.display = (t===tab) ? 'block' : 'none';
   });
+  if(tab==='members') renderAdminMembers();
   if(tab==='equipment') {
-    // Populate the Home Location dropdown for Add Equipment
     const sel = document.getElementById('newEqLoc');
-    if(sel) {
-      const locs = STATE.locations || ['COBC'];
-      sel.innerHTML = locs.map(l=>`<option>${l}</option>`).join('');
-    }
-    renderEqAdminList();
-    renderHlocList();
+    if(sel) { const locs = STATE.locations || ['COBC']; sel.innerHTML = locs.map(l=>`<option>${l}</option>`).join(''); }
+    renderEqAdminList(); renderHlocList();
   }
   if(tab==='locations') renderLocationList();
+  if(tab==='calls') renderAdminCalls();
+  if(tab==='history') renderAdminHistory();
 }
 function renderLocationList() {
   const el = document.getElementById('locationList');
@@ -5111,21 +5652,36 @@ function renderLocationList() {
       ${l==='COBC'?'<span style="font-size:11px;color:var(--text3);">(default)</span>':`<button class="btn-sm btn-ghost" style="font-size:11px;" onclick="removeLocation(${i})">Remove</button>`}
     </div>`).join('');
 }
-function addLocation(){const name=(document.getElementById('newLocName')?.value||'').trim();if(!name){showToast('Enter a location name');return;}const locs=[...(STATE.locations||[])];if(locs.includes(name)){showToast('Already exists');return;}locs.push(name);firebase.firestore().collection('config').doc('locations').set({locations:locs,updatedAt:Date.now()}).then(()=>{document.getElementById('newLocName').value='';showToast('Location added');}).catch(e=>{showToast('Error');console.error(e);});}
-function removeLocation(name){if(!name)return;const locs=(STATE.locations||[]).filter(l=>l!==name);firebase.firestore().collection('config').doc('locations').set({locations:locs,updatedAt:Date.now()}).then(()=>showToast('Location removed')).catch(e=>{showToast('Error');console.error(e);});}
+function addLocation(){const name=(document.getElementById('newLocName')?.value||'').trim();if(!name){showToast('Enter a location name');return;}const locs=[...(STATE.locations||[])];if(locs.includes(name)){showToast('Already exists');return;}locs.push(name);STATE.locations=locs;sheetPOST({action:'updateLocations',locations:locs}).then(()=>{const el=document.getElementById('newLocName');if(el)el.value='';showToast('Location added');save();renderLocationList&&renderLocationList();renderEqLocList&&renderEqLocList();}).catch(e=>{showToast('Error');console.error(e);});}
+function removeLocation(idx){const locs=[...(STATE.locations||[])];if(typeof idx==='number'){if(idx<0||idx>=locs.length||locs[idx]==='COBC')return;locs.splice(idx,1);}else{if(!idx||idx==='COBC')return;const i=locs.indexOf(idx);if(i<0)return;locs.splice(i,1);}STATE.locations=locs;sheetPOST({action:'updateLocations',locations:locs}).then(()=>{showToast('Location removed');save();renderLocationList&&renderLocationList();renderEqLocList&&renderEqLocList();}).catch(e=>{showToast('Error');console.error(e);});}
 
-// ── ADMIN: Add Equipment + QR Generation ──
-async function addEquipment(){const name=(document.getElementById('newEqName')?.value||'').trim();const loc=(document.getElementById('newEqLoc')?.value||'COBC').trim();if(!name){showToast('Enter equipment name');return;}const maxRow=(STATE.equipment||[]).reduce((m,e)=>Math.max(m,e.row||0),0);const newRow=maxRow+1;const id='EQ-'+String(newRow).padStart(4,'0');firebase.firestore().collection('equipment').doc(id).set({id,row:newRow,name,homeLocation:loc,status:'IN',member:'',call:'',lastUpdated:new Date().toLocaleString(),ccnc:'CC',isCNC:false,cncNote:'',equipStatus:'OK',equipNote:''}).then(()=>{document.getElementById('newEqName').value='';showToast('Equipment added');}).catch(e=>{showToast('Error');console.error(e);});}
+// ── ADMIN: Add Equipment (adds row to Google Sheet + generates QR link) ──
+async function addEquipment(){
+  const nameEl=document.getElementById('newEqName');
+  const name=(nameEl?.value||'').trim();
+  const loc=(document.getElementById('newEqLoc')?.value||'COBC').trim();
+  if(!name){showToast('Enter equipment name');return;}
+  try{
+    const r=await sheetPOST({action:'addItem',name,location:loc});
+    if(r&&r.success){
+      if(nameEl)nameEl.value='';
+      showToast('✅ Equipment added to sheet');
+      await loadInventoryFromSheet();
+    }else{showToast('Error: '+(r?.error||'Unknown'));}
+  }catch(e){showToast('Error adding equipment');console.error(e);}
+}
 
 function showQRForItem(item) {
   const modal = document.getElementById('qrDisplayModal');
   if(!modal) return;
   if(window.__loadQRLib) window.__loadQRLib();
   document.getElementById('qrItemName').textContent = item.name;
-  document.getElementById('qrItemMeta').textContent = `${item.location} · ${item.id}`;
+  document.getElementById('qrItemMeta').textContent = `${item.location} · Row ${item.row||item.id}`;
   const wrap = document.getElementById('qrCodeWrap');
   wrap.innerHTML='';
-  const payload = item.id;
+  // QR encodes the chaverim-equipment check-in form URL — same stickers work on both apps
+  const formUrl = 'https://aryehw330-lgtm.github.io/chaverim-equipment/form.html?name=' + encodeURIComponent(item.name);
+  const payload = formUrl;
   showModal('qrDisplayModal');
 
   // Render QR — retry up to ~3s in case the CDN script is still loading
@@ -5174,7 +5730,7 @@ function printQR() {
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>${name} — QR</title>
     <style>body{font-family:-apple-system,sans-serif;text-align:center;padding:40px;}h1{font-size:22px;margin:0 0 6px;color:#0f2540;}div.m{font-size:13px;color:#666;margin-bottom:18px;}p{font-size:11px;color:#888;margin-top:14px;}</style></head>
-    <body><h1>${name}</h1><div class="m">${meta}</div>${imgHTML}<p>Scan with COBC Dispatch app</p>
+    <body><h1>${name}</h1><div class="m">${meta}</div>${imgHTML}<p>Bergen County Chaverim — Scan to check in / out</p>
     <script>setTimeout(()=>window.print(),300);<\/script></body></html>`);
   w.document.close();
 }
@@ -5236,7 +5792,23 @@ function hlocChanged(id) {
   btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
 }
 
-async function saveHloc(id){const sel=document.getElementById('hloc-sel-'+id);const btn=document.getElementById('hloc-btn-'+id);const ok=document.getElementById('hloc-ok-'+id);if(!sel)return;if(btn)btn.disabled=true;firebase.firestore().collection('equipment').doc(id).set({homeLocation:sel.value},{merge:true}).then(()=>{if(ok)ok.textContent='✓';showToast('Updated');setTimeout(()=>{if(ok)ok.textContent='';if(btn)btn.disabled=false;},1500);}).catch(e=>{showToast('Error');if(btn)btn.disabled=false;console.error(e);});}
+async function saveHloc(id){
+  const sel=document.getElementById('hloc-sel-'+id);
+  const btn=document.getElementById('hloc-btn-'+id);
+  const ok=document.getElementById('hloc-ok-'+id);
+  if(!sel)return;
+  const item=STATE.equipment.find(e=>e.id===id);
+  if(!item){showToast('Item not found');return;}
+  if(btn)btn.disabled=true;
+  try{
+    await sheetPOST({action:'updateHomeLocation',row:item.row,location:sel.value});
+    item.location=sel.value;
+    if(ok){ok.style.display='inline';ok.textContent='✓';}
+    showToast('✅ Location updated');
+    setTimeout(()=>{if(ok)ok.style.display='none';if(btn)btn.disabled=false;},1500);
+    save();
+  }catch(e){showToast('Error');if(btn)btn.disabled=false;console.error(e);}
+}
 
 // ── REPORTS ──
 function selRptType(type,btn) {
@@ -5271,25 +5843,63 @@ function renderReports() {
     '<div class="alert alert-green"><span class="alert-icon">+</span><div class="alert-body"><div class="alert-title">No open reports</div></div></div>';
 }
 
-async function submitReport(){const itemId=(document.getElementById('reportItem')?.value||'');const member=(document.getElementById('reportMember')?.value||SESSION?.unit||'');const notes=(document.getElementById('reportNotes')?.value||'');if(!itemId||!notes){showToast('Select item and describe issue');return;}const db=firebase.firestore();const reportId='RPT-'+Date.now();db.collection('reports').doc(reportId).set({id:reportId,itemId,member,notes,status:'open',createdAt:Date.now(),resolvedAt:null}).then(()=>db.collection('equipment').doc(itemId).set({equipStatus:'ISSUE',equipNote:notes,lastUpdated:new Date().toLocaleString()},{merge:true})).then(()=>{if(document.getElementById('reportNotes'))document.getElementById('reportNotes').value='';hideModal('reportModal');showToast('Report submitted');}).catch(e=>{showToast('Error submitting report');console.error(e);});}
+async function submitReport(){
+  const itemName=(document.getElementById('reportItem')?.value||'');
+  const member=(document.getElementById('reportMember')?.value||SESSION?.unit||'').trim();
+  const notes=(document.getElementById('reportNotes')?.value||'').trim();
+  if(!itemName||!notes){showToast('Select item and describe issue');return;}
+  if(!rptCurType){showToast('Select a report type first');return;}
+  const item=STATE.equipment.find(e=>e.name===itemName);
+  const location=item?.location||'';
+  try{
+    await sheetPOST({action:'submitReport',item:itemName,location,type:rptCurType,note:notes,member});
+    // If it's a status issue, also update col K on the sheet
+    if(item&&['Missing','Damaged','Need More'].includes(rptCurType)){
+      await sheetPOST({action:'updateEquipmentStatus',row:item.row,status:rptCurType,note:notes});
+      item.equipStatus=rptCurType;item.equipNote=notes;
+    }
+    // Add to local STATE.reports for immediate display
+    STATE.reports=STATE.reports||[];
+    const reportId='RPT-'+Date.now();
+    STATE.reports.push({id:reportId,item:itemName,location,type:rptCurType,notes,member,time:Date.now(),resolved:false});
+    const notesEl=document.getElementById('reportNotes');if(notesEl)notesEl.value='';
+    const memberEl=document.getElementById('reportMember');if(memberEl)memberEl.value='';
+    rptCurType='';
+    document.querySelectorAll('#rptTypeBtns button').forEach(b=>{b.style.borderColor='var(--border)';b.style.color='var(--text2)';b.style.background='#fff';});
+    showToast('✅ Report submitted');
+    renderReports&&renderReports();
+    renderInventory&&renderInventory();
+    save();
+  }catch(e){showToast('Error submitting report');console.error(e);}
+}
 
-function resolveReport(reportId,itemId){const db=firebase.firestore();db.collection('reports').doc(reportId).set({status:'resolved',resolvedAt:Date.now()},{merge:true}).then(()=>itemId?db.collection('equipment').doc(itemId).set({equipStatus:'OK',equipNote:'',lastUpdated:new Date().toLocaleString()},{merge:true}):Promise.resolve()).then(()=>{showToast('Report resolved');renderReports&&renderReports();}).catch(e=>{showToast('Error');console.error(e);});}
-
-// ── Alias for backward compat ──
-function postJ(body) { return sheetPOST(body); }
+function resolveReport(reportId){
+  const r=(STATE.reports||[]).find(r=>r.id===reportId);
+  if(r){r.resolved=true;}
+  showToast('Report resolved');
+  renderReports&&renderReports();
+  save();
+}
 
 function lookupScan() {
-  const val=document.getElementById('scanInput').value.trim().toUpperCase();
-  let eq=STATE.equipment.find(e=>e.id===val||e.id===`EQ-${val.replace('EQ-','').padStart(4,'0')}`);
-  if(!eq) eq=STATE.equipment.find(e=>e.name.toUpperCase()===val);
-  if(!eq){showToast('Item not found — try refreshing');return;}
+  let raw=(document.getElementById('scanInput')?.value||'').trim();
+  // Handle full chaverim-equipment form URLs (from physical QR stickers)
+  if(raw.includes('chaverim-equipment')) {
+    try { const m=new URL(raw).searchParams.get('name'); if(m) raw=m; } catch(e) {
+      const m=raw.match(/[?&]name=([^&]+)/); if(m) raw=decodeURIComponent(m[1]);
+    }
+  }
+  const valUC=raw.toUpperCase();
+  let eq=STATE.equipment.find(e=>e.name.toUpperCase()===valUC);
+  if(!eq) eq=STATE.equipment.find(e=>e.id===raw||e.id===raw.toUpperCase());
+  if(!eq){showToast('Item not found — try syncing first');return;}
   hideModal('scanModal');
   document.getElementById('scanInput').value='';
   showTab('equipment'); setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)'));
   setTimeout(()=>{
-    // Scroll to item in inventory
     renderInventory();
     showToast(`Found: ${eq.name}`);
+    openCheckout(eq.row);
   },200);
 }
 
