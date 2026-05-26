@@ -33,6 +33,20 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
+// Show notification when app is in foreground (posted from onMessage handler)
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SHOW_NOTIFICATION') {
+    const { title, body, data } = event.data;
+    self.registration.showNotification(title || 'COBC Dispatch', {
+      body: body || '',
+      icon: '/cobc-dispatch/icon-192.png',
+      badge: '/cobc-dispatch/icon-192.png',
+      tag: 'cobc-fg-' + Date.now(),
+      data: { url: data?.url || '/cobc-dispatch/' }
+    });
+  }
+});
+
 // Open the app when a notification is tapped
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

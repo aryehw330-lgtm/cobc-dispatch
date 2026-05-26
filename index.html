@@ -1885,7 +1885,19 @@ async function initPushModule() {
     _fcmMessaging = firebase.messaging();
     _fcmMessaging.onMessage((payload) => {
       const t = payload.notification?.title || payload.data?.title || 'COBC';
-      showToast('🔔 ' + t);
+      const b = payload.notification?.body  || payload.data?.body  || '';
+      // Show in-app toast
+      showToast('🔔 ' + t + (b ? ': ' + b : ''));
+      // Also ask the service worker to show a system banner (works on Android/desktop;
+      // iOS suppresses banners while the PWA is active — the toast above covers that case)
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: t,
+          body: b,
+          data: payload.data || {}
+        });
+      }
     });
   } catch(e) { /* messaging not available on this browser — that's OK */ }
 }
@@ -2020,6 +2032,26 @@ async function sendPush(payload) {
       body: JSON.stringify({ action: 'send', key: PUSH_SHARED_KEY, ...payload })
     });
   } catch (e) { console.warn('Push send failed:', e); }
+}
+
+async function sendTestPush() {
+  if (!SESSION.unit) return;
+  // On iOS the system banner only appears when the app is backgrounded.
+  // Show a dialog so the user backgrounds the app before the notification arrives.
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIOS) {
+    const go = confirm('📲 Test notification\n\nTap OK, then immediately go to your Home Screen.\n\nThe notification will arrive in about 10 seconds — you\'ll see it as a banner at the top.');
+    if (!go) return;
+  }
+  await sendPush({
+    target: 'unit',
+    unit: String(SESSION.unit),
+    title: '🔔 COBC Test',
+    body: 'Push notifications are working! ✅',
+    url: '/cobc-dispatch/',
+    urgent: 'true'
+  });
+  if (!isIOS) showToast('Test notification sent — check your alerts');
 }
 
 // Boot Firebase + Firestore when page is ready
@@ -3265,7 +3297,7 @@ function renderHome() {
       // On iOS Safari (not PWA) — prompt to install
       notifBanner.innerHTML = '<div class="alert alert-amber" style="cursor:pointer;" onclick="showToast(\'Tap the Share button below, then tap Add to Home Screen\')"><span class="alert-icon">📲</span><div class="alert-body"><div class="alert-title">Add to Home Screen for push alerts</div><div class="alert-sub">Tap Share → Add to Home Screen → open app → enable notifications</div></div></div>';
     } else if (has && perm === 'granted') {
-      notifBanner.innerHTML = '<div class="alert alert-green"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Notifications on</div><div class="alert-sub">You\'ll get alerts for new calls + approvals</div></div></div>';
+      notifBanner.innerHTML = '<div class="alert alert-green" style="display:flex;align-items:center;justify-content:space-between;"><div style="display:flex;align-items:center;gap:8px;"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Notifications on</div><div class="alert-sub">You\'ll get alerts for new calls + approvals</div></div></div><button onclick="sendTestPush()" style="flex-shrink:0;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid rgba(0,0,0,0.15);background:rgba(255,255,255,0.4);cursor:pointer;">Test</button></div>';
     } else if (perm === 'denied') {
       notifBanner.innerHTML = '<div class="alert alert-amber"><span class="alert-icon">🔕</span><div class="alert-body"><div class="alert-title">Notifications blocked</div><div class="alert-sub">Enable in Settings → Safari → this site → Notifications</div></div></div>';
     } else if ('Notification' in window) {
