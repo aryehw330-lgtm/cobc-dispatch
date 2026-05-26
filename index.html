@@ -1891,90 +1891,53 @@ async function enablePushForThisDevice() {
     }
   }
 
-// iOS version check — push requires 16.4+
-if (isIOS) {
-  const iosVer = parseInt((navigator.userAgent.match(/OS (\d+)_/)||[])[1]||'0');
-  if (iosVer > 0 && iosVer < 16) {
-    showToast('Push notifications require iOS 16.4 or later — please update');
-    return;
-  }
-}
+  const btn = document.getElementById('settings-notif-btn');
+  const desc = document.getElementById('settings-notif-desc');
+  const setStatus = (txt, cls) => { if(btn){btn.textContent=txt;btn.className='btn-sm '+cls;btn.disabled=cls==='btn-amber';} if(desc)desc.textContent=txt==='On'?'✅ Notifications active — you will get alerts for new calls.':txt; };
 
-// ==================== PUSH NOTIFICATIONS ====================
-const btn = document.getElementById('settings-notif-btn');
-const desc = document.getElementById('settings-notif-desc');
-
-const setStatus = (txt, cls) => { 
-  if(btn){ 
-    btn.textContent = txt; 
-    btn.className = 'btn-sm ' + cls; 
-    btn.disabled = cls === 'btn-amber'; 
-  } 
-  if(desc) desc.textContent = txt === 'On' ? 
-    '✅ Notifications active — you will get alerts for new calls.' : txt; 
-};
-
-async function registerServiceWorker() {
-  if (!('serviceWorker' in navigator)) {
-    console.warn('Service Worker not supported');
-    return null;
-  }
-  try {
-    const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js', { 
-      scope: '/cobc-dispatch/' 
-    });
-    console.log('SW registered:', reg.scope);
-
-    await new Promise((resolve) => {
-      const timeout = setTimeout(() => resolve(reg), 10000);
-      if (reg.active) { clearTimeout(timeout); resolve(reg); return; }
-      const sw = reg.installing || reg.waiting;
-      if (!sw) { clearTimeout(timeout); resolve(reg); return; }
-      sw.addEventListener('statechange', function onState() {
-        if (this.state === 'activated') {
-          clearTimeout(timeout);
-          sw.removeEventListener('statechange', onState);
-          resolve(reg);
-        }
-      });
-    });
-    return reg;
-  } catch (e) {
-    console.warn('SW registration failed:', e);
-    return null;
-  }
-}
-
-async function enablePushNotifications() {
   setStatus('Working…','btn-amber');
+
   try {
+    // Step 1 — Permission
     if (Notification.permission === 'denied') {
       setStatus('Blocked','btn-ghost');
+      if(desc) desc.textContent = 'Blocked — go to iPhone Settings → COBC → Notifications and enable.';
       return;
     }
-
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') {
       setStatus('Denied','btn-ghost');
+      if(desc) desc.textContent = 'Notifications denied. Go to iPhone Settings → COBC → Notifications.';
       return;
     }
 
-    if (!_fcmMessaging) await initPushModule();
+    // Step 2 — Load FCM messaging SDK
+    if (!_fcmMessaging) { await initPushModule(); }
     if (!_fcmMessaging) {
       setStatus('Enable','btn-primary');
+      showToast('Push not available on this browser — try Safari');
       return;
     }
 
-    const reg = await registerServiceWorker();
-    const token = await _fcmMessaging.getToken({ 
-      vapidKey: FCM_VAPID_KEY, 
-      serviceWorkerRegistration: reg 
+    // Step 3 — Register service worker and wait for it to fully activate
+    const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js', { scope: '/cobc-dispatch/' });
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('SW activation timed out — try again')), 20000);
+      if (reg.active) { clearTimeout(timeout); resolve(); return; }
+      const sw = reg.installing || reg.waiting;
+      if (!sw) { clearTimeout(timeout); resolve(); return; }
+      sw.addEventListener('statechange', function onState() {
+        if (this.state === 'activated') { clearTimeout(timeout); sw.removeEventListener('statechange',onState); resolve(); }
+        if (this.state === 'redundant') { clearTimeout(timeout); sw.removeEventListener('statechange',onState); reject(new Error('SW install failed — reload and try again')); }
+      });
     });
 
-    if (!token) throw new Error("No token received");
-
+    // Step 4 — Get FCM token
+    const token = await _fcmMessaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) { setStatus('Enable','btn-primary'); showToast('Could not get push token — try again in a moment'); return; }
     _fcmToken = token;
 
+    // Step 5 — Register token with push server
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -1985,31 +1948,46 @@ async function enablePushNotifications() {
     localStorage.setItem('cobc_fcm_token_' + SESSION.unit, token);
     setStatus('On','btn-green');
     showToast('✅ Notifications enabled!');
+    renderHome && renderHome();
+
+    // Offer a test push to confirm end-to-end delivery
+    setTimeout(() => {
+      if (confirm('Notifications enabled ✅\n\nSend a test notification to confirm delivery on this device?')) {
+        sendTestPush();
+      }
+    }, 600);
 
   } catch(e) {
-    console.error('Push error:', e);
+    console.error('Push enable error:', e);
     setStatus('Retry','btn-primary');
-    showToast('⚠️ Push setup failed');
+    const msg = e?.message || '';
+    if (msg.includes('timed out') || msg.includes('reload')) showToast('⚠️ ' + msg);
+    else if (msg.includes('unsupported-browser') || msg.includes('not supported')) showToast('Push not supported here — use Safari on iOS 16.4+');
+    else showToast('⚠️ ' + (msg.slice(0,80) || 'Notification error — try again'));
   }
 }
 
 async function sendTestPush() {
-  if (!SESSION?.unit) return;
+  if (!SESSION.unit) return;
   try {
     await sendPush({
       target: 'unit',
       unit: String(SESSION.unit),
       title: '🔔 COBC Test',
-      body: 'Push notifications working!',
-      url: '/cobc-dispatch/'
+      body: 'Push notifications are working! ✅',
+      url: '/cobc-dispatch/',
+      urgent: 'true'
     });
-  } catch(e) {}
+    showToast('Test notification sent — check your alerts');
+  } catch(e) {
+    showToast('Test failed: ' + (e?.message||'unknown'));
+  }
 }
 
-const PUSH_SEND_URL = "https://script.google.com/macros/s/AKfycbyrOTdBNqyvoDOBRx_n_BuxvSXP6lvrndPQv0dKBKCoQyhOTXT1KoxBHlbArty9eBxsFQ/exec";
-const PUSH_SHARED_KEY = "cobc-2026-shared-secret";
-
+const PUSH_SEND_URL  = "https://script.google.com/macros/s/AKfycbyrOTdBNqyvoDOBRx_n_BuxvSXP6lvrndPQv0dKBKCoQyhOTXT1KoxBHlbArty9eBxsFQ/exec";    // ✅ set
+const PUSH_SHARED_KEY = "cobc-2026-shared-secret";   // ✅ set
 async function sendPush(payload) {
+  // payload: { target: 'all' | 'dispatchers' | 'unit', unit?: '24', title, body, url?, urgent? }
   if (!PUSH_SEND_URL || PUSH_SEND_URL.startsWith("PASTE_")) return;
   try {
     await fetch(PUSH_SEND_URL, {
@@ -2019,13 +1997,16 @@ async function sendPush(payload) {
     });
   } catch (e) { console.warn('Push send failed:', e); }
 }
+
 // Boot Firebase + Firestore when page is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initFirebaseApp);
 } else {
   initFirebaseApp();
 }
+
 // Login roles stored in Firestore members collection.
+
 function guessCat(name){const n=(name||'').toLowerCase();if(n.includes('fan'))return'Fan';if(n.includes('heater'))return'Heater';if(n.includes('light tower'))return'Light Tower';if(n.includes('shop vac'))return'Shop Vac';if(n.includes('a/c')||n.includes('ac '))return'A/C';if(n.includes('ez-spare')||n.includes('ez spare'))return'EZ-Spare';if(n.includes('generator')||n.includes('gen '))return'Generator';if(n.includes('sump')||n.includes('pump'))return'Pump';if(n.includes('ramp'))return'Ramp';if(n.includes('chainsaw'))return'Chainsaw';return'Other';}
 function conditionFromSheet(s){return s||'OK';}
 // ── Google Sheets / Apps Script backend (equipment home base) ──────────────
@@ -2533,93 +2514,56 @@ function _fsRestFetch(collection){
 }
 
 function initFirestore(){
-  // Force long polling for mobile + PWA (Safari & Chrome)
-  if(!_firestoreSettingsApplied){
-    try{
-      firebase.firestore().settings({
-        experimentalForceLongPolling: true,
-        experimentalAutoDetectLongPolling: true,
-        useFetchStreams: false
-      });
-      _firestoreSettingsApplied = true;
-    } catch(e){ console.warn('Firestore settings:',e); }
-  }
-
-  let _snapDelivered = false;
-  let _snapTimer = null;
-  let _pollCount = 0;
-
+  // iOS Safari PWA: Firestore WebSocket (WebChannel) is silently blocked by ITP.
+  // Force long-polling so Firestore data actually arrives on iPhone home-screen installs.
+  if(!_firestoreSettingsApplied){try{firebase.firestore().settings({experimentalForceLongPolling:true});_firestoreSettingsApplied=true;}catch(e){console.warn('Firestore settings:',e);}}
+  // iOS belt-and-suspenders: if onSnapshot never fires with real server data (ITP blocks
+  // even long-polling on some iOS Safari versions), fall back to direct Firestore REST API
+  // polling every 30s.  REST is plain HTTPS fetch — ITP cannot block it.
+  let _snapDelivered=false;let _snapTimer=null;
+  let _pollCount=0;
   function _pollFirestore(){
     _pollCount++;
-    const _isFirst = _pollCount === 1;
-    
-    Promise.all([_fsRestFetch('calls'), _fsRestFetch('members')])
-      .then(([fsCalls, fsMembers]) => {
-        if(_isFirst) console.log('✅ REST sync success:', fsCalls.length, 'calls');
-        
-        if(typeof SESSION === 'undefined') return;
-        
-        const firestoreIds = new Set(fsCalls.map(c => c.id));
-        const localOnly = (STATE.calls || []).filter(c => c.id && !firestoreIds.has(c.id) && !_deletedCallIds.has(c.id));
-        
-        localOnly.forEach(call => firestoreUpsertCall(call));
-        
-        STATE.calls = [...fsCalls, ...localOnly];
-        STATE.members = fsMembers;
-        
-        save();
-        if(typeof renderCalls === 'function') renderCalls();
-        if(typeof renderHome === 'function') renderHome();
-        if(typeof renderMemberDir === 'function') renderMemberDir();
-        
-        if(!_snapDelivered) _snapTimer = setTimeout(_pollFirestore, 25000);
-      })
-      .catch(e => {
-        console.warn('REST poll failed:', e);
-        if(!_snapDelivered) _snapTimer = setTimeout(_pollFirestore, 25000);
-      });
+    const _isFirst=_pollCount===1;
+    Promise.all([_fsRestFetch('calls'),_fsRestFetch('members')]).then(([fsCalls,fsMembers])=>{
+      if(_isFirst)console.log('REST sync: '+fsCalls.length+' calls, '+fsMembers.length+' members');
+      if(typeof SESSION==='undefined')return;
+      const firestoreIds=new Set(fsCalls.map(c=>c.id));
+      const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
+      localOnly.forEach(call=>firestoreUpsertCall(call));
+      STATE.calls=[...fsCalls,...localOnly];
+      STATE.members=fsMembers;
+      save();renderCalls&&renderCalls();renderHome&&renderHome();renderMemberDir&&renderMemberDir();
+      if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
+    }).catch(e=>{
+      if(_isFirst)showToast('REST sync FAILED: '+e.message,6000);
+      console.warn('Firestore REST poll error:',e);
+      if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
+    });
   }
-
-  // Main listeners
-  const db = firebase.firestore();
- 
-  db.collection('calls').onSnapshot(snap => {
-    try {
-      if(typeof SESSION === 'undefined') return;
-      if(!_snapDelivered && !snap.metadata.fromCache){
-        _snapDelivered = true;
-        if(_snapTimer){ clearTimeout(_snapTimer); _snapTimer = null; }
-      }
-      if(snap.metadata.fromCache && snap.docs.length === 0 && (STATE.calls||[]).length > 0) return;
-
-      const firestoreCalls = snap.docs.map(d => ({id: d.id, ...d.data()}));
-      const firestoreIds = new Set(firestoreCalls.map(c => c.id));
-      const localOnly = (STATE.calls || []).filter(c => c.id && !firestoreIds.has(c.id) && !_deletedCallIds.has(c.id));
-
-      localOnly.forEach(call => firestoreUpsertCall(call));
-      STATE.calls = [...firestoreCalls, ...localOnly];
-      
-      save();
-      if(typeof renderCalls === 'function') renderCalls();
-      if(typeof renderHome === 'function') renderHome();
-    } catch(e){ console.warn('calls snapshot error:', e); }
-  }, e => console.warn('calls listener error:', e));
-
-  db.collection('members').onSnapshot(snap => {
-    const ms = snap.docs.map(d => ({id:d.id, ...d.data()}));
-    if(snap.metadata.fromCache && ms.length===0 && (STATE.members||[]).length>0) return;
-    STATE.members = ms;
-    save();
-    if(typeof renderMemberDir === 'function') renderMemberDir();
-  });
-
-  // Start mobile fallback
-  _snapTimer = setTimeout(() => {
-    if(!_snapDelivered){
-      console.warn('onSnapshot silent — starting REST polling (mobile fix)');
-      _pollFirestore();
-    }
-  }, 4000);
+  const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
+  // Only mark as delivered when we get REAL server data (not Firestore local cache).
+  // If the device is offline/ITP-blocked, onSnapshot fires with cached (empty) data
+  // immediately — we must NOT cancel the get() fallback in that case.
+  if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
+  const firestoreCalls=snap.docs.map(d=>({id:d.id,...d.data()}));
+  // Guard: don't let an empty cached snapshot wipe out data the REST poll already loaded.
+  // On iOS, onSnapshot fires immediately with fromCache=true and 0 docs, then may fire again
+  // later. If we already have real data (from REST poll), skip empty cache snapshots.
+  if(snap.metadata.fromCache && firestoreCalls.length===0 && STATE.calls.length>0)return;
+  const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
+  // Find calls that exist locally but not yet in Firestore (created offline or before sync)
+  const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
+  // Upload any missing local calls to Firestore (one-time migration)
+  localOnly.forEach(call=>firestoreUpsertCall(call));
+  // Merge: Firestore is source of truth, but keep local-only calls visible until they upload
+  STATE.calls=[...firestoreCalls,...localOnly];
+  save();renderCalls&&renderCalls();renderHome&&renderHome();}catch(e){console.warn('calls snapshot error:',e);}},e=>console.warn('calls listener error:',e));
+  // Members sync stays in Firestore (dispatch roles/auth live there)
+  db.collection('members').onSnapshot(snap=>{const ms=snap.docs.map(d=>({id:d.id,...d.data()}));if(snap.metadata.fromCache&&ms.length===0&&STATE.members.length>0)return;STATE.members=ms;save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>console.warn('members snapshot error:',e));
+  // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
+  _snapTimer=setTimeout(()=>{if(!_snapDelivered){console.warn('Firestore onSnapshot silent — starting get() fallback');_pollFirestore();}},5000);
+  // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
 async function firestoreUpsertCall(call){try{await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
