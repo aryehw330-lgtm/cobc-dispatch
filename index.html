@@ -2011,10 +2011,20 @@ function guessCat(name){const n=(name||'').toLowerCase();if(n.includes('fan'))re
 function conditionFromSheet(s){return s||'OK';}
 // ── Google Sheets / Apps Script backend (equipment home base) ──────────────
 const EQ_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwjnEHbt8v1aVKUO7361uc8XTodz5yBWGKoRgQ3H26UFOJeAQarVQAGaEuYj277Ed14rw/exec';
-function sheetGET(params={}){const qs=Object.entries(params).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');return fetch(EQ_SCRIPT_URL+(qs?'?'+qs:''),{redirect:'follow',mode:'cors'}).then(r=>r.json());}
+function sheetGET(params={}){
+  const qs=Object.entries(params).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
+  const url=EQ_SCRIPT_URL+(qs?'?'+qs:'');
+  // credentials:'omit' avoids iOS ITP blocking cross-origin requests
+  // AbortController gives a 12-second timeout so it fails fast on mobile
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),12000);
+  return fetch(url,{redirect:'follow',mode:'cors',credentials:'omit',signal:ctrl.signal})
+    .then(r=>{clearTimeout(tid);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .catch(e=>{clearTimeout(tid);throw e;});
+}
 // No Content-Type header on POST — keeps it a "simple request" and avoids CORS preflight
 // (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
-function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',body:JSON.stringify(body)}).then(r=>r.json());}
+function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify(body)}).then(r=>r.json());}
 function postJ(action,data={}){return sheetPOST({action,...data});}
 async function loadInventoryFromSheet(){
   // Equipment + locations from Google Sheet; members from Firestore (dispatch needs roles)
