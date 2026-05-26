@@ -35,7 +35,9 @@ window.__loadQRLib=function(){
 <!-- firebase-messaging-compat.js loaded lazily in initPushModule() to avoid iOS PWA crash -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0f2540;color:#1c1c1e;overscroll-behavior:none;}
+html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0f2540;color:#1c1c1e;overscroll-behavior:none;touch-action:manipulation;}
+/* iOS: eliminate 300ms tap delay and prevent ghost-click from hidden fixed elements */
+button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary,.btn-danger,.list-item,.alert{touch-action:manipulation;cursor:pointer;}
 :root{
   --navy:#0f2540;--navy2:#1a3a5c;--navy3:#234d77;
   --gold:#d4a93a;--gold-light:#e6c463;--gold-deep:#b8902a;
@@ -72,7 +74,7 @@ html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0f2
 .dot-live{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:livepulse 1.8s ease-in-out infinite;}
 @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(0.8)}}
 .pages{flex:1;overflow:hidden;position:relative;}
-.page{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px 80px;transition:opacity .2s,transform .2s;background:var(--bg);}
+.page{position:absolute;inset:0;overflow-y:auto;padding:14px 16px 80px;transition:opacity .2s,transform .2s;background:var(--bg);}
 .page.hidden{opacity:0;pointer-events:none;transform:translateY(8px);}
 .tabbar{background:#fff;display:flex;align-items:stretch;border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom);flex-shrink:0;}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 4px;border:none;background:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:600;font-family:'DM Sans',sans-serif;letter-spacing:.2px;transition:color .15s;min-height:52px;position:relative;}
@@ -346,7 +348,10 @@ textarea.input{min-height:80px;resize:vertical;}
 .alltime-sub{font-size:11px;color:rgba(255,255,255,.4);margin-top:6px;}
 
 
-/* Quick type buttons */
+/* Toggle switch — used in Settings */
+.toggle input:checked + .toggle-track { background: var(--green) !important; }
+.toggle-track::before { content:''; position:absolute; left:3px; top:3px; width:20px; height:20px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.toggle input:checked + .toggle-track::before { transform: translateX(22px); }
 .qtype-btn{padding:10px 6px;border-radius:10px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;text-align:center;transition:all .15s;font-family:inherit;line-height:1.3;}
 .qtype-btn:active{transform:scale(.95);}
 .qtype-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
@@ -354,6 +359,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .qtype-btn-urgent:hover{background:#fecaca;}
 .qtype-btn-urgent.active{background:var(--red);border-color:var(--red);color:#fff;animation:urgentpulse 1.4s ease-in-out infinite;}
 @keyframes urgentpulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5);}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);}}
+@keyframes pendingPulse{0%,100%{box-shadow:0 0 0 0 rgba(217,119,6,.6);}50%{box-shadow:0 0 0 8px rgba(217,119,6,0);}}
 .qtype-btn.ns-btn{padding:8px 4px;font-size:11px;background:rgba(255,255,255,.85);}
 .qtype-btn.ns-btn.active{background:#d97706;border-color:#d97706;color:#fff;}
 .qtype-btn.urgent-active{background:var(--red);border-color:var(--red);color:#fff;}
@@ -377,6 +383,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.active{background:#f0fdf4;border-left:4px solid var(--green);}
 .call-card.urgent{background:#fff1f2;border:2px solid var(--red);}
 .call-card.done{background:#f4f4f5;opacity:.75;filter:grayscale(20%);}
+.call-card.cancelled{background:#fff1f2;border-left:4px solid var(--red);opacity:.8;filter:grayscale(10%);}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
 .call-card-header{padding:12px 14px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
 .call-card-type{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
@@ -516,22 +523,26 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <!-- Stats strip -->
       <div class="scroll-row">
+        <div class="mini-stat stat-amber" id="hs-pending-card" onclick="showTab('dispatch')" style="display:none;cursor:pointer;border:2px solid var(--amber);background:linear-gradient(135deg,#fef3c7,#fef9c3);animation:pendingPulse 1.8s ease-in-out infinite;"><div class="mini-stat-num" id="hs-pending" style="color:var(--amber);">0</div><div class="mini-stat-label" style="color:var(--amber);font-weight:700;">⏳ Pending</div></div>
         <div class="mini-stat stat-amber"><div class="mini-stat-num" id="hs-open">0</div><div class="mini-stat-label">Open</div></div>
         <div class="mini-stat stat-green"><div class="mini-stat-num" id="hs-active">0</div><div class="mini-stat-label">Active</div></div>
         <div class="mini-stat stat-red"><div class="mini-stat-num" id="hs-out">0</div><div class="mini-stat-label">Equip Out</div></div>
         <div class="mini-stat stat-blue"><div class="mini-stat-num" id="hs-members">0</div><div class="mini-stat-label">Members</div></div>
       </div>
       <div class="section-label">Active Calls</div>
+      <div id="homePendingBanner" style="display:none;"></div>
       <div id="homeCallsList"></div>
       <div id="homeNotifBanner"></div>
-      <div class="section-label">Equipment Alerts</div>
-      <div id="homeEqAlerts"></div>
+      <div id="homeEqAlertsWrap" style="display:none;">
+        <div class="section-label">Equipment Alerts</div>
+        <div id="homeEqAlerts"></div>
+      </div>
       <div class="section-label">Quick Actions</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-        <div class="card" style="cursor:pointer;text-align:center;" onclick="showTab('equipment')"><div style="font-size:28px;margin-bottom:6px;">📦</div><div style="font-size:13px;font-weight:700;">Equipment</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Check In/Out</div></div>
-        <div class="card" style="cursor:pointer;text-align:center;" onclick="showTab('dispatch')"><div style="font-size:28px;margin-bottom:6px;">📡</div><div style="font-size:13px;font-weight:700;">Dispatch</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">View Calls</div></div>
+        <div id="home-equipment-card" class="card" style="cursor:pointer;text-align:center;" onclick="showTab('equipment')"><div style="font-size:28px;margin-bottom:6px;">📦</div><div style="font-size:13px;font-weight:700;">Equipment</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Check In/Out</div></div>
+        <div id="home-dispatch-card" class="card" style="cursor:pointer;text-align:center;display:none;" onclick="showTab('dispatch')"><div style="font-size:28px;margin-bottom:6px;">📡</div><div style="font-size:13px;font-weight:700;">Dispatch</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">View Calls</div></div>
         <div class="card" style="cursor:pointer;text-align:center;" onclick="showTab('members')"><div style="font-size:28px;margin-bottom:6px;">👥</div><div style="font-size:13px;font-weight:700;">Members</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Directory</div></div>
-        <div class="card" style="cursor:pointer;text-align:center;" onclick="showTab('more')"><div style="font-size:28px;margin-bottom:6px;">☎️</div><div style="font-size:13px;font-weight:700;">Numbers</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Important</div></div>
+        <div class="card" style="cursor:pointer;text-align:center;" onclick="goToNumbers()"><div style="font-size:28px;margin-bottom:6px;">☎️</div><div style="font-size:13px;font-weight:700;">Numbers</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Important</div></div>
       </div>
     </div>
 
@@ -539,7 +550,10 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="page hidden" id="page-dispatch">
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
-        <button id="newCallBtn" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;display:none">+ New Call</button>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+          <button id="schedFromDispatchBtn" onclick="goToDispatchSchedule()" title="Dispatch Schedule" style="background:var(--border2);color:var(--navy);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">📅 Schedule</button>
+          <button id="newCallBtn" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;display:none">+ New Call</button>
+        </div>
       </div>
       <!-- On duty compact -->
       <div id="dispatchOnDutyRow" style="display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:12px;box-shadow:var(--shadow);">
@@ -548,12 +562,23 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <!-- Filter: In Progress first, then Open -->
       <div class="filter-chips" id="dispatchFilters">
-        <div class="chip active" data-filter="all" onclick="setDispatchFilter('all',this)">All</div>
-        <div class="chip" data-filter="active" onclick="setDispatchFilter('active',this)">▶ In Progress</div>
+        <div class="chip" data-filter="all" onclick="setDispatchFilter('all',this)">All</div>
+        <div class="chip active" data-filter="active" onclick="setDispatchFilter('active',this)">▶ In Progress</div>
         <div class="chip" data-filter="open" onclick="setDispatchFilter('open',this)">Open</div>
-        <div class="chip" data-filter="done" onclick="setDispatchFilter('done',this)">Completed</div>
+        <div class="chip" data-filter="done" onclick="setDispatchFilter('done',this)">Today's Completed</div>
+        <div class="chip" id="historyChip" onclick="openHistoryModal()" style="background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700;">📅 History</div>
         <div class="chip" data-filter="draft" onclick="setDispatchFilter('draft',this)" id="draftFilterChip">Draft</div>
       </div>
+      <!-- Pending Responder Requests Banner (admin/dispatch only) -->
+      <div id="pendingRespondersBanner" style="display:none;"></div>
+
+      <!-- Dispatch stat strip -->
+      <div class="scroll-row" id="dispatchStatRow" style="margin-bottom:10px;">
+        <div class="mini-stat stat-amber"><div class="mini-stat-num" id="ds-open">0</div><div class="mini-stat-label">Open</div></div>
+        <div class="mini-stat stat-green"><div class="mini-stat-num" id="ds-active">0</div><div class="mini-stat-label">Active</div></div>
+        <div class="mini-stat" id="ds-pending-card" onclick="openPendingModal()" style="display:none;cursor:pointer;border:2px solid var(--amber);background:linear-gradient(135deg,#fef3c7,#fef9c3);animation:pendingPulse 1.8s ease-in-out infinite;"><div class="mini-stat-num" id="ds-pending" style="color:var(--amber);">0</div><div class="mini-stat-label" style="color:var(--amber);font-weight:700;">⏳ Waiting</div></div>
+      </div>
+
       <div id="callsList"></div>
     </div>
 
@@ -577,7 +602,6 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="sub-tab" onclick="setEqTab('inventory',this)">Inventory</button>
         <button class="sub-tab" id="eqChecklistTab" onclick="setEqTab('checklist',this)">Checklist</button>
         <button class="sub-tab" onclick="setEqTab('reports',this)">Reports</button>
-        <button class="sub-tab" id="eqAdminTab" onclick="setEqTab('admin',this)" style="display:none;">Admin</button>
       </div>
       <!-- DASHBOARD -->
       <div id="eq-dashboard">
@@ -598,6 +622,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="chip" onclick="setEqFilter('damaged',this)">Damaged</div>
         </div>
         <div class="filter-chips" id="eqCatChips"></div>
+        <div class="filter-chips" id="eqLocChips"></div>
         <div id="eqList"></div>
       </div>
       <!-- CHECKLIST -->
@@ -733,19 +758,117 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <!-- ══ ADMIN (Numbers / Stats / Schedule / Vehicles / Admin Tools) ══ -->
     <div class="page hidden" id="page-more">
-      <div class="section-header"><div class="section-title">Admin</div></div>
+      <div class="section-header"><div class="section-title" id="page-more-title">Admin</div></div>
       <div id="adminMgmtBtnWrap" style="display:none;margin-bottom:12px;">
         <button onclick="goAdmin('members')" style="width:100%;padding:14px;background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;border:none;border-radius:var(--radius);font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
           <span>⚙️ Management Panel</span><span style="font-size:12px;opacity:.7;">Members · Calls · Equipment →</span>
         </button>
       </div>
-      <div class="sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;">
-        <button class="sub-tab" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
-        <button class="sub-tab active" onclick="setMoreTab('stats',this)">📊 Stats</button>
-        <button class="sub-tab" onclick="setMoreTab('schedule',this)">📅 Dispatch Schedule</button>
-        <button class="sub-tab" onclick="setMoreTab('equipment',this)">📦 Equipment</button>
-        <button class="sub-tab" onclick="setMoreTab('vehicles',this)">🚐 Vehicles</button>
+      <div class="sub-tabs" id="more-sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;">
+        <button class="sub-tab member-allowed" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
+        <button class="sub-tab active member-allowed" onclick="setMoreTab('stats',this)">📊 Stats</button>
+        <button class="sub-tab member-allowed" onclick="setMoreTab('settings',this)">⚙️ Settings</button>
+        <button class="sub-tab admin-only-sub" onclick="setMoreTab('schedule',this)">📅 Dispatch Schedule</button>
+        <button class="sub-tab admin-strict-sub" onclick="setMoreTab('equipment',this)">📦 Equipment</button>
+        <button class="sub-tab admin-strict-sub" onclick="setMoreTab('vehicles',this)">🚐 Vehicles</button>
       </div>
+      <!-- SETTINGS (notifications, location, app prefs) -->
+      <div id="more-settings" style="display:none;">
+        <div class="section-label">App Settings</div>
+
+        <!-- Notifications -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">🔔 Push Notifications</div>
+              <div class="card-desc" id="settings-notif-desc">Get alerted when a new call is dispatched.</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;">
+              <button id="settings-notif-test" class="btn-sm btn-ghost" onclick="sendTestPush()" style="display:none;font-size:11px;">Test</button>
+              <button id="settings-notif-btn" class="btn-sm btn-primary" onclick="enablePushForThisDevice()">Enable</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Location -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">📍 Location Sharing</div>
+              <div class="card-desc" id="settings-loc-desc">Lets dispatch see how far you are from a call.</div>
+            </div>
+            <button id="settings-loc-btn" class="btn-sm btn-primary" onclick="requestLocationPermission()" style="flex-shrink:0;">Allow</button>
+          </div>
+        </div>
+
+        <!-- Sound -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">🔊 Sound Alerts</div>
+              <div class="card-desc">Play a sound when an urgent call comes in.</div>
+            </div>
+            <label class="toggle" style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;">
+              <input id="settings-sound" type="checkbox" style="opacity:0;width:0;height:0;" onchange="saveSetting('sound',this.checked)"/>
+              <span style="position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:26px;transition:.2s;" class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Vibration -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">📳 Vibration</div>
+              <div class="card-desc">Vibrate phone on urgent calls (mobile only).</div>
+            </div>
+            <label class="toggle" style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;">
+              <input id="settings-vibrate" type="checkbox" style="opacity:0;width:0;height:0;" onchange="saveSetting('vibrate',this.checked)"/>
+              <span style="position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:26px;transition:.2s;" class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="section-label">App Info</div>
+
+        <!-- Install -->
+        <div id="settings-install-card" class="card" style="margin-bottom:10px;display:none;">
+          <div class="card-title">📥 Install COBC Dispatch</div>
+          <div class="card-desc" style="margin-bottom:10px;">Add this app to your home screen for faster access and push notifications.</div>
+          <button class="btn-sm btn-primary" onclick="showInstallInstructions()">How to Install</button>
+        </div>
+
+        <!-- Clear Cache -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">🗑️ Clear Cached Data</div>
+              <div class="card-desc">Reset locally-stored equipment + calls. Re-syncs from Google Sheet.</div>
+            </div>
+            <button class="btn-sm btn-ghost" onclick="clearAppCache()" style="flex-shrink:0;color:var(--red);">Clear</button>
+          </div>
+        </div>
+
+        <!-- Sign Out -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">🚪 Sign Out</div>
+              <div class="card-desc" id="settings-signout-desc">Signed in as —</div>
+            </div>
+            <button class="btn-sm btn-ghost" onclick="signOut()" style="flex-shrink:0;color:var(--red);">Sign Out</button>
+          </div>
+        </div>
+
+        <!-- About -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;">
+            <div>COBC Dispatch · Bergen County Chaverim</div>
+            <div>v1.0 · <span id="settings-build-date"></span></div>
+          </div>
+        </div>
+      </div>
+
       <div id="more-numbers">
         <div class="section-label">Important Numbers</div>
         <div id="numbersList"></div>
@@ -962,11 +1085,22 @@ textarea.input{min-height:80px;resize:vertical;}
             <div id="eqAdminList2" style="max-height:520px;overflow-y:auto;"></div>
           </div>
         </div>
+        <div class="adm-acc">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this);if(this.classList.contains('open'))loadChecklistHistory();"><span>📋 Checklist History</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
+            <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+              <button class="btn-sm btn-ghost" onclick="loadChecklistHistory()" style="font-size:12px;">↻ Refresh</button>
+            </div>
+            <div class="filter-chips" id="chkHistLocChips"></div>
+            <div id="chkHistList" style="max-height:520px;overflow-y:auto;"><div style="text-align:center;padding:1.5rem;color:var(--text3);font-size:13px;">Tap Refresh to load history</div></div>
+          </div>
+        </div>
       </div>
 
+      <!-- CHECKLIST HISTORY (removed standalone sub-tab; now an accordion inside Equipment) -->
+
       <div id="more-vehicles" style="display:none;">
-        <div class="section-label">Fleet Vehicles</div>
-        <div id="vehicleList"></div>
+        <div class="section-label">Fleet Vehicles</div>        <div id="vehicleList"></div>
         <div id="adminVehiclesAdd" style="display:none;">
           <div class="card" style="margin-top:10px;">
             <div class="card-title" style="margin-bottom:10px;">Add Vehicle</div>
@@ -1116,11 +1250,24 @@ textarea.input{min-height:80px;resize:vertical;}
     </button>
     <button class="tab" onclick="showTab('equipment')" id="tab-equipment"><span class="tab-icon">📦</span>Equip</button>
     <button class="tab" onclick="showTab('members')" id="tab-members"><span class="tab-icon">👥</span>Members</button>
-    <button class="tab" onclick="showTab('more')" id="tab-more"><span class="tab-icon">⚙️</span>Admin</button>
+    <button class="tab" onclick="showTab('more')" id="tab-more"><span class="tab-icon" id="tab-more-icon">⚙️</span><span id="tab-more-label">Admin</span></button>
   </div>
 </div>
 
 <!-- ═══ MODALS ═══ -->
+
+<!-- Pending Approvals Modal -->
+<div class="modal-overlay hidden" id="pendingModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:18px;font-weight:700;color:var(--text);">⏳ Waiting for Approval</div>
+      <button onclick="hideModal('pendingModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">×</button>
+    </div>
+    <div id="pendingModalBody"></div>
+    <button class="btn-full btn-ghost" onclick="hideModal('pendingModal')" style="margin-top:8px;">Close</button>
+  </div>
+</div>
 
 <!-- New Call -->
 <div class="modal-overlay hidden" id="newCallModal">
@@ -1266,11 +1413,11 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <!-- Draft toggle -->
     <div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:11px 14px;margin-bottom:14px;">
-      <input type="checkbox" id="callDontPublish" style="width:18px;height:18px;cursor:pointer;accent-color:var(--blue);"/>
+      <input type="checkbox" id="callDontPublish" onchange="updateDispatchBtn()" style="width:18px;height:18px;cursor:pointer;accent-color:var(--blue);"/>
       <div><div style="font-size:13px;font-weight:600;">Save as Draft</div><div style="font-size:11px;color:var(--text3);">Won't dispatch to members</div></div>
     </div>
 
-    <button class="btn-full btn-primary" onclick="createCall()" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);font-size:16px;font-weight:700;padding:16px;letter-spacing:-.2px;">Dispatch Call</button>
+    <button id="callSubmitBtn" class="btn-full btn-primary" onclick="createCall()" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);font-size:16px;font-weight:700;padding:16px;letter-spacing:-.2px;">Dispatch Call</button>
     <button class="btn-full btn-ghost" onclick="hideModal('newCallModal')" style="margin-top:8px;">Cancel</button>
   </div>
 </div>
@@ -1349,6 +1496,30 @@ textarea.input{min-height:80px;resize:vertical;}
 <!-- Equipment Item -->
 <div class="modal-overlay hidden" id="eqItemModal">
   <div class="modal"><div class="modal-handle"></div><div id="eqItemContent"></div></div>
+</div>
+
+<!-- History Modal (read-only past calls) -->
+<div class="modal-overlay hidden" id="historyModal">
+  <div class="modal" style="max-height:92dvh;">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:18px;font-weight:700;color:var(--text);">📅 Call History</div>
+      <button onclick="hideModal('historyModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">×</button>
+    </div>
+    <div class="input-group">
+      <label class="input-label">Pick a date</label>
+      <input class="input" type="date" id="historyDate" onchange="renderHistoryDay()"/>
+    </div>
+    <div class="filter-chips" style="margin-bottom:10px;">
+      <div class="chip active" id="histChipDay" onclick="setHistoryRange('day',this)">Single Day</div>
+      <div class="chip" onclick="setHistoryRange('7',this)">Last 7 Days</div>
+      <div class="chip" onclick="setHistoryRange('30',this)">Last 30 Days</div>
+      <div class="chip" onclick="setHistoryRange('all',this)">All Time</div>
+    </div>
+    <div id="historySummary" style="background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--text2);"></div>
+    <div id="historyList"></div>
+    <button class="btn-full btn-ghost" onclick="hideModal('historyModal')" style="margin-top:8px;">Close</button>
+  </div>
 </div>
 
 <!-- Call Edit Modal -->
@@ -1615,6 +1786,18 @@ textarea.input{min-height:80px;resize:vertical;}
 
 <div id="toast"></div>
 
+<!-- Global Pending Responder Banner (visible on every tab for admin/dispatch) -->
+<div id="globalPendingBanner" style="display:none;position:fixed;left:0;right:0;top:calc(64px + env(safe-area-inset-top));z-index:900;padding:0 12px;pointer-events:none;">
+  <div onclick="showTab('dispatch')" id="globalPendingInner" style="pointer-events:auto;cursor:pointer;background:linear-gradient(135deg,var(--amber),#b45309);color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 6px 20px rgba(217,119,6,.45);display:flex;align-items:center;gap:10px;border:2px solid #fff;animation:pendingPulse 1.8s ease-in-out infinite;">
+    <div style="font-size:18px;">⏳</div>
+    <div style="flex:1;min-width:0;">
+      <div id="globalPendingTitle" style="font-size:13px;font-weight:700;letter-spacing:.3px;">— pending approvals</div>
+      <div id="globalPendingSub" style="font-size:11px;opacity:.9;">Tap to review</div>
+    </div>
+    <div style="font-size:18px;">›</div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════
 //  COBC APP v2.1 — DATA + LOGIC
@@ -1653,6 +1836,7 @@ async function initFirebaseApp() {
     catch(e) { _fcmApp = firebase.app(); } // already initialized
     _firebaseReady = true;
     initFirestore(); // start Firestore real-time sync
+    subscribeScheduleFromFirestore(); // sync dispatch schedule from Firestore
     // Attempt messaging (non-critical — silently fails on iOS non-standalone)
     initPushModule().catch(()=>{});
     // Restore saved session after Firebase is ready
@@ -1685,44 +1869,75 @@ async function initPushModule() {
 async function enablePushForThisDevice() {
   if (!SESSION.unit) { showToast('Log in first'); return; }
 
-  // iOS: push only works in standalone (Home Screen) PWA mode
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isStandalone = (window.navigator.standalone === true) ||
                        window.matchMedia('(display-mode: standalone)').matches;
+
+  // Must be in PWA mode on iOS
   if (isIOS && !isStandalone) {
-    showToast('On iPhone: tap Share → Add to Home Screen, then open the app from there and enable notifications');
+    alert('To enable notifications on iPhone:\n\n1. Tap the Share button (□↑) at the bottom of Safari\n2. Tap "Add to Home Screen"\n3. Open the app from your Home Screen\n4. Go to Settings → Enable Notifications');
     return;
   }
 
   if (!('Notification' in window)) { showToast('Notifications not supported on this browser'); return; }
-  if (!('serviceWorker' in navigator)) { showToast('Use Safari on iOS 16.4+ for notifications'); return; }
+  if (!('serviceWorker' in navigator)) { showToast('Use Safari on iOS 16.4+ for push notifications'); return; }
 
-  // Make sure messaging is initialized
-  if (!_fcmMessaging) { await initPushModule(); }
-  if (!_fcmMessaging) {
-    showToast('Push not available on this browser — use Safari');
-    return;
+  // iOS version check — push requires 16.4+
+  if (isIOS) {
+    const iosVer = parseInt((navigator.userAgent.match(/OS (\d+)_/)||[])[1]||'0');
+    if (iosVer > 0 && iosVer < 16) {
+      showToast('Push notifications require iOS 16.4 or later — please update');
+      return;
+    }
   }
 
-  try {
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') { showToast('Notifications denied — check Settings'); return; }
+  const btn = document.getElementById('settings-notif-btn');
+  const desc = document.getElementById('settings-notif-desc');
+  const setStatus = (txt, cls) => { if(btn){btn.textContent=txt;btn.className='btn-sm '+cls;btn.disabled=cls==='btn-amber';} if(desc)desc.textContent=txt==='On'?'✅ Notifications active — you will get alerts for new calls.':txt; };
 
-    // Only unregister non-FCM service workers (don't break Firestore sync)
-    const oldRegs = await navigator.serviceWorker.getRegistrations();
-    for (const r of oldRegs) {
-      if (r.active?.scriptURL && !r.active.scriptURL.includes('firebase-messaging-sw.js')) {
-        await r.unregister();
-      }
+  setStatus('Working…','btn-amber');
+
+  try {
+    // Step 1 — Permission
+    if (Notification.permission === 'denied') {
+      setStatus('Blocked','btn-ghost');
+      if(desc) desc.textContent = 'Blocked — go to iPhone Settings → COBC → Notifications and enable.';
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      setStatus('Denied','btn-ghost');
+      if(desc) desc.textContent = 'Notifications denied. Go to iPhone Settings → COBC → Notifications.';
+      return;
     }
 
-    const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js');
-    await navigator.serviceWorker.ready;
+    // Step 2 — Load FCM messaging SDK
+    if (!_fcmMessaging) { await initPushModule(); }
+    if (!_fcmMessaging) {
+      setStatus('Enable','btn-primary');
+      showToast('Push not available on this browser — try Safari');
+      return;
+    }
 
+    // Step 3 — Register service worker and wait for it to fully activate
+    const reg = await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js', { scope: '/cobc-dispatch/' });
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('SW activation timed out — try again')), 20000);
+      if (reg.active) { clearTimeout(timeout); resolve(); return; }
+      const sw = reg.installing || reg.waiting;
+      if (!sw) { clearTimeout(timeout); resolve(); return; }
+      sw.addEventListener('statechange', function onState() {
+        if (this.state === 'activated') { clearTimeout(timeout); sw.removeEventListener('statechange',onState); resolve(); }
+        if (this.state === 'redundant') { clearTimeout(timeout); sw.removeEventListener('statechange',onState); reject(new Error('SW install failed — reload and try again')); }
+      });
+    });
+
+    // Step 4 — Get FCM token
     const token = await _fcmMessaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
-    if (!token) { showToast('Could not get push token — try again'); return; }
+    if (!token) { setStatus('Enable','btn-primary'); showToast('Could not get push token — try again in a moment'); return; }
     _fcmToken = token;
 
+    // Step 5 — Register token with push server
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -1731,16 +1946,41 @@ async function enablePushForThisDevice() {
     });
 
     localStorage.setItem('cobc_fcm_token_' + SESSION.unit, token);
+    setStatus('On','btn-green');
     showToast('✅ Notifications enabled!');
     renderHome && renderHome();
+
+    // Offer a test push to confirm end-to-end delivery
+    setTimeout(() => {
+      if (confirm('Notifications enabled ✅\n\nSend a test notification to confirm delivery on this device?')) {
+        sendTestPush();
+      }
+    }, 600);
+
   } catch(e) {
     console.error('Push enable error:', e);
+    setStatus('Retry','btn-primary');
     const msg = e?.message || '';
-    if (msg.includes('unsupported-browser') || msg.includes('not supported')) {
-      showToast('Push not supported — use Safari on iOS 16.4+');
-    } else {
-      showToast('⚠️ Notification error: ' + (msg.slice(0, 60) || 'unknown'));
-    }
+    if (msg.includes('timed out') || msg.includes('reload')) showToast('⚠️ ' + msg);
+    else if (msg.includes('unsupported-browser') || msg.includes('not supported')) showToast('Push not supported here — use Safari on iOS 16.4+');
+    else showToast('⚠️ ' + (msg.slice(0,80) || 'Notification error — try again'));
+  }
+}
+
+async function sendTestPush() {
+  if (!SESSION.unit) return;
+  try {
+    await sendPush({
+      target: 'unit',
+      unit: String(SESSION.unit),
+      title: '🔔 COBC Test',
+      body: 'Push notifications are working! ✅',
+      url: '/cobc-dispatch/',
+      urgent: 'true'
+    });
+    showToast('Test notification sent — check your alerts');
+  } catch(e) {
+    showToast('Test failed: ' + (e?.message||'unknown'));
   }
 }
 
@@ -1771,18 +2011,21 @@ function guessCat(name){const n=(name||'').toLowerCase();if(n.includes('fan'))re
 function conditionFromSheet(s){return s||'OK';}
 // ── Google Sheets / Apps Script backend (equipment home base) ──────────────
 const EQ_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwjnEHbt8v1aVKUO7361uc8XTodz5yBWGKoRgQ3H26UFOJeAQarVQAGaEuYj277Ed14rw/exec';
-function sheetGET(params={}){const qs=Object.entries(params).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');return fetch(EQ_SCRIPT_URL+(qs?'?'+qs:''),{redirect:'follow'}).then(r=>r.json());}
-function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());}
+function sheetGET(params={}){const qs=Object.entries(params).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');return fetch(EQ_SCRIPT_URL+(qs?'?'+qs:''),{redirect:'follow',mode:'cors'}).then(r=>r.json());}
+// No Content-Type header on POST — keeps it a "simple request" and avoids CORS preflight
+// (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
+function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',body:JSON.stringify(body)}).then(r=>r.json());}
 function postJ(action,data={}){return sheetPOST({action,...data});}
 async function loadInventoryFromSheet(){
   // Equipment + locations from Google Sheet; members from Firestore (dispatch needs roles)
   const sub=document.getElementById('eqSyncStatus');
   if(sub)sub.textContent='Syncing...';
   try{
-    const[invData,locData,memberSnap]=await Promise.all([
+    // Equipment + locations: 100% Google Sheets — no Firestore involved here
+    // Members come from Firestore's onSnapshot listener (already running separately)
+    const[invData,locData]=await Promise.all([
       sheetGET({action:'getInventory'}),
-      sheetGET({action:'getLocations'}),
-      firebase.firestore().collection('members').get()
+      sheetGET({action:'getLocations'})
     ]);
     STATE.equipment=(invData.items||[]).map(it=>({
       id:'row-'+it.row,
@@ -1801,7 +2044,6 @@ async function loadInventoryFromSheet(){
       lastChecked:it.lastChecked||''
     }));
     STATE.locations=locData.locations||['COBC'];
-    STATE.members=memberSnap.docs.map(d=>({id:d.id,...d.data()}));
     renderInventory&&renderInventory();
     renderChkFull&&renderChkFull();
     renderHome&&renderHome();
@@ -2213,12 +2455,37 @@ function load() {
 // ── Firestore real-time sync ──────────────────────────────
 let _db = null;
 let _unsubscribeCalls = null;
+const _deletedCallIds = new Set();
 
-function initFirestore(){const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
+let _firestoreSettingsApplied=false;
+function initFirestore(){
+  // iOS Safari PWA: Firestore WebSocket (WebChannel) is silently blocked by ITP.
+  // Force long-polling so Firestore data actually arrives on iPhone home-screen installs.
+  if(!_firestoreSettingsApplied){try{firebase.firestore().settings({experimentalForceLongPolling:true});_firestoreSettingsApplied=true;}catch(e){console.warn('Firestore settings:',e);}}
+  // iOS belt-and-suspenders: if onSnapshot never fires (ITP blocks even with long-polling),
+  // fall back to get() polling every 30 seconds so data still arrives on iPhone.
+  let _snapDelivered=false;let _snapTimer=null;
+  function _pollFirestore(){
+    db.collection('calls').get().then(callsSnap=>{
+      db.collection('members').get().then(membersSnap=>{
+        if(typeof SESSION==='undefined')return;
+        const firestoreCalls=callsSnap.docs.map(d=>({id:d.id,...d.data()}));
+        const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
+        const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
+        localOnly.forEach(call=>firestoreUpsertCall(call));
+        STATE.calls=[...firestoreCalls,...localOnly];
+        STATE.members=membersSnap.docs.map(d=>({id:d.id,...d.data()}));
+        save();renderCalls&&renderCalls();renderHome&&renderHome();renderMemberDir&&renderMemberDir();
+        if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
+      });
+    }).catch(e=>console.warn('Firestore get() poll error:',e));
+  }
+  const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
+  if(!_snapDelivered){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
   const firestoreCalls=snap.docs.map(d=>({id:d.id,...d.data()}));
   const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
   // Find calls that exist locally but not yet in Firestore (created offline or before sync)
-  const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id));
+  const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
   // Upload any missing local calls to Firestore (one-time migration)
   localOnly.forEach(call=>firestoreUpsertCall(call));
   // Merge: Firestore is source of truth, but keep local-only calls visible until they upload
@@ -2226,6 +2493,8 @@ function initFirestore(){const db=firebase.firestore();db.collection('calls').on
   save();renderCalls&&renderCalls();renderHome&&renderHome();}catch(e){console.warn('calls snapshot error:',e);}},e=>console.warn('calls listener error:',e));
   // Members sync stays in Firestore (dispatch roles/auth live there)
   db.collection('members').onSnapshot(snap=>{STATE.members=snap.docs.map(d=>({id:d.id,...d.data()}));save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>console.warn('members snapshot error:',e));
+  // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
+  _snapTimer=setTimeout(()=>{if(!_snapDelivered){console.warn('Firestore onSnapshot silent — starting get() fallback');_pollFirestore();}},5000);
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
@@ -2254,7 +2523,7 @@ function _tryRestoreSession() {
     }).catch(() => {
       // Offline — restore from cache without re-verify
       SESSION = s;
-      const _lsOff=document.getElementById('login-screen');_lsOff.style.display='none';_lsOff.style.pointerEvents='none';_lsOff.style.visibility='hidden';
+      const _lsOff=document.getElementById('login-screen');_lsOff.style.display='none';_lsOff.style.pointerEvents='none';_lsOff.style.visibility='hidden';_lsOff.style.zIndex='-1';_lsOff.style.transform='translateX(-110vw)';_lsOff.style.position='static';_lsOff.style.height='0';_lsOff.style.overflow='hidden';_lsOff.classList.add('hidden');const _appOff=document.getElementById('app');_appOff.classList.remove('hidden');_appOff.style.display='';
       const rd = {admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};
       const roleLabel = document.getElementById('roleLabel');
       if (roleLabel) roleLabel.textContent = rd[s.role]||s.role;
@@ -2268,10 +2537,41 @@ function _tryRestoreSession() {
 
 function _applyRoleUI(role) {
   const isDispatch = ['admin','dispatch'].includes(role);
+  const isMember = !isDispatch;
   const mgmtBtn = document.getElementById('adminMgmtBtnWrap');
   if (mgmtBtn) mgmtBtn.style.display = (role==='admin') ? 'block' : 'none';
   const draftChip = document.getElementById('draftFilterChip');
   if (draftChip) draftChip.style.display = isDispatch ? '' : 'none';
+  // Members: rebrand bottom "Admin" tab as "My Stats"; hide admin-only sub-tabs
+  // Members: hide the Dispatch bottom tab entirely
+  const tabDispatch = document.getElementById('tab-dispatch');
+  if(tabDispatch) tabDispatch.style.display = isMember ? 'none' : '';
+  const homeDispCard = document.getElementById('home-dispatch-card');
+  if(homeDispCard) homeDispCard.style.display = isMember ? 'none' : '';
+  const homeEqCard = document.getElementById('home-equipment-card');
+  // Hide the home equipment-alerts section for members (the user request)
+  const homeEqAlertsWrap = document.getElementById('homeEqAlertsWrap');
+  if(homeEqAlertsWrap) homeEqAlertsWrap.style.display = isMember ? 'none' : '';
+  if(homeEqCard) homeEqCard.style.display = isMember ? 'none' : '';
+  const tabMoreLabel = document.getElementById('tab-more-label');
+  const tabMoreIcon  = document.getElementById('tab-more-icon');
+  const pageTitle    = document.getElementById('page-more-title');
+  if(isMember) {
+    if(tabMoreLabel) tabMoreLabel.textContent = 'Settings';
+    if(tabMoreIcon)  tabMoreIcon.textContent  = '⚙️';
+    if(pageTitle)    pageTitle.textContent    = 'Settings';
+  } else {
+    if(tabMoreLabel) tabMoreLabel.textContent = 'Admin';
+    if(tabMoreIcon)  tabMoreIcon.textContent  = '⚙️';
+    if(pageTitle)    pageTitle.textContent    = 'Admin';
+  }
+  document.querySelectorAll('#more-sub-tabs .admin-only-sub').forEach(b => {
+    b.style.display = isMember ? 'none' : '';
+  });
+  // Strict admin-only (Equipment + Vehicles) — dispatch should NOT manipulate equipment
+  document.querySelectorAll('#more-sub-tabs .admin-strict-sub').forEach(b => {
+    b.style.display = (role==='admin') ? '' : 'none';
+  });
   const chkSubmitBtn = document.getElementById('chkSubmitBtn');
   if (chkSubmitBtn) chkSubmitBtn.style.display = (role==='admin'||role==='equipment') ? 'block' : 'none';
   const chkTab = document.getElementById('eqChecklistTab');
@@ -2302,15 +2602,34 @@ function doLogin(){
   if(loginBtn){loginBtn.textContent='Signing in…';loginBtn.disabled=true;}
   const reset=()=>{if(loginBtn){loginBtn.textContent='Sign In';loginBtn.disabled=false;}};
 
-  // Ensure Firebase is ready (on iOS PWA it might not be initialized yet)
+  // Ensure Firebase is ready — on iOS PWA the SDK scripts may still be loading.
+  // Instead of asking the user to retry, wait up to 12 seconds then auto-login.
   if(!_firebaseReady){
-    if(err)err.textContent='Connecting to server… please wait 5 seconds and try again';
-    initFirebaseApp().then(()=>{ reset(); }).catch(()=>reset());
+    if(loginBtn){loginBtn.textContent='Connecting…';loginBtn.disabled=true;}
+    if(err)err.textContent='Connecting to Firebase…';
+    initFirebaseApp().catch(()=>{});
+    let _waited=0;
+    const _waitForReady=setInterval(()=>{
+      _waited+=500;
+      if(_firebaseReady){
+        clearInterval(_waitForReady);
+        if(err)err.textContent='';
+        if(loginBtn){loginBtn.textContent='Sign In';loginBtn.disabled=false;}
+        doLogin(); // auto-retry now that Firebase is ready
+      } else if(_waited>=12000){
+        clearInterval(_waitForReady);
+        reset();
+        if(err)err.textContent='Cannot connect — check your internet connection and try again';
+      }
+    },500);
     return;
   }
 
   try {
-    firebase.firestore().collection('members').doc(unit).get().then(doc=>{
+    // Safari iOS: Firestore WebChannel can hang indefinitely (ITP/cookie blocking).
+    // Race against a 10-second timeout so the user gets a clear error instead of a frozen spinner.
+    const _loginTimeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),10000));
+    Promise.race([firebase.firestore().collection('members').doc(unit).get(),_loginTimeout]).then(doc=>{
       reset();
       if(!doc.exists){if(err)err.textContent='Member not found ('+unit+')';return;}
       const m=doc.data();
@@ -2318,7 +2637,7 @@ function doLogin(){
       finishLogin(m);
     }).catch(e=>{
       reset();
-      if(err)err.textContent='Login error — check your connection and try again';
+      if(err)err.textContent=e.message==='timeout'?'Connection timed out — check your internet and try again':'Login error — check your connection and try again';
       console.error('doLogin error:',e);
     });
   } catch(e) {
@@ -2330,7 +2649,7 @@ function doLogin(){
   }
 }
 
-function finishLogin(member){const role=(member.role||'member').toLowerCase();SESSION={unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||''};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}const _loginScr=document.getElementById('login-screen');_loginScr.style.display='none';_loginScr.style.pointerEvents='none';_loginScr.style.visibility='hidden';document.getElementById('app').classList.remove('hidden');const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=SESSION.name+' · '+(SESSION.unit||'');const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';
+function finishLogin(member){const role=(member.role||'member').toLowerCase();SESSION={unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||''};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}const _loginScr=document.getElementById('login-screen');_loginScr.style.display='none';_loginScr.style.pointerEvents='none';_loginScr.style.visibility='hidden';_loginScr.style.zIndex='-1';_loginScr.style.transform='translateX(-110vw)';_loginScr.style.position='static';_loginScr.style.height='0';_loginScr.style.overflow='hidden';_loginScr.classList.add('hidden');const _appEl=document.getElementById('app');_appEl.classList.remove('hidden');_appEl.style.display='';const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=SESSION.name+' · '+(SESSION.unit||'');const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';
 // Show Management Panel button for admins
 const mgmtBtn=document.getElementById('adminMgmtBtnWrap');if(mgmtBtn)mgmtBtn.style.display=(role==='admin')?'block':'none';
 // Hide draft filter chip for non-dispatch
@@ -2342,6 +2661,9 @@ const _isDispatch=['admin','dispatch'].includes(role);
 const homeNew=document.getElementById('homeNewCallBtn');const dispNew=document.getElementById('newCallBtn');
 if(homeNew)homeNew.style.display=_isDispatch?'':'none';
 if(dispNew)dispNew.style.display=_isDispatch?'':'none';
+// Apply the role-based UI: rebrands bottom tab to "My Stats" for members,
+// hides admin-strict sub-tabs (Equipment, Vehicles) from dispatch, etc.
+try{ _applyRoleUI(role); }catch(e){}
 if(document.getElementById('loginPass'))document.getElementById('loginPass').value='';if(document.getElementById('loginUnit'))document.getElementById('loginUnit').value='';
 // Persist session for iOS PWA (page reloads on re-open)
 try{localStorage.setItem('cobc_session',JSON.stringify({unit:SESSION.unit,name:SESSION.name,role:SESSION.role,firstName:SESSION.firstName,lastName:SESSION.lastName}));}catch(e){}
@@ -2501,10 +2823,15 @@ function signOut() {
   try { sessionStorage.removeItem('cobcet_ok'); } catch(e){}
   try { localStorage.removeItem('cobc_session'); } catch(e){}
   SESSION={role:null,unit:null,name:null};
+  // Hide the app and force-show the login screen (override any inline styles)
+  const app=document.getElementById('app');
+  if(app){app.classList.add('hidden');app.style.display='none';}
   const ls=document.getElementById('login-screen');
-  if(ls){ls.style.display='';ls.style.pointerEvents='';ls.style.visibility='';ls.classList.remove('hidden');}
-  document.getElementById('loginUnit').value='';
-  document.getElementById('loginPass').value='';
+  if(ls){ls.style.display='flex';ls.style.pointerEvents='';ls.style.visibility='visible';ls.style.zIndex='';ls.style.transform='';ls.style.position='';ls.style.height='';ls.style.overflow='';ls.classList.remove('hidden');}
+  const u=document.getElementById('loginUnit'); if(u) u.value='';
+  const p=document.getElementById('loginPass'); if(p) p.value='';
+  const er=document.getElementById('loginError'); if(er) er.textContent='';
+  window.scrollTo(0,0);
 }
 
 // ──────────────────────────────────────────────
@@ -2513,12 +2840,29 @@ function signOut() {
 const TABS=['home','dispatch','equipment','members','more','admin'];
 let currentTab='home';
 
+function goToNumbers() {
+  showTab('more');
+  // showTab() has a 80ms timer that defaults to 'stats' — run after that
+  setTimeout(() => {
+    const btn = [...document.querySelectorAll('#more-sub-tabs .sub-tab')].find(b => b.textContent.includes('Numbers'));
+    if(btn && typeof setMoreTab === 'function') setMoreTab('numbers', btn);
+  }, 150);
+}
+function goToDispatchSchedule() {
+  showTab('more');
+  setTimeout(() => {
+    const btn = [...document.querySelectorAll('#more-sub-tabs .sub-tab')].find(b => b.textContent.includes('Schedule'));
+    if(btn && typeof setMoreTab === 'function') setMoreTab('schedule', btn);
+  }, 150);
+}
 function showTab(tab) {
   TABS.forEach(t=>{
     document.getElementById(`page-${t}`)?.classList.toggle('hidden',t!==tab);
     document.getElementById(`tab-${t}`)?.classList.toggle('active',t===tab);
   });
   currentTab=tab;
+  // Refresh global pending banner so it hides when entering Dispatch tab
+  try { renderPendingRespondersBanner(null); } catch(e){}
   if(tab==='home') renderHome();
   if(tab==='dispatch') renderCalls();
   if(tab==='equipment') { renderEquipmentDashboard(); loadInventoryFromSheet(); }
@@ -2595,7 +2939,93 @@ function saveRRSettings() {
 // ──────────────────────────────────────────────
 //  HOME
 // ──────────────────────────────────────────────
+function openPendingModal() {
+  const body = document.getElementById('pendingModalBody');
+  if(!body) return;
+  const isDisp = ['admin','dispatch'].includes(SESSION.role);
+  if(!isDisp) { showToast('Admin/Dispatch only'); return; }
+  const pendingItems = [];
+  (STATE.calls||[]).forEach(call => {
+    if(call.status==='done' || call.status==='draft') return;
+    (call.pendingResponders||[]).forEach(r => pendingItems.push({call, responder:r}));
+  });
+  if(!pendingItems.length) {
+    body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);">✅ No pending requests right now.</div>';
+  } else {
+    body.innerHTML = pendingItems.map(({call,responder}) => {
+      const typeRaw = call.type||'other';
+      const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
+      return `<div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid ${responder.observerOnly?'var(--purple)':'var(--amber)'};">
+        <div style="font-size:14px;font-weight:700;color:var(--text);">BC-${String(responder.unit||'').replace(/^BC-?/i,'')} ${responder.name||''}${responder.isObserver?' <span style="background:#ede9fe;color:var(--purple);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">OBS</span>':''}${responder.observerOnly?' <span style="background:#fef3c7;color:var(--amber);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">OBSERVE ONLY</span>':''}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px;">${responder.observerOnly?'👁️ Coming to observe':'Wants to respond to'} <b>${typeLabel}</b> · Call #${call.callNum||''}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">${call.address}${call.town?', '+call.town:''} · ETA ${responder.eta||'?'}m${responder.notes?' · '+responder.notes:''}</div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <button onclick="approveResponder('${call.id}','${responder.unit}');setTimeout(openPendingModal,200)" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✓ Approve</button>
+          <button onclick="rejectResponder('${call.id}','${responder.unit}');setTimeout(openPendingModal,200)" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✕ Reject</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  showModal('pendingModal');
+}
+
+function renderPendingRespondersBanner(targetEl) {
+  const isDisp = ['admin','dispatch'].includes(SESSION.role);
+  // Build pending list once for both in-page banners and the global floater
+  const pendingItems = [];
+  if(isDisp) {
+    (STATE.calls||[]).forEach(call => {
+      if(call.status==='done' || call.status==='draft') return;
+      (call.pendingResponders||[]).forEach(r => pendingItems.push({call, responder:r}));
+    });
+  }
+  // Global floating banner (visible on every tab for admin/dispatch)
+  const globalEl = document.getElementById('globalPendingBanner');
+  if(globalEl) {
+    if(isDisp && pendingItems.length) {
+      const onDispatch = (typeof currentTab !== 'undefined' && currentTab === 'dispatch');
+      globalEl.style.display = onDispatch ? 'none' : 'block';
+      const titleEl = document.getElementById('globalPendingTitle');
+      const subEl = document.getElementById('globalPendingSub');
+      if(titleEl) titleEl.textContent = `${pendingItems.length} pending approval${pendingItems.length>1?'s':''}`;
+      if(subEl) {
+        const first = pendingItems[0];
+        subEl.textContent = `BC-${String(first.responder.unit||'').replace(/^BC-?/i,'')} ${first.responder.name||''}${pendingItems.length>1?' + '+(pendingItems.length-1)+' more':''} · Tap to review`;
+      }
+    } else {
+      globalEl.style.display = 'none';
+    }
+  }
+  // In-page banner (Home + Dispatch)
+  if(!targetEl) return;
+  if(!isDisp || !pendingItems.length) { targetEl.style.display='none'; targetEl.innerHTML=''; return; }
+  targetEl.style.display = 'block';
+  targetEl.innerHTML = `
+    <div style="background:linear-gradient(135deg,#fef3c7,#fef9c3);border:2px solid var(--amber);border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 4px 12px rgba(217,119,6,.18);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div style="background:var(--amber);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">${pendingItems.length}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;">⏳ Waiting for Your Approval</div>
+      </div>
+      ${pendingItems.map(({call,responder}) => {
+        const typeRaw = call.type||'other';
+        const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
+        return `<div style="background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:700;color:var(--text);">BC-${String(responder.unit||'').replace(/^BC-?/i,'')} ${responder.name||''}${responder.isObserver?' <span style="background:#ede9fe;color:var(--purple);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">OBS</span>':''}${responder.observerOnly?' <span style="background:#fef3c7;color:var(--amber);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">OBSERVE ONLY</span>':''}</div>
+            <div style="font-size:11px;color:var(--text3);">${responder.observerOnly?'will observe':'wants to respond to'} <b>${typeLabel}</b> (#${call.callNum||''}) at ${call.address}${call.town?', '+call.town:''} · ETA ${responder.eta||'?'}m</div>
+          </div>
+          <button onclick="approveResponder('${call.id}','${responder.unit}')" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✓ Approve</button>
+          <button onclick="rejectResponder('${call.id}','${responder.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✕</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
 function renderHome() {
+  // Refresh the on-duty banner each time Home renders (schedule shifts every few hours)
+  try { updateOnDutyBanner(); } catch(e){}
+  // Pending responder requests banner (admin/dispatch only)
+  renderPendingRespondersBanner(document.getElementById('homePendingBanner'));
   const openC=STATE.calls.filter(c=>c.status==='open').length;
   const activeC=STATE.calls.filter(c=>c.status==='active').length;
   const outEq=STATE.equipment.filter(e=>e.status==='out').length;
@@ -2603,6 +3033,17 @@ function renderHome() {
   document.getElementById('hs-active').textContent=activeC;
   document.getElementById('hs-out').textContent=outEq;
   document.getElementById('hs-members').textContent=STATE.members.length;
+  // Pending count for admin/dispatch only
+  const pendingCount = ['admin','dispatch'].includes(SESSION.role)
+    ? (STATE.calls||[]).reduce((s,c)=>{
+        if(c.status==='done'||c.status==='draft'||c.status==='cancelled') return s;
+        return s + ((c.pendingResponders||[]).length);
+      },0)
+    : 0;
+  const pendCard = document.getElementById('hs-pending-card');
+  const pendNum = document.getElementById('hs-pending');
+  if(pendNum) pendNum.textContent = pendingCount;
+  if(pendCard) pendCard.style.display = pendingCount > 0 ? '' : 'none';
   document.getElementById('activeCalls').textContent=`${openC+activeC} Active`;
 
   const badge=document.getElementById('tab-dispatch-badge');
@@ -2614,7 +3055,16 @@ function renderHome() {
   badge.style.background=pendingTotal?'var(--amber)':'var(--red)';
 
   const el=document.getElementById('homeCallsList');
-  const recent=STATE.calls.filter(c=>c.status!=='done'&&c.status!=='draft').slice(-3).reverse();
+  const _hSort = c => {
+    if(c.priority==='urgent' && c.status!=='done') return 0;
+    if((c.pendingResponders||[]).length>0 && c.status!=='done' && c.status!=='draft') return 1;
+    const has = (c.responders||[]).length>0;
+    if(c.status==='open' && !has) return 2;
+    return 3;
+  };
+  const recent = (STATE.calls||[])
+    .filter(c=>c.status!=='done' && c.status!=='draft' && c.status!=='cancelled')
+    .sort((a,b)=>_hSort(a)-_hSort(b) || (b.createdAt-a.createdAt));
   el.innerHTML=recent.length?recent.map(c=>callCardHTML(c,true)).join(''):
     '<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No active calls</div></div>';
 
@@ -2663,6 +3113,80 @@ const CALL_TYPE_LABELS = {
 };
 
 let dispatchFilter='all';
+let _historyRange = 'day';
+function _todayStartMs() { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+function setHistoryRange(r, el) {
+  _historyRange = r;
+  document.querySelectorAll('#historyModal .filter-chips .chip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderHistoryDay();
+}
+function openHistoryModal() {
+  // Default to yesterday so today's calls aren't dominating the view
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+  const iso = yesterday.toISOString().slice(0,10);
+  const dateEl = document.getElementById('historyDate');
+  if(dateEl) dateEl.value = iso;
+  _historyRange = 'day';
+  document.querySelectorAll('#historyModal .filter-chips .chip').forEach(c=>c.classList.remove('active'));
+  const dayChip = document.getElementById('histChipDay'); if(dayChip) dayChip.classList.add('active');
+  showModal('historyModal');
+  renderHistoryDay();
+}
+function renderHistoryDay() {
+  const list = document.getElementById('historyList');
+  const summary = document.getElementById('historySummary');
+  if(!list) return;
+  const dateStr = document.getElementById('historyDate')?.value;
+  let startMs, endMs, label;
+  const now = Date.now();
+  if(_historyRange === 'all') {
+    startMs = 0; endMs = _todayStartMs(); label = 'All time (excluding today)';
+  } else if(_historyRange === '7') {
+    startMs = _todayStartMs() - 7*24*60*60*1000; endMs = _todayStartMs(); label = 'Last 7 days';
+  } else if(_historyRange === '30') {
+    startMs = _todayStartMs() - 30*24*60*60*1000; endMs = _todayStartMs(); label = 'Last 30 days';
+  } else {
+    if(!dateStr) { list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text3);">Pick a date above</div>'; if(summary) summary.textContent=''; return; }
+    const d = new Date(dateStr+'T00:00:00');
+    startMs = d.getTime();
+    endMs = startMs + 24*60*60*1000;
+    label = d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  }
+  const calls = (STATE.calls||[])
+    .filter(c => {
+      const ts = c.completedAt || c.createdAt || 0;
+      return ts >= startMs && ts < endMs;
+    })
+    .sort((a,b) => (b.completedAt||b.createdAt||0) - (a.completedAt||a.createdAt||0));
+  const completed = calls.filter(c => c.status === 'done').length;
+  const cancelled = calls.filter(c => c.status === 'cancelled').length;
+  const summaryParts = [`${calls.length} call${calls.length===1?'':'s'}`, `${completed} completed`];
+  if(cancelled) summaryParts.push(`${cancelled} cancelled`);
+  if(summary) summary.innerHTML = `<b>${label}</b> · ${summaryParts.join(' · ')}`;
+  if(!calls.length) {
+    list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3);">No calls in this range.</div>';
+    return;
+  }
+  list.innerHTML = calls.map(c => {
+    const typeRaw = c.type||'other';
+    const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
+    const t = new Date(c.completedAt || c.createdAt);
+    const time = t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    const statusColor = c.status==='done'?'#7c3aed':c.status==='active'?'#16a34a':c.status==='open'?'#d97706':c.status==='cancelled'?'#dc2626':'#94a3b8';
+    const responders = (c.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ') || '—';
+    return `<div onclick="hideModal('historyModal');setTimeout(()=>openCallDetail('${c.id}'),200)" style="background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:6px;box-shadow:var(--shadow);cursor:pointer;border-left:3px solid ${statusColor};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);">#${c.callNum||''} · ${typeLabel}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${c.address||'—'}${c.town?', '+c.town:''}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time} · Responders: ${responders}</div>
+        </div>
+        <div style="font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;background:${statusColor}22;color:${statusColor};text-transform:uppercase;">${c.status}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
 function setDispatchFilter(f,el) {
   dispatchFilter=f;
   document.querySelectorAll('#dispatchFilters .chip').forEach(c=>c.classList.remove('active'));
@@ -2672,11 +3196,26 @@ function setDispatchFilter(f,el) {
 function callCardHTML(call, mini=false) {
   const typeRaw = call.type||'other';
   const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
-  const timeStr = new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  // Date + time so dispatch can see at-a-glance when each call came in
+  const ts = new Date(call.createdAt);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tsDay = new Date(ts); tsDay.setHours(0,0,0,0);
+  const sameDay = ts.getTime() && today.getTime() === tsDay.getTime();
+  // Always show a date label so cards never just show a bare time
+  const _dateLabel = sameDay ? 'Today' : ts.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const timeStr = _dateLabel + ' · ' + ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  // Sequential call number — use stored callNum or fall back to chronological position
+  const callNumStr = call.callNum
+    ? String(call.callNum)
+    : (function(){
+        const ordered = (STATE.calls||[]).slice().sort((a,b)=>a.createdAt-b.createdAt);
+        const idx = ordered.findIndex(c => c.id === call.id);
+        return idx>=0 ? String(idx+1) : (call.id||'').slice(-5);
+      })();
   const approved = (call.responders||[]).length;
   const pending  = (call.pendingResponders||[]).length;
   const townColor = TOWN_COLORS[call.town]||'var(--blue)';
-  const isUrgent = call.priority==='urgent';
+  const isUrgent = call.priority==='urgent' && call.status!=='done';
   const isDraft  = call.status==='draft';
   const myUnit   = String(SESSION.unit);
   const iAmApproved = (call.responders||[]).some(r=>String(r.unit)===myUnit);
@@ -2695,7 +3234,7 @@ function callCardHTML(call, mini=false) {
           <div style="flex:1;min-width:0;">
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="font-size:10px;font-weight:600;color:var(--purple);">DRAFT</span>':''}</div>
             <div class="call-card-addr">${call.address}, ${call.town}</div>
-            <div class="call-card-meta">${timeStr}${approved?' · '+approved+' responding':''}${pending?' · <span style="color:var(--amber);">'+pending+' pending</span>':''}</div>
+            <div class="call-card-meta">#${callNumStr} · ${timeStr}${approved?' · '+approved+' responding':''}${pending?' · <span style="background:var(--amber);color:#fff;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.3px;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ '+pending+' PENDING</span>':''}</div>
           </div>
         </div>
         <div style="background:${sc}15;color:${sc};padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">${call.status.toUpperCase()}</div>
@@ -2713,7 +3252,7 @@ function callCardHTML(call, mini=false) {
     } else if(iAmPending) {
       respondBtn = `<div class="pending-badge" style="padding:7px 12px;font-size:12px;">Pending approval...</div>`;
     } else {
-      const isUrgent = call.priority==='urgent';
+      const isUrgent = call.priority==='urgent' && call.status!=='done';
       const btnBg = isUrgent ? 'var(--red)' : 'var(--green)';
       const btnLabel = isUrgent ? '⚠️ Respond Now' : 'Request to Respond';
       respondBtn = `<button class="call-action" style="background:${btnBg};color:#fff;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${btnLabel}</button>`;
@@ -2735,12 +3274,13 @@ function callCardHTML(call, mini=false) {
         <div class="call-card-addr">${call.address}${call.town?', '+call.town:''}</div>
         ${carInfo?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${carInfo}</div>`:''}
         ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
-        <div class="call-card-meta" style="margin-top:5px;">#${call.id.slice(-5)} · ${timeStr}</div>
+        <div class="call-card-meta" style="margin-top:5px;">#${callNumStr} · ${timeStr}</div>
       </div>
     </div>
     <div class="call-card-footer">
       ${respondBtn}
       <button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
+      ${call.address && (iAmApproved || ['admin','dispatch'].includes(SESSION.role))?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')" title="Live directions from your location">🗺️ Live ETA</button>`:''}
       ${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}
       ${call.phone?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">Call</button>`:''}
     </div>
@@ -2749,12 +3289,48 @@ function callCardHTML(call, mini=false) {
 
 function renderCalls() {
   const el=document.getElementById('callsList');
-  // Sort: active first, then open, then draft, then done
-  const order={active:0,open:1,draft:2,done:3};
-  const isDispatch=['admin','dispatch'].includes(SESSION.role);
-  let list=[...STATE.calls]
+  // Pending responder requests banner (admin/dispatch only)
+  renderPendingRespondersBanner(document.getElementById('pendingRespondersBanner'));
+  // Update home pending card too — make sure home card is also tapped → Pending Modal
+  const _hsPendCard = document.getElementById('hs-pending-card');
+  if(_hsPendCard) _hsPendCard.setAttribute('onclick', 'openPendingModal()');
+  // Update dispatch stat row
+  const dsOpen = document.getElementById('ds-open');
+  const dsActive = document.getElementById('ds-active');
+  const dsPendNum = document.getElementById('ds-pending');
+  const dsPendCard = document.getElementById('ds-pending-card');
+  if(dsOpen) dsOpen.textContent = (STATE.calls||[]).filter(c=>c.status==='open').length;
+  if(dsActive) dsActive.textContent = (STATE.calls||[]).filter(c=>c.status==='active').length;
+  const _pcount = ['admin','dispatch'].includes(SESSION.role)
+    ? (STATE.calls||[]).reduce((s,c)=>{
+        if(c.status==='done'||c.status==='draft'||c.status==='cancelled') return s;
+        return s + ((c.pendingResponders||[]).length);
+      },0) : 0;
+  if(dsPendNum) dsPendNum.textContent = _pcount;
+  if(dsPendCard) dsPendCard.style.display = _pcount > 0 ? '' : 'none';
+  // Sort priority:
+  //   0. Urgent (always on top, regardless of status)
+  //   1. Open & not yet being responded to (truly waiting for someone)
+  //   2. Active / In Progress (someone is responding or approved)
+  //   3. Draft
+  //   4. Done
+  const sortRank = c => {
+    if(c.status==='cancelled') return 6;
+    if(c.status==='done') return 5;
+    if(c.status==='draft') return 4;
+    if(c.priority==='urgent') return 0;
+    if((c.pendingResponders||[]).length>0) return 1;
+    const hasResponders = (c.responders||[]).length>0;
+    if(c.status==='open' && !hasResponders) return 2;
+    return 3;
+  };
+  const isDispatch = isDispatchRole && isDispatchRole();
+  const todayStart = _todayStartMs();
+  let list = [...STATE.calls]
     .filter(c=>isDispatch || c.status!=='draft') // drafts only visible to admin/dispatch
-    .sort((a,b)=>(order[a.status]??3)-(order[b.status]??3)||(b.createdAt-a.createdAt));
+    // Hide completed/cancelled calls from BEFORE today — they're only viewable via 📅 History
+    .filter(c=>(c.status!=='done'&&c.status!=='cancelled') || (c.completedAt||c.cancelledAt||c.createdAt||0) >= todayStart)
+    .sort((a,b)=>sortRank(a)-sortRank(b)||(b.createdAt-a.createdAt));
   if (dispatchFilter!=='all') {
     if (dispatchFilter==='active') {
       // "In Progress" = status active OR has approved/pending responders (and not done/draft)
@@ -2770,6 +3346,8 @@ function renderCalls() {
         !(c.responders||[]).length &&
         !(c.pendingResponders||[]).length
       );
+    } else if (dispatchFilter==='done') {
+      list = list.filter(c=>c.status==='done'||c.status==='cancelled');
     } else {
       list = list.filter(c=>c.status===dispatchFilter);
     }
@@ -2823,6 +3401,35 @@ function selectCallType(type, btn) {
 }
 
 // ── Create Call ──
+function updateDispatchBtn() {
+  const cb = document.getElementById('callDontPublish');
+  const btn = document.getElementById('callSubmitBtn');
+  if(!cb || !btn) return;
+  if(cb.checked) {
+    btn.textContent = '📝 Save as Draft';
+    btn.style.background = 'linear-gradient(135deg,#7c3aed,#9333ea)';
+  } else {
+    btn.textContent = 'Dispatch Call';
+    btn.style.background = 'linear-gradient(135deg,#1d4ed8,#2563eb)';
+  }
+}
+// ── Call number counter: sequential from Jan 1, resets each year, cancelled calls count ──
+function _nextCallNum() {
+  const year = new Date().getFullYear();
+  const key = 'cobc_callnum_' + year;
+  // Max from STATE (covers calls loaded from Firestore this session)
+  const stateMax = (STATE.calls||[]).reduce((m,c) => {
+    // Only count calls from this calendar year
+    const y = c.createdAt ? new Date(c.createdAt).getFullYear() : 0;
+    return y === year ? Math.max(m, c.callNum||0) : m;
+  }, 0);
+  // Max from localStorage (persists across sessions)
+  const stored = parseInt(localStorage.getItem(key)||'0', 10)||0;
+  const next = Math.max(stateMax, stored) + 1;
+  try { localStorage.setItem(key, String(next)); } catch(e) {}
+  return next;
+}
+
 function createCall() {
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Only dispatch can create calls'); return; }
   let type=document.getElementById('callType').value;
@@ -2849,6 +3456,7 @@ function createCall() {
 
   const call = {
     id:'C'+Date.now(),
+    callNum: _nextCallNum(),
     type, address, town, caller, phone, priority, notes,
     status: dontPublish?'draft':'open',
     createdAt: Date.now(),
@@ -2881,6 +3489,7 @@ function createCall() {
   const _ezSize=document.getElementById('ezSpareSize'); if(_ezSize) _ezSize.value='';
   const _ezUnit=document.getElementById('ezSpareUnit'); if(_ezUnit) _ezUnit.innerHTML='<option value="">Select size first</option>';
   document.getElementById('callDontPublish').checked=false;
+  if(typeof updateDispatchBtn==='function') updateDispatchBtn();
   document.getElementById('carInfoSection').style.display='none';
 
   if (dontPublish) {
@@ -3005,25 +3614,37 @@ function openRespondModal(id) {
 
 function getOnDutyDispatcher() {
   // Primary: check the schedule for who is on duty RIGHT NOW
-  const now = new Date();
-  const dow = now.getDay();
-  const shiftIdx = getShiftIndexNow();
-  const slot = DISPATCH_SCHEDULE[shiftIdx]?.slots[dow];
-
-  if (slot && slot.p !== 'OPEN' && slot.p !== 'CHIEFS') {
-    const phone = getDispatcherPhone(slot.p);
-    if (phone) return { name: slot.p, phone };
-    // Has a name but no phone in member list — check secondary
-    if (slot.s && slot.s !== 'OPEN' && slot.s !== 'CHIEFS') {
-      const phone2 = getDispatcherPhone(slot.s);
-      if (phone2) return { name: slot.s, phone: phone2 };
+  let slot = null;
+  let slotPrimary = '';
+  try {
+    if(typeof DISPATCH_SCHEDULE !== 'undefined' && typeof getShiftIndexNow === 'function') {
+      const now = new Date();
+      const dow = now.getDay();
+      const shiftIdx = getShiftIndexNow();
+      slot = DISPATCH_SCHEDULE[shiftIdx]?.slots?.[dow] || null;
+      slotPrimary = slot?.p || '';
     }
+  } catch(e) { console.warn('getOnDutyDispatcher schedule error:', e); }
+
+  if (slot && slotPrimary && slotPrimary !== 'OPEN' && slotPrimary !== 'CHIEFS') {
+    const phone = getDispatcherPhone(slotPrimary);
+    // Return the schedule name regardless of whether we have a phone
+    return { name: slotPrimary, phone: phone || null };
   }
-  // Secondary fallback: manually set on-duty dispatcher in Admin
+
+  // Secondary: schedule slot is OPEN/CHIEFS — still show that to the user so they know
+  if (slot && (slotPrimary === 'OPEN' || slotPrimary === 'CHIEFS')) {
+    // Check manual override
+    const od = STATE.onDuty || {};
+    if (od.name) return { name: od.name, phone: od.phone || null };
+    // Show the schedule's literal value (e.g. "OPEN slot — no dispatcher scheduled")
+    return { name: slotPrimary, phone: null };
+  }
+
+  // No schedule data at all — fall back to manual override
   const od = STATE.onDuty || {};
-  if (od.phone) return { name: od.name || 'Dispatcher', phone: od.phone };
-  // Last resort: no phone found
-  return { name: slot?.p || 'Dispatcher', phone: null };
+  if (od.name) return { name: od.name, phone: od.phone || null };
+  return { name: '', phone: null };
 }
 
 
@@ -3052,16 +3673,41 @@ function confirmRespond() {
       if(call.status==='open') call.status='active';
       logCallEvent(call, 'auto_approved', {responder:SESSION.unit, eta, urgent:true});
     }
-    save(); hideModal('respondModal');
+    save(); firestoreUpsertCall(call); hideModal('respondModal');
     renderCalls(); renderHome();
     showToast('✅ Auto-approved — responding to urgent call');
     return;
   }
 
   call.pendingResponders=call.pendingResponders||[];
-  call.pendingResponders.push({unit:SESSION.unit,name:SESSION.name,eta,notes,isObserver,time:Date.now(),status:'pending'});
+  // Soft-block observers from non-allowed call types unless this is an urgent call
+  // Non-observer (regular member) restricted to specific call types
+  if(!isObserver && memberHasRestriction(SESSION.unit) && !isAllowedForUnit(call.type, SESSION.unit) && call.priority!=='urgent') {
+    const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    const allowedTxt = allowedTypesForUnit(SESSION.unit).map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ');
+    showToast('⛔ Not approved for this call type. You are approved for: '+allowedTxt);
+    hideModal('respondModal');
+    return;
+  }
+  if(isObserver && !isAllowedForObserver(call.type, SESSION.unit) && call.priority!=='urgent') {
+    const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    const allowedList = allowedTypesForUnit(SESSION.unit);
+    const allowedTxt = allowedList.length
+      ? allowedList.map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ')
+      : '(no work permissions set)';
+    const ok = confirm(
+      '👁️ OBSERVER MODE\n\n'+
+      'You are going to OBSERVE this call (not work on it).\n'+
+      'This call is: '+typeLabel+'.\n'+
+      'Your approved work types: '+allowedTxt+'.\n\n'+
+      'Dispatch will be notified you are coming as an observer. '+
+      'To work on this call instead, dispatch must explicitly approve. Continue?'
+    );
+    if(!ok) { hideModal('respondModal'); return; }
+  }
+  call.pendingResponders.push({unit:SESSION.unit,name:SESSION.name,eta,notes,isObserver,observerOnly:(isObserver && !isAllowedForObserver(call.type, SESSION.unit)),time:Date.now(),status:'pending'});
   logCallEvent(call, 'responder_pending', {responder:SESSION.unit, eta});
-  save(); hideModal('respondModal');
+  save(); firestoreUpsertCall(call); hideModal('respondModal');
   renderCalls(); renderHome();
 
   // PUSH HOOK #2 — member wants to respond → currently-scheduled dispatchers + admins
@@ -3102,14 +3748,118 @@ function removeApprovedResponder(callId, unit) {
   if(!confirm(`Remove BC-${unit} ${req?.name||''} from this call?`)) return;
   call.responders=call.responders.filter(r=>String(r.unit)!==String(unit));
   if(!call.responders.length && !call.pendingResponders?.length) call.status='open';
-  save(); openCallDetail(callId); renderCalls(); renderHome();
+  logCallEvent(call,'responder_removed',{responder:unit,removedBy:SESSION.unit});
+  save(); firestoreUpsertCall(call); openCallDetail(callId); renderCalls(); renderHome();
   showToast(`BC-${unit} removed from call`);
+  // Notify the removed member — do not respond
+  const _rmTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  sendPush({
+    target:'unit',
+    unit:String(unit),
+    title:'❌ Removed from Call',
+    body:`You have been removed from the ${_rmTypeLabel} at ${call.address}, ${call.town}. Do not respond.`,
+    url:'/cobc-dispatch/',
+    callId:callId
+  });
 }
+// ── Cancel a call (dispatch/admin) — notifies all responders ──
+function cancelCall(id) {
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call) return;
+  if(!confirm('Mark this call as CANCELLED?\nAll responders will be notified not to respond.')) return;
+  const prevResponders=[...(call.responders||[]),...(call.pendingResponders||[])];
+  call.status='cancelled';
+  call.cancelledAt=Date.now();
+  call.cancelledBy=SESSION.unit;
+  logCallEvent(call,'cancelled',{cancelledBy:SESSION.unit});
+  save(); firestoreUpsertCall(call); renderCalls(); renderHome();
+  hideModal('callDetailModal');
+  showToast('🚫 Call cancelled');
+  const _cxTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  if(prevResponders.length) {
+    // Notify each responder individually
+    prevResponders.forEach(r=>{
+      sendPush({
+        target:'unit',
+        unit:String(r.unit),
+        title:'🚫 Call Cancelled — Do Not Respond',
+        body:`${_cxTypeLabel} at ${call.address}, ${call.town} has been cancelled.`,
+        url:'/cobc-dispatch/',
+        callId:id
+      });
+    });
+  } else {
+    // No specific responders — broadcast to all
+    sendPush({
+      target:'all',
+      title:'🚫 Call Cancelled',
+      body:`${_cxTypeLabel} at ${call.address}, ${call.town}`,
+      url:'/cobc-dispatch/',
+      callId:id
+    });
+  }
+}
+
+// ── Per-member call type restrictions (from admin Edit Member checkboxes) ──
+// Members and observers can both have callTypes saved. If saved, they're restricted.
+// Observers without a list can still observe; non-observers without a list are unrestricted.
+function allowedTypesForUnit(unit) {
+  const m = (STATE.members||[]).find(x => String(x.unit).replace(/^BC-?/i,'') === String(unit).replace(/^BC-?/i,''));
+  if(m && Array.isArray(m.callTypes) && m.callTypes.length) return m.callTypes;
+  return [];
+}
+function memberHasRestriction(unit) {
+  return allowedTypesForUnit(unit).length > 0;
+}
+function isAllowedForUnit(callType, unit) {
+  const list = allowedTypesForUnit(unit);
+  if(!list.length) return true; // no restriction saved
+  if(list.includes('all')) return true;
+  return list.includes(callType);
+}
+// Kept for backward compatibility — same semantics, observer-tinted name
+function isAllowedForObserver(callType, unit) {
+  const list = allowedTypesForUnit(unit);
+  if(!list.length) return false; // observers without a list are observe-only
+  if(list.includes('all')) return true;
+  return list.includes(callType);
+}
+
 function approveResponder(callId,unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
   const req=(call.pendingResponders||[]).find(r=>String(r.unit)===String(unit));
   if(!req) return;
+  // Observer restriction warning: if responder is an observer and call type is not allowed, ask to confirm override
+  // Restriction warning for ANY member with a saved callTypes list (not just observers)
+  const targetMember = (STATE.members||[]).find(x => String(x.unit).replace(/^BC-?/i,'') === String(unit).replace(/^BC-?/i,''));
+  const targetIsObserver = req.isObserver || (targetMember && targetMember.role === 'observer');
+  if(!targetIsObserver && memberHasRestriction(unit) && !isAllowedForUnit(call.type, unit)) {
+    const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    const allowedTxt = allowedTypesForUnit(unit).map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ');
+    const ok = confirm(
+      '⚠️ BC-'+String(unit).replace(/^BC-?/i,'')+' is not normally approved for this call type.\n\n'+
+      'They are approved for: '+allowedTxt+'.\n'+
+      'This call is: '+typeLabel+'.\n\n'+
+      'Override and approve anyway?'
+    );
+    if(!ok) return;
+  }
+  if(req.isObserver && !isAllowedForObserver(call.type, unit)) {
+    const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    const allowedList = allowedTypesForUnit(unit);
+    const allowedTxt = allowedList.length
+      ? allowedList.map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ')
+      : '(no work permissions set — observe-only)';
+    const ok = confirm(
+      '👁️ BC-'+String(unit).replace(/^BC-?/i,'')+' is an OBSERVER.\n\n'+
+      'Approved work types: '+allowedTxt+'.\n'+
+      'This call is: '+typeLabel+'.\n\n'+
+      'Approving will let them work on this call. Otherwise they can still observe without approval.\n\n'+
+      'Override and approve as worker anyway?'
+    );
+    if(!ok) return;
+  }
   call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
   call.responders=call.responders||[];
   call.responders.push({...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()});
@@ -3329,7 +4079,7 @@ function openCallDetail(id) {
 
   // Status + town color bar
   html+=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
-    <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':'badge-gray'}">${call.status.toUpperCase()}</span>
+    <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':call.status==='cancelled'?'badge-red':'badge-gray'}">${call.status.toUpperCase()}</span>
     <div style="width:12px;height:12px;border-radius:50%;background:${townColor}"></div>
     <span style="font-size:13px;font-weight:600;color:var(--text2);">${call.town}</span>
     <span class="call-num">#${call.id.slice(-5)}</span>
@@ -3359,7 +4109,7 @@ function openCallDetail(id) {
       html+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 14px;margin-bottom:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div>
-            <div style="font-size:14px;font-weight:700;">BC-${r.unit} ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
+            <div style="font-size:14px;font-weight:700;">BC-${String(r.unit||'').replace(/^BC-?/i,'')} ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
             <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${r.notes?` · ${r.notes}`:''} · ${new Date(r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>
           </div>
           ${m?.phone?`<button class="responder-call-btn" onclick="window.location='tel:${m.phone}'">📞</button>`:''}
@@ -3381,7 +4131,7 @@ function openCallDetail(id) {
       const phone=m?.phone||null;
       html+=`<div class="responder-row">
         <div style="flex:1;">
-          <div style="font-size:14px;font-weight:700;">BC-${r.unit}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
+          <div style="font-size:14px;font-weight:700;">BC-${String(r.unit||'').replace(/^BC-?/i,'')}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
           <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
@@ -3410,18 +4160,20 @@ function openCallDetail(id) {
 
   // Actions
   html+=`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">`;
-  if(call.status!=='done'&&call.status!=='draft') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
-  if(call.status!=='done') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
-  if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">Map: Map</button>`;
-  if(call.phone) html+=`<button class="btn-sm btn-ghost" onclick="window.location='tel:${call.phone}'">Phone: Caller</button>`;
+  if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
+  if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
+  if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Map</button>`;
+  if(call.phone) html+=`<button class="btn-sm btn-ghost" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
 
   if(isDispatch) {
     html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Radio</button>`;
     if(call.status==='draft') html+=`<button class="btn-sm btn-primary" onclick="publishCall('${id}');hideModal('callDetailModal')">📢 Publish</button>`;
     if(call.status==='open') html+=`<button class="btn-sm btn-green" onclick="updateCallStatus('${id}','active');renderCallDetail('${id}')">▶ Active</button>`;
-    if(call.status==='done') html+=`<button class="btn-sm btn-amber" onclick="updateCallStatus('${id}','open');renderCallDetail('${id}')">🔄 Re-open</button>`;    if(call.status!=='done') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
+    if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" onclick="updateCallStatus('${id}','open');renderCallDetail('${id}')">🔄 Re-open</button>`;
+    if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
+    if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-danger" onclick="cancelCall('${id}')">🚫 Cancel Call</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
-    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">App: WhatsApp</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">WhatsApp</button>`;
     html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
 
     // Vehicle assignment
@@ -3467,8 +4219,16 @@ function updateCallStatus(id,status) {
 }
 function deleteCall(id) {
   if(!confirm('Delete this call?')) return;
-  firebase.firestore().collection('calls').doc(id).delete().catch(e=>console.error('Firestore delete error:',e));
-  STATE.calls=STATE.calls.filter(c=>c.id!==id); save(); renderCalls(); renderHome(); showToast('Call deleted');
+  _deletedCallIds.add(String(id));
+  STATE.calls = (STATE.calls||[]).filter(c=>c.id!==id);
+  save();
+  renderCalls(); renderHome();
+  firebase.firestore().collection('calls').doc(String(id)).delete()
+    .then(() => showToast('✅ Call deleted'))
+    .catch(e => {
+      console.error('Firestore delete error:', e);
+      showToast('⚠️ Local delete OK, cloud delete failed');
+    });
 }
 
 // ── CALL EDIT ──
@@ -3604,7 +4364,7 @@ function confirmCompleteCall() {
     setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
   if(sendWA) {
     const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    const respList=(call.responders||[]).map(r=>`BC-${r.unit} ${r.name}`).join(', ')||'None assigned';
+    const respList=(call.responders||[]).map(r=>`BC-${String(r.unit||'').replace(/^BC-?/i,'')} ${r.name}`).join(', ')||'None assigned';
     let msg=`*COBC Call Completed*
 `;
     msg+=`${typeLabel} - ${call.address}, ${call.town}
@@ -3620,6 +4380,40 @@ _#${call.id.slice(-5)} · ${new Date().toLocaleTimeString('en-US',{hour:'numeric
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
   }
 }
+function openLiveDirections(callId) {
+  const call = STATE.calls.find(c => c.id === callId);
+  if(!call || !call.address) { showToast('No address on this call'); return; }
+  const dest = encodeURIComponent(`${call.address}, ${call.town||''} NJ`);
+  const openMapsNoOrigin = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank');
+
+  if(!navigator.geolocation) { openMapsNoOrigin(); return; }
+
+  // Only use live location if the user has ALREADY granted it (no permission prompt here)
+  const useLiveOriginIfGranted = () => {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        window.open(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${dest}&travelmode=driving`, '_blank');
+      },
+      () => openMapsNoOrigin(),
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
+    );
+  };
+
+  if(navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: 'geolocation' })
+      .then(p => {
+        if(p.state === 'granted') useLiveOriginIfGranted();
+        else openMapsNoOrigin(); // 'prompt' or 'denied' — don't show prompt; just open without origin
+      })
+      .catch(() => openMapsNoOrigin());
+  } else {
+    // Old browsers without permissions API — skip the live origin to avoid surprise prompt
+    openMapsNoOrigin();
+  }
+}
+
 function openMaps(addr) {
   const enc=encodeURIComponent(addr);
   const wazeUrl='https://waze.com/ul?q='+enc+'&navigate=yes';
@@ -3680,16 +4474,19 @@ function setMemberFilter(f,el) {
   el.classList.add('active'); renderMemberDir();
 }
 const CALL_TYPES_FOR_MEMBER=[
-  {value:'flat_tire',label:'Flat Tire'},
-  {value:'flat_tire_no_spare',label:'Flat / No Spare'},
-  {value:'lockout',label:'Lockout'},
-  {value:'jump_start',label:'Jump Start'},
-  {value:'gas',label:'Gas'},
-  {value:'tow',label:'Tow'},
-  {value:'ambulance_assist',label:'Ambulance Assist'},
-  {value:'flood',label:'Flood'},
-  {value:'home_assist',label:'Home Assist'},
-  {value:'other',label:'Other'},
+  {value:'flat_tire_spare',label:'Flat Tire - Has Spare'},
+  {value:'flat_tire_no_spare',label:'Flat Tire - No Spare'},
+  {value:'jump_start',label:'⚡ Boost'},
+  {value:'car_lockout',label:'🔑 Car Lockout'},
+  {value:'lockout',label:'🔑 House Lockout'},
+  {value:'child_lockout',label:'🚨 Child Locked in Car'},
+  {value:'missing_person',label:'🚨 Missing Person'},
+  {value:'flood',label:'💧 Flood'},
+  {value:'ac_heat',label:'❄️ A/C or Heat'},
+  {value:'generator',label:'⚡ Generator'},
+  {value:'transport',label:'🚐 Transport'},
+  {value:'welfare',label:'🏥 Welfare Check'},
+  {value:'other',label:'📋 Other'},
 ];
 function openEditMemberRole(unit) {
   const m = STATE.members.find(x => String(x.unit) === String(unit));
@@ -3842,7 +4639,7 @@ function goAdmin(subtab) {
   else if(typeof setAdminTab==='function') setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
 }
 function setMoreTab(tab,el) {
-  ['numbers','stats','schedule','equipment','vehicles'].forEach(t=>{
+  ['numbers','stats','settings','schedule','equipment','vehicles'].forEach(t=>{
     const e=document.getElementById(`more-${t}`); if(e) e.style.display=t===tab?'':'none';
   });
   document.querySelectorAll('#page-more .sub-tab').forEach(x=>x.classList.remove('active'));
@@ -3852,6 +4649,160 @@ function setMoreTab(tab,el) {
   if(tab==='vehicles') renderVehicles();
   if(tab==='numbers')  renderNumbers();
   if(tab==='equipment') renderMoreEquipment();
+  if(tab==='settings')  renderSettingsTab();
+}
+
+// ── Settings tab ──
+function renderSettingsTab() {
+  const settings = JSON.parse(localStorage.getItem('cobc_settings')||'{}');
+  // Sound
+  const soundEl = document.getElementById('settings-sound');
+  if(soundEl) soundEl.checked = settings.sound !== false; // default on
+  // Vibrate
+  const vibrateEl = document.getElementById('settings-vibrate');
+  if(vibrateEl) vibrateEl.checked = settings.vibrate !== false; // default on
+  // Notification state
+  const notifDesc = document.getElementById('settings-notif-desc');
+  const notifBtn = document.getElementById('settings-notif-btn');
+  const notifTest = document.getElementById('settings-notif-test');
+  if(notifBtn) {
+    const has = !!localStorage.getItem('cobc_fcm_token_' + (SESSION?.unit||''));
+    const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+    if(perm === 'granted' && has) {
+      notifBtn.textContent = 'On';
+      notifBtn.className = 'btn-sm btn-green';
+      if(notifDesc) notifDesc.textContent = '✅ You will be notified of new calls.';
+      if(notifTest) notifTest.style.display = '';
+    } else if(perm === 'denied') {
+      notifBtn.textContent = 'Blocked';
+      notifBtn.className = 'btn-sm btn-ghost';
+      if(notifDesc) notifDesc.textContent = 'Blocked — go to iPhone Settings → COBC → Notifications.';
+      if(notifTest) notifTest.style.display = 'none';
+    } else {
+      notifBtn.textContent = 'Enable';
+      notifBtn.className = 'btn-sm btn-primary';
+      if(notifDesc) notifDesc.textContent = 'Get alerted when a new call is dispatched.';
+      if(notifTest) notifTest.style.display = 'none';
+    }
+  }
+  // Location state
+  const locDesc = document.getElementById('settings-loc-desc');
+  const locBtn = document.getElementById('settings-loc-btn');
+  if(locBtn && navigator.permissions) {
+    navigator.permissions.query({name:'geolocation'}).then(p => {
+      if(p.state === 'granted') {
+        locBtn.textContent = 'On'; locBtn.className = 'btn-sm btn-green';
+        if(locDesc) locDesc.textContent = '✅ Location is shared with dispatch.';
+      } else if(p.state === 'denied') {
+        locBtn.textContent = 'Blocked'; locBtn.className = 'btn-sm btn-ghost';
+        if(locDesc) locDesc.textContent = 'Blocked — enable in browser/system settings.';
+      } else {
+        locBtn.textContent = 'Allow'; locBtn.className = 'btn-sm btn-primary';
+      }
+    }).catch(()=>{});
+  }
+  // Sign-out user
+  const sob = document.getElementById('settings-signout-desc');
+  if(sob && SESSION) sob.textContent = `Signed in as ${SESSION.name || 'BC-'+SESSION.unit} (${(SESSION.role||'member').toUpperCase()})`;
+  // Build date
+  const bd = document.getElementById('settings-build-date');
+  if(bd) bd.textContent = 'Last updated ' + new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  // Install card visibility (iOS Safari, not standalone)
+  const installCard = document.getElementById('settings-install-card');
+  if(installCard) {
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone===true || window.matchMedia('(display-mode: standalone)').matches;
+    installCard.style.display = (isIOS && !isStandalone) ? 'block' : 'none';
+  }
+}
+function saveSetting(key, value) {
+  const s = JSON.parse(localStorage.getItem('cobc_settings')||'{}');
+  s[key] = value;
+  localStorage.setItem('cobc_settings', JSON.stringify(s));
+  showToast(key + ' ' + (value ? 'on' : 'off'));
+}
+function requestLocationPermission() {
+  if(!navigator.geolocation) { showToast('Location not supported'); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => { showToast('✅ Location enabled'); renderSettingsTab(); },
+    err => { showToast('Location denied'); renderSettingsTab(); },
+    { timeout: 10000 }
+  );
+}
+function clearAppCache() {
+  if(!confirm('Clear cached equipment + calls? You will stay signed in but data will re-sync from Google Sheet.')) return;
+  try {
+    Object.keys(localStorage).forEach(k => {
+      if(k.startsWith('cobc_v') || k.startsWith('cobc_eq') || k.startsWith('cobc_calls')) localStorage.removeItem(k);
+    });
+    showToast('✅ Cache cleared. Reloading…');
+    setTimeout(() => location.reload(), 800);
+  } catch(e) { showToast('Error clearing cache'); }
+}
+function showInstallInstructions() {
+  alert('On iPhone:\n1. Tap the Share button (the box with arrow at bottom of Safari)\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add"\n\nOn Android Chrome:\n1. Tap the menu (⋮ top-right)\n2. Tap "Install app" or "Add to Home screen"');
+}
+
+// ── Checklist History — stored locally in localStorage ──
+const CHK_HIST_KEY = 'cobc_chk_history';
+let _chkHistCache = [];
+let _chkHistLocFilter = 'all';
+
+function _saveChkHistEntry(entry) {
+  try {
+    const existing = JSON.parse(localStorage.getItem(CHK_HIST_KEY)||'[]');
+    existing.unshift(entry); // newest first
+    // Keep last 500 submissions
+    localStorage.setItem(CHK_HIST_KEY, JSON.stringify(existing.slice(0,500)));
+  } catch(e) {}
+}
+
+function loadChecklistHistory() {
+  _chkHistCache = [];
+  try {
+    const raw = localStorage.getItem(CHK_HIST_KEY);
+    if(raw) _chkHistCache = JSON.parse(raw)||[];
+  } catch(e) {}
+  renderChkHistory();
+}
+function renderChkHistory() {
+  const list = document.getElementById('chkHistList');
+  const chipsEl = document.getElementById('chkHistLocChips');
+  if(!list) return;
+  if(!_chkHistCache.length) {
+    list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3);">No checklist submissions yet.</div>';
+    if(chipsEl) chipsEl.innerHTML='';
+    return;
+  }
+  const locs = [...new Set(_chkHistCache.map(h => h.location || 'COBC'))].sort();
+  if(chipsEl) {
+    chipsEl.innerHTML = ['all', ...locs].map(l => `<div class="chip${_chkHistLocFilter===l?' active':''}" onclick="_chkHistLocFilter='${l.replace(/'/g,"\\'")}';renderChkHistory();">${l==='all'?'All Locations':l}</div>`).join('');
+  }
+  const rows = _chkHistCache
+    .filter(h => _chkHistLocFilter==='all' || (h.location||'COBC')===_chkHistLocFilter)
+    .sort((a,b) => (new Date(b.timestamp||b.date||0)) - (new Date(a.timestamp||a.date||0)));
+  if(!rows.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3);">No history for this location.</div>'; return; }
+  list.innerHTML = rows.map(h => {
+    const dt = h.timestamp || h.date || '';
+    const dateStr = dt ? new Date(dt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
+    const checked = h.checked || h.itemsChecked || 0;
+    const total = h.total || h.itemsTotal || 0;
+    const issues = h.issues || h.issueCount || 0;
+    const bc = h.bc || h.member || h.unit || '—';
+    const loc = h.location || 'COBC';
+    return `<div style="background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;color:var(--text);">📍 ${loc}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">${dateStr} · BC-${bc}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);">${checked}${total?'/'+total:''} checked</div>
+          ${issues>0?`<div style="font-size:11px;font-weight:700;color:var(--red);margin-top:3px;">${issues} issue${issues===1?'':'s'}</div>`:'<div style="font-size:11px;color:var(--green);margin-top:3px;">No issues</div>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── Equipment admin (in Admin page) ──
@@ -4104,8 +5055,44 @@ let DISPATCH_SCHEDULE=[
 })();
 
 // ── Schedule edit modal ──
+// ── Firestore sync: dispatch schedule (shared across all devices) ──
+let _schedRemoteApplied = false;
+function subscribeScheduleFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('config').doc('dispatchSchedule').onSnapshot(doc => {
+      if(!doc.exists) return;
+      const data = doc.data();
+      if(!data || !Array.isArray(data.schedule)) return;
+      if(data.schedule.length !== DISPATCH_SCHEDULE.length) return;
+      DISPATCH_SCHEDULE = data.schedule.map((row,i) => ({
+        shift: row.shift || DISPATCH_SCHEDULE[i].shift,
+        slots: Array.isArray(row.slots) ? row.slots.map((s,j) => ({
+          p: (s && s.p) || DISPATCH_SCHEDULE[i].slots[j].p,
+          s: (s && s.s) || DISPATCH_SCHEDULE[i].slots[j].s
+        })) : DISPATCH_SCHEDULE[i].slots
+      }));
+      // Cache locally for offline
+      try { STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r=>({shift:r.shift,slots:[...r.slots]})); save&&save(); } catch(e){}
+      _schedRemoteApplied = true;
+      if(typeof renderSchedule==='function') renderSchedule();
+      if(typeof updateOnDutyBanner==='function') updateOnDutyBanner();
+    }, err => console.warn('schedule snapshot error:', err));
+  } catch(e) { console.warn('subscribeScheduleFromFirestore failed:', e); }
+}
+function pushScheduleToFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return Promise.resolve();
+    return firebase.firestore().collection('config').doc('dispatchSchedule').set({
+      schedule: DISPATCH_SCHEDULE.map(r => ({ shift:r.shift, slots:r.slots.map(s=>({p:s.p,s:s.s})) })),
+      updatedAt: Date.now(),
+      updatedBy: (typeof SESSION!=='undefined' && SESSION) ? SESSION.unit : null
+    });
+  } catch(e) { console.warn('pushScheduleToFirestore failed:', e); }
+}
+
 function openScheduleEdit(shiftIdx, dayIdx) {
-  if(SESSION.role !== 'admin') { showToast('Admin only'); return; }
+  if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Admin or Dispatch only'); return; }
   const row = DISPATCH_SCHEDULE[shiftIdx];
   const slot = row.slots[dayIdx];
   document.getElementById('schedEditShift').textContent = `${SCHED_DAYS_FULL[dayIdx]} · ${row.shift}`;
@@ -4145,6 +5132,7 @@ function saveScheduleEdit() {
   DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx] = { p: primary, s: secondary };
   STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r => ({shift:r.shift, slots:[...r.slots]}));
   save();
+  pushScheduleToFirestore();
   hideModal('schedEditModal');
   renderSchedule();
   showToast('✅ Schedule updated');
@@ -4158,6 +5146,7 @@ function resetScheduleSlot() {
   DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx] = { p:'OPEN', s:'OPEN' };
   STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r => ({shift:r.shift, slots:[...r.slots]}));
   save();
+  pushScheduleToFirestore();
   hideModal('schedEditModal');
   renderSchedule();
   showToast('Slot reset to OPEN');
@@ -4282,7 +5271,7 @@ function renderScheduleDay() {
           <div style="font-size:14px;font-weight:700;color:${nameColor};">${isOpen?'OPEN':isChiefs?'Chiefs':slot.p}</div>
           ${slot.s&&slot.s!=='OPEN'&&slot.s!==slot.p?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">2nd: ${slot.s}</div>`:''}
         </div>
-        ${SESSION.role==='admin'?`<button onclick="openScheduleEdit(${si},${schedCurDay})" style="background:rgba(15,37,64,.08);border:1px solid var(--border);color:var(--navy);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;">✏️</button>`:''}
+        ${['admin','dispatch'].includes(SESSION.role)?`<button onclick="openScheduleEdit(${si},${schedCurDay})" style="background:rgba(15,37,64,.08);border:1px solid var(--border);color:var(--navy);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;">✏️</button>`:''}
         ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;text-decoration:none;flex-shrink:0;">📞</a>`:''}
       </div>
     </div>`;
@@ -4437,7 +5426,7 @@ function buildStatsSubNav() {
   const nav=document.getElementById('statsSubNav');
   let tabs=[];
   if (isMemberOnly())          tabs=[['mine','⭐ My Stats']];
-  else if (SESSION.role==='dispatch') tabs=[['mine','⭐ My Stats'],['dispatch','📡 My Dispatch'],['monthly','📅 Monthly'],['overview','📊 Overview']];
+  else if (SESSION.role==='dispatch') tabs=[['mine','⭐ My Stats'],['dispatch','📡 My Dispatch']];
   else                         tabs=[['mine','⭐ My Stats'],['overview','📊 Overview'],['dispatch','📡 Dispatch'],['monthly','📅 Monthly'],['members','🏆 Members'],['search','🔍 Search'],['compare','⚔️ Compare']];
   nav.innerHTML=tabs.map(([sub,label],i)=>`<button class="sub-tab${i===0?' active':''}" onclick="setStatsSub('${sub}',this)" style="white-space:nowrap;font-size:12px;">${label}</button>`).join('');
   return tabs[0][0];
@@ -5028,6 +6017,8 @@ function renderVehicles() {
   const el=document.getElementById('vehicleList');
   if(!el) return;
   const vehicles=STATE.vehicles||[];
+  const isAdmin=['admin'].includes(SESSION.role);
+  const isDispatch=['admin','dispatch'].includes(SESSION.role);
   if(!vehicles.length) {
     el.innerHTML='<div style="font-size:13px;color:var(--text3);">No vehicles added</div>';
     return;
@@ -5037,13 +6028,22 @@ function renderVehicles() {
       <div class="list-icon ${v.checkedOut?'list-icon-red':'list-icon-green'}">🚐</div>
       <div class="list-body">
         <div class="list-title">${v.name} <span class="badge ${v.checkedOut?'badge-red':'badge-green'}">${v.checkedOut?'OUT':'IN'}</span></div>
-        <div class="list-sub">${v.type}${v.plate?` · ${v.plate}`:''}${v.checkedOut?` · BC ${v.checkedOutBy}`:''}
+        <div class="list-sub">${v.type||''}${v.plate?` · ${v.plate}`:''}${v.checkedOut?` · BC ${v.checkedOutBy}`:''}
         </div>
       </div>
-      ${['admin','dispatch'].includes(SESSION.role)?`
-        <button class="btn-sm ${v.checkedOut?'btn-green':'btn-danger'}" style="font-size:11px;padding:6px 10px;" onclick="${v.checkedOut?`checkInVehicle('${v.id}')`:`checkOutVehicle('${v.id}')`}">${v.checkedOut?'Return':'Take Out'}</button>
-      `:''}
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${isDispatch?`<button class="btn-sm ${v.checkedOut?'btn-green':'btn-danger'}" style="font-size:11px;padding:6px 10px;" onclick="${v.checkedOut?`checkInVehicle('${v.id}')`:`checkOutVehicle('${v.id}')`}">${v.checkedOut?'Return':'Take Out'}</button>`:''}
+        ${isAdmin?`<button class="btn-sm btn-ghost" style="font-size:11px;padding:6px 10px;color:var(--red);" onclick="deleteVehicle('${v.id}')">🗑</button>`:''}
+      </div>
     </div>`).join('');
+}
+
+function deleteVehicle(id) {
+  const v=STATE.vehicles?.find(x=>x.id===id);
+  if(!v) return;
+  if(!confirm(`Delete vehicle "${v.name}"? This cannot be undone.`)) return;
+  STATE.vehicles=(STATE.vehicles||[]).filter(x=>x.id!==id);
+  save(); renderVehicles(); showToast(`🗑 ${v.name} deleted`);
 }
 
 function checkOutVehicle(id) {
@@ -5112,7 +6112,7 @@ function setEqTab(tab,el) {
   document.querySelectorAll('#eqSubTabs .sub-tab').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   if(tab==='dashboard') renderEquipmentDashboard();
-  if(tab==='inventory')  { renderEqCatChips(); renderInventory(); }
+  if(tab==='inventory')  { renderEqCatChips(); renderEqLocChips(); renderInventory(); }
   if(tab==='checklist')  renderChkFull();
   if(tab==='reports')    { renderReports(); populateReportItemSelect(); }
   if(tab==='admin')      { renderEqAdminTab(); }
@@ -5189,6 +6189,7 @@ function setEqFilter(f,el) {
 }
 
 let eqCurCat='all';
+let eqCurLoc='all';
 const EQ_CATS=['Fan','Heater','Light Tower','Shop Vac','A/C','EZ Spare','Generator','Wheel Chair Ramp','Sump Pump'];
 function getCat(name) {
   const n=(name||'').toLowerCase().replace(/-/g,' ');
@@ -5205,6 +6206,24 @@ function renderEqCatChips() {
   const el=document.getElementById('eqCatChips');
   if(!el) return;
   el.innerHTML=cats.map(c=>`<div class="chip${eqCurCat===c?' active':''}" onclick="setEqCat('${c}',this)">${c==='all'?'All Categories':c}</div>`).join('');
+}
+function renderEqLocChips() {
+  const present={};
+  STATE.equipment.filter(e=>e.equipStatus!=='Not Active' && e.location).forEach(e=>{ present[e.location]=(present[e.location]||0)+1; });
+  const locs=['all', ...Object.keys(present).sort()];
+  const el=document.getElementById('eqLocChips');
+  if(!el) return;
+  el.innerHTML=locs.map(l=>{
+    const label=l==='all'?'📍 All Locations':l;
+    const count=l==='all'?'':` <span style="opacity:.6;font-size:10px;">(${present[l]})</span>`;
+    return `<div class="chip${eqCurLoc===l?' active':''}" onclick="setEqLoc('${l.replace(/'/g,"\\'")}',this)">${label}${count}</div>`;
+  }).join('');
+}
+function setEqLoc(loc,el) {
+  eqCurLoc=loc;
+  document.querySelectorAll('#eqLocChips .chip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderInventory();
 }
 function setEqCat(cat,el) {
   eqCurCat=cat;
@@ -5307,6 +6326,7 @@ function renderInventory() {
   else if(eqFilter==='missing') items=items.filter(e=>e.equipStatus==='Missing');
   else if(eqFilter==='damaged') items=items.filter(e=>e.equipStatus==='Damaged');
   if(eqCurCat!=='all') items=items.filter(e=>getCat(e.name)===eqCurCat);
+  if(eqCurLoc!=='all') items=items.filter(e=>e.location===eqCurLoc);
   if(search) items=items.filter(e=>e.name.toLowerCase().includes(search)||e.location.toLowerCase().includes(search));
   // Sort: OUT first, then CNC, then name
   items=[...items].sort((a,b)=>{
@@ -5418,6 +6438,10 @@ async function submitCO(action){
 async function resetEqStatus(rowOrId){
   const eq=STATE.equipment.find(e=>String(e.row)===String(rowOrId)||e.id===rowOrId);
   if(!eq)return;
+  // Require equipment-team passcode to clear Missing/Damaged/Need More flags
+  const pw = prompt('Enter passcode to mark "'+eq.name+'" as OK:');
+  if(pw===null) return;
+  if(pw !== 'cobc2026') { showToast('❌ Incorrect passcode'); return; }
   try{
     await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:'OK',note:''});
     eq.equipStatus='OK';eq.equipNote='';eq.lastUpdated=new Date().toLocaleString();
@@ -5619,6 +6643,16 @@ async function submitChecklist(){
     const result=await sheetPOST({action:'submitChecklist',rows,bc:SESSION.unit||'?'});
     if(result&&result.success){
       showToast('✅ Checklist submitted!');
+      // Save a local history entry
+      _saveChkHistEntry({
+        timestamp: new Date().toISOString(),
+        location: chkCurLoc,
+        bc: String(SESSION.unit||'').replace(/^BC-?/i,''),
+        checked: checked.length,
+        total: li.length,
+        issues: issues.length,
+        issueItems: issues.map(e=>e.name)
+      });
       li.forEach(e=>{delete chkStatus[e.row||e.id];delete chkNotes[e.row||e.id];});
       renderChkItems&&renderChkItems();
     } else { showToast('Error: '+(result?.error||'Unknown')); }
