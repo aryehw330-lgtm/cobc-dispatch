@@ -2481,7 +2481,10 @@ function initFirestore(){
     }).catch(e=>console.warn('Firestore get() poll error:',e));
   }
   const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
-  if(!_snapDelivered){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
+  // Only mark as delivered when we get REAL server data (not Firestore local cache).
+  // If the device is offline/ITP-blocked, onSnapshot fires with cached (empty) data
+  // immediately — we must NOT cancel the get() fallback in that case.
+  if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
   const firestoreCalls=snap.docs.map(d=>({id:d.id,...d.data()}));
   const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
   // Find calls that exist locally but not yet in Firestore (created offline or before sync)
