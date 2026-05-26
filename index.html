@@ -2688,47 +2688,50 @@ function _applyRoleUI(role) {
  async function handleGoogleLogin() {
     const errorEl = document.getElementById('loginError');
     errorEl.innerText = "Connecting to Google...";
-    
+
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
         const result = await firebase.auth().signInWithPopup(provider);
         const email = result.user.email;
-        
+
         errorEl.innerText = "Checking member directory...";
-        
-        // Look up the email in the members collection
-        const snapshot = await db.collection('members').where('email', '==', email).get();
-        
+
+        // Use firebase.firestore() directly — 'db' is not a global in this app
+        const snapshot = await firebase.firestore().collection('members').where('email', '==', email).get();
+
         if (snapshot.empty) {
-            errorEl.innerText = "Email not authorized. Please use PIN.";
+            errorEl.innerText = "Email not found. Ask your admin to add your Google email to your member profile, or use your PIN.";
             await firebase.auth().signOut();
             return;
         }
-        
-        // Grab the member data
+
+        // Build the member object exactly as finishLogin() expects it
         const memberDoc = snapshot.docs[0];
-        const unit = memberDoc.id;
         const data = memberDoc.data();
-        
-        // Set the session identically to how PIN login does it
-        SESSION.unit = unit;
-        SESSION.name = data.name;
-        SESSION.role = data.role || 'member';
-        
-        // Hide login screen and start the app
-        document.getElementById('login-screen').classList.add('hidden');
+        const member = {
+            unit: memberDoc.id,
+            firstName: data.firstName || data.first || '',
+            lastName:  data.lastName  || data.last  || '',
+            role:      data.role      || 'member',
+            pin:       data.pin       || ''
+        };
+
         errorEl.innerText = '';
-        
-        // Trigger your existing startup functions
+        finishLogin(member);   // handles hiding login, showing app, role UI, localStorage, greeting
+        initApp();             // renders all tabs and starts live sync
         showToast(`Welcome back, ${SESSION.name}`);
-        if (typeof initApp === 'function') initApp(); 
         if (typeof showTab === 'function') showTab('home');
-        
+
     } catch (error) {
         console.error("Google Auth Error:", error);
-        errorEl.innerText = "Google sign-in failed or was cancelled.";
+        // Don't show an error if the user simply closed the popup
+        if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+            errorEl.innerText = '';
+        } else {
+            errorEl.innerText = "Google sign-in failed. Please try again or use your PIN.";
+        }
     }
-} 
+}
 
 function doLogin(){
   const unitRaw=(document.getElementById('loginUnit')?.value||'').trim().toUpperCase();
