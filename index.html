@@ -2520,7 +2520,7 @@ function _fsRestFetch(collection){
 function initFirestore(){
   // iOS Safari PWA: Firestore WebSocket (WebChannel) is silently blocked by ITP.
   // Force long-polling so Firestore data actually arrives on iPhone home-screen installs.
-  if(!_firestoreSettingsApplied){try{firebase.firestore().settings({experimentalForceLongPolling:true, merge:true});_firestoreSettingsApplied=true;}catch(e){console.warn('Firestore settings:',e);}}
+  if(!_firestoreSettingsApplied){try{firebase.firestore().settings({experimentalForceLongPolling:true});_firestoreSettingsApplied=true;}catch(e){console.warn('Firestore settings:',e);}}
   // iOS belt-and-suspenders: if onSnapshot never fires with real server data (ITP blocks
   // even long-polling on some iOS Safari versions), fall back to direct Firestore REST API
   // polling every 30s.  REST is plain HTTPS fetch — ITP cannot block it.
