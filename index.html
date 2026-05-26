@@ -2514,56 +2514,93 @@ function _fsRestFetch(collection){
 }
 
 function initFirestore(){
-  // iOS Safari PWA: Firestore WebSocket (WebChannel) is silently blocked by ITP.
-  // Force long-polling so Firestore data actually arrives on iPhone home-screen installs.
-  if(!_firestoreSettingsApplied){try{firebase.firestore().settings({experimentalForceLongPolling:true});_firestoreSettingsApplied=true;}catch(e){console.warn('Firestore settings:',e);}}
-  // iOS belt-and-suspenders: if onSnapshot never fires with real server data (ITP blocks
-  // even long-polling on some iOS Safari versions), fall back to direct Firestore REST API
-  // polling every 30s.  REST is plain HTTPS fetch — ITP cannot block it.
-  let _snapDelivered=false;let _snapTimer=null;
-  let _pollCount=0;
+  // Force long polling for mobile + PWA (Safari & Chrome)
+  if(!_firestoreSettingsApplied){
+    try{
+      firebase.firestore().settings({
+        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: true,
+        useFetchStreams: false
+      });
+      _firestoreSettingsApplied = true;
+    } catch(e){ console.warn('Firestore settings:',e); }
+  }
+
+  let _snapDelivered = false;
+  let _snapTimer = null;
+  let _pollCount = 0;
+
   function _pollFirestore(){
     _pollCount++;
-    const _isFirst=_pollCount===1;
-    Promise.all([_fsRestFetch('calls'),_fsRestFetch('members')]).then(([fsCalls,fsMembers])=>{
-      if(_isFirst)console.log('REST sync: '+fsCalls.length+' calls, '+fsMembers.length+' members');
-      if(typeof SESSION==='undefined')return;
-      const firestoreIds=new Set(fsCalls.map(c=>c.id));
-      const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
-      localOnly.forEach(call=>firestoreUpsertCall(call));
-      STATE.calls=[...fsCalls,...localOnly];
-      STATE.members=fsMembers;
-      save();renderCalls&&renderCalls();renderHome&&renderHome();renderMemberDir&&renderMemberDir();
-      if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
-    }).catch(e=>{
-      if(_isFirst)showToast('REST sync FAILED: '+e.message,6000);
-      console.warn('Firestore REST poll error:',e);
-      if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
-    });
+    const _isFirst = _pollCount === 1;
+    
+    Promise.all([_fsRestFetch('calls'), _fsRestFetch('members')])
+      .then(([fsCalls, fsMembers]) => {
+        if(_isFirst) console.log('✅ REST sync success:', fsCalls.length, 'calls');
+        
+        if(typeof SESSION === 'undefined') return;
+        
+        const firestoreIds = new Set(fsCalls.map(c => c.id));
+        const localOnly = (STATE.calls || []).filter(c => c.id && !firestoreIds.has(c.id) && !_deletedCallIds.has(c.id));
+        
+        localOnly.forEach(call => firestoreUpsertCall(call));
+        
+        STATE.calls = [...fsCalls, ...localOnly];
+        STATE.members = fsMembers;
+        
+        save();
+        if(typeof renderCalls === 'function') renderCalls();
+        if(typeof renderHome === 'function') renderHome();
+        if(typeof renderMemberDir === 'function') renderMemberDir();
+        
+        if(!_snapDelivered) _snapTimer = setTimeout(_pollFirestore, 25000);
+      })
+      .catch(e => {
+        console.warn('REST poll failed:', e);
+        if(!_snapDelivered) _snapTimer = setTimeout(_pollFirestore, 25000);
+      });
   }
-  const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
-  // Only mark as delivered when we get REAL server data (not Firestore local cache).
-  // If the device is offline/ITP-blocked, onSnapshot fires with cached (empty) data
-  // immediately — we must NOT cancel the get() fallback in that case.
-  if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
-  const firestoreCalls=snap.docs.map(d=>({id:d.id,...d.data()}));
-  // Guard: don't let an empty cached snapshot wipe out data the REST poll already loaded.
-  // On iOS, onSnapshot fires immediately with fromCache=true and 0 docs, then may fire again
-  // later. If we already have real data (from REST poll), skip empty cache snapshots.
-  if(snap.metadata.fromCache && firestoreCalls.length===0 && STATE.calls.length>0)return;
-  const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
-  // Find calls that exist locally but not yet in Firestore (created offline or before sync)
-  const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
-  // Upload any missing local calls to Firestore (one-time migration)
-  localOnly.forEach(call=>firestoreUpsertCall(call));
-  // Merge: Firestore is source of truth, but keep local-only calls visible until they upload
-  STATE.calls=[...firestoreCalls,...localOnly];
-  save();renderCalls&&renderCalls();renderHome&&renderHome();}catch(e){console.warn('calls snapshot error:',e);}},e=>console.warn('calls listener error:',e));
-  // Members sync stays in Firestore (dispatch roles/auth live there)
-  db.collection('members').onSnapshot(snap=>{const ms=snap.docs.map(d=>({id:d.id,...d.data()}));if(snap.metadata.fromCache&&ms.length===0&&STATE.members.length>0)return;STATE.members=ms;save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>console.warn('members snapshot error:',e));
-  // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
-  _snapTimer=setTimeout(()=>{if(!_snapDelivered){console.warn('Firestore onSnapshot silent — starting get() fallback');_pollFirestore();}},5000);
-  // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
+
+  // Main listeners
+  const db = firebase.firestore();
+ 
+  db.collection('calls').onSnapshot(snap => {
+    try {
+      if(typeof SESSION === 'undefined') return;
+      if(!_snapDelivered && !snap.metadata.fromCache){
+        _snapDelivered = true;
+        if(_snapTimer){ clearTimeout(_snapTimer); _snapTimer = null; }
+      }
+      if(snap.metadata.fromCache && snap.docs.length === 0 && (STATE.calls||[]).length > 0) return;
+
+      const firestoreCalls = snap.docs.map(d => ({id: d.id, ...d.data()}));
+      const firestoreIds = new Set(firestoreCalls.map(c => c.id));
+      const localOnly = (STATE.calls || []).filter(c => c.id && !firestoreIds.has(c.id) && !_deletedCallIds.has(c.id));
+
+      localOnly.forEach(call => firestoreUpsertCall(call));
+      STATE.calls = [...firestoreCalls, ...localOnly];
+      
+      save();
+      if(typeof renderCalls === 'function') renderCalls();
+      if(typeof renderHome === 'function') renderHome();
+    } catch(e){ console.warn('calls snapshot error:', e); }
+  }, e => console.warn('calls listener error:', e));
+
+  db.collection('members').onSnapshot(snap => {
+    const ms = snap.docs.map(d => ({id:d.id, ...d.data()}));
+    if(snap.metadata.fromCache && ms.length===0 && (STATE.members||[]).length>0) return;
+    STATE.members = ms;
+    save();
+    if(typeof renderMemberDir === 'function') renderMemberDir();
+  });
+
+  // Start mobile fallback
+  _snapTimer = setTimeout(() => {
+    if(!_snapDelivered){
+      console.warn('onSnapshot silent — starting REST polling (mobile fix)');
+      _pollFirestore();
+    }
+  }, 4000);
 }
 
 async function firestoreUpsertCall(call){try{await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
