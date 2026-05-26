@@ -2468,27 +2468,56 @@ let _unsubscribeCalls = null;
 const _deletedCallIds = new Set();
 
 let _firestoreSettingsApplied=false;
+// Parse a single Firestore REST field value into a plain JS value
+function _fsVal(v){
+  if(!v)return null;
+  if('stringValue'  in v)return v.stringValue;
+  if('integerValue' in v)return parseInt(v.integerValue,10);
+  if('doubleValue'  in v)return v.doubleValue;
+  if('booleanValue' in v)return v.booleanValue;
+  if('nullValue'    in v)return null;
+  if('timestampValue' in v)return new Date(v.timestampValue).getTime()/1000;
+  if('arrayValue'   in v)return(v.arrayValue.values||[]).map(_fsVal);
+  if('mapValue'     in v){const o={};Object.entries(v.mapValue.fields||{}).forEach(([k,fv])=>{o[k]=_fsVal(fv);});return o;}
+  return null;
+}
+// Fetch ALL docs in a Firestore collection via REST API (bypasses SDK + ITP)
+function _fsRestFetch(collection){
+  const base=`https://firestore.googleapis.com/v1/projects/cobc-dispatch/databases/(default)/documents/${collection}`;
+  function page(token,acc){
+    const url=token?base+'?pageSize=300&pageToken='+encodeURIComponent(token):base+'?pageSize=300';
+    return fetch(url,{credentials:'omit'}).then(r=>r.json()).then(data=>{
+      (data.documents||[]).forEach(doc=>{
+        const id=doc.name.split('/').pop();
+        const obj={id};
+        Object.entries(doc.fields||{}).forEach(([k,v])=>{obj[k]=_fsVal(v);});
+        acc.push(obj);
+      });
+      return data.nextPageToken?page(data.nextPageToken,acc):acc;
+    });
+  }
+  return page(null,[]);
+}
+
 function initFirestore(){
   // iOS Safari PWA: Firestore WebSocket (WebChannel) is silently blocked by ITP.
   // Force long-polling so Firestore data actually arrives on iPhone home-screen installs.
   if(!_firestoreSettingsApplied){try{firebase.firestore().settings({experimentalForceLongPolling:true});_firestoreSettingsApplied=true;}catch(e){console.warn('Firestore settings:',e);}}
-  // iOS belt-and-suspenders: if onSnapshot never fires (ITP blocks even with long-polling),
-  // fall back to get() polling every 30 seconds so data still arrives on iPhone.
+  // iOS belt-and-suspenders: if onSnapshot never fires with real server data (ITP blocks
+  // even long-polling on some iOS Safari versions), fall back to direct Firestore REST API
+  // polling every 30s.  REST is plain HTTPS fetch — ITP cannot block it.
   let _snapDelivered=false;let _snapTimer=null;
   function _pollFirestore(){
-    db.collection('calls').get().then(callsSnap=>{
-      db.collection('members').get().then(membersSnap=>{
-        if(typeof SESSION==='undefined')return;
-        const firestoreCalls=callsSnap.docs.map(d=>({id:d.id,...d.data()}));
-        const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
-        const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
-        localOnly.forEach(call=>firestoreUpsertCall(call));
-        STATE.calls=[...firestoreCalls,...localOnly];
-        STATE.members=membersSnap.docs.map(d=>({id:d.id,...d.data()}));
-        save();renderCalls&&renderCalls();renderHome&&renderHome();renderMemberDir&&renderMemberDir();
-        if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
-      });
-    }).catch(e=>console.warn('Firestore get() poll error:',e));
+    Promise.all([_fsRestFetch('calls'),_fsRestFetch('members')]).then(([fsCalls,fsMembers])=>{
+      if(typeof SESSION==='undefined')return;
+      const firestoreIds=new Set(fsCalls.map(c=>c.id));
+      const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
+      localOnly.forEach(call=>firestoreUpsertCall(call));
+      STATE.calls=[...fsCalls,...localOnly];
+      STATE.members=fsMembers;
+      save();renderCalls&&renderCalls();renderHome&&renderHome();renderMemberDir&&renderMemberDir();
+      if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
+    }).catch(e=>{console.warn('Firestore REST poll error:',e);if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);});
   }
   const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
   // Only mark as delivered when we get REAL server data (not Firestore local cache).
