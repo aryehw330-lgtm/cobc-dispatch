@@ -2560,7 +2560,7 @@ function initFirestore(){
   STATE.calls=[...firestoreCalls,...localOnly];
   save();renderCalls&&renderCalls();renderHome&&renderHome();}catch(e){console.warn('calls snapshot error:',e);}},e=>console.warn('calls listener error:',e));
   // Members sync stays in Firestore (dispatch roles/auth live there)
-  db.collection('members').onSnapshot(snap=>{STATE.members=snap.docs.map(d=>({id:d.id,...d.data()}));save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>console.warn('members snapshot error:',e));
+  db.collection('members').onSnapshot(snap=>{const ms=snap.docs.map(d=>({id:d.id,...d.data()}));if(snap.metadata.fromCache&&ms.length===0&&STATE.members.length>0)return;STATE.members=ms;save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>console.warn('members snapshot error:',e));
   // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
   _snapTimer=setTimeout(()=>{if(!_snapDelivered){console.warn('Firestore onSnapshot silent — starting get() fallback');_pollFirestore();}},5000);
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
