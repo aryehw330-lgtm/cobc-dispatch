@@ -2468,6 +2468,20 @@ let _unsubscribeCalls = null;
 const _deletedCallIds = new Set();
 
 let _firestoreSettingsApplied=false;
+// Fetch a single Firestore document via REST API (no SDK, no ITP issues)
+function _fsRestGetDoc(collection,docId){
+  const url=`https://firestore.googleapis.com/v1/projects/cobc-dispatch/databases/(default)/documents/${collection}/${encodeURIComponent(docId)}`;
+  return fetch(url,{credentials:'omit'}).then(r=>{
+    if(r.status===404)return null;
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.json().then(data=>{
+      if(!data.fields)return null;
+      const obj={id:docId};
+      Object.entries(data.fields).forEach(([k,v])=>{obj[k]=_fsVal(v);});
+      return obj;
+    });
+  });
+}
 // Parse a single Firestore REST field value into a plain JS value
 function _fsVal(v){
   if(!v)return null;
@@ -2558,12 +2572,14 @@ function _tryRestoreSession() {
     if (!s || !s.unit || !s.role) return;
     // Already logged in? skip
     if (SESSION.unit) return;
-    // Re-verify against Firestore (role may have changed)
-    firebase.firestore().collection('members').doc(s.unit).get().then(doc => {
-      if (!doc.exists) { localStorage.removeItem('cobc_session'); return; }
-      finishLogin(doc.data());
-    }).catch(() => {
-      // Offline — restore from cache without re-verify
+    // Re-verify against Firestore via REST (SDK hangs on iOS ITP; REST is plain HTTPS).
+    // If the fetch fails or times out, fall through to cached session restore.
+    const _restoreTimeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),6000));
+    Promise.race([_fsRestGetDoc('members',s.unit),_restoreTimeout]).then(member=>{
+      if(!member){localStorage.removeItem('cobc_session');return;}
+      finishLogin(member);
+    }).catch(()=>{
+      // Offline or timeout — restore from cache without re-verify
       SESSION = s;
       const _lsOff=document.getElementById('login-screen');_lsOff.style.display='none';_lsOff.style.pointerEvents='none';_lsOff.style.visibility='hidden';_lsOff.style.zIndex='-1';_lsOff.style.transform='translateX(-110vw)';_lsOff.style.position='static';_lsOff.style.height='0';_lsOff.style.overflow='hidden';_lsOff.classList.add('hidden');const _appOff=document.getElementById('app');_appOff.classList.remove('hidden');_appOff.style.display='';
       const rd = {admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};
@@ -2668,18 +2684,15 @@ function doLogin(){
   }
 
   try {
-    // Safari iOS: Firestore WebChannel can hang indefinitely (ITP/cookie blocking).
-    // Race against a 10-second timeout so the user gets a clear error instead of a frozen spinner.
-    const _loginTimeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),10000));
-    Promise.race([firebase.firestore().collection('members').doc(unit).get(),_loginTimeout]).then(doc=>{
+    // Use direct Firestore REST API — bypasses SDK WebChannel (which iOS ITP blocks).
+    _fsRestGetDoc('members',unit).then(m=>{
       reset();
-      if(!doc.exists){if(err)err.textContent='Member not found ('+unit+')';return;}
-      const m=doc.data();
+      if(!m){if(err)err.textContent='Member not found ('+unit+')';return;}
       if(String(m.pin)!==String(pass)){if(err)err.textContent='Incorrect PIN';return;}
       finishLogin(m);
     }).catch(e=>{
       reset();
-      if(err)err.textContent=e.message==='timeout'?'Connection timed out — check your internet and try again':'Login error — check your connection and try again';
+      if(err)err.textContent='Login error — check your connection and try again';
       console.error('doLogin error:',e);
     });
   } catch(e) {
