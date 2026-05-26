@@ -2526,7 +2526,7 @@ function initFirestore(){
     _pollCount++;
     const _isFirst=_pollCount===1;
     Promise.all([_fsRestFetch('calls'),_fsRestFetch('members')]).then(([fsCalls,fsMembers])=>{
-      if(_isFirst)showToast('REST sync: '+fsCalls.length+' calls, '+fsMembers.length+' members',4000);
+      if(_isFirst)console.log('REST sync: '+fsCalls.length+' calls, '+fsMembers.length+' members');
       if(typeof SESSION==='undefined')return;
       const firestoreIds=new Set(fsCalls.map(c=>c.id));
       const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
