@@ -2547,6 +2547,10 @@ function initFirestore(){
   // immediately — we must NOT cancel the get() fallback in that case.
   if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
   const firestoreCalls=snap.docs.map(d=>({id:d.id,...d.data()}));
+  // Guard: don't let an empty cached snapshot wipe out data the REST poll already loaded.
+  // On iOS, onSnapshot fires immediately with fromCache=true and 0 docs, then may fire again
+  // later. If we already have real data (from REST poll), skip empty cache snapshots.
+  if(snap.metadata.fromCache && firestoreCalls.length===0 && STATE.calls.length>0)return;
   const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
   // Find calls that exist locally but not yet in Firestore (created offline or before sync)
   const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
