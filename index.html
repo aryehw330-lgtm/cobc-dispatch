@@ -1825,7 +1825,7 @@ var SESSION = { role: null, unit: null, name: null };
 
 const SEED_MEMBERS = [];      // populated via Firestore members collection
 const DEFAULT_LOCATIONS = [];  // populated via Firestore locations collection
-let STATE = load();
+// STATE is initialized later, after all default-data constants are declared (see ~line 2419)
 
 // ── Always initialize Firebase app + Firestore sync ──────────────────────────
 async function initFirebaseApp() {
@@ -2462,6 +2462,9 @@ function load() {
   } catch(e){}
   return defaultState();
 }
+
+// STATE init moved here so all default-data constants above are declared before load() runs
+let STATE = load();
 // ── Firestore real-time sync ──────────────────────────────
 let _db = null;
 let _unsubscribeCalls = null;
