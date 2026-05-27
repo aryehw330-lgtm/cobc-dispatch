@@ -3506,15 +3506,15 @@ function callCardHTML(call, mini=false) {
         ${carInfo?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${carInfo}</div>`:''}
         ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
         <div class="call-card-meta" style="margin-top:5px;">${timeStr}</div>
-        ${(()=>{
+        ${isDispatch?(()=>{
           const locs=call.liveLocations||{};
           const chips=Object.entries(locs).filter(([,v])=>v.locationAt&&(Date.now()-v.locationAt)<LOC_STALE_MS&&v.liveEtaMin!=null).map(([unit,v])=>{
             const bg=v.liveEtaMin<=3?'#dcfce7':v.liveEtaMin<=7?'#fef3c7':'#f1f5f9';
             const col=v.liveEtaMin<=3?'var(--green)':v.liveEtaMin<=7?'var(--amber)':'var(--text3)';
-            return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:8px;background:${bg};color:${col};">📍BC-${unit} ${v.liveEtaMin}m</span>`;
+            return `<span style="font-size:13px;font-weight:700;padding:5px 10px;border-radius:10px;background:${bg};color:${col};">📍 BC-${unit} · ${v.liveEtaMin} min</span>`;
           }).join('');
-          return chips?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">${chips}</div>`:'';
-        })()}
+          return chips?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${chips}</div>`:'';
+        })():''}
       </div>
     </div>
     <div class="call-card-footer">
@@ -4378,7 +4378,7 @@ function openCallDetail(id) {
         <div style="flex:1;">
           <div style="display:flex;align-items:center;gap:8px;">
             <div style="font-size:14px;font-weight:700;">BC-${unitKey}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
-            ${liveEta!=null?`<span style="font-size:12px;font-weight:800;padding:2px 8px;border-radius:8px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};">📍 ${liveEta} min</span>`:''}
+            ${isDispatch&&liveEta!=null?`<span style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};">📍 ${liveEta} min</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
         </div>
