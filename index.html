@@ -773,11 +773,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- ══ ADMIN (Numbers / Stats / Schedule / Vehicles / Admin Tools) ══ -->
     <div class="page hidden" id="page-more">
       <div class="section-header"><div class="section-title" id="page-more-title">Admin</div></div>
-      <div id="adminMgmtBtnWrap" style="display:none;margin-bottom:12px;">
-        <button onclick="goAdmin('members')" style="width:100%;padding:14px;background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;border:none;border-radius:var(--radius);font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-          <span>⚙️ Management Panel</span><span style="font-size:12px;opacity:.7;">Members · Calls · Equipment →</span>
-        </button>
-      </div>
+      <div id="adminMgmtBtnWrap" style="display:none;margin-bottom:12px;"></div>
       <div class="sub-tabs" id="more-sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;">
         <button class="sub-tab member-allowed" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
         <button class="sub-tab active member-allowed" onclick="setMoreTab('stats',this)">📊 Stats</button>
@@ -2938,7 +2934,8 @@ function renderAdminMembers(){
   // Also render the admin panel member list
   const el=document.getElementById('memberList');
   if(!el) return;
-  const list=[...STATE.members].sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
+  const unitNum=u=>parseInt((u.unit||'').replace(/\D+/g,''))||0;
+  const list=[...STATE.members].sort((a,b)=>unitNum(a)-unitNum(b));
   const count=document.getElementById('memberCount');
   if(count) count.textContent=list.length;
   if(!list.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">No members yet</div></div>';return;}
@@ -5153,7 +5150,7 @@ function renderMemberDir() {
     });
   }
   if(search) list=list.filter(m=>`${m.first||m.firstName||''} ${m.last||m.lastName||''} ${m.unit}`.toLowerCase().includes(search));
-  list.sort((a,b)=>parseInt(a.unit)-parseInt(b.unit));
+  list.sort((a,b)=>(parseInt((a.unit||'').replace(/\D+/g,''))||0)-(parseInt((b.unit||'').replace(/\D+/g,''))||0));
   if(!list.length) {
     el.innerHTML='<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">No members found</div></div>';
     return;
