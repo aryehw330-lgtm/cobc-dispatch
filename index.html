@@ -184,7 +184,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
 .call-btn{flex:1;min-width:0;padding:9px 6px;border-radius:8px;border:none;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;text-align:center;transition:opacity .15s;white-space:nowrap;}
 .call-btn:active{opacity:.8;}
-.call-num{font-family:'DM Mono',monospace;font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.5px;}
+.call-num{font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--text2);letter-spacing:-.3px;}
 .priority-bar{height:3px;border-radius:2px;margin-top:10px;}
 .priority-high{background:var(--red);}
 .priority-med{background:var(--amber);}
@@ -4311,7 +4311,7 @@ function openCallDetail(id) {
     <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':call.status==='cancelled'?'badge-red':'badge-gray'}">${call.status.toUpperCase()}</span>
     <div style="width:12px;height:12px;border-radius:50%;background:${townColor}"></div>
     <span style="font-size:13px;font-weight:600;color:var(--text2);">${call.town}</span>
-    <span class="call-num">#${call.id.slice(-5)}</span>
+    <span class="call-num">#${call.callNum||call.id.slice(-5)}</span>
     ${call.priority==='urgent'?'<span class="badge badge-red">URGENT</span>':''}
   </div>`;
 
