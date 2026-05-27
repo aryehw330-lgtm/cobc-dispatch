@@ -1926,14 +1926,14 @@ async function initPushModule() {
     });
   }
 
-  // Also check sessionStorage — iOS sometimes opens a fresh page instead of messaging existing client
-  try {
-    const stored = sessionStorage.getItem('cobc_pending_call');
-    if (stored) {
-      window._pendingDeepLink = stored;
-      sessionStorage.removeItem('cobc_pending_call');
-    }
-  } catch(e) {}
+  // Check IndexedDB for a pending call written by the service worker on notification tap
+  // This is the reliable iOS path — SW writes to IDB, app reads it on startup/focus
+  checkIdbPendingCall();
+
+  // Also re-check when app comes back to foreground (user tapped notification while app was backgrounded)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkIdbPendingCall();
+  });
 }
 
 async function enablePushForThisDevice() {
@@ -4380,6 +4380,35 @@ ETA: ${eta} min`;
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
+
+// ── IndexedDB pending call reader (for iOS PWA notification deep-link) ──────
+// The service worker writes the callId to IndexedDB when a notification is tapped.
+// This function reads it, sets the pending deep link, and tries to open the call.
+function checkIdbPendingCall() {
+  try {
+    const req = indexedDB.open('cobc_sw_store', 1);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore('kv', { keyPath: 'k' });
+    };
+    req.onsuccess = (e) => {
+      try {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('kv')) return;
+        const tx = db.transaction('kv', 'readwrite');
+        const store = tx.objectStore('kv');
+        const getReq = store.get('pendingCall');
+        getReq.onsuccess = () => {
+          const entry = getReq.result;
+          if (entry && entry.v) {
+            store.delete('pendingCall'); // clear so it doesn't re-open on next visit
+            window._pendingDeepLink = entry.v;
+            tryOpenPendingDeepLink();
+          }
+        };
+      } catch(err) {}
+    };
+  } catch(err) {}
+}
 
 // ── Deep-link opener — called whenever Firestore data refreshes ──
 function tryOpenPendingDeepLink() {
