@@ -29,7 +29,7 @@ messaging.onBackgroundMessage((payload) => {
     badge: '/cobc-dispatch/icon-192.png',
     tag: payload.data?.tag || 'cobc-' + Date.now(),
     requireInteraction: payload.data?.urgent === 'true',
-    data: { url }
+    data: { url, callId: payload.data?.callId || null }
   });
 });
 
@@ -42,7 +42,7 @@ self.addEventListener('message', (event) => {
       icon: '/cobc-dispatch/icon-192.png',
       badge: '/cobc-dispatch/icon-192.png',
       tag: 'cobc-fg-' + Date.now(),
-      data: { url: data?.url || '/cobc-dispatch/' }
+      data: { url: data?.url || '/cobc-dispatch/', callId: data?.callId || null }
     });
   }
 });
@@ -50,11 +50,18 @@ self.addEventListener('message', (event) => {
 // Open the app when a notification is tapped
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = event.notification.data?.url || '/cobc-dispatch/';
+  const callId  = event.notification.data?.callId;
+  const baseUrl = event.notification.data?.url || '/cobc-dispatch/';
+  const target  = callId ? `/cobc-dispatch/?call=${encodeURIComponent(callId)}` : baseUrl;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((winClients) => {
       for (const c of winClients) {
-        if (c.url.includes('cobc-dispatch') && 'focus' in c) return c.focus();
+        if (c.url.includes('cobc-dispatch') && 'focus' in c) {
+          // App is already open — tell it to open the specific call
+          if (callId) c.postMessage({ type: 'OPEN_CALL', callId });
+          return c.focus();
+        }
       }
       if (clients.openWindow) return clients.openWindow(target);
     })
