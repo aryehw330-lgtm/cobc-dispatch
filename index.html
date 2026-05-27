@@ -2628,7 +2628,9 @@ function initFirestore(){
   localOnly.forEach(call=>firestoreUpsertCall(call));
   // Merge: Firestore is source of truth, but keep local-only calls visible until they upload
   STATE.calls=[...firestoreCalls,...localOnly];
-  save();renderCalls&&renderCalls();renderHome&&renderHome();}catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
+  save();renderCalls&&renderCalls();renderHome&&renderHome();
+  try{syncLocationWatchers&&syncLocationWatchers();}catch(e){}
+  }catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
   // Members sync stays in Firestore (dispatch roles/auth live there)
   db.collection('members').onSnapshot(snap=>{const ms=snap.docs.map(d=>({id:d.id,...d.data()}));if(snap.metadata.fromCache&&ms.length===0&&STATE.members.length>0)return;STATE.members=ms;save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>{console.warn('members snapshot error:',e);showSyncError('members listener',e);});
   // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
@@ -3504,6 +3506,15 @@ function callCardHTML(call, mini=false) {
         ${carInfo?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${carInfo}</div>`:''}
         ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
         <div class="call-card-meta" style="margin-top:5px;">${timeStr}</div>
+        ${(()=>{
+          const locs=call.liveLocations||{};
+          const chips=Object.entries(locs).filter(([,v])=>v.locationAt&&(Date.now()-v.locationAt)<LOC_STALE_MS&&v.liveEtaMin!=null).map(([unit,v])=>{
+            const bg=v.liveEtaMin<=3?'#dcfce7':v.liveEtaMin<=7?'#fef3c7':'#f1f5f9';
+            const col=v.liveEtaMin<=3?'var(--green)':v.liveEtaMin<=7?'var(--amber)':'var(--text3)';
+            return `<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:8px;background:${bg};color:${col};">📍BC-${unit} ${v.liveEtaMin}m</span>`;
+          }).join('');
+          return chips?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">${chips}</div>`:'';
+        })()}
       </div>
     </div>
     <div class="call-card-footer">
@@ -4358,10 +4369,18 @@ function openCallDetail(id) {
     resp.forEach(r=>{
       const m=STATE.members.find(x=>String(x.unit)===String(r.unit));
       const phone=m?.phone||null;
+      const unitKey=String(r.unit||'').replace(/^BC-?/i,'');
+      const loc=call.liveLocations?.[unitKey];
+      const locFresh=loc&&loc.locationAt&&(Date.now()-loc.locationAt)<LOC_STALE_MS;
+      const liveEta=locFresh&&loc.liveEtaMin!=null?loc.liveEtaMin:null;
+      const etaColor=liveEta!=null?(liveEta<=3?'var(--green)':liveEta<=7?'var(--amber)':'var(--text2)'):'';
       html+=`<div class="responder-row">
         <div style="flex:1;">
-          <div style="font-size:14px;font-weight:700;">BC-${String(r.unit||'').replace(/^BC-?/i,'')}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
-          <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="font-size:14px;font-weight:700;">BC-${unitKey}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
+            ${liveEta!=null?`<span style="font-size:12px;font-weight:800;padding:2px 8px;border-radius:8px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};">📍 ${liveEta} min</span>`:''}
+          </div>
+          <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
           ${phone?`<button class="responder-call-btn" onclick="window.location='tel:${phone}'">📞</button>`:''}
@@ -4642,6 +4661,160 @@ function openLiveDirections(callId) {
     openMapsNoOrigin();
   }
 }
+
+// ── Live ETA — location sharing + OSRM routing ───────────────────────────────
+// Each approved responder's device watches its own GPS and writes to
+// call.liveLocations[unit] using dot-notation Firestore updates (no race conditions).
+// Dispatch sees updates in real-time via the existing calls onSnapshot listener.
+
+const _locationWatchers = {}; // callId → watchId | 'starting' | 'denied'
+const _geocodeCache     = {}; // "address|town" → {lat, lng}
+const _lastEtaCalc      = {}; // callId → ms timestamp of last OSRM call
+const _lastLocWrite     = {}; // callId → ms timestamp of last Firestore write
+const LOC_WRITE_INTERVAL = 30000;  // write location at most every 30 s
+const ETA_CALC_INTERVAL  = 60000;  // recalculate route at most every 60 s
+const LOC_STALE_MS       = 600000; // 10 minutes — hide ETA if older than this
+
+// Geocode a call address to lat/lng using Nominatim (free, no API key)
+async function geocodeCallAddress(call) {
+  const key = `${call.address}|${call.town||''}`;
+  if (_geocodeCache[key]) return _geocodeCache[key];
+  try {
+    const q = encodeURIComponent(`${call.address}, ${call.town||''}, NJ`);
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'COBCDispatch/1.0' } }
+    );
+    const data = await res.json();
+    if (data.length > 0) {
+      const r = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      _geocodeCache[key] = r;
+      return r;
+    }
+  } catch(e) { console.warn('[ETA] Geocode failed:', e); }
+  return null;
+}
+
+// Get driving ETA in minutes using OSRM (free, no API key)
+async function calcOsrmEtaMin(fromLat, fromLng, toLat, toLng) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.code === 'Ok' && data.routes?.length > 0) {
+      return Math.ceil(data.routes[0].duration / 60);
+    }
+  } catch(e) { console.warn('[ETA] OSRM failed:', e); }
+  return null;
+}
+
+// Write this member's location + ETA to Firestore (throttled)
+async function pushLiveLocation(callId, lat, lng) {
+  const now = Date.now();
+  if (_lastLocWrite[callId] && (now - _lastLocWrite[callId]) < LOC_WRITE_INTERVAL) return;
+  _lastLocWrite[callId] = now;
+
+  const call = (STATE.calls || []).find(c => c.id === callId);
+  if (!call) return;
+
+  // Calculate ETA (throttled separately — more expensive)
+  let liveEtaMin = null;
+  if (!_lastEtaCalc[callId] || (now - _lastEtaCalc[callId]) >= ETA_CALC_INTERVAL) {
+    const dest = await geocodeCallAddress(call);
+    if (dest) {
+      liveEtaMin = await calcOsrmEtaMin(lat, lng, dest.lat, dest.lng);
+      if (liveEtaMin !== null) _lastEtaCalc[callId] = now;
+    }
+  } else {
+    // Reuse last calculated ETA from local state
+    const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
+    liveEtaMin = call.liveLocations?.[unitKey]?.liveEtaMin ?? null;
+  }
+
+  const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
+  const payload = { lat, lng, locationAt: now, name: SESSION.name };
+  if (liveEtaMin !== null) { payload.liveEtaMin = liveEtaMin; payload.liveEtaAt = now; }
+
+  try {
+    await firebase.firestore().collection('calls').doc(callId).update({
+      [`liveLocations.${unitKey}`]: payload
+    });
+    // Mirror into local state immediately so dispatch sees it without waiting for snapshot
+    const localCall = (STATE.calls || []).find(c => c.id === callId);
+    if (localCall) {
+      if (!localCall.liveLocations) localCall.liveLocations = {};
+      localCall.liveLocations[unitKey] = { ...localCall.liveLocations[unitKey], ...payload };
+      renderCalls && renderCalls();
+    }
+  } catch(e) { console.warn('[ETA] Firestore location write failed:', e); }
+}
+
+// Start GPS watching for a specific call (called when member becomes approved)
+async function startLocationSharing(callId) {
+  if (_locationWatchers[callId] !== undefined) return; // already set up
+  if (!navigator.geolocation) { _locationWatchers[callId] = 'unavailable'; return; }
+  _locationWatchers[callId] = 'starting';
+  try {
+    // Quick position check to trigger permission dialog if needed
+    await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
+    );
+  } catch(e) {
+    console.log('[ETA] Location permission denied for call', callId);
+    _locationWatchers[callId] = 'denied';
+    return;
+  }
+  const watchId = navigator.geolocation.watchPosition(
+    pos => pushLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
+    err => console.warn('[ETA] watchPosition error:', err),
+    { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
+  );
+  _locationWatchers[callId] = watchId;
+}
+
+// Stop GPS watching for a call (call ended or removed as responder)
+async function stopLocationSharing(callId) {
+  const watchId = _locationWatchers[callId];
+  if (typeof watchId === 'number') {
+    navigator.geolocation.clearWatch(watchId);
+    // Remove from Firestore
+    const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
+    try {
+      await firebase.firestore().collection('calls').doc(callId).update({
+        [`liveLocations.${unitKey}`]: firebase.firestore.FieldValue.delete()
+      });
+    } catch(e) {}
+  }
+  delete _locationWatchers[callId];
+  delete _lastLocWrite[callId];
+  delete _lastEtaCalc[callId];
+}
+
+// Called after every calls onSnapshot update — start/stop watchers to match approval state
+function syncLocationWatchers() {
+  if (!SESSION?.unit) return;
+  const myUnit = String(SESSION.unit).replace(/^BC-?/i, '');
+  (STATE.calls || []).forEach(call => {
+    const isActive = call.status !== 'done' && call.status !== 'cancelled';
+    const iAmApproved = isActive && (call.responders || []).some(r =>
+      String(r.unit).replace(/^BC-?/i, '') === myUnit
+    );
+    if (iAmApproved && _locationWatchers[call.id] === undefined) {
+      startLocationSharing(call.id);
+    } else if (!iAmApproved && _locationWatchers[call.id] !== undefined) {
+      stopLocationSharing(call.id);
+    }
+  });
+  // Clean up watchers for calls no longer in STATE
+  Object.keys(_locationWatchers).forEach(callId => {
+    if (!(STATE.calls || []).find(c => c.id === callId)) stopLocationSharing(callId);
+  });
+}
+
+// Clean up all watchers when app is closed
+window.addEventListener('beforeunload', () => {
+  Object.keys(_locationWatchers).forEach(stopLocationSharing);
+});
 
 function openMaps(addr) {
   const enc=encodeURIComponent(addr);
