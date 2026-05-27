@@ -3525,7 +3525,8 @@ function callCardHTML(call, mini=false) {
         <div class="call-card-meta" style="margin-top:5px;">${timeStr}</div>
         ${(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch')?(()=>{
           const locs=call.liveLocations||{};
-          const chips=Object.entries(locs).filter(([,v])=>v.locationAt&&(Date.now()-v.locationAt)<LOC_STALE_MS&&v.liveEtaMin!=null).map(([unit,v])=>{
+          const respUnits=new Set((call.responders||[]).map(r=>String(r.unit||'').replace(/^BC-?/i,'')));
+          const chips=Object.entries(locs).filter(([unit,v])=>respUnits.has(unit)&&v.locationAt&&(Date.now()-v.locationAt)<LOC_STALE_MS&&v.liveEtaMin!=null).map(([unit,v])=>{
             const bg=v.liveEtaMin<=3?'#dcfce7':v.liveEtaMin<=7?'#fef3c7':'#f1f5f9';
             const col=v.liveEtaMin<=3?'var(--green)':v.liveEtaMin<=7?'var(--amber)':'var(--text3)';
             return `<span onclick="event.stopPropagation();openLiveMap('${call.id}')" style="font-size:13px;font-weight:700;padding:5px 10px;border-radius:10px;background:${bg};color:${col};cursor:pointer;display:inline-block;">📍 BC-${unit} · ${v.liveEtaMin} min</span>`;
@@ -4387,7 +4388,7 @@ function openCallDetail(id) {
       const m=STATE.members.find(x=>String(x.unit)===String(r.unit));
       const phone=m?.phone||null;
       const unitKey=String(r.unit||'').replace(/^BC-?/i,'');
-      const loc=call.liveLocations?.[unitKey];
+      const loc=call.liveLocations?.[unitKey]; // only shows if this unit IS a responder (r loop guarantees this)
       const locFresh=loc&&loc.locationAt&&(Date.now()-loc.locationAt)<LOC_STALE_MS;
       const liveEta=locFresh&&loc.liveEtaMin!=null?loc.liveEtaMin:null;
       const etaColor=liveEta!=null?(liveEta<=3?'var(--green)':liveEta<=7?'var(--amber)':'var(--text2)'):'';
@@ -4911,6 +4912,7 @@ async function _refreshLiveMap() {
   const dest = await geocodeCallAddress(call);
   const now = Date.now();
   const locs = call.liveLocations || {};
+  const respUnits = new Set((call.responders||[]).map(r=>String(r.unit||'').replace(/^BC-?/i,'')));
 
   // Destination pin
   if (dest) {
@@ -4933,6 +4935,7 @@ async function _refreshLiveMap() {
   const legendItems = [];
 
   for (const [unit, v] of Object.entries(locs)) {
+    if (!respUnits.has(unit)) continue; // only actual responders
     if (!v.lat || !v.lng) continue;
     if (v.locationAt && (now - v.locationAt) > LOC_STALE_MS) continue;
 
