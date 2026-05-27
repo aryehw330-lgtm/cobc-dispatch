@@ -2782,7 +2782,7 @@ function _applyRoleUI(role) {
   if (chkSubmitBtn) chkSubmitBtn.style.display = (role==='admin'||role==='equipment') ? 'block' : 'none';
   const chkTab = document.getElementById('eqChecklistTab');
   const eqAdmTab = document.getElementById('eqAdminTab');
-  const priv = ['admin','dispatch','equipment'].includes(role);
+  const priv = ['admin','equipment'].includes(role);
   if (chkTab) chkTab.style.display = priv ? '' : 'none';
   if (eqAdmTab) eqAdmTab.style.display = (role==='admin'||role==='equipment') ? '' : 'none';
   // New Call button — dispatch and admin only
@@ -7108,8 +7108,8 @@ function submitCobcet() {
 
 function setEqTab(tab,el) {
   if(tab==='checklist') {
-    // Auto-bypass cobcet gate for admin/dispatch/equipment roles
-    const privileged = ['admin','dispatch','equipment'].includes(SESSION.role);
+    // Auto-bypass cobcet gate for admin/equipment roles only (dispatch cannot access checklist)
+    const privileged = ['admin','equipment'].includes(SESSION.role);
     if(privileged || sessionStorage.getItem('cobcet_ok')==='1') {
       sessionStorage.setItem('cobcet_ok','1');
       // Already unlocked — proceed
@@ -7556,9 +7556,18 @@ function setChkStatus(key,status){
   if(!eq)return;
   chkStatus[key]=status;
   eq.equipStatus=status;
-  if(status==='OK'){eq.equipNote='';delete chkNotes[key];}
+  if(status==='OK'){
+    eq.equipNote='';
+    delete chkNotes[key];
+  } else {
+    // Stamp who flagged this issue so the alert banner shows the right person
+    const reporter=String(SESSION.unit||'').replace(/^BC-?/i,'');
+    eq.checkedOutBy=reporter;
+    eq.member=reporter;
+  }
   renderChkItems&&renderChkItems();
-  sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:chkNotes[key]||''}).catch(e=>console.warn('setChkStatus err:',e));
+  const reporter=String(SESSION.unit||'').replace(/^BC-?/i,'');
+  sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:chkNotes[key]||'',member:reporter}).catch(e=>console.warn('setChkStatus err:',e));
 }
 function saveChkNote(key){
   const note=(chkNotes[key]||'').trim();
