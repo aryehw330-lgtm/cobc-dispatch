@@ -601,7 +601,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div><div class="section-title">Equipment</div><div style="font-size:12px;color:var(--text3);" id="eqSyncStatus">Bergen County Chaverim</div></div>
         <div style="display:flex;gap:6px;">
-          <button class="btn-sm btn-ghost" onclick="loadInventoryFromSheet()" style="font-size:15px;padding:6px 10px;">&#8635;</button>
+          <button class="btn-sm btn-ghost" onclick="loadInventoryFromSheet(true)" style="font-size:15px;padding:6px 10px;">&#8635;</button>
           <button class="btn-sm btn-ghost" onclick="showModal('scanModal')">Scan QR</button>
         </div>
       </div>
@@ -2108,13 +2108,37 @@ function sheetGET(params={}){
 // (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
 function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify(body)}).then(r=>r.json());}
 function postJ(action,data={}){return sheetPOST({action,...data});}
-async function loadInventoryFromSheet(){
-  // Equipment + locations from Google Sheet; members from Firestore (dispatch needs roles)
+const EQ_CACHE_KEY = 'cobc_eq_cache';
+const EQ_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+function _applyEqCache(cache) {
+  if (cache.equipment) STATE.equipment = cache.equipment;
+  if (cache.locations)  STATE.locations  = cache.locations;
+  renderInventory&&renderInventory();
+  renderChkFull&&renderChkFull();
+  renderHome&&renderHome();
+  renderMemberDir&&renderMemberDir();
+}
+
+async function loadInventoryFromSheet(forceRefresh=false){
   const sub=document.getElementById('eqSyncStatus');
-  if(sub)sub.textContent='Syncing...';
+
+  // Show cached data instantly if available
+  try {
+    const raw = localStorage.getItem(EQ_CACHE_KEY);
+    if (raw) {
+      const cache = JSON.parse(raw);
+      _applyEqCache(cache);
+      const ageMin = Math.round((Date.now() - (cache.savedAt||0)) / 60000);
+      if(sub) sub.textContent = `Cached · ${ageMin}m ago`;
+      // Skip network fetch if cache is fresh and not a forced refresh
+      if (!forceRefresh && (Date.now() - (cache.savedAt||0)) < EQ_CACHE_TTL) return;
+    }
+  } catch(e) {}
+
+  // Fetch fresh data in background
+  if(sub) sub.textContent='Syncing...';
   try{
-    // Equipment + locations: 100% Google Sheets — no Firestore involved here
-    // Members come from Firestore's onSnapshot listener (already running separately)
     const[invData,locData]=await Promise.all([
       sheetGET({action:'getInventory'}),
       sheetGET({action:'getLocations'})
@@ -2136,6 +2160,14 @@ async function loadInventoryFromSheet(){
       lastChecked:it.lastChecked||''
     }));
     STATE.locations=locData.locations||['COBC'];
+    // Save to cache
+    try {
+      localStorage.setItem(EQ_CACHE_KEY, JSON.stringify({
+        equipment: STATE.equipment,
+        locations: STATE.locations,
+        savedAt: Date.now()
+      }));
+    } catch(e) {}
     renderInventory&&renderInventory();
     renderChkFull&&renderChkFull();
     renderHome&&renderHome();
@@ -2145,7 +2177,6 @@ async function loadInventoryFromSheet(){
   }catch(e){
     console.warn('loadInventoryFromSheet error:',e);
     if(sub)sub.textContent='Offline — cached';
-    throw e;
   }
 }
 
