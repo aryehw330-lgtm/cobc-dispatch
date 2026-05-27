@@ -795,7 +795,7 @@ textarea.input{min-height:80px;resize:vertical;}
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;">
               <button id="settings-notif-test" class="btn-sm btn-ghost" onclick="sendTestPush()" style="display:none;font-size:11px;">Test</button>
-              <button id="settings-notif-btn" class="btn-sm btn-primary" onclick="enablePushForThisDevice()">Enable</button>
+              <button id="settings-notif-btn" class="btn-sm btn-primary" onclick="togglePushNotifications()">Enable</button>
             </div>
           </div>
         </div>
@@ -804,11 +804,15 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="card" style="margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <div style="flex:1;min-width:0;">
-              <div class="card-title">📍 Location Sharing</div>
-              <div class="card-desc" id="settings-loc-desc">Lets dispatch see how far you are from a call.</div>
+              <div class="card-title">📍 Live Location Sharing</div>
+              <div class="card-desc" id="settings-loc-desc">Share your GPS with dispatch when you're responding to a call.</div>
             </div>
-            <button id="settings-loc-btn" class="btn-sm btn-primary" onclick="requestLocationPermission()" style="flex-shrink:0;">Allow</button>
+            <label class="toggle" style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;">
+              <input id="settings-loc-toggle" type="checkbox" style="opacity:0;width:0;height:0;" onchange="toggleLocationSharing(this.checked)"/>
+              <span style="position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:26px;transition:.2s;" class="toggle-track"></span>
+            </label>
           </div>
+          <div id="settings-loc-status" style="margin-top:8px;font-size:12px;color:var(--text3);display:none;"></div>
         </div>
 
         <!-- Sound -->
@@ -4976,6 +4980,13 @@ async function stopLocationSharing(callId) {
 // Called after every calls onSnapshot update — start/stop watchers to match approval state
 function syncLocationWatchers() {
   if (!SESSION?.unit) return;
+  // Respect the user's location sharing setting
+  const locEnabled = (JSON.parse(localStorage.getItem('cobc_settings')||'{}')).locationSharing !== false;
+  if (!locEnabled) {
+    // Make sure all watchers are stopped
+    Object.keys(_locationWatchers).forEach(callId => stopLocationSharing(callId));
+    return;
+  }
   const myUnit = String(SESSION.unit).replace(/^BC-?/i, '');
   (STATE.calls || []).forEach(call => {
     const isActive = call.status !== 'done' && call.status !== 'cancelled';
@@ -5428,37 +5439,56 @@ function renderSettingsTab() {
     const has = !!localStorage.getItem('cobc_fcm_token_' + (SESSION?.unit||''));
     const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
     if(perm === 'granted' && has) {
-      notifBtn.textContent = 'On';
-      notifBtn.className = 'btn-sm btn-green';
-      if(notifDesc) notifDesc.textContent = '✅ You will be notified of new calls.';
+      notifBtn.textContent = 'Turn Off';
+      notifBtn.className = 'btn-sm btn-ghost';
+      notifBtn.style.color = 'var(--red)';
+      if(notifDesc) notifDesc.textContent = '✅ Notifications on — tap to disable on this device.';
       if(notifTest) notifTest.style.display = '';
     } else if(perm === 'denied') {
       notifBtn.textContent = 'Blocked';
       notifBtn.className = 'btn-sm btn-ghost';
+      notifBtn.style.color = '';
       if(notifDesc) notifDesc.textContent = 'Blocked — go to iPhone Settings → COBC → Notifications.';
       if(notifTest) notifTest.style.display = 'none';
     } else {
       notifBtn.textContent = 'Enable';
       notifBtn.className = 'btn-sm btn-primary';
+      notifBtn.style.color = '';
       if(notifDesc) notifDesc.textContent = 'Get alerted when a new call is dispatched.';
       if(notifTest) notifTest.style.display = 'none';
     }
   }
-  // Location state
-  const locDesc = document.getElementById('settings-loc-desc');
-  const locBtn = document.getElementById('settings-loc-btn');
-  if(locBtn && navigator.permissions) {
-    navigator.permissions.query({name:'geolocation'}).then(p => {
-      if(p.state === 'granted') {
-        locBtn.textContent = 'On'; locBtn.className = 'btn-sm btn-green';
-        if(locDesc) locDesc.textContent = '✅ Location is shared with dispatch.';
-      } else if(p.state === 'denied') {
-        locBtn.textContent = 'Blocked'; locBtn.className = 'btn-sm btn-ghost';
-        if(locDesc) locDesc.textContent = 'Blocked — enable in browser/system settings.';
+  // Location toggle state
+  const locToggle = document.getElementById('settings-loc-toggle');
+  const locStatus = document.getElementById('settings-loc-status');
+  if(locToggle) {
+    const locEnabled = settings.locationSharing !== false; // default on
+    locToggle.checked = locEnabled;
+    // Update toggle visual
+    const track = locToggle.nextElementSibling;
+    if(track) track.style.background = locEnabled ? 'var(--green)' : '#cbd5e1';
+    if(locStatus) {
+      if(!locEnabled) {
+        locStatus.style.display = '';
+        locStatus.textContent = '⚠️ Location sharing is off — dispatch cannot see your ETA.';
+        locStatus.style.color = 'var(--amber)';
       } else {
-        locBtn.textContent = 'Allow'; locBtn.className = 'btn-sm btn-primary';
+        // Check OS permission
+        if(navigator.permissions) {
+          navigator.permissions.query({name:'geolocation'}).then(p => {
+            if(p.state === 'denied') {
+              locStatus.style.display = '';
+              locStatus.textContent = '⚠️ Location blocked by system settings — go to iPhone Settings → Safari → Location.';
+              locStatus.style.color = 'var(--red)';
+            } else {
+              locStatus.style.display = 'none';
+            }
+          }).catch(()=>{ locStatus.style.display='none'; });
+        } else {
+          locStatus.style.display = 'none';
+        }
       }
-    }).catch(()=>{});
+    }
   }
   // Sign-out user
   const sob = document.getElementById('settings-signout-desc');
@@ -5478,7 +5508,68 @@ function saveSetting(key, value) {
   const s = JSON.parse(localStorage.getItem('cobc_settings')||'{}');
   s[key] = value;
   localStorage.setItem('cobc_settings', JSON.stringify(s));
-  showToast(key + ' ' + (value ? 'on' : 'off'));
+}
+
+function toggleLocationSharing(enabled) {
+  saveSetting('locationSharing', enabled);
+  // Update toggle track colour immediately
+  const track = document.getElementById('settings-loc-toggle')?.nextElementSibling;
+  if(track) track.style.background = enabled ? 'var(--green)' : '#cbd5e1';
+  if(enabled) {
+    // Request OS permission if not yet granted, then start watchers
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        () => { syncLocationWatchers && syncLocationWatchers(); renderSettingsTab(); showToast('✅ Location sharing on'); },
+        () => { renderSettingsTab(); showToast('Allow location in system settings'); },
+        { timeout: 8000 }
+      );
+    }
+  } else {
+    // Stop all active location watchers immediately
+    Object.keys(_locationWatchers||{}).forEach(callId => stopLocationSharing && stopLocationSharing(callId));
+    renderSettingsTab();
+    showToast('📍 Location sharing off');
+  }
+}
+
+function togglePushNotifications() {
+  const has = !!localStorage.getItem('cobc_fcm_token_' + (SESSION?.unit||''));
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  if(perm === 'granted' && has) {
+    disablePushForThisDevice();
+  } else {
+    enablePushForThisDevice();
+  }
+}
+
+async function disablePushForThisDevice() {
+  const btn = document.getElementById('settings-notif-btn');
+  const desc = document.getElementById('settings-notif-desc');
+  if(btn) { btn.textContent = 'Turning off…'; btn.disabled = true; }
+  try {
+    const token = localStorage.getItem('cobc_fcm_token_' + SESSION.unit);
+    if(token) {
+      // Unregister from push server
+      await fetch(PUSH_SEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'unregister', key: PUSH_SHARED_KEY, unit: SESSION.unit, token })
+      }).catch(()=>{});
+      // Delete token from FCM
+      if(_fcmMessaging) await _fcmMessaging.deleteToken().catch(()=>{});
+    }
+    localStorage.removeItem('cobc_fcm_token_' + SESSION.unit);
+    if(btn) { btn.textContent = 'Enable'; btn.className = 'btn-sm btn-primary'; btn.disabled = false; }
+    if(desc) desc.textContent = 'Get alerted when a new call is dispatched.';
+    const testBtn = document.getElementById('settings-notif-test');
+    if(testBtn) testBtn.style.display = 'none';
+    showToast('🔕 Notifications turned off');
+    renderHome && renderHome();
+  } catch(e) {
+    console.error('disablePush error', e);
+    if(btn) { btn.textContent = 'On'; btn.className = 'btn-sm btn-green'; btn.disabled = false; }
+    showToast('Could not turn off — try again');
+  }
 }
 function requestLocationPermission() {
   if(!navigator.geolocation) { showToast('Location not supported'); return; }
