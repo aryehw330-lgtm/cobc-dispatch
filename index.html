@@ -2664,6 +2664,7 @@ function initFirestore(){
       STATE.members=fsMembers;
       save();renderCalls&&renderCalls();renderHome&&renderHome();renderMemberDir&&renderMemberDir();
       try{tryOpenPendingDeepLink&&tryOpenPendingDeepLink();}catch(e){}
+      try{refreshStatsIfVisible&&refreshStatsIfVisible();}catch(e){}
       if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
     }).catch(e=>{
       showSyncError('REST poll', e);
@@ -2692,6 +2693,7 @@ function initFirestore(){
   save();renderCalls&&renderCalls();renderHome&&renderHome();
   try{syncLocationWatchers&&syncLocationWatchers();}catch(e){}
   try{tryOpenPendingDeepLink&&tryOpenPendingDeepLink();}catch(e){}
+  try{refreshStatsIfVisible&&refreshStatsIfVisible();}catch(e){}
   }catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
   // Members sync stays in Firestore (dispatch roles/auth live there)
   db.collection('members').onSnapshot(snap=>{const ms=snap.docs.map(d=>({id:d.id,...d.data()}));if(snap.metadata.fromCache&&ms.length===0&&STATE.members.length>0)return;STATE.members=ms;save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>{console.warn('members snapshot error:',e);showSyncError('members listener',e);});
@@ -6374,6 +6376,22 @@ function mergeWithLive(base, live) {
   return m;
 }
 
+// Refresh stats UI if the stats tab is currently open (called after Firestore data arrives)
+function refreshStatsIfVisible() {
+  if (typeof currentTab === 'undefined' || currentTab !== 'stats') return;
+  // Refresh all-time counter
+  const liveAll=calcLiveStats('all');
+  const histTotal=Object.values(HIST).reduce((s,y)=>s+y.total,0);
+  const total=histTotal+(liveAll?liveAll.total:0);
+  const numEl=document.getElementById('st-alltime-num');
+  if(numEl) numEl.textContent=total.toLocaleString();
+  const subEl=document.getElementById('st-alltime-sub');
+  if(subEl) subEl.textContent=`Across 6 years · ${STATE.members.length} members`;
+  // Refresh year KPIs + current sub-section
+  const activeBtn=document.querySelector('.yr-btn.active');
+  setStatsYear(stYear, activeBtn);
+}
+
 // ── Role helpers ──
 const isAdminRole = ()=>SESSION.role==='admin';
 const isDispatchRole = ()=>['admin','dispatch'].includes(SESSION.role);
@@ -6390,7 +6408,8 @@ function buildStatsSubNav() {
 }
 
 function initStats() {
-  const total=Object.values(HIST).reduce((s,y)=>s+y.total,0);
+  const liveAll=calcLiveStats('all');
+  const total=Object.values(HIST).reduce((s,y)=>s+y.total,0)+(liveAll?liveAll.total:0);
   document.getElementById('st-alltime-num').textContent=total.toLocaleString();
   document.getElementById('st-alltime-sub').textContent=`Across 6 years · ${STATE.members.length} members`;
   const firstTab=buildStatsSubNav();
@@ -6462,7 +6481,7 @@ function renderMyStats() {
     const row=d.top25.find(r=>r[0]===bc);
     if(row){yearStats.push({yr,tot:row[1],mp:row[2],mb:row[3],mo:row[4]});totalAll+=row[1];totalP+=row[2];totalB+=row[3];totalO+=row[4];}
   });
-  const liveCalls=STATE.calls.filter(c=>c.status!=='draft'&&(c.responders||[]).some(r=>String(r.unit)===bc));
+  const liveCalls=STATE.calls.filter(c=>c.status!=='draft'&&(c.responders||[]).some(r=>String(r.unit).replace(/^BC-?/i,'')===bc));
   const liveCount=liveCalls.length;
   const grandTotal=totalAll+liveCount;
 
