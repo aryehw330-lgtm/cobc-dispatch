@@ -1134,7 +1134,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- ══ ADMIN ══ -->
     <div class="page hidden" id="page-admin">
       <div class="section-header">
-        <div><div class="section-title">Management Panel</div><div class="section-sub">Admin Controls</div></div>
+        <div><div class="section-title">Admin Controls</div></div>
         <button onclick="showTab('more')" style="background:var(--border2);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);">← Back</button>
       </div>
       <div id="adminGate">
@@ -5209,7 +5209,7 @@ function renderNumbers() {
         <div><div style="font-size:14px;font-weight:700;">${n.label}</div><div style="font-size:12px;color:var(--text3);">${n.phone}${n.dispatchOnly?'<span class="obs-badge">DISP</span>':''}</div></div>
         <div style="display:flex;gap:6px;">
           <button class="number-call-btn" onclick="window.location='tel:${n.phone}'">Call</button>
-          ${SESSION.role==='admin'?`<button onclick="deleteNumber('${n.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
+          ${SESSION.role==='admin'?`<button onclick="editNumber('${n.id}')" style="background:var(--border2);color:var(--text2);border:none;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:700;cursor:pointer;">✏️</button><button onclick="deleteNumber('${n.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
         </div>
       </div>`;
     });
@@ -5223,6 +5223,49 @@ function deleteNumber(id) {
   if(!confirm('Delete this number?')) return;
   STATE.numbers = (STATE.numbers||[]).filter(n => n.id !== id);
   save(); renderNumbers(); showToast('Number deleted');
+}
+function editNumber(id) {
+  const n = (STATE.numbers||[]).find(x=>x.id===id);
+  if(!n) return;
+  // Build inline edit modal
+  const existing = document.getElementById('editNumberModal');
+  if(existing) existing.remove();
+  const cats = ['Police','Dispatch','Roadside','Hospital','Internal','Other'];
+  const catOpts = cats.map(c=>`<option${c===n.category?' selected':''}>${c}</option>`).join('');
+  const modal = document.createElement('div');
+  modal.id = 'editNumberModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML=`
+    <div style="background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <div style="font-size:17px;font-weight:700;color:var(--text1);margin-bottom:16px;">✏️ Edit Number</div>
+      <div class="input-group"><label class="input-label">Label</label><input class="input" id="editNumLabel" value="${n.label}"/></div>
+      <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editNumPhone" value="${n.phone}"/></div>
+      <div class="input-group"><label class="input-label">Category</label><select class="input" id="editNumCat">${catOpts}</select></div>
+      <div style="display:flex;gap:8px;margin-top:2px;margin-bottom:16px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;">
+          <input type="checkbox" id="editNumMemberVisible"${n.memberVisible?' checked':''}/> Visible to Members
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;">
+          <input type="checkbox" id="editNumDispatchOnly"${n.dispatchOnly?' checked':''}/> Dispatch Only
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-full btn-primary" onclick="saveEditNumber('${id}')" style="flex:1;">Save</button>
+        <button onclick="document.getElementById('editNumberModal').remove()" style="flex:1;background:var(--border2);color:var(--text2);border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
+}
+function saveEditNumber(id) {
+  const label = document.getElementById('editNumLabel').value.trim();
+  const phone = document.getElementById('editNumPhone').value.trim();
+  const category = document.getElementById('editNumCat').value;
+  const memberVisible = document.getElementById('editNumMemberVisible').checked;
+  const dispatchOnly = document.getElementById('editNumDispatchOnly').checked;
+  if(!label||!phone){ showToast('Label and phone required'); return; }
+  STATE.numbers = (STATE.numbers||[]).map(n=> n.id===id ? {...n,label,phone,category,memberVisible,dispatchOnly} : n);
+  save(); renderNumbers(); document.getElementById('editNumberModal').remove(); showToast('✅ Number updated');
 }
 function addNumber() {
   const label=document.getElementById('numLabel').value.trim();
