@@ -1918,10 +1918,22 @@ async function initPushModule() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data?.type === 'OPEN_CALL' && event.data?.callId) {
-        openCallDetail(event.data.callId);
+        // Save to sessionStorage so a fresh app load also picks it up
+        try { sessionStorage.setItem('cobc_pending_call', event.data.callId); } catch(e) {}
+        window._pendingDeepLink = event.data.callId;
+        tryOpenPendingDeepLink();
       }
     });
   }
+
+  // Also check sessionStorage — iOS sometimes opens a fresh page instead of messaging existing client
+  try {
+    const stored = sessionStorage.getItem('cobc_pending_call');
+    if (stored) {
+      window._pendingDeepLink = stored;
+      sessionStorage.removeItem('cobc_pending_call');
+    }
+  } catch(e) {}
 }
 
 async function enablePushForThisDevice() {
@@ -4377,6 +4389,7 @@ function tryOpenPendingDeepLink() {
   const call = (STATE.calls || []).find(c => c.id === callId);
   if (!call) return; // data not loaded yet — will retry on next snapshot
   window._pendingDeepLink = null;
+  try { sessionStorage.removeItem('cobc_pending_call'); } catch(e) {}
   openCallDetail(callId);
 }
 

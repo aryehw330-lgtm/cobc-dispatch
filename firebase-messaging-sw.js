@@ -56,13 +56,15 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((winClients) => {
-      for (const c of winClients) {
-        if (c.url.includes('cobc-dispatch') && 'focus' in c) {
-          // App is already open — tell it to open the specific call
-          if (callId) c.postMessage({ type: 'OPEN_CALL', callId });
-          return c.focus();
+      const existing = winClients.find(c => c.url.includes('cobc-dispatch'));
+      if (existing) {
+        // App is already open — store callId AND tell it to open the call
+        if (callId) {
+          existing.postMessage({ type: 'OPEN_CALL', callId });
         }
+        return existing.focus();
       }
+      // App is closed — open it with ?call= param (works on Android; iOS fallback via sessionStorage)
       if (clients.openWindow) return clients.openWindow(target);
     })
   );
