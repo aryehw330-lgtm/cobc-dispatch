@@ -3530,6 +3530,7 @@ function callCardHTML(call, mini=false) {
       : '';
     return `
     <div class="call-card ${isUrgent?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
+      ${call.status==='done'?'<div style="background:#16a34a;color:#fff;font-size:13px;font-weight:800;padding:7px 14px;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">✅ CALL COMPLETED</div>':''}
       <div class="call-card-header">
         <div style="display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0;">
           <div class="status-dot ${call.status}"></div>
@@ -3541,7 +3542,7 @@ function callCardHTML(call, mini=false) {
             ${responderBadges||pendingBadge ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${responderBadges}${pendingBadge}</div>` : ''}
           </div>
         </div>
-        <div style="background:${sc}15;color:${sc};padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">${call.status.toUpperCase()}</div>
+        ${call.status!=='done'?`<div style="background:${sc}15;color:${sc};padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0;">${call.status.toUpperCase()}</div>`:''}
       </div>
     </div>`;
   }
@@ -3566,6 +3567,7 @@ function callCardHTML(call, mini=false) {
 
   return `
   <div class="call-card ${isUrgent?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
+    ${call.status==='done'?'<div style="background:#16a34a;color:#fff;font-size:14px;font-weight:800;padding:8px 16px;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">✅ CALL COMPLETED</div>':''}
     ${isUrgent?'<div style="background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:5px 14px;letter-spacing:.5px;">URGENT</div>':''}
     <div class="call-card-header">
       <div style="flex:1;min-width:0;">
