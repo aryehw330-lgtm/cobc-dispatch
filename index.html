@@ -4669,10 +4669,8 @@ function openLiveDirections(callId) {
 
 const _locationWatchers = {}; // callId → watchId | 'starting' | 'denied'
 const _geocodeCache     = {}; // "address|town" → {lat, lng}
-const _lastEtaCalc      = {}; // callId → ms timestamp of last OSRM call
 const _lastLocWrite     = {}; // callId → ms timestamp of last Firestore write
-const LOC_WRITE_INTERVAL = 30000;  // write location at most every 30 s
-const ETA_CALC_INTERVAL  = 60000;  // recalculate route at most every 60 s
+const LOC_WRITE_INTERVAL = 30000;  // write location + recalculate ETA every 30 s
 const LOC_STALE_MS       = 600000; // 10 minutes — hide ETA if older than this
 
 // Geocode a call address to lat/lng using Nominatim (free, no API key)
@@ -4717,18 +4715,11 @@ async function pushLiveLocation(callId, lat, lng) {
   const call = (STATE.calls || []).find(c => c.id === callId);
   if (!call) return;
 
-  // Calculate ETA (throttled separately — more expensive)
+  // Recalculate ETA on every 30 s write — geocode is cached, only OSRM is called
   let liveEtaMin = null;
-  if (!_lastEtaCalc[callId] || (now - _lastEtaCalc[callId]) >= ETA_CALC_INTERVAL) {
-    const dest = await geocodeCallAddress(call);
-    if (dest) {
-      liveEtaMin = await calcOsrmEtaMin(lat, lng, dest.lat, dest.lng);
-      if (liveEtaMin !== null) _lastEtaCalc[callId] = now;
-    }
-  } else {
-    // Reuse last calculated ETA from local state
-    const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
-    liveEtaMin = call.liveLocations?.[unitKey]?.liveEtaMin ?? null;
+  const dest = await geocodeCallAddress(call);
+  if (dest) {
+    liveEtaMin = await calcOsrmEtaMin(lat, lng, dest.lat, dest.lng);
   }
 
   const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
@@ -4749,21 +4740,30 @@ async function pushLiveLocation(callId, lat, lng) {
   } catch(e) { console.warn('[ETA] Firestore location write failed:', e); }
 }
 
-// Start GPS watching for a specific call (called when member becomes approved)
+// Start GPS watching for a specific call — ONLY if location is already allowed in settings.
+// We never prompt for permission; members opt in via their device/browser settings.
 async function startLocationSharing(callId) {
   if (_locationWatchers[callId] !== undefined) return; // already set up
   if (!navigator.geolocation) { _locationWatchers[callId] = 'unavailable'; return; }
-  _locationWatchers[callId] = 'starting';
-  try {
-    // Quick position check to trigger permission dialog if needed
-    await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
-    );
-  } catch(e) {
-    console.log('[ETA] Location permission denied for call', callId);
-    _locationWatchers[callId] = 'denied';
+
+  // Check current permission state without triggering a prompt
+  if (navigator.permissions && navigator.permissions.query) {
+    let state;
+    try {
+      const result = await navigator.permissions.query({ name: 'geolocation' });
+      state = result.state;
+    } catch(e) { state = 'prompt'; } // permissions API not supported — skip silently
+    if (state !== 'granted') {
+      _locationWatchers[callId] = 'not-granted';
+      return; // silently do nothing — member hasn't enabled location
+    }
+  } else {
+    // No permissions API (older browser) — skip rather than risk a surprise prompt
+    _locationWatchers[callId] = 'unavailable';
     return;
   }
+
+  _locationWatchers[callId] = 'starting';
   const watchId = navigator.geolocation.watchPosition(
     pos => pushLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
     err => console.warn('[ETA] watchPosition error:', err),
@@ -4787,7 +4787,6 @@ async function stopLocationSharing(callId) {
   }
   delete _locationWatchers[callId];
   delete _lastLocWrite[callId];
-  delete _lastEtaCalc[callId];
 }
 
 // Called after every calls onSnapshot update — start/stop watchers to match approval state
