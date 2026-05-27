@@ -4293,11 +4293,11 @@ function renderRadioSearch() {
   }).slice(0,8);
   if(!matches.length){res.style.display='none';return;}
   res.style.display='block';
-  res.innerHTML=matches.map(m=>`
+  res.innerHTML=matches.map(m=>{const uDisp=String(m.unit).replace(/^BC-/i,'');const mName=`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim();return`
     <div onclick="addRadioMember('${m.unit}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;display:flex;align-items:center;gap:10px;">
-      <span style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">BC-${m.unit}</span>
-      ${m.first} ${m.last}
-    </div>`).join('');
+      <span style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">BC-${uDisp}</span>
+      ${mName||uDisp}
+    </div>`;}).join('');
 }
 
 function addRadioMember(unit) {
@@ -4315,14 +4315,14 @@ function renderRadioSelected() {
     el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 0;">Search and select members above</div>';
     return;
   }
-  el.innerHTML=radioSelectedMembers.map((m,i)=>`
+  el.innerHTML=radioSelectedMembers.map((m,i)=>{const uDisp=String(m.unit).replace(/^BC-/i,'');const mName=`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim();return`
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">BC-${m.unit}</span>
-        <span style="font-size:13px;font-weight:600;">${m.first} ${m.last}</span>
+        <span style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">BC-${uDisp}</span>
+        <span style="font-size:13px;font-weight:600;">${mName||uDisp}</span>
       </div>
       <button onclick="radioSelectedMembers.splice(${i},1);renderRadioSelected()" style="background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;">×</button>
-    </div>`).join('');
+    </div>`;}).join('');
 }
 
 async function submitRadioResponders() {
@@ -4338,7 +4338,7 @@ async function submitRadioResponders() {
     // Remove from pending if they were there
     call.pendingResponders=(call.pendingResponders||[]).filter(r=>String(r.unit)!==String(m.unit));
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
-      call.responders.push({unit:m.unit,name:`${m.first} ${m.last}`.trim(),eta,via:'radio',status:'approved',time:Date.now()});
+      call.responders.push({unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),eta,via:'radio',status:'approved',time:Date.now()});
     }
   });
   call.status='active';
@@ -4347,13 +4347,13 @@ async function submitRadioResponders() {
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
     // PUSH #6: radio responders added
     const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    const _rNames=radioSelectedMembers.map(m=>`BC-${m.unit}`).join(', ');
+    const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
        setTimeout(()=>sendPush({target:'dispatchers',title:'📻 Responding by Radio',body:`${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
 
   // Send WhatsApp group announcement for all radio responders at once.
   // Radio-added members are NOT messaged individually — they're already on the radio.
   // Personal WhatsApp confirmations are only sent for app-approved responders.
-  const names=radioSelectedMembers.map(m=>`BC-${m.unit} ${m.first} ${m.last}`).join(', ');
+  const names=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')} ${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim()).join(', ');
   const groupMsg=`*Responding to call*
 ${names}
 ${typeLabel} - ${call.address}, ${call.town}
