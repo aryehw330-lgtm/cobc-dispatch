@@ -5661,14 +5661,28 @@ function renderChkHistory() {
     .filter(h => _chkHistLocFilter==='all' || (h.location||'COBC')===_chkHistLocFilter)
     .sort((a,b) => (new Date(b.timestamp||b.date||0)) - (new Date(a.timestamp||a.date||0)));
   if(!rows.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3);">No history for this location.</div>'; return; }
+  const STATUS_COLORS={Missing:'#dc2626',Damaged:'#d97706','Need More':'#2563eb'};
   list.innerHTML = rows.map(h => {
     const dt = h.timestamp || h.date || '';
     const dateStr = dt ? new Date(dt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
     const checked = h.checked || h.itemsChecked || 0;
     const total = h.total || h.itemsTotal || 0;
-    const issues = h.issues || h.issueCount || 0;
+    const issues = h.issues || h.issueCount || (h.issueDetails||[]).length || 0;
     const bc = h.bc || h.member || h.unit || '—';
     const loc = h.location || 'COBC';
+    // Prefer rich issueDetails; fall back to old issueItems (names only)
+    const details = h.issueDetails || (h.issueItems||[]).map(n=>({name:n,status:'Issue',note:''}));
+    const detailHtml = details.length ? `
+      <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+        ${details.map(d=>{
+          const col=STATUS_COLORS[d.status]||'#64748b';
+          return `<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px;">
+            <span style="font-size:10px;font-weight:700;color:#fff;background:${col};border-radius:5px;padding:1px 6px;flex-shrink:0;">${d.status||'Issue'}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--text);">${d.name}</span>
+            ${d.note?`<span style="font-size:11px;color:var(--text3);">— ${d.note}</span>`:''}
+          </div>`;
+        }).join('')}
+      </div>` : '';
     return `<div style="background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div style="flex:1;min-width:0;">
@@ -5677,9 +5691,10 @@ function renderChkHistory() {
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <div style="font-size:13px;font-weight:700;color:var(--navy);">${checked}${total?'/'+total:''} checked</div>
-          ${issues>0?`<div style="font-size:11px;font-weight:700;color:var(--red);margin-top:3px;">${issues} issue${issues===1?'':'s'}</div>`:'<div style="font-size:11px;color:var(--green);margin-top:3px;">No issues</div>'}
+          ${issues>0?`<div style="font-size:11px;font-weight:700;color:var(--red);margin-top:3px;">${issues} issue${issues===1?'':'s'}</div>`:'<div style="font-size:11px;color:var(--green);margin-top:3px;">✅ All clear</div>'}
         </div>
       </div>
+      ${detailHtml}
     </div>`;
   }).join('');
 }
@@ -7636,6 +7651,12 @@ async function submitChecklist(){
   const checked=li.filter(e=>!!chkStatus[e.row||e.id]);
   const issues=li.filter(e=>chkStatus[e.row||e.id]&&chkStatus[e.row||e.id]!=='OK');
   if(!confirm(`Submit checklist for ${chkCurLoc}?\n${checked.length}/${li.length} items checked, ${issues.length} issue(s).`)) return;
+  // Build issue detail list (only non-OK items — OK items not saved)
+  const issueDetails=issues.map(e=>({
+    name:  e.name||'',
+    status:chkStatus[e.row||e.id]||'',
+    note:  (chkNotes[e.row||e.id]||e.equipNote||'').replace(/^[A-Z ]+\s*-\s*/i,'').trim()
+  }));
   // Send any pending status updates first
   const pending=issues.filter(e=>chkStatus[e.row||e.id]);
   try{
@@ -7643,10 +7664,20 @@ async function submitChecklist(){
       await Promise.all(pending.map(e=>sheetPOST({action:'updateEquipmentStatus',row:e.row,status:chkStatus[e.row||e.id],note:chkNotes[e.row||e.id]||''})));
     }
     const rows=li.map(e=>e.row).filter(Boolean);
-    const result=await sheetPOST({action:'submitChecklist',rows,bc:SESSION.unit||'?'});
+    const result=await sheetPOST({
+      action:'submitChecklist',
+      rows,
+      bc: SESSION.unit||'?',
+      location: chkCurLoc,
+      timestamp: new Date().toISOString(),
+      total: li.length,
+      checked: checked.length,
+      issueCount: issues.length,
+      issueDetails  // [{name, status, note}] — only Missing/Damaged/Need More
+    });
     if(result&&result.success){
       showToast('✅ Checklist submitted!');
-      // Save a local history entry
+      // Save a local history entry with full issue details
       _saveChkHistEntry({
         timestamp: new Date().toISOString(),
         location: chkCurLoc,
@@ -7654,7 +7685,7 @@ async function submitChecklist(){
         checked: checked.length,
         total: li.length,
         issues: issues.length,
-        issueItems: issues.map(e=>e.name)
+        issueDetails  // richer than old issueItems
       });
       li.forEach(e=>{delete chkStatus[e.row||e.id];delete chkNotes[e.row||e.id];});
       renderChkItems&&renderChkItems();
