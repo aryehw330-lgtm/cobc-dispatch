@@ -5609,12 +5609,39 @@ function _saveChkHistEntry(entry) {
   } catch(e) {}
 }
 
-function loadChecklistHistory() {
+async function loadChecklistHistory() {
   _chkHistCache = [];
+  const list = document.getElementById('chkHistList');
+  if(list) list.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--text3);font-size:13px;">Loading…</div>';
   try {
-    const raw = localStorage.getItem(CHK_HIST_KEY);
-    if(raw) _chkHistCache = JSON.parse(raw)||[];
-  } catch(e) {}
+    // Primary: load from Google Sheet (source of truth, shared across all devices)
+    const data = await sheetPOST({action:'getChecklistLog'});
+    const sheetLog = (data.log||[]).map(h=>({
+      timestamp: h.timestamp||h.date||'',
+      location:  h.location||'COBC',
+      bc:        String(h.bc||h.member||h.unit||'').replace(/^BC-?/i,''),
+      checked:   h.checked||h.itemsChecked||0,
+      total:     h.total||h.itemsTotal||0,
+      issues:    h.issues||h.issueCount||0,
+      issueItems:h.issueItems||[]
+    }));
+    // Also grab any localStorage entries (offline submissions not yet on sheet)
+    let localLog = [];
+    try { localLog = JSON.parse(localStorage.getItem(CHK_HIST_KEY)||'[]'); } catch(e){}
+    // Merge: prefer sheet data; keep local entries that aren't duplicated on sheet
+    const sheetKeys = new Set(sheetLog.map(h=>`${h.timestamp}|${h.location}|${h.bc}`));
+    const localOnly = localLog.filter(h=>{
+      const k=`${h.timestamp}|${h.location}|${String(h.bc||'').replace(/^BC-?/i,'')}`;
+      return !sheetKeys.has(k);
+    });
+    _chkHistCache = [...sheetLog, ...localOnly].sort((a,b)=>(new Date(b.timestamp||0))-(new Date(a.timestamp||0)));
+    // Refresh localStorage cache for offline use
+    try { localStorage.setItem(CHK_HIST_KEY, JSON.stringify(_chkHistCache.slice(0,500))); } catch(e){}
+  } catch(e) {
+    // Fallback: use localStorage if sheet is unreachable
+    console.warn('getChecklistLog failed, falling back to localStorage',e);
+    try { _chkHistCache = JSON.parse(localStorage.getItem(CHK_HIST_KEY)||'[]'); } catch(e2){}
+  }
   renderChkHistory();
 }
 function renderChkHistory() {
