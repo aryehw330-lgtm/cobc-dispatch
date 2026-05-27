@@ -186,7 +186,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
 .call-btn{flex:1;min-width:0;padding:9px 6px;border-radius:8px;border:none;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;text-align:center;transition:opacity .15s;white-space:nowrap;}
 .call-btn:active{opacity:.8;}
-.call-num{font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--text2);letter-spacing:-.3px;}
+.call-num{font-family:'DM Mono',monospace;font-size:17px;font-weight:700;color:var(--text2);letter-spacing:-.3px;}
 .priority-bar{height:3px;border-radius:2px;margin-top:10px;}
 .priority-high{background:var(--red);}
 .priority-med{background:var(--amber);}
@@ -390,9 +390,9 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.cancelled{background:#fff1f2;border-left:4px solid var(--red);opacity:.8;filter:grayscale(10%);}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
 .call-card-header{padding:12px 14px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
-.call-card-type{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
-.call-card-addr{font-size:13px;color:var(--text2);margin-top:2px;}
-.call-card-meta{font-size:11px;color:var(--text3);margin-top:4px;}
+.call-card-type{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
+.call-card-addr{font-size:14px;color:var(--text2);margin-top:2px;}
+.call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
 .call-card-footer{padding:8px 14px;border-top:1px solid var(--border2);display:flex;gap:6px;background:rgba(0,0,0,.02);}
 .call-action{flex:1;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;}
 .call-action:active{opacity:.8;}
@@ -3582,6 +3582,8 @@ function callCardHTML(call, mini=false) {
         <div class="call-card-addr">${call.address}${call.town?', '+call.town:''}</div>
         ${carInfo?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${carInfo}</div>`:''}
         ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
+        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
+        ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         <div class="call-card-meta" style="margin-top:5px;">${timeStr}</div>
         ${(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch')?(()=>{
           const locs=call.liveLocations||{};
@@ -3598,7 +3600,8 @@ function callCardHTML(call, mini=false) {
     <div class="call-card-footer">
       ${respondBtn}
       <button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
-      ${call.address && (iAmApproved || ['admin','dispatch'].includes(SESSION.role))?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')" title="Live directions from your location">🗺️ Live ETA</button>`:''}
+      ${call.address && isDispatch?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveMap('${call.id}')" title="Live responder map">🗺️ Live Map</button>`:''}
+      ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')" title="Live directions from your location">🗺️ Navigate</button>`:''}
       ${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}
       ${call.phone?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">Call</button>`:''}
     </div>
@@ -4531,6 +4534,9 @@ function openCallDetail(id) {
   if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Map</button>`;
   if(call.phone) html+=`<button class="btn-sm btn-ghost" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
+  // Share my location — for approved responders who are on their way
+  const _iAmApprovedDetail = (call.responders||[]).some(r=>String(r.unit)===String(SESSION.unit));
+  if(_iAmApprovedDetail && call.status!=='done') html+=`<button class="btn-sm" style="background:#25d366;color:#fff;border:none;" onclick="shareMyLocationOnCall('${id}')">📍 Share Location</button>`;
 
   if(isDispatch) {
     html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Radio</button>`;
@@ -4747,6 +4753,38 @@ _#${call.id.slice(-5)} · ${new Date().toLocaleTimeString('en-US',{hour:'numeric
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
   }
 }
+// Share responder's live location with other members via WhatsApp or Google Maps link
+function shareMyLocationOnCall(callId) {
+  const call = STATE.calls.find(c => c.id === callId);
+  if (!call) return;
+  if (!navigator.geolocation) { showToast('Location not available'); return; }
+  showToast('Getting your location…');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude.toFixed(6);
+      const lng = pos.coords.longitude.toFixed(6);
+      const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
+      const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
+      const msg = `📍 My live location — BC-${String(SESSION.unit).replace(/^BC-?/i,'')} ${SESSION.name.split(' ')[0]}\n${typeLabel} · ${call.address}, ${call.town}\n${mapsLink}`;
+      // Show choice: WhatsApp or copy link
+      const modal = document.createElement('div');
+      modal.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;padding:20px;';
+      modal.innerHTML=`
+        <div style="background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+          <div style="font-size:17px;font-weight:700;color:var(--text1);margin-bottom:6px;">📍 Share Your Location</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">BC-${String(SESSION.unit).replace(/^BC-?/i,'')} · ${call.address}</div>
+          <button onclick="window.open('https://wa.me/?text='+encodeURIComponent('${encodeURIComponent(msg)}'),'_blank');this.closest('[style*=fixed]').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Send via WhatsApp</button>
+          <button onclick="window.open('${mapsLink}','_blank');this.closest('[style*=fixed]').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#4285f4;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">🗺️ Open in Google Maps</button>
+          <button onclick="navigator.clipboard&&navigator.clipboard.writeText('${mapsLink}').then(()=>showToast('📋 Link copied'));this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px;background:var(--border2);color:var(--text2);border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📋 Copy Link</button>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    },
+    () => showToast('Could not get location — check permissions'),
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+  );
+}
+
 function openLiveDirections(callId) {
   const call = STATE.calls.find(c => c.id === callId);
   if(!call || !call.address) { showToast('No address on this call'); return; }
@@ -6128,7 +6166,114 @@ function getYearData(yr) {
     c.top_type_cnt=c.call_types[c.top_type]||0;
     return c;
   }
-  return HIST[yr]||HIST['2026'];
+  const base = HIST[yr]||HIST['2026'];
+  return mergeWithLive(base, calcLiveStats(yr));
+}
+
+// ── Live stats from Firestore calls ─────────────────────────────────────────
+// Reads completed calls from STATE.calls and returns a stats object that
+// mirrors the HIST structure, so it can be merged with historical data.
+function calcLiveStats(yr) {
+  const yrStr = String(yr);
+  const done = (STATE.calls||[]).filter(c => {
+    if(c.status!=='done') return false;
+    const d = new Date(c.completedAt||c.createdAt||0);
+    return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
+  });
+  const cancelled = (STATE.calls||[]).filter(c => {
+    if(c.status!=='cancelled') return false;
+    const d = new Date(c.completedAt||c.cancelledAt||c.createdAt||0);
+    return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
+  }).length;
+  if(!done.length && !cancelled) return null;
+
+  const call_types={}, monthly_total=Array(13).fill(0), dow=Array(7).fill(0), hours=Array(24).fill(0), townMap={};
+  const respMap={}, dispMap={};
+
+  done.forEach(c=>{
+    // type
+    const rawType = c.type?.startsWith('other:') ? 'Other' : (CALL_TYPE_LABELS[c.type]||c.type||'Other');
+    call_types[rawType]=(call_types[rawType]||0)+1;
+    // time
+    const d=new Date(c.createdAt||0);
+    monthly_total[d.getMonth()+1]++;
+    dow[d.getDay()]++;
+    hours[d.getHours()]++;
+    // town
+    if(c.town) townMap[c.town]=(townMap[c.town]||0)+1;
+    // responders
+    (c.responders||[]).forEach(r=>{
+      const u=String(r.unit||'').replace(/^BC-?/i,'');
+      respMap[u]=(respMap[u]||{cnt:0,name:r.name||''});
+      respMap[u].cnt++;
+    });
+    // dispatcher
+    if(c.dispatcher) dispMap[c.dispatcher]=(dispMap[c.dispatcher]||0)+1;
+  });
+
+  const top_cities=Object.entries(townMap).sort((a,b)=>b[1]-a[1]);
+  const top_disp=Object.entries(dispMap).sort((a,b)=>b[1]-a[1]).map(([n,c])=>[n,c]);
+  const topType=Object.entries(call_types).sort((a,b)=>b[1]-a[1])[0];
+  const top25=Object.entries(respMap).sort((a,b)=>b[1].cnt-a[1].cnt).slice(0,25).map(([u,v])=>{
+    const m=(STATE.members||[]).find(x=>String(x.unit).replace(/^BC-?/i,'')===u);
+    const name=m?`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim():v.name||u;
+    return [u,v.cnt,v.cnt,0,0,name];
+  });
+
+  // Response times
+  const timed=done.filter(c=>c.completedAt&&c.createdAt&&(c.responders||[]).length);
+  const times=timed.map(c=>(c.completedAt-c.createdAt)/60000).filter(t=>t>0&&t<300);
+  const rtAvg=times.length?(times.reduce((s,t)=>s+t,0)/times.length).toFixed(1):0;
+  const under30=times.length?((times.filter(t=>t<30).length/times.length)*100).toFixed(1):0;
+  const under60=times.length?((times.filter(t=>t<60).length/times.length)*100).toFixed(1):0;
+
+  const responderUnits=new Set(Object.keys(respMap));
+  return {
+    total:done.length, cancelled, members:responderUnits.size,
+    call_types, monthly_total, dow, hours, top_cities,
+    top_type:topType?.[0]||'', top_type_cnt:topType?.[1]||0,
+    top_r_bc:top25[0]?.[0]||'', top_r_name:top25[0]?.[5]||'', top_r_cnt:top25[0]?.[1]||0,
+    top25, top_disp, top8_disp:top_disp.slice(0,8).map(x=>x[0]), disp_by_month:[],
+    rt:{avg:rtAvg, median:0, under30, under60, count:times.length},
+    _isLive:true
+  };
+}
+
+// Merge live stats on top of a HIST entry
+function mergeWithLive(base, live) {
+  if(!live) return base;
+  const m = JSON.parse(JSON.stringify(base)); // deep copy
+  m.total += live.total;
+  m.cancelled += live.cancelled;
+  m.members = Math.max(m.members, STATE.members.length);
+  // call types
+  Object.entries(live.call_types).forEach(([t,n])=>{ m.call_types[t]=(m.call_types[t]||0)+n; });
+  // monthly
+  live.monthly_total.forEach((n,i)=>{ m.monthly_total[i]=(m.monthly_total[i]||0)+n; });
+  // dow / hours
+  live.dow.forEach((n,i)=>{ m.dow[i]=(m.dow[i]||0)+n; });
+  live.hours.forEach((n,i)=>{ m.hours[i]=(m.hours[i]||0)+n; });
+  // cities
+  live.top_cities.forEach(([city,cnt])=>{const f=m.top_cities.find(x=>x[0]===city);if(f)f[1]+=cnt;else m.top_cities.push([city,cnt]);});
+  m.top_cities.sort((a,b)=>b[1]-a[1]);
+  // dispatchers
+  live.top_disp.forEach(([d,cnt])=>{const f=m.top_disp.find(x=>x[0]===d);if(f)f[1]+=cnt;else m.top_disp.push([d,cnt]);});
+  m.top_disp.sort((a,b)=>b[1]-a[1]);
+  m.top8_disp=m.top_disp.slice(0,8).map(x=>x[0]);
+  // top type
+  const sortedTypes=Object.entries(m.call_types).sort((a,b)=>b[1]-a[1]);
+  m.top_type=sortedTypes[0]?.[0]||m.top_type;
+  m.top_type_cnt=sortedTypes[0]?.[1]||m.top_type_cnt;
+  // top responders — merge live top25 with base
+  const respMerge={};
+  (m.top25||[]).forEach(([bc,tot,mp,mb,mo,name])=>{respMerge[bc]={bc,name,total:tot,mp,mb,mo};});
+  (live.top25||[]).forEach(([bc,tot,,,, name])=>{if(!respMerge[bc])respMerge[bc]={bc,name,total:0,mp:0,mb:0,mo:0};respMerge[bc].total+=tot;respMerge[bc].mp+=tot;});
+  m.top25=Object.values(respMerge).sort((a,b)=>b.total-a.total).slice(0,25).map(r=>[r.bc,r.total,r.mp,r.mb,r.mo,r.name]);
+  m.top_r_bc=m.top25[0]?.[0]||m.top_r_bc;
+  m.top_r_name=m.top25[0]?.[5]||m.top_r_name;
+  m.top_r_cnt=m.top25[0]?.[1]||m.top_r_cnt;
+  m.note=(live.total>0)?`Includes ${live.total} live call${live.total!==1?'s':''} dispatched via app`:(m.note||null);
+  return m;
 }
 
 // ── Role helpers ──
