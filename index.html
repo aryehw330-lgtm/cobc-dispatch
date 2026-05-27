@@ -31,6 +31,8 @@ window.__loadQRLib=function(){
 };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -1435,6 +1437,21 @@ textarea.input{min-height:80px;resize:vertical;}
 </div>
 
 <!-- Call Detail -->
+<!-- Live Tracking Map Modal -->
+<div class="modal-overlay hidden" id="liveMapModal">
+  <div class="modal" style="padding:0;overflow:hidden;border-radius:20px;">
+    <div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:16px;font-weight:700;">🗺️ Live Tracking</div>
+        <div id="liveMapTitle" style="font-size:12px;color:var(--text3);margin-top:1px;"></div>
+      </div>
+      <button onclick="closeLiveMap()" style="background:var(--border2);border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <div id="liveMapDiv" style="height:60vh;width:100%;"></div>
+    <div id="liveMapLegend" style="padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border);"></div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="callDetailModal">
   <div class="modal"><div class="modal-handle"></div><div id="callDetailContent"></div></div>
 </div>
@@ -3506,12 +3523,12 @@ function callCardHTML(call, mini=false) {
         ${carInfo?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${carInfo}</div>`:''}
         ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
         <div class="call-card-meta" style="margin-top:5px;">${timeStr}</div>
-        ${isDispatch?(()=>{
+        ${(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch')?(()=>{
           const locs=call.liveLocations||{};
           const chips=Object.entries(locs).filter(([,v])=>v.locationAt&&(Date.now()-v.locationAt)<LOC_STALE_MS&&v.liveEtaMin!=null).map(([unit,v])=>{
             const bg=v.liveEtaMin<=3?'#dcfce7':v.liveEtaMin<=7?'#fef3c7':'#f1f5f9';
             const col=v.liveEtaMin<=3?'var(--green)':v.liveEtaMin<=7?'var(--amber)':'var(--text3)';
-            return `<span style="font-size:13px;font-weight:700;padding:5px 10px;border-radius:10px;background:${bg};color:${col};">📍 BC-${unit} · ${v.liveEtaMin} min</span>`;
+            return `<span onclick="event.stopPropagation();openLiveMap('${call.id}')" style="font-size:13px;font-weight:700;padding:5px 10px;border-radius:10px;background:${bg};color:${col};cursor:pointer;display:inline-block;">📍 BC-${unit} · ${v.liveEtaMin} min</span>`;
           }).join('');
           return chips?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${chips}</div>`:'';
         })():''}
@@ -4378,7 +4395,7 @@ function openCallDetail(id) {
         <div style="flex:1;">
           <div style="display:flex;align-items:center;gap:8px;">
             <div style="font-size:14px;font-weight:700;">BC-${unitKey}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
-            ${isDispatch&&liveEta!=null?`<span style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};">📍 ${liveEta} min</span>`:''}
+            ${isDispatch&&liveEta!=null?`<span onclick="openLiveMap('${id}')" style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};cursor:pointer;">📍 ${liveEta} min — tap for map</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
         </div>
@@ -4706,11 +4723,9 @@ async function calcOsrmEtaMin(fromLat, fromLng, toLat, toLng) {
   return null;
 }
 
-// Write this member's location + ETA to Firestore (throttled)
+// Write this member's location + ETA to Firestore
 async function pushLiveLocation(callId, lat, lng) {
   const now = Date.now();
-  if (_lastLocWrite[callId] && (now - _lastLocWrite[callId]) < LOC_WRITE_INTERVAL) return;
-  _lastLocWrite[callId] = now;
 
   const call = (STATE.calls || []).find(c => c.id === callId);
   if (!call) return;
@@ -4779,22 +4794,26 @@ async function startLocationSharing(callId) {
     }
   }
 
-  // Permission confirmed — start watching
-  _locationWatchers[callId] = 'starting';
-  const watchId = navigator.geolocation.watchPosition(
-    pos => pushLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
-    err => console.warn('[ETA] watchPosition error:', err),
-    { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
-  );
-  _locationWatchers[callId] = watchId;
+  // Permission confirmed — poll every 30 s with getCurrentPosition so OSRM
+  // recalculates on a fixed schedule regardless of whether the device moved.
+  const doUpdate = () => {
+    navigator.geolocation.getCurrentPosition(
+      pos => pushLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
+      err => console.warn('[ETA] position error:', err),
+      { enableHighAccuracy: true, maximumAge: 25000, timeout: 30000 }
+    );
+  };
+  doUpdate(); // fire immediately on approval
+  const intervalId = setInterval(doUpdate, 30000);
+  _locationWatchers[callId] = { type: 'interval', id: intervalId };
   console.log('[ETA] Location sharing started for call', callId);
 }
 
-// Stop GPS watching for a call (call ended or removed as responder)
+// Stop GPS polling for a call (call ended or removed as responder)
 async function stopLocationSharing(callId) {
-  const watchId = _locationWatchers[callId];
-  if (typeof watchId === 'number') {
-    navigator.geolocation.clearWatch(watchId);
+  const watcher = _locationWatchers[callId];
+  if (watcher?.type === 'interval') {
+    clearInterval(watcher.id);
     // Remove from Firestore
     const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
     try {
@@ -4832,6 +4851,135 @@ function syncLocationWatchers() {
 window.addEventListener('beforeunload', () => {
   Object.keys(_locationWatchers).forEach(stopLocationSharing);
 });
+
+// ── Live Tracking Map ─────────────────────────────────────────────────────────
+let _liveMap = null;           // Leaflet map instance
+let _liveMapCallId = null;     // which call is being tracked
+let _liveMapRefresh = null;    // setInterval id for auto-refresh
+let _destMarker = null;        // Leaflet marker for call address
+const _responderMarkers = {};  // unitKey → Leaflet marker
+const _responderRoutes  = {};  // unitKey → Leaflet polyline
+const RESPONDER_COLORS  = ['#2563eb','#16a34a','#d97706','#9333ea','#dc2626','#0891b2'];
+
+function _responderColor(idx) { return RESPONDER_COLORS[idx % RESPONDER_COLORS.length]; }
+
+async function openLiveMap(callId) {
+  _liveMapCallId = callId;
+  const call = (STATE.calls || []).find(c => c.id === callId);
+  if (!call) return;
+
+  showModal('liveMapModal');
+  document.getElementById('liveMapTitle').textContent =
+    `#${call.callNum||''} · ${call.address}${call.town ? ', ' + call.town : ''}`;
+
+  // Init Leaflet once
+  if (!_liveMap) {
+    _liveMap = L.map('liveMapDiv', { zoomControl: true }).setView([40.85, -74.05], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(_liveMap);
+  }
+
+  // Clear old markers/routes for new call
+  _clearMapLayers();
+  setTimeout(() => { _liveMap.invalidateSize(); _refreshLiveMap(); }, 200);
+
+  // Auto-refresh every 30 s (synced with location updates)
+  if (_liveMapRefresh) clearInterval(_liveMapRefresh);
+  _liveMapRefresh = setInterval(_refreshLiveMap, 30000);
+}
+
+function closeLiveMap() {
+  hideModal('liveMapModal');
+  if (_liveMapRefresh) { clearInterval(_liveMapRefresh); _liveMapRefresh = null; }
+  _liveMapCallId = null;
+}
+
+function _clearMapLayers() {
+  if (_destMarker) { _destMarker.remove(); _destMarker = null; }
+  Object.values(_responderMarkers).forEach(m => m.remove());
+  Object.values(_responderRoutes).forEach(r => r.remove());
+  Object.keys(_responderMarkers).forEach(k => delete _responderMarkers[k]);
+  Object.keys(_responderRoutes).forEach(k => delete _responderRoutes[k]);
+}
+
+async function _refreshLiveMap() {
+  if (!_liveMap || !_liveMapCallId) return;
+  const call = (STATE.calls || []).find(c => c.id === _liveMapCallId);
+  if (!call) return;
+
+  const dest = await geocodeCallAddress(call);
+  const now = Date.now();
+  const locs = call.liveLocations || {};
+
+  // Destination pin
+  if (dest) {
+    const destIcon = L.divIcon({
+      className: '',
+      html: `<div style="background:#dc2626;color:#fff;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3);">📍 ${call.address.split(',')[0]}</div>`,
+      iconAnchor: [0, 0]
+    });
+    if (_destMarker) {
+      _destMarker.setLatLng([dest.lat, dest.lng]);
+    } else {
+      _destMarker = L.marker([dest.lat, dest.lng], { icon: destIcon }).addTo(_liveMap);
+    }
+  }
+
+  // Responder pins + routes
+  const allBounds = dest ? [[dest.lat, dest.lng]] : [];
+  let colorIdx = 0;
+  const legendEl = document.getElementById('liveMapLegend');
+  const legendItems = [];
+
+  for (const [unit, v] of Object.entries(locs)) {
+    if (!v.lat || !v.lng) continue;
+    if (v.locationAt && (now - v.locationAt) > LOC_STALE_MS) continue;
+
+    const color = _responderColor(colorIdx++);
+    const etaLabel = v.liveEtaMin != null ? `${v.liveEtaMin} min` : '…';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="background:${color};color:#fff;padding:5px 10px;border-radius:10px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);">🚗 BC-${unit}<br><span style="font-size:11px;opacity:.9;">${etaLabel}</span></div>`,
+      iconAnchor: [0, 0]
+    });
+
+    if (_responderMarkers[unit]) {
+      _responderMarkers[unit].setLatLng([v.lat, v.lng]);
+      _responderMarkers[unit].setIcon(icon);
+    } else {
+      _responderMarkers[unit] = L.marker([v.lat, v.lng], { icon }).addTo(_liveMap);
+    }
+    allBounds.push([v.lat, v.lng]);
+
+    // Draw route
+    if (dest) {
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${v.lng},${v.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.code === 'Ok' && data.routes?.[0]) {
+          if (_responderRoutes[unit]) _responderRoutes[unit].remove();
+          _responderRoutes[unit] = L.geoJSON(data.routes[0].geometry, {
+            style: { color, weight: 4, opacity: 0.7 }
+          }).addTo(_liveMap);
+        }
+      } catch(e) {}
+    }
+
+    const mapsUrl = `https://www.google.com/maps/dir/${v.lat},${v.lng}/${encodeURIComponent((call.address||'')+', '+(call.town||'')+', NJ')}`;
+    legendItems.push(`<a href="${mapsUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;background:${color}20;color:${color};font-size:12px;font-weight:700;text-decoration:none;">🚗 BC-${unit} · ${etaLabel} <span style="font-size:10px;opacity:.7;">↗ Directions</span></a>`);
+  }
+
+  if (legendEl) legendEl.innerHTML = legendItems.length ? legendItems.join('') : '<span style="font-size:12px;color:var(--text3);">No live locations yet</span>';
+
+  // Fit map to show everyone
+  if (allBounds.length > 1) {
+    _liveMap.fitBounds(allBounds, { padding: [40, 40] });
+  } else if (allBounds.length === 1) {
+    _liveMap.setView(allBounds[0], 14);
+  }
+}
 
 function openMaps(addr) {
   const enc=encodeURIComponent(addr);
