@@ -4746,23 +4746,40 @@ async function startLocationSharing(callId) {
   if (_locationWatchers[callId] !== undefined) return; // already set up
   if (!navigator.geolocation) { _locationWatchers[callId] = 'unavailable'; return; }
 
-  // Check current permission state without triggering a prompt
+  let permissionGranted = false;
+
+  // Step 1: Try the Permissions API (works reliably on Chrome/Android)
   if (navigator.permissions && navigator.permissions.query) {
-    let state;
     try {
       const result = await navigator.permissions.query({ name: 'geolocation' });
-      state = result.state;
-    } catch(e) { state = 'prompt'; } // permissions API not supported — skip silently
-    if (state !== 'granted') {
-      _locationWatchers[callId] = 'not-granted';
-      return; // silently do nothing — member hasn't enabled location
+      if (result.state === 'granted') permissionGranted = true;
+      if (result.state === 'denied') { _locationWatchers[callId] = 'denied'; return; }
+      // state === 'prompt' → fall through to silent position check below
+    } catch(e) {
+      // iOS Safari doesn't support permissions.query for geolocation — fall through
     }
-  } else {
-    // No permissions API (older browser) — skip rather than risk a surprise prompt
-    _locationWatchers[callId] = 'unavailable';
-    return;
   }
 
+  // Step 2: If we still don't know (iOS or 'prompt' state), try a silent getCurrentPosition
+  // with a very short timeout so we never show a dialog — if it fails we just skip.
+  if (!permissionGranted) {
+    try {
+      await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 500,         // too short to show a dialog; returns from cache if granted
+          maximumAge: 300000,   // accept a 5-min-old cached position
+          enableHighAccuracy: false
+        })
+      );
+      permissionGranted = true; // got a position → permission must be granted
+    } catch(e) {
+      // PERMISSION_DENIED or TIMEOUT — either way, don't start watching
+      _locationWatchers[callId] = 'not-granted';
+      return;
+    }
+  }
+
+  // Permission confirmed — start watching
   _locationWatchers[callId] = 'starting';
   const watchId = navigator.geolocation.watchPosition(
     pos => pushLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
@@ -4770,6 +4787,7 @@ async function startLocationSharing(callId) {
     { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
   );
   _locationWatchers[callId] = watchId;
+  console.log('[ETA] Location sharing started for call', callId);
 }
 
 // Stop GPS watching for a call (call ended or removed as responder)
