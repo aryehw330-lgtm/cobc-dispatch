@@ -4764,18 +4764,25 @@ function shareMyLocationOnCall(callId) {
       const lat = pos.coords.latitude.toFixed(6);
       const lng = pos.coords.longitude.toFixed(6);
       const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
+      const unitNum = String(SESSION.unit).replace(/^BC-?/i,'');
+      const firstName = SESSION.name.split(' ')[0];
       const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-      const msg = `📍 My live location — BC-${String(SESSION.unit).replace(/^BC-?/i,'')} ${SESSION.name.split(' ')[0]}\n${typeLabel} · ${call.address}, ${call.town}\n${mapsLink}`;
-      // Show choice: WhatsApp or copy link
+      // Store in globals so modal button onclicks can safely reference without any encoding issues
+      window._shareLocLink = mapsLink;
+      window._shareLocMsg  = `📍 My live location — BC-${unitNum} ${firstName}\n${typeLabel} · ${call.address}, ${call.town}\n${mapsLink}`;
+
+      const existing = document.getElementById('shareLocModal');
+      if (existing) existing.remove();
       const modal = document.createElement('div');
-      modal.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;padding:20px;';
-      modal.innerHTML=`
+      modal.id = 'shareLocModal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;padding:20px;';
+      modal.innerHTML = `
         <div style="background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
           <div style="font-size:17px;font-weight:700;color:var(--text1);margin-bottom:6px;">📍 Share Your Location</div>
-          <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">BC-${String(SESSION.unit).replace(/^BC-?/i,'')} · ${call.address}</div>
-          <button onclick="window.open('https://wa.me/?text='+encodeURIComponent('${encodeURIComponent(msg)}'),'_blank');this.closest('[style*=fixed]').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Send via WhatsApp</button>
-          <button onclick="window.open('${mapsLink}','_blank');this.closest('[style*=fixed]').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#4285f4;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">🗺️ Open in Google Maps</button>
-          <button onclick="navigator.clipboard&&navigator.clipboard.writeText('${mapsLink}').then(()=>showToast('📋 Link copied'));this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px;background:var(--border2);color:var(--text2);border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📋 Copy Link</button>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">BC-${unitNum} · ${call.address}, ${call.town}</div>
+          <button onclick="window.open('https://wa.me/?text='+encodeURIComponent(window._shareLocMsg),'_blank');document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Send via WhatsApp</button>
+          <button onclick="window.open(window._shareLocLink,'_blank');document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#4285f4;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">🗺️ Open in Google Maps</button>
+          <button onclick="navigator.clipboard&&navigator.clipboard.writeText(window._shareLocLink).then(()=>showToast('📋 Link copied'));document.getElementById('shareLocModal').remove()" style="width:100%;padding:14px;background:var(--border2);color:var(--text2);border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📋 Copy Link</button>
         </div>`;
       document.body.appendChild(modal);
       modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
