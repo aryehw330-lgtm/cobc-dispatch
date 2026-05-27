@@ -4342,7 +4342,7 @@ async function submitRadioResponders() {
     }
   });
   call.status='active';
-  save(); hideModal('radioModal');
+  save(); firestoreUpsertCall(call); hideModal('radioModal');
   openCallDetail(id); renderCalls(); renderHome();
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
     // PUSH #6: radio responders added
