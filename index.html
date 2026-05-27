@@ -2647,6 +2647,7 @@ function initFirestore(){
       STATE.calls=[...fsCalls,...localOnly];
       STATE.members=fsMembers;
       save();renderCalls&&renderCalls();renderHome&&renderHome();renderMemberDir&&renderMemberDir();
+      try{tryOpenPendingDeepLink&&tryOpenPendingDeepLink();}catch(e){}
       if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
     }).catch(e=>{
       showSyncError('REST poll', e);
@@ -2674,6 +2675,7 @@ function initFirestore(){
   STATE.calls=[...firestoreCalls,...localOnly];
   save();renderCalls&&renderCalls();renderHome&&renderHome();
   try{syncLocationWatchers&&syncLocationWatchers();}catch(e){}
+  try{tryOpenPendingDeepLink&&tryOpenPendingDeepLink();}catch(e){}
   }catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
   // Members sync stays in Firestore (dispatch roles/auth live there)
   db.collection('members').onSnapshot(snap=>{const ms=snap.docs.map(d=>({id:d.id,...d.data()}));if(snap.metadata.fromCache&&ms.length===0&&STATE.members.length>0)return;STATE.members=ms;save();if(typeof SESSION!=='undefined'){renderMemberDir&&renderMemberDir();}},e=>{console.warn('members snapshot error:',e);showSyncError('members listener',e);});
@@ -3054,11 +3056,13 @@ function initApp() {
     const params = new URLSearchParams(window.location.search);
     const callId = params.get('call');
     if (callId) {
-      // Remove param from URL so it doesn't re-trigger on refresh
       const clean = window.location.pathname + window.location.hash;
       history.replaceState(null, '', clean);
-      // Give Firestore a moment to load data, then open the popup
-      setTimeout(() => openCallDetail(callId), 800);
+      // Store it — will be opened by tryOpenPendingDeepLink() once data is ready
+      window._pendingDeepLink = callId;
+      // Also try after a short delay in case data is already cached
+      setTimeout(tryOpenPendingDeepLink, 600);
+      setTimeout(tryOpenPendingDeepLink, 2000);
     }
   })();
 }
@@ -4364,6 +4368,17 @@ ETA: ${eta} min`;
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
+
+// ── Deep-link opener — called whenever Firestore data refreshes ──
+function tryOpenPendingDeepLink() {
+  if (!window._pendingDeepLink) return;
+  if (!SESSION || !SESSION.role) return; // not logged in yet
+  const callId = window._pendingDeepLink;
+  const call = (STATE.calls || []).find(c => c.id === callId);
+  if (!call) return; // data not loaded yet — will retry on next snapshot
+  window._pendingDeepLink = null;
+  openCallDetail(callId);
+}
 
 // ── Call Detail ──
 function openCallDetail(id) {
