@@ -6442,7 +6442,10 @@ function mergeWithLive(base, live) {
 
 // Refresh stats UI if the stats tab is currently open (called after Firestore data arrives)
 function refreshStatsIfVisible() {
-  if (typeof currentTab === 'undefined' || currentTab !== 'stats') return;
+  // Stats lives inside the 'more' tab — check that tab is active and stats section is visible
+  const statsSection = document.getElementById('more-stats');
+  if (!statsSection || statsSection.style.display === 'none') return;
+  if (typeof currentTab === 'undefined' || currentTab !== 'more') return;
   // Refresh all-time counter
   const liveAll=calcLiveStats('all');
   const histTotal=Object.values(HIST).reduce((s,y)=>s+y.total,0);
@@ -6472,6 +6475,9 @@ function buildStatsSubNav() {
 }
 
 function initStats() {
+  // Show the stats UI container (was hidden as legacy)
+  const legacy = document.getElementById('more-stats-legacy');
+  if (legacy) legacy.style.display = '';
   const liveAll=calcLiveStats('all');
   const total=Object.values(HIST).reduce((s,y)=>s+y.total,0)+(liveAll?liveAll.total:0);
   document.getElementById('st-alltime-num').textContent=total.toLocaleString();
