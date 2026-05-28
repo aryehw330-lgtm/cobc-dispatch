@@ -7406,13 +7406,7 @@ let coModalItems=[];
 
 function showEqConflictWarning(it, intendedAction) {
   const alreadyOut = it.status==='out';
-  // Find admin BC number from members list, fallback to "your admin"
-  let adminLabel = 'your admin';
-  const adminMember = (STATE.members||[]).find(m=>String(m.role||'').toLowerCase()==='admin');
-  if (adminMember && adminMember.unit) {
-    adminLabel = 'BC-' + String(adminMember.unit).replace(/^BC-?/i,'');
-  }
-  const contactStr = `Contact ${adminLabel} if you need more help.`;
+  const contactStr = 'Contact equipment team for help.';
 
   const banner = document.getElementById('eqConflictBanner');
   const icon   = document.getElementById('eqConflictIcon');
