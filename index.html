@@ -1707,6 +1707,20 @@ textarea.input{min-height:80px;resize:vertical;}
   </div>
 </div>
 
+<!-- Equipment conflict warning modal -->
+<div class="modal-overlay hidden" id="eqConflictModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="eqConflictBanner" style="border-radius:12px;padding:16px;margin-bottom:16px;text-align:center;">
+      <div style="font-size:28px;margin-bottom:8px;" id="eqConflictIcon"></div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px;" id="eqConflictTitle"></div>
+      <div style="font-size:13px;opacity:.85;" id="eqConflictSub"></div>
+    </div>
+    <div style="font-size:13px;color:var(--text2);text-align:center;margin-bottom:18px;" id="eqConflictHelp"></div>
+    <button class="btn-full btn-ghost" onclick="hideModal('eqConflictModal')">OK, Got It</button>
+  </div>
+</div>
+
 <!-- Schedule Slot Editor (admin) -->
 <div class="modal-overlay hidden" id="schedEditModal">
   <div class="modal">
@@ -3211,9 +3225,17 @@ function updateOnDutyBanner() {
 }
 
 function callDispatchOnDuty() {
-  const od=STATE.onDuty||{};
-  if (!od.phone) { showToast('No dispatcher phone set'); return; }
-  window.location=`tel:${od.phone}`;
+  // Use the same resolution order as updateOnDutyBanner():
+  // schedule-derived first, then manual override, then STATE.onDuty
+  let phone = '';
+  if (typeof getOnDutyDispatcher === 'function') {
+    try { const d = getOnDutyDispatcher(); if (d?.phone) phone = d.phone; } catch(e) {}
+  }
+  const od = STATE.onDuty || {};
+  if (od.override && od.phone) phone = od.phone;
+  else if (!phone && od.phone)  phone = od.phone;
+  if (!phone) { showToast('No dispatcher phone set'); return; }
+  window.location = `tel:${phone.replace(/\D/g,'')}`;
 }
 
 function setOnDuty() {
@@ -7381,9 +7403,44 @@ function renderInventory() {
 
 // ── CHECKOUT MODAL ──
 let coModalItems=[];
+
+function showEqConflictWarning(it, intendedAction) {
+  const alreadyOut = it.status==='out';
+  const who = it.checkedOutBy ? 'BC-'+it.checkedOutBy : null;
+  // Find an admin or on-duty dispatcher to contact
+  const adminMember = (STATE.members||[]).find(m=>m.role==='admin');
+  const adminUnit = adminMember ? 'BC-'+String(adminMember.unit||'').replace(/^BC-?/i,'') : null;
+  const onDutyName = STATE.onDuty?.name || null;
+  const contactStr = adminUnit ? `Contact ${adminUnit} for help.` : onDutyName ? `Contact dispatcher ${onDutyName} for help.` : 'Contact your admin for help.';
+
+  const banner = document.getElementById('eqConflictBanner');
+  const icon   = document.getElementById('eqConflictIcon');
+  const title  = document.getElementById('eqConflictTitle');
+  const sub    = document.getElementById('eqConflictSub');
+  const help   = document.getElementById('eqConflictHelp');
+
+  if (intendedAction==='OUT' && alreadyOut) {
+    banner.style.background='#fef2f2'; banner.style.color='#c0392b';
+    icon.textContent='⚠️';
+    title.textContent='Already Checked Out';
+    sub.textContent = who ? `${it.name} is already OUT with ${who}.` : `${it.name} is already checked out.`;
+  } else {
+    banner.style.background='#f0fdf4'; banner.style.color='#166534';
+    icon.textContent='✅';
+    title.textContent='Already Checked In';
+    sub.textContent = `${it.name} is already IN at ${it.location||'home location'}.`;
+  }
+  help.textContent = contactStr;
+  showModal('eqConflictModal');
+}
+
 function openCheckout(row, defaultAction) {
   const it=STATE.equipment.find(e=>e.row===row);
   if(!it&&row) return;
+
+  // Warn if item is already in the intended state
+  if(it && defaultAction==='IN'  && it.status==='in')  { showEqConflictWarning(it,'IN');  return; }
+  if(it && defaultAction==='OUT' && it.status==='out') { showEqConflictWarning(it,'OUT'); return; }
   if(!document.getElementById('checkoutModal').classList.contains('hidden')){
     // Modal already open — just add item
     if(it&&!coModalItems.find(m=>m.row===row)) { coModalItems.push(it); renderCOModalList(); }
