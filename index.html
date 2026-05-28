@@ -918,30 +918,16 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
           <div style="font-size:24px;flex-shrink:0;">📊</div>
         </a>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:var(--text2);line-height:1.55;">
-          <div style="font-weight:700;color:var(--amber);margin-bottom:6px;">📊 Statistics — Live Tracking</div>
-          Once the app is deployed, this section will automatically display call statistics from every call dispatched, responded to, and completed in the app:
-          <ul style="margin:8px 0 4px 18px;padding:0;">
-            <li><b>Admins & Dispatch:</b> Full org-wide stats — call volume by type, town, hour, day, top responders, top dispatchers, response times — same data as the link above.</li>
-            <li><b>Members:</b> Personal stats only — your call count, response times, types you've responded to, and your ranking.</li>
-          </ul>
-        </div>
-        <!-- Admin shortcuts removed — admins use Members page + Equipment Admin tab directly -->
-        <div id="more-stats-legacy" style="display:none;">
-        <!-- All-time banner -->
+        <div id="more-stats-legacy">
+        <!-- App calls banner -->
         <div class="alltime-banner" id="alltimeBanner">
-          <div class="alltime-num" id="st-alltime-num">11,388</div>
-          <div class="alltime-lbl">Total Calls 2021 – 2026</div>
-          <div class="alltime-sub" id="st-alltime-sub">Across 6 years · 148+ members</div>
+          <div class="alltime-num" id="st-alltime-num">0</div>
+          <div class="alltime-lbl">Calls Dispatched via App</div>
+          <div class="alltime-sub" id="st-alltime-sub">Loading…</div>
         </div>
-        <!-- Year selector -->
+        <!-- Year selector — app data only -->
         <div class="stats-year-strip" id="stYearStrip">
-          <button class="yr-btn active" data-yr="2026" onclick="setStatsYear('2026',this)">2026 YTD</button>
-          <button class="yr-btn" data-yr="2025" onclick="setStatsYear('2025',this)">2025</button>
-          <button class="yr-btn" data-yr="2024" onclick="setStatsYear('2024',this)">2024</button>
-          <button class="yr-btn" data-yr="2023" onclick="setStatsYear('2023',this)">2023</button>
-          <button class="yr-btn" data-yr="2022" onclick="setStatsYear('2022',this)">2022</button>
-          <button class="yr-btn" data-yr="2021" onclick="setStatsYear('2021',this)">2021</button>
+          <button class="yr-btn active" data-yr="2026" onclick="setStatsYear('2026',this)">This Year</button>
           <button class="yr-btn" data-yr="all" onclick="setStatsYear('all',this)">All Time</button>
         </div>
         <!-- Year note -->
@@ -6446,16 +6432,15 @@ function refreshStatsIfVisible() {
   const statsSection = document.getElementById('more-stats');
   if (!statsSection || statsSection.style.display === 'none') return;
   if (typeof currentTab === 'undefined' || currentTab !== 'more') return;
-  // Refresh all-time counter
-  const liveAll=calcLiveStats('all');
-  const histTotal=Object.values(HIST).reduce((s,y)=>s+y.total,0);
-  const total=histTotal+(liveAll?liveAll.total:0);
-  const numEl=document.getElementById('st-alltime-num');
-  if(numEl) numEl.textContent=total.toLocaleString();
-  const subEl=document.getElementById('st-alltime-sub');
-  if(subEl) subEl.textContent=`Across 6 years · ${STATE.members.length} members`;
+  // Refresh all-time app banner
+  const liveAll = calcLiveStats('all');
+  const total = liveAll ? liveAll.total : 0;
+  const numEl = document.getElementById('st-alltime-num');
+  if (numEl) numEl.textContent = total.toLocaleString();
+  const subEl = document.getElementById('st-alltime-sub');
+  if (subEl) subEl.textContent = total ? `${STATE.members.length} members · ${liveAll.cancelled||0} cancelled` : 'No app calls yet';
   // Refresh year KPIs + current sub-section
-  const activeBtn=document.querySelector('.yr-btn.active');
+  const activeBtn = document.querySelector('.yr-btn.active');
   setStatsYear(stYear, activeBtn);
 }
 
@@ -6475,48 +6460,57 @@ function buildStatsSubNav() {
 }
 
 function initStats() {
-  // Show the stats UI container (was hidden as legacy)
-  const legacy = document.getElementById('more-stats-legacy');
-  if (legacy) legacy.style.display = '';
-  const liveAll=calcLiveStats('all');
-  const total=Object.values(HIST).reduce((s,y)=>s+y.total,0)+(liveAll?liveAll.total:0);
-  document.getElementById('st-alltime-num').textContent=total.toLocaleString();
-  document.getElementById('st-alltime-sub').textContent=`Across 6 years · ${STATE.members.length} members`;
-  const firstTab=buildStatsSubNav();
-  // Hide year strip for member-only (they only see their own, not org-wide)
-  document.getElementById('stYearStrip').style.display='flex'; // all roles can pick year for their own stats
-  setStatsYear('2026',document.querySelector('.yr-btn[data-yr="2026"]'));
-  setStatsSub(firstTab,document.querySelector('#statsSubNav .sub-tab'));
+  // All-time app banner
+  const liveAll = calcLiveStats('all');
+  const total = liveAll ? liveAll.total : 0;
+  document.getElementById('st-alltime-num').textContent = total.toLocaleString();
+  document.getElementById('st-alltime-sub').textContent =
+    total ? `${STATE.members.length} members · ${liveAll.cancelled||0} cancelled` : 'No app calls yet';
+  // Update "This Year" button label to current year
+  const curYr = String(new Date().getFullYear());
+  const yrBtn = document.querySelector('.yr-btn[data-yr="2026"]');
+  if (yrBtn) { yrBtn.dataset.yr = curYr; yrBtn.textContent = curYr + ' YTD'; yrBtn.onclick = ()=>setStatsYear(curYr,yrBtn); }
+  const firstTab = buildStatsSubNav();
+  document.getElementById('stYearStrip').style.display = 'flex';
+  setStatsYear(curYr, document.querySelector('.yr-btn:not([data-yr="all"])'));
+  setStatsSub(firstTab, document.querySelector('#statsSubNav .sub-tab'));
 }
 
 function setStatsYear(yr,el) {
   stYear=yr; stMonth=null;
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.remove('active'));
   if(el) el.classList.add('active');
-  const d=getYearData(yr);
-  const noteEl=document.getElementById('st-year-note');
-  if(d.note){noteEl.textContent='ℹ️ '+d.note;noteEl.style.display='block';}else noteEl.style.display='none';
-  const topDispName=d.top_disp?.[0]?.[0]||'—';
-  const topDispCnt=d.top_disp?.[0]?.[1]||0;
+  // Use ONLY live app data — no historical HIST merging
+  const d = calcLiveStats(yr);
+  const noteEl = document.getElementById('st-year-note');
+  noteEl.style.display = 'none';
+  if (!d || d.total === 0) {
+    const yrLabel = yr==='all' ? 'all time' : yr;
+    document.getElementById('st-kpis').innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text3);font-size:14px;">No app calls recorded${yr!=='all'?' for '+yrLabel:' yet'}.</div>`;
+    renderStatsSub();
+    return;
+  }
+  const topDispName = d.top_disp?.[0]?.[0]||'—';
+  const topDispCnt  = d.top_disp?.[0]?.[1]||0;
+  const yrLabel = yr==='all' ? 'All Time' : yr+' YTD';
   if (isAdminRole()) {
     document.getElementById('st-kpis').innerHTML=`
-      <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Total Calls ${yr==='2026'?'YTD':yr==='all'?'All Time':yr}</div><div class="kpi-sub">${d.cancelled} cancelled</div></div>
-      <div class="kpi-card kpi-green"><div class="kpi-num">${d.members}</div><div class="kpi-lbl">Active Members</div><div class="kpi-sub">Top: ${d.top_r_name.split(' ').slice(-1)[0]}</div></div>
-      <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg}</div><div class="kpi-lbl">Avg Min/Call</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>
-      <div class="kpi-card kpi-purple"><div class="kpi-num">${d.top_r_cnt}</div><div class="kpi-lbl">Top Responder</div><div class="kpi-sub">BC-${d.top_r_bc} ${d.top_r_name}</div></div>
-      <div class="kpi-card kpi-teal"><div class="kpi-num">${topDispCnt.toLocaleString()}</div><div class="kpi-lbl">Top Dispatcher</div><div class="kpi-sub">${topDispName.split(' ')[0]}</div></div>
-      <div class="kpi-card kpi-red"><div class="kpi-num">${d.top_type_cnt}</div><div class="kpi-lbl">Top Call Type</div><div class="kpi-sub">${(d.top_type||'').replace('/',' / ')}</div></div>`;
+      <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Total Calls — ${yrLabel}</div><div class="kpi-sub">${d.cancelled} cancelled</div></div>
+      <div class="kpi-card kpi-green"><div class="kpi-num">${d.members}</div><div class="kpi-lbl">Active Members</div><div class="kpi-sub">Responded via app</div></div>
+      <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg||'—'}</div><div class="kpi-lbl">Avg Min/Call</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>
+      <div class="kpi-card kpi-purple"><div class="kpi-num">${d.top_r_cnt||'—'}</div><div class="kpi-lbl">Top Responder</div><div class="kpi-sub">${d.top_r_bc?'BC-'+d.top_r_bc+' '+d.top_r_name:'—'}</div></div>
+      <div class="kpi-card kpi-teal"><div class="kpi-num">${topDispCnt||'—'}</div><div class="kpi-lbl">Top Dispatcher</div><div class="kpi-sub">${topDispName.split(' ')[0]}</div></div>
+      <div class="kpi-card kpi-red"><div class="kpi-num">${d.top_type_cnt||'—'}</div><div class="kpi-lbl">Top Call Type</div><div class="kpi-sub">${(d.top_type||'').replace('/',' / ')}</div></div>`;
   } else if (SESSION.role==='dispatch') {
     document.getElementById('st-kpis').innerHTML=`
-      <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Total Org Calls ${yr==='2026'?'YTD':yr}</div><div class="kpi-sub">${d.cancelled} cancelled</div></div>
-      <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg}</div><div class="kpi-lbl">Avg Min/Call</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>
-      <div class="kpi-card kpi-teal"><div class="kpi-num">${topDispCnt.toLocaleString()}</div><div class="kpi-lbl">Top Dispatcher</div><div class="kpi-sub">${topDispName.split(' ')[0]}</div></div>
-      <div class="kpi-card kpi-red"><div class="kpi-num">${d.top_type_cnt}</div><div class="kpi-lbl">Top Call Type</div><div class="kpi-sub">${(d.top_type||'').replace('/',' / ')}</div></div>`;
+      <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Total Calls — ${yrLabel}</div><div class="kpi-sub">${d.cancelled} cancelled</div></div>
+      <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg||'—'}</div><div class="kpi-lbl">Avg Min/Call</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>
+      <div class="kpi-card kpi-teal"><div class="kpi-num">${topDispCnt||'—'}</div><div class="kpi-lbl">Top Dispatcher</div><div class="kpi-sub">${topDispName.split(' ')[0]}</div></div>
+      <div class="kpi-card kpi-red"><div class="kpi-num">${d.top_type_cnt||'—'}</div><div class="kpi-lbl">Top Call Type</div><div class="kpi-sub">${(d.top_type||'').replace('/',' / ')}</div></div>`;
   } else {
-    // Members: minimal — org totals only, no names
     document.getElementById('st-kpis').innerHTML=`
-      <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Org Calls (${yr==='all'?'All Time':yr})</div><div class="kpi-sub">${d.members} members active</div></div>
-      <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg}</div><div class="kpi-lbl">Avg Response</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>`;
+      <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Org Calls — ${yrLabel}</div><div class="kpi-sub">${d.members} members active</div></div>
+      <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg||'—'}</div><div class="kpi-lbl">Avg Response</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>`;
   }
   renderStatsSub();
 }
