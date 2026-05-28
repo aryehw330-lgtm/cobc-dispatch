@@ -3863,7 +3863,7 @@ setTimeout(() => {
     const msg=buildDispatchWhatsApp(call);
     // Offer to open WhatsApp
     if (confirm(`Call created!\n\nSend dispatch WhatsApp message?\n\n${msg.substring(0,120)}…`)) {
-      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+      openWA(msg);
     }
   }
   renderCalls(); renderHome();
@@ -3874,6 +3874,29 @@ function cleanLabel(s) {
   // Remove all non-ASCII characters (emoji, special chars) for WhatsApp plain text
   return s.replace(/[^\x00-\x7F]/g,'').replace(/\s+/g,' ').trim();
 }
+// ── WhatsApp helper — stays in-app via Web Share API, falls back to wa.me ──
+function openWA(text, phone) {
+  // Web Share API: shows native share sheet as an overlay — user returns to app after sharing
+  if (navigator.share) {
+    navigator.share({ text }).catch(e => {
+      // User cancelled or share failed — silently ignore
+      if (e.name !== 'AbortError') {
+        // Fallback to wa.me if share truly failed
+        const url = phone
+          ? `https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`
+          : `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+      }
+    });
+  } else {
+    // Desktop / unsupported browser — open wa.me directly
+    const url = phone
+      ? `https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  }
+}
+
 function buildDispatchWhatsApp(call) {
   // Strip emoji from type label (e.g. "Vehicle: Flat Tire" → "Flat Tire")
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -4081,11 +4104,11 @@ function confirmRespond() {
     // Send directly to on-duty dispatcher's personal WhatsApp
     const clean = dispatcher.phone.replace(/\D/g,'');
     const num = clean.length===10 ? '1'+clean : clean;
-    window.open(`https://wa.me/${num}?text=${encodeURIComponent(waMsg)}`,'_blank');
+    openWA(waMsg, num);
     showToast(`Request sent to ${dispatcher.name}`);
   } else {
     // No phone found — open generic WA so dispatcher can manually forward
-    window.open(`https://wa.me/?text=${encodeURIComponent(waMsg)}`,'_blank');
+    openWA(waMsg);
     showToast('Request sent — no dispatcher phone found for this shift');
   }
 }
@@ -4232,14 +4255,14 @@ function approveResponder(callId,unit) {
   // WhatsApp to group
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const groupMsg='*BC-'+unit+' '+req.name+' is responding*\n'+typeLabel+' - '+call.address+', '+call.town+'\nETA: '+req.eta+' min'+(req.notes?'\nNotes: '+req.notes:'');
-  window.open(`https://wa.me/?text=${encodeURIComponent(groupMsg)}`,'_blank');
+  openWA(groupMsg);
   // Personal message to member
   const m=STATE.members.find(x=>String(x.unit)===String(unit));
   if(m?.phone) {
     setTimeout(()=>{
       if(confirm(`Also send personal confirmation to BC-${unit} ${req.name}?`)) {
         const personalMsg='You have been approved to respond\n'+typeLabel+' at '+call.address+', '+call.town+'\nETA: '+req.eta+' min\n\nStay safe! - COBC Dispatch';
-        window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(personalMsg)}`,'_blank');
+        openWA(personalMsg, m.phone);
       }
     },600);
   }
@@ -4273,7 +4296,7 @@ function rejectResponder(callId,unit) {
       if(confirm(`Send rejection message to BC-${unit} ${req.name}?`)) {
         const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
         const msg='We have enough coverage for the '+typeLabel+' call at '+call.address+'. Thank you for offering! - COBC Dispatch';
-        window.open(`https://wa.me/${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
+        openWA(msg, m.phone);
       }
     },300);
   }
@@ -4309,7 +4332,7 @@ function submitBackup() {
   let msg=`🆘 *COBC Backup Requested*\n${callType} at ${call.address}, ${call.town}\nRequested by BC ${SESSION.unit}`;
   if(equipment) msg+=`\nEquipment needed: ${equipment}`;
   if(notes) msg+=`\nNotes: ${notes}`;
-  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+  openWA(msg);
 }
 
 // ── Radio Responder ──
@@ -4409,9 +4432,7 @@ async function submitRadioResponders() {
 ${names}
 ${typeLabel} - ${call.address}, ${call.town}
 ETA: ${eta} min`;
-  setTimeout(()=>{
-    window.open('https://wa.me/?text='+encodeURIComponent(groupMsg),'_blank');
-  },300);
+  setTimeout(()=>{ openWA(groupMsg); },300);
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
@@ -4603,7 +4624,7 @@ function publishCall(id) {
   save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
   if(confirm('Send WhatsApp dispatch message?')) {
-    window.open(`https://wa.me/?text=${encodeURIComponent(buildDispatchWhatsApp(call))}`,'_blank');
+    openWA(buildDispatchWhatsApp(call));
   }
 }
 
@@ -4780,7 +4801,7 @@ Responders: ${respList}`;
 Notes: ${notes}`;
     msg+=`
 _#${call.id.slice(-5)} · ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}_`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+    openWA(msg);
   }
 }
 // Share responder's live location with other members via WhatsApp or Google Maps link
@@ -4810,7 +4831,7 @@ function shareMyLocationOnCall(callId) {
         <div style="background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
           <div style="font-size:17px;font-weight:700;color:var(--text1);margin-bottom:6px;">📍 Share Your Location</div>
           <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">BC-${unitNum} · ${call.address}, ${call.town}</div>
-          <button onclick="window.open('https://wa.me/?text='+encodeURIComponent(window._shareLocMsg),'_blank');document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Send via WhatsApp</button>
+          <button onclick="openWA(window._shareLocMsg);document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Send via WhatsApp</button>
           <button onclick="window.open(window._shareLocLink,'_blank');document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#4285f4;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">🗺️ Open in Google Maps</button>
           <button onclick="navigator.clipboard&&navigator.clipboard.writeText(window._shareLocLink).then(()=>showToast('📋 Link copied'));document.getElementById('shareLocModal').remove()" style="width:100%;padding:14px;background:var(--border2);color:var(--text2);border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📋 Copy Link</button>
         </div>`;
@@ -5191,7 +5212,7 @@ function openMaps(addr) {
 function shareDispatchWA(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  window.open(`https://wa.me/?text=${encodeURIComponent(buildDispatchWhatsApp(call))}`,'_blank');
+  openWA(buildDispatchWhatsApp(call));
 }
 
 // ── Re-request logic (Benzi spec: 3min x3, then 2min) ──
@@ -7661,7 +7682,7 @@ function sendChkWhatsApp() {
   } else { msg+='\nNo issues found'; }
   if(unchecked.length){msg+='\n\nNot checked ('+unchecked.length+'):\n';unchecked.slice(0,10).forEach(function(e){msg+='- '+e.name+'\n';});}
   if(out.length){msg+='\n\nCurrently OUT ('+out.length+'):\n';out.forEach(function(e){msg+='- '+e.name+(e.checkedOutBy?' (BC-'+e.checkedOutBy+')':'')+'\n';});}
-  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  openWA(msg);
 }
 
 // ── ADMIN: CALLS MANAGEMENT ──
