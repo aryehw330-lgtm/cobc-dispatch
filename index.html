@@ -2941,6 +2941,7 @@ setTimeout(()=>{
   if(dateEl)dateEl.textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   renderHome&&renderHome();
   renderCalls&&renderCalls();
+  startAutoETA(); // silently start GPS watcher for card ETAs
 },100);
 }
 
@@ -3384,6 +3385,7 @@ function renderHome() {
     .sort((a,b)=>_hSort(a)-_hSort(b) || (b.createdAt-a.createdAt));
   el.innerHTML=recent.length?recent.map(c=>callCardHTML(c,true)).join(''):
     '<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No active calls</div></div>';
+  setTimeout(fillCardETAs, 50); // async fill ETAs after cards render
 
   const ae=document.getElementById('homeEqAlerts');
   const issues=STATE.equipment.filter(e=>['missing','damaged'].includes(e.condition));
@@ -3565,6 +3567,7 @@ function callCardHTML(call, mini=false) {
             <div class="call-num">#${callNumStr}</div>
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="font-size:10px;font-weight:600;color:var(--purple);">DRAFT</span>':''}</div>
             <div class="call-card-addr">${call.address}, ${call.town}</div>
+            ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
             <div class="call-card-meta">${timeStr}</div>
             ${responderBadges||pendingBadge ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${responderBadges}${pendingBadge}</div>` : ''}
           </div>
@@ -3607,6 +3610,7 @@ function callCardHTML(call, mini=false) {
           ${approved>0?`<span class="approved-badge">${approved} responding</span>`:''}
         </div>
         <div class="call-card-addr">${call.address}${call.town?', '+call.town:''}</div>
+        ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
         ${carInfo?`<div style="font-size:11px;color:var(--text3);margin-top:3px;">${carInfo}</div>`:''}
         ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
         ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
@@ -3633,6 +3637,89 @@ function callCardHTML(call, mini=false) {
       ${call.phone?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">Call</button>`:''}
     </div>
   </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  AUTO-ETA — shows approx drive time to each call on card
+// ══════════════════════════════════════════════════════════
+let _myLoc = null;           // { lat, lng, ts }
+let _geoCache = {};          // address string → { lat, lng }
+let _etaWatchId = null;
+let _nominatimQueue = [];    // pending geocode requests
+let _nominatimBusy = false;
+
+// Haversine distance in miles
+function _haversineMi(lat1,lng1,lat2,lng2) {
+  const R=3958.8, d2r=Math.PI/180;
+  const dLat=(lat2-lat1)*d2r, dLng=(lng2-lng1)*d2r;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// Estimate drive minutes: straight-line × 1.35 road factor at 28 mph avg
+function _etaMin(mi) { return Math.max(1, Math.round(mi*1.35/28*60)); }
+
+// Geocode one address via Nominatim (rate-limited queue, 1 req/sec)
+function _geocode(address, town) {
+  const key = (address+','+town).toLowerCase();
+  return new Promise(resolve => {
+    if (_geoCache[key]) { resolve(_geoCache[key]); return; }
+    _nominatimQueue.push({ key, address, town, resolve });
+    _drainGeoQueue();
+  });
+}
+function _drainGeoQueue() {
+  if (_nominatimBusy || !_nominatimQueue.length) return;
+  _nominatimBusy = true;
+  const { key, address, town, resolve } = _nominatimQueue.shift();
+  const q = encodeURIComponent(`${address}, ${town}, NJ`);
+  fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+    headers: { 'Accept-Language': 'en', 'User-Agent': 'COBC-Dispatch/1.0' }
+  })
+  .then(r=>r.json())
+  .then(data=>{
+    if (data[0]) {
+      const pt = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      _geoCache[key] = pt;
+      resolve(pt);
+    } else { resolve(null); }
+  })
+  .catch(()=>resolve(null))
+  .finally(()=>{ _nominatimBusy=false; setTimeout(_drainGeoQueue,1100); });
+}
+
+// Start watching GPS after login — silently (no permission prompt, uses existing grant)
+function startAutoETA() {
+  if (_etaWatchId !== null || !navigator.geolocation) return;
+  _etaWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      _myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() };
+      fillCardETAs(); // refresh chips whenever position updates
+    },
+    () => {}, // permission denied or unavailable — silently skip
+    { enableHighAccuracy: false, maximumAge: 30000, timeout: 15000 }
+  );
+}
+
+// Fill ETA chips on all visible call cards
+async function fillCardETAs() {
+  if (!_myLoc) return;
+  const activeCalls = (STATE.calls||[]).filter(c=>c.status!=='done'&&c.status!=='cancelled'&&c.address);
+  for (const call of activeCalls) {
+    const span = document.getElementById('card-eta-'+call.id);
+    if (!span) continue;
+    try {
+      const pt = await _geocode(call.address, call.town||'');
+      if (!pt) { span.style.display='none'; continue; }
+      const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
+      const mins = _etaMin(mi);
+      const color = mins<=5?'var(--green)':mins<=12?'var(--amber)':'#6b7280';
+      const bg    = mins<=5?'#dcfce7':mins<=12?'#fef3c7':'#f3f4f6';
+      span.style.display = 'inline-flex';
+      span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;margin-top:5px;`;
+      span.textContent = `📍 ~${mins} min away`;
+    } catch(e) { span.style.display='none'; }
+  }
 }
 
 function renderCalls() {
@@ -3706,6 +3793,7 @@ function renderCalls() {
   }
   el.innerHTML=list.map(c=>callCardHTML(c)).join('');
   document.getElementById('dispatchSubtitle').textContent=`${list.filter(c=>c.status==='active').length} active · ${list.filter(c=>c.status==='open').length} open`;
+  setTimeout(fillCardETAs, 50); // async fill ETAs after cards render
 }
 
 // ── Car fields ──
