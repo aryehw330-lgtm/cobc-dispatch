@@ -4075,28 +4075,39 @@ function confirmRespond() {
   save(); firestoreUpsertCall(call); hideModal('respondModal');
   renderCalls(); renderHome();
 
-  // PUSH HOOK #2 — member wants to respond → currently-scheduled dispatchers + admins
-  const _typeLabelReq = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  sendPush({
-    target: 'dispatchers',
-    title: '📞 Response Request',
-    body: `BC-${SESSION.unit} ${SESSION.name}${isObserver?' (Observer)':''} wants ${_typeLabelReq} (ETA ${eta} min)`,
-    url: '/cobc-dispatch/',
-    urgent: 'true',
-    callId: call.id
-  });
-
-  // Push to all dispatchers + each admin individually
+  // Push notification: only on-duty dispatcher gets notified + each admin
+  // (all dispatchers see it in the app via Firestore real-time sync)
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const pushTitle = `📲 Response Request — BC-${SESSION.unit}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${call.address}, ${call.town} · ETA ${eta} min${notes?' · '+notes:''}`;
-  // Send to all dispatchers at once
-  sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
-  // Also send to each admin individually so no one misses it
+  // Find on-duty dispatcher and push only to them
+  try {
+    const onDuty = getOnDutyDispatcher();
+    if (onDuty?.name && onDuty.name !== 'OPEN' && onDuty.name !== 'CHIEFS') {
+      // Match schedule name to a member unit
+      const dispMember = (STATE.members||[]).find(m =>
+        String(m.role||'').toLowerCase()==='dispatch' &&
+        (`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim().toLowerCase() === onDuty.name.toLowerCase() ||
+         String(m.name||'').toLowerCase() === onDuty.name.toLowerCase())
+      );
+      if (dispMember) {
+        sendPush({ target:'unit', unit:String(dispMember.unit), title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+      } else {
+        // Can't match name to unit — fall back to all dispatchers
+        sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+      }
+    } else {
+      // No one scheduled — notify all dispatchers so someone picks it up
+      sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+    }
+  } catch(e) {
+    sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+  }
+  // Always push to each admin individually
   (STATE.members||[]).filter(m=>String(m.role||'').toLowerCase()==='admin').forEach(admin=>{
     sendPush({ target:'unit', unit:String(admin.unit), title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
   });
-  showToast('Response request sent to dispatch & admin');
+  showToast('Response request sent to on-duty dispatcher & admin');
 }
 
 // ── Dispatcher approves a pending responder ──
