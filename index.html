@@ -1138,6 +1138,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('equipment',this)">📦 Equipment</button>
           <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('locations',this)">📍 Locations</button>
           <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('history',this)">📝 Chk History</button>
+          <button class="sub-tab" id="adminResetTab" style="white-space:nowrap;color:var(--red);" onclick="setAdminTab('reset',this)">🗑️ Reset</button>
         </div>
         <!-- Members -->
         <div id="admin-members">
@@ -1235,6 +1236,21 @@ textarea.input{min-height:80px;resize:vertical;}
             <div style="font-size:12px;color:var(--text3);">Past equipment checklist submissions. To save a session, tap "Submit Checklist" on the Equipment → Checklist tab.</div>
           </div>
           <div id="adminHistoryList"></div>
+        </div>
+
+        <!-- Reset (one-time use, self-destructs after use) -->
+        <div id="admin-reset" style="display:none;">
+          <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:14px;padding:20px;margin-bottom:14px;text-align:center;">
+            <div style="font-size:32px;margin-bottom:10px;">⚠️</div>
+            <div style="font-size:17px;font-weight:700;color:#c0392b;margin-bottom:8px;">Reset All App Data</div>
+            <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px;">
+              This will permanently delete <b>all calls</b> from Firestore.<br>
+              Use this once before going live to clear test data.<br>
+              <b>This button will disappear after use and cannot be undone.</b>
+            </div>
+            <input id="resetConfirmInput" class="input" type="text" placeholder='Type RESET to confirm' style="text-align:center;margin-bottom:12px;border-color:#fca5a5;"/>
+            <button class="btn-full" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;" onclick="resetAllAppData()">🗑️ Delete All Test Data & Go Live</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3003,14 +3019,14 @@ function unlockAdmin(){
   if(SESSION.role==='admin'){
     document.getElementById('adminGate').style.display='none';
     document.getElementById('adminPanel').style.display='block';
-    renderAdminMembers(); return;
+    renderAdminMembers(); initResetTab(); return;
   }
   const pass=(document.getElementById('adminPassInput')?.value||'').trim();
   const stored=STATE.adminPassword||'cobc2024';
   if(pass===stored){
     document.getElementById('adminGate').style.display='none';
     document.getElementById('adminPanel').style.display='block';
-    renderAdminMembers();
+    renderAdminMembers(); initResetTab();
   } else { showToast('Incorrect password'); }
 }
 function initApp() {
@@ -7686,6 +7702,50 @@ function renderAdminCalls(){
   }).join('');
 }
 
+// ── ADMIN: RESET ALL APP DATA (one-time, self-destructs) ──
+const RESET_USED_KEY = 'cobc_reset_used';
+
+function initResetTab() {
+  // If already used, permanently hide the tab
+  if (localStorage.getItem(RESET_USED_KEY)) {
+    const tab = document.getElementById('adminResetTab');
+    if (tab) tab.style.display = 'none';
+    const panel = document.getElementById('admin-reset');
+    if (panel) panel.remove();
+  }
+}
+
+async function resetAllAppData() {
+  const input = (document.getElementById('resetConfirmInput')?.value||'').trim();
+  if (input !== 'RESET') { showToast('Type RESET to confirm'); return; }
+  const btn = document.querySelector('#admin-reset button');
+  if (btn) { btn.textContent = '⏳ Deleting…'; btn.disabled = true; }
+  try {
+    const db = firebase.firestore();
+    const snap = await db.collection('calls').get();
+    const batch = db.batch();
+    snap.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    // Clear local state
+    STATE.calls = [];
+    _deletedCallIds && _deletedCallIds.clear && _deletedCallIds.clear();
+    save();
+    renderCalls && renderCalls();
+    renderHome && renderHome();
+    // Mark used — tab self-destructs
+    localStorage.setItem(RESET_USED_KEY, '1');
+    document.getElementById('adminResetTab')?.remove();
+    document.getElementById('admin-reset')?.remove();
+    // Switch back to members tab
+    setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
+    showToast('✅ All test data cleared. App is ready to go live!');
+  } catch(e) {
+    console.error('Reset failed:', e);
+    showToast('Error: ' + (e.message||'Reset failed'));
+    if (btn) { btn.textContent = '🗑️ Delete All Test Data & Go Live'; btn.disabled = false; }
+  }
+}
+
 // ── ADMIN: CHECKLIST HISTORY (from Google Sheet ChecklistLog) ──
 async function renderAdminHistory(){
   const el=document.getElementById('adminHistoryList');
@@ -7758,7 +7818,7 @@ async function submitChecklist(){
 function setAdminTab(tab, btn) {
   document.querySelectorAll('#adminPanel .sub-tab').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  ['members','dispatch','equipment','locations','calls','history'].forEach(t => {
+  ['members','dispatch','equipment','locations','calls','history','reset'].forEach(t => {
     const el = document.getElementById('admin-'+t);
     if(el) el.style.display = (t===tab) ? 'block' : 'none';
   });
@@ -7771,6 +7831,7 @@ function setAdminTab(tab, btn) {
   if(tab==='locations') renderLocationList();
   if(tab==='calls') renderAdminCalls();
   if(tab==='history') renderAdminHistory();
+  if(tab==='reset') document.getElementById('resetConfirmInput').value='';
 }
 function renderLocationList() {
   const el = document.getElementById('locationList');
