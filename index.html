@@ -7423,7 +7423,8 @@ function showEqConflictWarning(it, intendedAction) {
     banner.style.background='#fef2f2'; banner.style.color='#c0392b';
     icon.textContent='⚠️';
     title.textContent='Already Checked Out';
-    sub.textContent = who ? `${it.name} is already OUT with ${who}.` : `${it.name} is already checked out.`;
+    const callPart = it.callNum ? ` on Call #${it.callNum}` : '';
+    sub.textContent = who ? `${it.name} is OUT with ${who}${callPart}.` : `${it.name} is already checked out${callPart}.`;
   } else {
     banner.style.background='#f0fdf4'; banner.style.color='#166534';
     icon.textContent='✅';
