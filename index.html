@@ -8730,31 +8730,88 @@ function navigateToCarCheckout(direction) {
 function renderCarHistory() {
   var el = document.getElementById('car-history-list');
   if (!el) return;
+  var myId  = SESSION && SESSION.unit ? String(SESSION.unit) : null;
+  var isAdm = SESSION && SESSION.role === 'admin';
+
+  // My upcoming bookings — pending or approved, today or future
+  var now = new Date();
+  var todayStr = now.getFullYear()+'-'+pad2C(now.getMonth()+1)+'-'+pad2C(now.getDate());
+  var myUpcoming = myId ? carSchedule.filter(function(b){
+    return String(b.memberId)===myId && (b.status==='pending'||b.status==='approved') && b.date>=todayStr;
+  }).sort(function(a,b){ var ka=a.date+parse12to24C(a.startTime),kb=b.date+parse12to24C(b.startTime); return ka<kb?-1:1; }) : [];
+
+  // Recent history — done or active, last 7 days
   var cutoff = new Date(); cutoff.setDate(cutoff.getDate()-7);
   var cutoffStr = cutoff.getFullYear()+'-'+pad2C(cutoff.getMonth()+1)+'-'+pad2C(cutoff.getDate());
   var hist = carSchedule.filter(function(b){ return (b.status==='done'||b.status==='active') && b.date>=cutoffStr; })
     .sort(function(a,b){ var ka=a.date+parse12to24C(a.startTime),kb=b.date+parse12to24C(b.startTime); return ka<kb?1:-1; });
-  if (!hist.length) { el.innerHTML='<div style="color:#aaa;font-size:13px;padding:4px 0">No shifts in the last 7 days.</div>'; return; }
+
   function fmtA(ts) {
     if (!ts) return null;
-    var dt=new Date(ts); return isNaN(dt)?null:dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    var dt=new Date(typeof ts==='string'?ts.replace(' ','T'):ts);
+    return isNaN(dt.getTime())?null:dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/New_York'});
   }
-  el.innerHTML = hist.slice(0,20).map(function(b){
-    var d=new Date(b.date+'T12:00:00');
-    var ds=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-    var aOut=fmtA(b.actualSignOut), aIn=fmtA(b.actualSignIn);
-    var timeRow = (aOut||aIn)
-      ? '<div style="font-size:11px;color:#555;margin-top:2px;">🔑 <b>'+(aOut||'—')+'</b> → 🏁 <b>'+(aIn||'—')+'</b></div>'
-      : '<div style="font-size:11px;color:#aaa;margin-top:2px;">🕐 Scheduled '+b.startTime+' – '+b.endTime+'</div>';
-    return '<div style="padding:9px 0;border-bottom:1px solid #f0f0f0;">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
-      +'<div><div style="font-size:13px;font-weight:600;color:#1a1a1a;">BC-'+b.memberId+(b.memberName?' · '+b.memberName:'')+'</div>'+timeRow+'</div>'
-      +'<div style="text-align:right;"><div style="font-size:12px;color:#555;">'+ds+'</div>'
-      +'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;display:inline-block;margin-top:3px;'
-      +(b.status==='active'?'background:#fdecea;color:#c0392b':'background:#e0e0e0;color:#555')+';">'
-      +(b.status==='active'?'🚗 Out Now':'✓ Done')+'</span></div>'
-      +'</div></div>';
-  }).join('');
+
+  var html = '';
+
+  // ── My upcoming bookings section ──────────────────────────────────────────────
+  if (myUpcoming.length) {
+    html += '<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px;">📅 My Upcoming Bookings</div>';
+    html += myUpcoming.map(function(b){
+      var d   = new Date(b.date+'T12:00:00');
+      var ds  = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      var stBg  = b.status==='approved'?'background:#e8f5e9;color:#2e7d32':'background:#fff3e0;color:#e65100';
+      var stLbl = b.status==='approved'?'✓ Approved':'⏳ Pending';
+      return '<div style="padding:9px 0;border-bottom:1px solid #f0f0f0;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:13px;font-weight:600;color:#1a1a1a;">'+ds+'</div>'
+        +'<div style="font-size:11px;color:#555;margin-top:2px;">🕐 '+b.startTime+' – '+b.endTime+'</div>'
+        +(b.note?'<div style="font-size:11px;color:#aaa;margin-top:1px;">📝 '+b.note+'</div>':'')
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0;">'
+        +'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;display:inline-block;'+stBg+'">'+stLbl+'</span>'
+        +'<br><button onclick="cancelCarShift(\''+b.id+'\')" style="margin-top:5px;padding:3px 9px;background:#fdecea;color:#c0392b;border:1.5px solid #ffcdd2;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">✕ Cancel</button>'
+        +'</div></div></div>';
+    }).join('');
+    if (hist.length) {
+      html += '<div style="margin:10px 0 8px;border-top:1.5px solid #e8e8e8;"></div>';
+      html += '<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px;">📋 Recent History</div>';
+    }
+  }
+
+  // ── History section ───────────────────────────────────────────────────────────
+  if (!hist.length && !myUpcoming.length) {
+    html = '<div style="color:#aaa;font-size:13px;padding:4px 0">No shifts yet.</div>';
+  } else if (!hist.length) {
+    // upcoming shown above, nothing more to add
+  } else {
+    html += hist.slice(0,20).map(function(b){
+      var d    = new Date(b.date+'T12:00:00');
+      var ds   = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      var aOut = fmtA(b.actualSignOut), aIn = fmtA(b.actualSignIn);
+      var isMineH = myId && String(b.memberId) === myId;
+      var timeRow = (aOut||aIn)
+        ? '<div style="font-size:11px;color:#555;margin-top:2px;">🔑 <b>'+(aOut||'—')+'</b> → 🏁 <b>'+(aIn||'—')+'</b></div>'
+        : '<div style="font-size:11px;color:#aaa;margin-top:2px;">🕐 Scheduled '+b.startTime+' – '+b.endTime+'</div>';
+      // done/active: members cannot cancel or delete; admins can delete
+      var delBtn = isAdm
+        ? '<br><button onclick="deleteCarShift(\''+b.id+'\',true)" style="margin-top:5px;padding:3px 9px;background:#fff0f0;color:#9b1c1c;border:1.5px solid #fca5a5;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🗑 Delete</button>'
+        : '';
+      return '<div style="padding:9px 0;border-bottom:1px solid #f0f0f0;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+        +'<div><div style="font-size:13px;font-weight:600;color:#1a1a1a;">BC-'+b.memberId+(b.memberName?' · '+b.memberName:'')
+        +(isMineH?' <span style="font-size:10px;color:var(--navy);background:#dbeafe;padding:1px 6px;border-radius:8px">You</span>':'')+'</div>'+timeRow+'</div>'
+        +'<div style="text-align:right;"><div style="font-size:12px;color:#555;">'+ds+'</div>'
+        +'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;display:inline-block;margin-top:3px;'
+        +(b.status==='active'?'background:#fdecea;color:#c0392b':'background:#e0e0e0;color:#555')+';">'
+        +(b.status==='active'?'🚗 Out Now':'✓ Done')+'</span>'
+        +delBtn+'</div>'
+        +'</div></div>';
+    }).join('');
+  }
+
+  el.innerHTML = html;
 }
 
 // ── Admin: Car Access ──────────────────────────────────────────────────────────
@@ -8821,7 +8878,7 @@ function renderAdminCarHistory() {
   if (!hist.length) { el.innerHTML='<div style="color:#aaa;font-size:13px;padding:8px 0;">'+(fromVal||toVal?'No records for that date range.':'No history yet.')+'</div>'; return; }
   function fmtA(ts) {
     if (!ts) return null;
-    var dt=new Date(ts); return isNaN(dt)?null:dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    var dt=new Date(typeof ts==='string'?ts.replace(' ','T'):ts); return isNaN(dt.getTime())?null:dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/New_York'});
   }
   el.innerHTML = hist.map(function(b){
     var d=new Date(b.date+'T12:00:00');
@@ -8888,7 +8945,7 @@ function renderAdminCarHistory2() {
   if (!hist.length) { el.innerHTML='<div style="color:#aaa;font-size:13px;padding:8px 0;">'+(fromVal||toVal?'No records for that date range.':'No history yet.')+'</div>'; return; }
   function fmtA(ts) {
     if (!ts) return null;
-    var dt=new Date(ts); return isNaN(dt)?null:dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    var dt=new Date(typeof ts==='string'?ts.replace(' ','T'):ts); return isNaN(dt.getTime())?null:dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/New_York'});
   }
   el.innerHTML = hist.map(function(b){
     var d=new Date(b.date+'T12:00:00');
