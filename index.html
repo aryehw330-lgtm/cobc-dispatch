@@ -1652,10 +1652,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="input-group"><label class="input-label">Completion Notes (optional)</label>
       <textarea class="input" id="completeNotes" placeholder="Any notes about how the call went..."></textarea>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
-      <input type="checkbox" id="completeSendWA" checked style="width:18px;height:18px;cursor:pointer;"/>
-      <div style="font-size:13px;font-weight:600;">Send completion message to WhatsApp group</div>
-    </div>
+    <input type="hidden" id="completeSendWA" value="false"/>
     <button class="btn-full btn-green" style="margin-bottom:8px;" onclick="confirmCompleteCall()">Complete Call</button>
     <button class="btn-full btn-ghost" onclick="hideModal('callCompleteModal')">Cancel</button>
   </div>
@@ -3859,12 +3856,6 @@ setTimeout(() => {
       callId: call.id
     });
   }, 0); // deferred so confirm() doesn't block the fetch on iOS
-    // Auto-generate WhatsApp dispatch message
-    const msg=buildDispatchWhatsApp(call);
-    // Offer to open WhatsApp
-    if (confirm(`Call created!\n\nSend dispatch WhatsApp message?\n\n${msg.substring(0,120)}…`)) {
-      openWA(msg);
-    }
   }
   renderCalls(); renderHome();
 }
@@ -4095,22 +4086,17 @@ function confirmRespond() {
     callId: call.id
   });
 
-  // Get on-duty dispatcher from schedule
-  const dispatcher = getOnDutyDispatcher();
+  // Push to all dispatchers + each admin individually
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  const waMsg=`*COBC - Response Request*\nBC-${SESSION.unit} ${SESSION.name}${isObserver?' (Observer)':''} is requesting to respond\n${typeLabel} - ${call.address}, ${call.town}\nETA: ${eta} min${notes?'\nNotes: '+notes:''}\n\nPlease approve or reject in the COBC app`;
-
-  if (dispatcher.phone) {
-    // Send directly to on-duty dispatcher's personal WhatsApp
-    const clean = dispatcher.phone.replace(/\D/g,'');
-    const num = clean.length===10 ? '1'+clean : clean;
-    openWA(waMsg, num);
-    showToast(`Request sent to ${dispatcher.name}`);
-  } else {
-    // No phone found — open generic WA so dispatcher can manually forward
-    openWA(waMsg);
-    showToast('Request sent — no dispatcher phone found for this shift');
-  }
+  const pushTitle = `📲 Response Request — BC-${SESSION.unit}`;
+  const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${call.address}, ${call.town} · ETA ${eta} min${notes?' · '+notes:''}`;
+  // Send to all dispatchers at once
+  sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+  // Also send to each admin individually so no one misses it
+  (STATE.members||[]).filter(m=>String(m.role||'').toLowerCase()==='admin').forEach(admin=>{
+    sendPush({ target:'unit', unit:String(admin.unit), title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+  });
+  showToast('Response request sent to dispatch & admin');
 }
 
 // ── Dispatcher approves a pending responder ──
@@ -4252,20 +4238,22 @@ function approveResponder(callId,unit) {
     urgent: 'true',
     callId: call.id
   });
-  // WhatsApp to group
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  const groupMsg='*BC-'+unit+' '+req.name+' is responding*\n'+typeLabel+' - '+call.address+', '+call.town+'\nETA: '+req.eta+' min'+(req.notes?'\nNotes: '+req.notes:'');
-  openWA(groupMsg);
-  // Personal message to member
-  const m=STATE.members.find(x=>String(x.unit)===String(unit));
-  if(m?.phone) {
-    setTimeout(()=>{
-      if(confirm(`Also send personal confirmation to BC-${unit} ${req.name}?`)) {
-        const personalMsg='You have been approved to respond\n'+typeLabel+' at '+call.address+', '+call.town+'\nETA: '+req.eta+' min\n\nStay safe! - COBC Dispatch';
-        openWA(personalMsg, m.phone);
-      }
-    },600);
-  }
+  // Push 1: personal approval to the member
+  sendPush({
+    target:'unit', unit:String(unit),
+    title:'✅ You\'re approved!',
+    body:`Respond to ${typeLabel} at ${call.address}, ${call.town} · ETA ${req.eta} min`,
+    url:'/cobc-dispatch/', callId:call.id, urgent:'true'
+  });
+  // Push 2: update everyone with full current responder list
+  const allResponders=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
+  sendPush({
+    target:'all',
+    title:`🚗 BC-${unit} ${req.name} is responding`,
+    body:`${typeLabel} — ${call.address}, ${call.town} · Now: ${allResponders}`,
+    url:'/cobc-dispatch/', callId:call.id
+  });
   openCallDetail(callId);
 }
 
@@ -4290,16 +4278,6 @@ function rejectResponder(callId,unit) {
     url: '/cobc-dispatch/',
     callId: call.id
   });
-  const m=STATE.members.find(x=>String(x.unit)===String(unit));
-  if(m?.phone) {
-    setTimeout(()=>{
-      if(confirm(`Send rejection message to BC-${unit} ${req.name}?`)) {
-        const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-        const msg='We have enough coverage for the '+typeLabel+' call at '+call.address+'. Thank you for offering! - COBC Dispatch';
-        openWA(msg, m.phone);
-      }
-    },300);
-  }
   openCallDetail(callId);
 }
 
@@ -4327,12 +4305,6 @@ function submitBackup() {
     // PUSH #5: backup request → all
     const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
     setTimeout(()=>sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
-  // WhatsApp
-  const callType=CALL_TYPE_LABELS[call.type]||call.type;
-  let msg=`🆘 *COBC Backup Requested*\n${callType} at ${call.address}, ${call.town}\nRequested by BC ${SESSION.unit}`;
-  if(equipment) msg+=`\nEquipment needed: ${equipment}`;
-  if(notes) msg+=`\nNotes: ${notes}`;
-  openWA(msg);
 }
 
 // ── Radio Responder ──
@@ -4424,15 +4396,15 @@ async function submitRadioResponders() {
     const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
        setTimeout(()=>sendPush({target:'dispatchers',title:'📻 Responding by Radio',body:`${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
 
-  // Send WhatsApp group announcement for all radio responders at once.
-  // Radio-added members are NOT messaged individually — they're already on the radio.
-  // Personal WhatsApp confirmations are only sent for app-approved responders.
-  const names=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')} ${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim()).join(', ');
-  const groupMsg=`*Responding to call*
-${names}
-${typeLabel} - ${call.address}, ${call.town}
-ETA: ${eta} min`;
-  setTimeout(()=>{ openWA(groupMsg); },300);
+  // Push to all with full current responder list
+  const allNow=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
+  const radioNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')} ${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim()).join(', ');
+  setTimeout(()=>sendPush({
+    target:'all',
+    title:`📻 ${radioNames} responding by radio`,
+    body:`${typeLabel} — ${call.address}, ${call.town}${allNow?' · On call: '+allNow:''}`,
+    url:'/cobc-dispatch/', callId:id
+  }),300);
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
@@ -4786,23 +4758,6 @@ function confirmCompleteCall() {
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
-  if(sendWA) {
-    const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    const respList=(call.responders||[]).map(r=>`BC-${String(r.unit||'').replace(/^BC-?/i,'')} ${r.name}`).join(', ')||'None assigned';
-    let msg=`*COBC Call Completed*
-`;
-    msg+=`${typeLabel} - ${call.address}, ${call.town}
-`;
-    msg+=`Outcome: *${outcome}*`;
-    if(outcome==='CNC'&&cnc) msg+=` - ${cnc}`;
-    msg+=`
-Responders: ${respList}`;
-    if(notes) msg+=`
-Notes: ${notes}`;
-    msg+=`
-_#${call.id.slice(-5)} · ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}_`;
-    openWA(msg);
-  }
 }
 // Share responder's live location with other members via WhatsApp or Google Maps link
 function shareMyLocationOnCall(callId) {
