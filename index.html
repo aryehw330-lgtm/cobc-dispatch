@@ -4075,39 +4075,62 @@ function confirmRespond() {
   save(); firestoreUpsertCall(call); hideModal('respondModal');
   renderCalls(); renderHome();
 
-  // Push notification: only on-duty dispatcher gets notified + each admin
-  // (all dispatchers see it in the app via Firestore real-time sync)
+  // Push notification: on-duty primary + secondary dispatcher + each admin
+  // (all dispatchers still see it in the app via Firestore real-time sync)
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const pushTitle = `📲 Response Request — BC-${SESSION.unit}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${call.address}, ${call.town} · ETA ${eta} min${notes?' · '+notes:''}`;
-  // Find on-duty dispatcher and push only to them
+
+  // Helper: match a schedule name string to a member unit and push to them
+  function pushToScheduledName(scheduleName) {
+    if (!scheduleName || scheduleName === 'OPEN' || scheduleName === 'CHIEFS') return false;
+    const norm = scheduleName.toLowerCase().trim();
+    const member = (STATE.members||[]).find(m => {
+      const full = `${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim().toLowerCase();
+      const nameField = String(m.name||'').toLowerCase();
+      const bcFull = `bc${String(m.unit||'')} ${full}`.trim();
+      return full === norm || nameField === norm || bcFull === norm || norm.includes(full) || full.includes(norm.replace(/^bc\d+\s*/i,''));
+    });
+    if (member) {
+      sendPush({ target:'unit', unit:String(member.unit), title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+      return true;
+    }
+    return false;
+  }
+
   try {
-    const onDuty = getOnDutyDispatcher();
-    if (onDuty?.name && onDuty.name !== 'OPEN' && onDuty.name !== 'CHIEFS') {
-      // Match schedule name to a member unit
-      const dispMember = (STATE.members||[]).find(m =>
-        String(m.role||'').toLowerCase()==='dispatch' &&
-        (`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim().toLowerCase() === onDuty.name.toLowerCase() ||
-         String(m.name||'').toLowerCase() === onDuty.name.toLowerCase())
-      );
-      if (dispMember) {
-        sendPush({ target:'unit', unit:String(dispMember.unit), title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
-      } else {
-        // Can't match name to unit — fall back to all dispatchers
-        sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+    const now = new Date();
+    const shiftIdx = typeof getShiftIndexNow==='function' ? getShiftIndexNow() : 0;
+    const slot = DISPATCH_SCHEDULE[shiftIdx]?.slots?.[now.getDay()] || null;
+    const primary   = slot?.p || '';
+    const secondary = slot?.s || '';
+    const pushedUnits = new Set();
+
+    const pushOne = (name) => {
+      if (!name || name==='OPEN' || name==='CHIEFS') return;
+      const ok = pushToScheduledName(name);
+      if (!ok) {
+        // Can't match — fall back to all dispatchers once
+        if (!pushedUnits.has('all')) { pushedUnits.add('all'); sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' }); }
       }
+    };
+
+    if (primary || secondary) {
+      pushOne(primary);
+      if (secondary && secondary !== primary) pushOne(secondary);
     } else {
-      // No one scheduled — notify all dispatchers so someone picks it up
+      // No schedule — notify all dispatchers
       sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
     }
   } catch(e) {
     sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
   }
+
   // Always push to each admin individually
   (STATE.members||[]).filter(m=>String(m.role||'').toLowerCase()==='admin').forEach(admin=>{
     sendPush({ target:'unit', unit:String(admin.unit), title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
   });
-  showToast('Response request sent to on-duty dispatcher & admin');
+  showToast('Response request sent to on-duty dispatchers & admin');
 }
 
 // ── Dispatcher approves a pending responder ──
