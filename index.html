@@ -7422,6 +7422,7 @@ function setEqTab(tab,el) {
   if(tab==='reports')    { renderReports(); populateReportItemSelect(); }
   if(tab==='admin')      { renderEqAdminTab(); }
   if(tab==='car')        { renderCarPage(); }
+  else                   { stopCarExpireTimer(); } // stop polling when leaving Car tab
 }
 
 // ── EQUIPMENT ADMIN tab (accordion) ──
@@ -8457,6 +8458,7 @@ function loadCarSchedule(cb) {
         var me = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'') === String(SESSION.unit); });
         if (me) SESSION.carAccess = me.carAccess === true || me.carAccess === 'TRUE';
       }
+      autoExpireCarShifts();
       renderCarCalendar();
       renderCarHistory();
       renderCarItemStatus();
@@ -8465,12 +8467,48 @@ function loadCarSchedule(cb) {
     }).catch(function(){ if (cb) cb(); });
 }
 
+// Auto-cancel bookings whose shift window has passed without the car being taken out.
+// Runs on schedule load and every 5 minutes while the Car tab is open.
+var _autoExpireTimer = null;
+function autoExpireCarShifts() {
+  var now = new Date();
+  var expired = carSchedule.filter(function(b) {
+    if (b.status !== 'approved' && b.status !== 'pending') return false;
+    // Build the scheduled end datetime
+    var end24 = parse12to24C(b.endTime);
+    var endDt  = new Date(b.date + 'T' + end24 + ':00');
+    return now >= endDt; // shift window fully over and car never taken out
+  });
+  if (!expired.length) return;
+  expired.forEach(function(b) {
+    postJ('cancelCarShift', {id: b.id})
+      .then(function(d) {
+        if (d.success) {
+          // Remove from local schedule so UI updates immediately
+          carSchedule = carSchedule.filter(function(x){ return x.id !== b.id; });
+          renderCarCalendar();
+          if (carSelectedDate) renderCarDay(carSelectedDate);
+          renderCarHistory();
+        }
+      }).catch(function(){}); // silent failure — will retry next cycle
+  });
+}
+
+function startCarExpireTimer() {
+  if (_autoExpireTimer) return;
+  _autoExpireTimer = setInterval(autoExpireCarShifts, 5 * 60 * 1000); // every 5 min
+}
+function stopCarExpireTimer() {
+  if (_autoExpireTimer) { clearInterval(_autoExpireTimer); _autoExpireTimer = null; }
+}
+
 function renderCarPage() {
   var now = new Date();
   carViewDate = new Date(now.getFullYear(), now.getMonth(), 1);
   renderCarCalendar();
   renderCarItemStatus();
   loadCarSchedule();
+  startCarExpireTimer(); // keep auto-expiring while Car tab is open
 }
 
 function carPrevMonth() { carViewDate.setMonth(carViewDate.getMonth()-1); renderCarCalendar(); }
