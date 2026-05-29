@@ -7726,8 +7726,12 @@ function openCheckout(row, defaultAction) {
       }
       if (effectivelyIN) {
         const lastMember = (it.checkedOutBy || '').toString().replace(/^BC-?/i,'').trim();
-        if (!lastMember || String(SESSION.unit) !== lastMember) {
-          alert('🔒 Only the member who signed COBC 4 out (BC-' + (lastMember||'?') + ') or an admin can return it.\n\nIf there is an issue please contact the chiefs.');
+        const myUnit = String(SESSION.unit);
+        const canReturn = (myUnit === lastMember) || (myUnit === '38');
+        if (!lastMember || !canReturn) {
+          const lmName = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'')===lastMember; });
+          const nameStr = lmName ? ' — '+(lmName.firstName||'').trim() : '';
+          alert('🔒 Only BC-'+(lastMember||'?')+nameStr+', BC-38, or an admin can return COBC 4.\n\nPlease contact the Chiefs or BC-38 for assistance.');
           return;
         }
       }
