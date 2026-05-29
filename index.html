@@ -3093,6 +3093,15 @@ setTimeout(()=>{
   renderHome&&renderHome();
   renderCalls&&renderCalls();
   startAutoETA(); // silently start GPS watcher for card ETAs
+  // Auto-navigate to requested section (e.g. ?page=car from COBC 4 QR redirect)
+  const _goPage = new URLSearchParams(window.location.search).get('page');
+  if (_goPage === 'car') {
+    showTab('equipment');
+    setTimeout(function() {
+      var carBtn = document.querySelector('[onclick*="setEqTab(\'car\'"]');
+      setEqTab('car', carBtn);
+    }, 200);
+  }
 },100);
 }
 
