@@ -8467,7 +8467,7 @@ function getMyActiveCarBookingForInventory() {
   var todayStr = now.getFullYear()+'-'+pad2C(now.getMonth()+1)+'-'+pad2C(now.getDate());
   var myId = String(SESSION.unit);
   return carSchedule.find(function(b) {
-    if (String(b.memberId) !== myId) return false;
+    if ((b.memberId||'').toString().replace(/^BC-?/i,'').trim() !== myId) return false;
     if (b.date !== todayStr) return false;
     return b.status === 'active';
   }) || null;
@@ -8619,7 +8619,7 @@ function renderCarDay(dateStr) {
     el.innerHTML = '<div style="color:#aaa;font-size:13px;padding:6px 0 10px">No shifts booked for this day yet.</div>';
   } else {
     el.innerHTML = shifts.map(function(b) {
-      var isMine = myId && String(b.memberId)===myId;
+      var isMine = myId && (b.memberId||'').toString().replace(/^BC-?/i,'').trim()===myId;
       var cls = 'car-shift-card'+(b.status==='pending'?' pending':'')+(isMine?' mine':'')+(b.status==='active'?' active-shift':'')+(b.status==='done'?' done-shift':'');
       var stLabel = {
         approved:'<span style="color:#2e7d32;font-size:11px;font-weight:700">✓ Approved</span>',
@@ -8819,7 +8819,7 @@ function renderCarHistory() {
   var now = new Date();
   var todayStr = now.getFullYear()+'-'+pad2C(now.getMonth()+1)+'-'+pad2C(now.getDate());
   var myUpcoming = myId ? carSchedule.filter(function(b){
-    return String(b.memberId)===myId && (b.status==='pending'||b.status==='approved') && b.date>=todayStr;
+    return (b.memberId||'').toString().replace(/^BC-?/i,'').trim()===myId && (b.status==='pending'||b.status==='approved') && b.date>=todayStr;
   }).sort(function(a,b){ var ka=a.date+parse12to24C(a.startTime),kb=b.date+parse12to24C(b.startTime); return ka<kb?-1:1; }) : [];
 
   // Recent history — done or active, last 7 days
@@ -8872,7 +8872,7 @@ function renderCarHistory() {
       var d    = new Date(b.date+'T12:00:00');
       var ds   = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
       var aOut = fmtA(b.actualSignOut), aIn = fmtA(b.actualSignIn);
-      var isMineH = myId && String(b.memberId) === myId;
+      var isMineH = myId && (b.memberId||'').toString().replace(/^BC-?/i,'').trim() === myId;
       var timeRow = (aOut||aIn)
         ? '<div style="font-size:11px;color:#555;margin-top:2px;">🔑 <b>'+(aOut||'—')+'</b> → 🏁 <b>'+(aIn||'—')+'</b></div>'
         : '<div style="font-size:11px;color:#aaa;margin-top:2px;">🕐 Scheduled '+b.startTime+' – '+b.endTime+'</div>';
