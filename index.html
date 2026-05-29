@@ -7804,6 +7804,32 @@ async function submitCO(action){
     renderInventory&&renderInventory();
     renderEquipmentDashboard&&renderEquipmentDashboard();
     save();
+    // ── Auto-end car shift when COBC 4 is signed back IN ──────────────────────
+    if (action === 'IN') {
+      const hasCobc4 = coModalItems.some(it => isCarItem(it.name));
+      if (hasCobc4 && SESSION && SESSION.unit) {
+        const myUnit = String(SESSION.unit);
+        const activeBkg = (carSchedule || []).find(function(b) {
+          if (b.status !== 'active') return false;
+          const bMember = (b.memberId || b.member || '').toString().replace(/^BC-?/i,'').trim();
+          return bMember === myUnit;
+        });
+        if (activeBkg) {
+          postJ('endCarShift', {id: activeBkg.id}).then(function(d) {
+            if (d.success) {
+              activeBkg.status = 'done';
+              activeBkg.actualSignIn = new Date().toISOString();
+              renderCarCalendar && renderCarCalendar();
+              if (carSelectedDate) renderCarDay && renderCarDay(carSelectedDate);
+              renderCarHistory && renderCarHistory();
+              setTimeout(function(){ loadCarSchedule && loadCarSchedule(); }, 3000);
+              showToast('🏁 Car shift ended — COBC 4 returned');
+            }
+          }).catch(function(){});
+        }
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────────
   }catch(e){
     showToast('⚠️ Error — check connection');
     console.error(e);
