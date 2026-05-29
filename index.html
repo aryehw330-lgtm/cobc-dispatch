@@ -8561,7 +8561,7 @@ function renderCarCalendar() {
   for (var d=1; d<=daysInMonth; d++) {
     var ds = year+'-'+pad2C(month+1)+'-'+pad2C(d);
     var isToday = ds===todayStr, isPast = ds<todayStr;
-    var dayBk = carSchedule.filter(function(b){ return b.date===ds; });
+    var dayBk = carSchedule.filter(function(b){ return b.date===ds && b.status!=='cancelled'; });
     var dots = dayBk.slice(0,3).map(function(b){
       var col = b.status==='active'?'#c0392b':b.status==='pending'?'#e65100':'#2e7d32';
       return '<div class="car-dot" style="background:'+col+'"></div>';
@@ -8600,7 +8600,7 @@ function closeCarBooking() {
 }
 
 function renderCarDay(dateStr) {
-  var shifts = carSchedule.filter(function(b){ return b.date===dateStr; });
+  var shifts = carSchedule.filter(function(b){ return b.date===dateStr && b.status!=='cancelled'; });
   var myId   = SESSION && SESSION.unit ? String(SESSION.unit) : null;
   var isAdm  = SESSION && SESSION.role==='admin';
   var el     = document.getElementById('car-day-shifts');
