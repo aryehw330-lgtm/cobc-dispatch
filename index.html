@@ -771,6 +771,12 @@ textarea.input{min-height:80px;resize:vertical;}
               <div style="font-size:12px;color:var(--text3);margin-bottom:4px;font-weight:600;">Note (optional)</div>
               <input id="car-note" type="text" placeholder="Purpose, details..." style="width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-family:inherit;color:var(--navy);"/>
             </div>
+            <!-- Admin-only: book on behalf of another member -->
+            <div id="car-book-for-wrap" style="display:none;border-top:1.5px solid var(--border);padding-top:12px;margin-bottom:12px;">
+              <div style="font-size:12px;color:var(--text3);margin-bottom:4px;font-weight:600;">📋 Booking for unit #</div>
+              <select id="car-book-for" onchange="updateCarBookForNoteD()" style="width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--navy);background:var(--bg2);"></select>
+              <div id="car-book-for-note" style="display:none;margin-top:6px;padding:6px 10px;background:#fff8e1;border-radius:7px;font-size:12px;color:#e65100;font-weight:600;"></div>
+            </div>
             <div style="display:flex;gap:8px;">
               <button id="car-submit-btn" onclick="submitCarBooking()" style="flex:1;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Book Shift</button>
               <button onclick="closeCarBooking()" style="padding:11px 16px;background:var(--border2);color:var(--text2);border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
@@ -7791,16 +7797,22 @@ async function submitCO(action){
   const ccnc=(document.getElementById('coModalCCNC')?.value||'CC');
   const cncNote=(document.getElementById('coModalCNCNote')?.value||'').trim();
   if(!coModalItems.length){showToast('No items selected');return;}
+  // ── loggedBy: auto-detect when admin/dispatch logs for a different member ──
+  const canLogForOthers = SESSION && ['admin','dispatch'].includes(SESSION.role);
+  const myUnit = SESSION && SESSION.unit ? String(SESSION.unit) : '';
+  const loggedBy = (canLogForOthers && member && myUnit && member !== myUnit) ? myUnit : null;
+  const memberDisplay = loggedBy ? member + ' (by BC-' + loggedBy + ')' : member;
+  // ──────────────────────────────────────────────────────────────────────────
   const btn=document.querySelector('#checkoutModal .btn-full.btn-green,#checkoutModal .btn-full.btn-danger');
   if(btn){btn.disabled=true;btn.textContent='Saving...';}
   try{
-    await Promise.all(coModalItems.map(it=>sheetPOST({action:'checkInOut',row:it.row,status:action,member,call,ccSel:ccnc,cncNote})));
+    await Promise.all(coModalItems.map(it=>sheetPOST({action:'checkInOut',row:it.row,status:action,member,call,ccSel:ccnc,cncNote,loggedBy:loggedBy||null})));
     // Update local state immediately for responsiveness
     coModalItems.forEach(it=>{
       const eq=STATE.equipment.find(e=>e.row===it.row);
       if(eq){
         eq.status=action==='OUT'?'out':'in';
-        eq.checkedOutBy=action==='OUT'?member:'';
+        eq.checkedOutBy=action==='OUT'?memberDisplay:'';
         eq.callNum=action==='OUT'?call:'';
         eq.ccnc=action==='OUT'?(ccnc==='CNC'&&cncNote?'CNC - '+cncNote:ccnc):'CC';
         eq.isCNC=action==='OUT'&&ccnc==='CNC';
@@ -7816,25 +7828,26 @@ async function submitCO(action){
     // ── Auto-end car shift when COBC 4 is signed back IN ──────────────────────
     if (action === 'IN') {
       const hasCobc4 = coModalItems.some(it => isCarItem(it.name));
-      if (hasCobc4 && SESSION && SESSION.unit) {
-        const myUnit = String(SESSION.unit);
-        const activeBkg = (carSchedule || []).find(function(b) {
-          if (b.status !== 'active') return false;
-          const bMember = (b.memberId || b.member || '').toString().replace(/^BC-?/i,'').trim();
-          return bMember === myUnit;
-        });
+      if (hasCobc4) {
+        const activeBkg = (carSchedule || []).find(function(b) { return b.status === 'active'; });
         if (activeBkg) {
-          postJ('endCarShift', {id: activeBkg.id}).then(function(d) {
-            if (d.success) {
-              activeBkg.status = 'done';
-              activeBkg.actualSignIn = new Date().toISOString();
-              renderCarCalendar && renderCarCalendar();
-              if (carSelectedDate) renderCarDay && renderCarDay(carSelectedDate);
-              renderCarHistory && renderCarHistory();
-              setTimeout(function(){ loadCarSchedule && loadCarSchedule(); }, 3000);
-              showToast('🏁 Car shift ended — COBC 4 returned');
-            }
-          }).catch(function(){});
+          const myUnit2 = SESSION && SESSION.unit ? String(SESSION.unit) : '';
+          const bMember2 = (activeBkg.memberId || '').toString().replace(/^BC-?/i,'').trim();
+          const isAdmRole = SESSION && SESSION.role === 'admin';
+          const canEndShift = isAdmRole || (myUnit2 && bMember2 === myUnit2);
+          if (canEndShift) {
+            postJ('endCarShift', {id: activeBkg.id}).then(function(d) {
+              if (d.success) {
+                activeBkg.status = 'done';
+                activeBkg.actualSignIn = new Date().toISOString();
+                renderCarCalendar && renderCarCalendar();
+                if (carSelectedDate) renderCarDay && renderCarDay(carSelectedDate);
+                renderCarHistory && renderCarHistory();
+                setTimeout(function(){ loadCarSchedule && loadCarSchedule(); }, 3000);
+                showToast('🏁 Car shift ended — COBC 4 returned');
+              }
+            }).catch(function(){});
+          }
         }
       }
     }
@@ -8484,7 +8497,7 @@ function renderCarItemStatus() {
     +'background:'+(isOut?'#fdecea':'#e8f5e9')+';border:1.5px solid '+(isOut?'#ffcdd2':'#a5d6a7')+'">'
     +'<span style="font-size:20px">'+(isOut?'🔴':'🟢')+'</span>'
     +'<div><div style="font-size:13px;font-weight:700;color:'+(isOut?'#c0392b':'#2e7d32')+'">COBC 4 is currently '+(isOut?'OUT — in use':'IN — available')+'</div>'
-    +(isOut&&carItem.checkedOutBy?'<div style="font-size:11px;color:#666;margin-top:1px">Signed out by BC-'+carItem.checkedOutBy+'</div>':'')
+    +(isOut&&carItem.checkedOutBy?'<div style="font-size:11px;color:#666;margin-top:1px">Signed out by '+fmtMemberBadgeD(carItem.checkedOutBy)+'</div>':'')
     +'</div></div>';
 }
 
@@ -8571,7 +8584,13 @@ function renderCarCalendar() {
     var ds = year+'-'+pad2C(month+1)+'-'+pad2C(d);
     var isToday = ds===todayStr, isPast = ds<todayStr;
     var dayBk = carSchedule.filter(function(b){ return b.date===ds && b.status!=='cancelled'; });
-    var dots = dayBk.slice(0,3).map(function(b){
+    var statusOrder = {active:0,pending:1,approved:2};
+    var sortedDayBk = dayBk.slice().sort(function(a,b){
+      var sp = (statusOrder[a.status]||3) - (statusOrder[b.status]||3);
+      if (sp !== 0) return sp;
+      return (parse12to24C(b.startTime)||'').localeCompare(parse12to24C(a.startTime)||'');
+    });
+    var dots = sortedDayBk.slice(0,3).map(function(b){
       var col = b.status==='active'?'#c0392b':b.status==='pending'?'#e65100':'#2e7d32';
       return '<div class="car-dot" style="background:'+col+'"></div>';
     }).join('');
@@ -8647,8 +8666,8 @@ function renderCarDay(dateStr) {
             actions = '<div style="margin-top:8px;font-size:11px;color:#888;padding:7px 10px;background:#f0f4ff;border-radius:7px;border:1px solid #d0d8f0;text-align:center">🔑 Start Shift available in <strong>'+cdTxt+'</strong><br><span style="color:var(--navy)">Unlocks 1 hour before '+b.startTime+'</span></div>'+memberDeleteBtn+deleteBtn;
           }
         } else if (b.status==='active') {
-          // Car is out — only member who started can return it, admin can delete
-          actions = (isMine?'<button onclick="endCarShift(\''+b.id+'\')" style="margin-top:8px;width:100%;padding:9px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🏁 Return Car</button>':'')+deleteBtn;
+          // Car is out — member who started it, or admin, can return it
+          actions = ((isMine||isAdm)?'<button onclick="endCarShift(\''+b.id+'\')" style="margin-top:8px;width:100%;padding:9px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🏁 Return Car</button>':'')+deleteBtn;
         } else if (b.status==='pending') {
           actions = memberDeleteBtn+deleteBtn;
         } else if (b.status==='done') {
@@ -8661,9 +8680,14 @@ function renderCarDay(dateStr) {
       if (isAdm && b.status==='pending') {
         actions += '<button onclick="approveCarShift(\''+b.id+'\')" style="margin-top:7px;margin-left:6px;padding:6px 12px;background:#e8f5e9;color:#2e7d32;border:1.5px solid #a5d6a7;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✓ Approve</button>';
       }
+      var dayBookedByLine = b.bookedBy ? (function(){
+        var lbName = getMemberNameD(b.bookedBy);
+        return '<div style="font-size:11px;font-weight:700;color:#e65100;margin-top:1px;"> · booked by BC-'+b.bookedBy+(lbName?' '+lbName:'')+'</div>';
+      })() : '';
       return '<div class="'+cls+'">'
         +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
         +'<div><div style="font-size:13px;font-weight:700;color:#1a1a1a;">BC-'+b.memberId+' '+( b.memberName||'')+(isMine?' <span style="font-size:10px;color:var(--navy);background:#dbeafe;padding:1px 6px;border-radius:8px">You</span>':'')+'</div>'
+        +dayBookedByLine
         +'<div style="font-size:12px;color:#555;margin-top:3px;">🕐 '+b.startTime+' – '+b.endTime+'</div>'
         +(b.note?'<div style="font-size:11px;color:#888;margin-top:2px;">📝 '+b.note+'</div>':'')
         +'</div><div style="text-align:right;">'+stLabel+'</div></div>'
@@ -8680,11 +8704,52 @@ function renderCarDay(dateStr) {
   if (!wrap) return;
   if (dateStr < todayStr) { wrap.innerHTML='<div style="color:#aaa;font-size:12px;text-align:center;padding:6px;">Past date — booking not available.</div>'; return; }
   if (canBook || isAdmin2) {
-    wrap.innerHTML = '<button onclick="document.getElementById(\'car-book-form\').style.display=\'block\';this.style.display=\'none\'" style="width:100%;margin-top:10px;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">+ Book a Shift</button>';
+    wrap.innerHTML = '<button onclick="openCarBookingForm()" style="width:100%;margin-top:10px;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">+ Book a Shift</button>';
   } else if (!SESSION || !SESSION.unit) {
     wrap.innerHTML = '<div style="font-size:12px;color:#888;text-align:center;padding:8px;">Log in to book a shift.</div>';
   } else {
     wrap.innerHTML = '<div style="font-size:12px;color:#888;text-align:center;padding:8px;">You don\'t have car access. Contact the chiefs.</div>';
+  }
+}
+
+function openCarBookingForm() {
+  var bookForm = document.getElementById('car-book-form');
+  bookForm.style.display = 'block';
+  var bfWrap = document.getElementById('car-book-for-wrap');
+  var bfSel  = document.getElementById('car-book-for');
+  var isAdmD = SESSION && SESSION.role === 'admin';
+  if (isAdmD && SESSION.unit) {
+    bfWrap.style.display = 'block';
+    var myOpt = '<option value="">— My own unit (BC-' + SESSION.unit + ') —</option>';
+    var memberOpts = (STATE.members||[])
+      .filter(function(m){ return m.unit||m.id; })
+      .sort(function(a,b){ return String(a.unit||a.id||'').localeCompare(String(b.unit||b.id||''),undefined,{numeric:true}); })
+      .map(function(m){
+        var mid = String(m.unit||m.id||'').replace(/^BC-?/i,'');
+        var mname = ((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
+        return '<option value="'+mid+'">BC-'+mid+(mname?' — '+mname:'')+'</option>';
+      }).join('');
+    bfSel.innerHTML = myOpt + memberOpts;
+    bfSel.value = '';
+    document.getElementById('car-book-for-note').style.display = 'none';
+  } else {
+    bfWrap.style.display = 'none';
+  }
+  // Hide the book button
+  var bookBtn = document.querySelector('#car-book-wrap button');
+  if (bookBtn) bookBtn.style.display = 'none';
+}
+function updateCarBookForNoteD() {
+  var bfSel  = document.getElementById('car-book-for');
+  var noteEl = document.getElementById('car-book-for-note');
+  if (!bfSel || !noteEl) return;
+  var val = bfSel.value.trim();
+  if (val) {
+    var name = getMemberNameD(val);
+    noteEl.textContent = '📋 Booking on behalf of BC-' + val + (name ? ' (' + name + ')' : '');
+    noteEl.style.display = 'block';
+  } else {
+    noteEl.style.display = 'none';
   }
 }
 
@@ -8708,12 +8773,23 @@ function submitCarBooking() {
   if (conflict) { showToast('⚠️ Overlaps BC-'+conflict.memberId+'\'s shift ('+conflict.startTime+' – '+conflict.endTime+')'); return; }
   var memberId   = SESSION ? String(SESSION.unit||'') : '';
   var memberName = SESSION ? (SESSION.name||SESSION.firstName||'').trim() : '';
+  // Admin booking for another member
+  var bfSel = document.getElementById('car-book-for');
+  var bfVal = (bfSel && document.getElementById('car-book-for-wrap').style.display !== 'none') ? bfSel.value.trim() : '';
+  var bookedByVal = null;
+  if (bfVal) {
+    var bfMem = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'').replace(/^BC-?/i,'') === bfVal; });
+    bookedByVal = SESSION ? String(SESSION.unit) : null;
+    memberId   = bfVal;
+    memberName = bfMem ? ((bfMem.firstName||bfMem.name||'')+' '+(bfMem.lastName||'')).trim() : ('BC-'+bfVal);
+  }
+  if (!memberId) { showToast('No member logged in'); return; }
   var btn = document.getElementById('car-submit-btn');
   if (btn) { btn.textContent='...'; btn.disabled=true; }
-  postJ('bookCarShift', {memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, needsApproval:false})
+  postJ('bookCarShift', {memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, needsApproval:false, bookedBy:bookedByVal||null})
     .then(function(d) {
       if (d.success) {
-        var newB = {id:d.id||('local_'+Date.now()), memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, status:'approved'};
+        var newB = {id:d.id||('local_'+Date.now()), memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, status:'approved', bookedBy:bookedByVal||null};
         carSchedule.push(newB);
         renderCarCalendar(); renderCarDay(carSelectedDate); closeCarBooking();
         showCarBookingSuccess(startDisp, endDisp, carSelectedDate, memberName, note);
@@ -8725,14 +8801,12 @@ function showCarBookingSuccess(startTime, endTime, date, memberName, note) {
   var wrap = document.getElementById('car-book-wrap');
   if (!wrap) return;
   var dateLabel = new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-  var bcId = SESSION ? SESSION.unit : '';
-  var msg = 'Hi! BC-'+bcId+(memberName?' ('+memberName+')':'')+' booked COBC 4 for '+dateLabel+' from '+startTime+' to '+endTime+'.'+(note?' Note: '+note:'')+' Thank you!';
-  var waUrl = CAR_CHIEF_WHATSAPP ? 'https://wa.me/'+CAR_CHIEF_WHATSAPP+'?text='+encodeURIComponent(msg) : 'https://wa.me/?text='+encodeURIComponent(msg);
-  wrap.innerHTML = '<div style="background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:12px;margin-top:6px;">'
-    +'<div style="font-size:13px;font-weight:700;color:#2e7d32;margin-bottom:5px;">✅ Shift booked for '+dateLabel+'!</div>'
-    +'<div style="font-size:12px;color:#555;margin-bottom:10px;">Let the chiefs know via WhatsApp:</div>'
-    +'<a href="'+waUrl+'" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:6px;background:#25d366;color:#fff;text-decoration:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;">📱 Notify Chiefs on WhatsApp</a>'
-    +'<div style="text-align:center;margin-top:8px;"><button onclick="renderCarDay(carSelectedDate)" style="background:none;border:none;color:#888;font-size:12px;cursor:pointer;text-decoration:underline;">Dismiss</button></div>'
+  wrap.innerHTML = '<div style="background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:16px;margin-top:6px;text-align:center;">'
+    +'<div style="font-size:28px;margin-bottom:6px;">✅</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#2e7d32;">Shift booked for '+dateLabel+'!</div>'
+    +'<div style="font-size:13px;color:#555;margin-top:4px;">'+startTime+' – '+endTime+(memberName?' · '+memberName:'')+'</div>'
+    +(note?'<div style="font-size:12px;color:#888;margin-top:3px;">'+note+'</div>':'')
+    +'<button onclick="renderCarDay(carSelectedDate)" style="margin-top:12px;background:none;border:none;color:#888;font-size:12px;cursor:pointer;text-decoration:underline;">Dismiss</button>'
     +'</div>';
 }
 
@@ -8880,10 +8954,11 @@ function renderCarHistory() {
       var delBtn = isAdm
         ? '<br><button onclick="deleteCarShift(\''+b.id+'\',true)" style="margin-top:5px;padding:3px 9px;background:#fff0f0;color:#9b1c1c;border:1.5px solid #fca5a5;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🗑 Delete</button>'
         : '';
+      var histBookedBy = b.bookedBy ? (function(){ var n=getMemberNameD(b.bookedBy); return '<div style="font-size:11px;font-weight:700;color:#e65100;margin-top:1px;"> · booked by BC-'+b.bookedBy+(n?' '+n:'')+'</div>'; })() : '';
       return '<div style="padding:9px 0;border-bottom:1px solid #f0f0f0;">'
         +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
         +'<div><div style="font-size:13px;font-weight:600;color:#1a1a1a;">BC-'+b.memberId+(b.memberName?' · '+b.memberName:'')
-        +(isMineH?' <span style="font-size:10px;color:var(--navy);background:#dbeafe;padding:1px 6px;border-radius:8px">You</span>':'')+'</div>'+timeRow+'</div>'
+        +(isMineH?' <span style="font-size:10px;color:var(--navy);background:#dbeafe;padding:1px 6px;border-radius:8px">You</span>':'')+'</div>'+histBookedBy+timeRow+'</div>'
         +'<div style="text-align:right;"><div style="font-size:12px;color:#555;">'+ds+'</div>'
         +'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;display:inline-block;margin-top:3px;'
         +(b.status==='active'?'background:#fdecea;color:#c0392b':'background:#e0e0e0;color:#555')+';">'
@@ -8972,6 +9047,7 @@ function renderAdminCarHistory() {
     return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f0f0f0;gap:8px;">'
       +'<div style="flex:1;min-width:0;">'
       +'<div style="font-size:13px;font-weight:600;">BC-'+b.memberId+(b.memberName?' · '+b.memberName:'')+'</div>'
+      +(b.bookedBy?(function(){ var n=getMemberNameD(b.bookedBy); return '<div style="font-size:11px;font-weight:700;color:#e65100;margin-top:1px;"> · booked by BC-'+b.bookedBy+(n?' '+n:'')+'</div>'; })():'')
       +'<div style="font-size:11px;color:#666;margin-top:2px;">'+timeRow+'</div>'
       +(b.note?'<div style="font-size:11px;color:#aaa;margin-top:1px;">📝 '+b.note+'</div>':'')
       +'</div>'
@@ -9039,6 +9115,7 @@ function renderAdminCarHistory2() {
     return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f0f0f0;gap:8px;">'
       +'<div style="flex:1;min-width:0;">'
       +'<div style="font-size:13px;font-weight:600;">BC-'+b.memberId+(b.memberName?' · '+b.memberName:'')+'</div>'
+      +(b.bookedBy?(function(){ var n=getMemberNameD(b.bookedBy); return '<div style="font-size:11px;font-weight:700;color:#e65100;margin-top:1px;"> · booked by BC-'+b.bookedBy+(n?' '+n:'')+'</div>'; })():'')
       +'<div style="font-size:11px;color:#666;margin-top:2px;">'+timeRow+'</div>'
       +(b.note?'<div style="font-size:11px;color:#aaa;margin-top:1px;">📝 '+b.note+'</div>':'')
       +'</div>'
@@ -9061,6 +9138,33 @@ function renderAdminCarHistory2() {
     };
   }
 })();
+// ── Member badge helpers (logged-by / booked-by display) ─────────────────────
+function getMemberNameD(unitId) {
+  if (!unitId) return '';
+  var m = (STATE.members||[]).find(function(x){
+    return String(x.unit||x.id||'').replace(/^BC-?/i,'') === String(unitId).replace(/^BC-?/i,'');
+  });
+  return m ? ((m.firstName||m.name||'') + (m.lastName ? ' '+m.lastName : '')).trim() : '';
+}
+function parseMemberFieldD(str) {
+  if (!str) return {member:'', loggedBy:null};
+  var m = String(str).match(/^(.+?)\s*\(by\s*BC-?(\d+)\)\s*$/i);
+  if (m) return {member: m[1].trim(), loggedBy: m[2].trim()};
+  return {member: String(str).trim(), loggedBy: null};
+}
+function fmtMemberBadgeD(memberStr) {
+  if (!memberStr) return '';
+  var p = parseMemberFieldD(memberStr);
+  var name = getMemberNameD(p.member);
+  var out = 'BC-' + p.member + (name ? ' ' + name : '');
+  if (p.loggedBy) {
+    var lbName = getMemberNameD(p.loggedBy);
+    out += ' <span style="color:#e65100;font-weight:700"> · by BC-' + p.loggedBy + (lbName ? ' ' + lbName : '') + '</span>';
+  }
+  return out;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ═══════════════════════════════════════════════════════
 // END CAR SCHEDULE SYSTEM
 // ═══════════════════════════════════════════════════════
