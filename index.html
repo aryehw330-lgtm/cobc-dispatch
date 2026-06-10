@@ -3035,7 +3035,7 @@ function formatPhone(raw) {
 // Point WA_SEND_URL at the same Apps Script as PUSH_SEND_URL (or a new deploy).
 // After pasting twilio-apps-script-addon.js into your Apps Script and re-deploying,
 // paste the new /exec URL here. WA_SHARED_KEY must match WA_SHARED_KEY in the script.
-const WA_SEND_URL   = "https://sendwhatsapp-g2azbkxcbq-ue.a.run.app"; // ✅ set
+const WA_SEND_URL   = "https://us-east1-cobc-dispatch.cloudfunctions.net/sendWhatsApp"; // ✅ set
 const WA_SHARED_KEY = "cobc-2026-shared-secret";              // ← must match Apps Script
 
 // Sends a WhatsApp message via Twilio through the Apps Script proxy.
