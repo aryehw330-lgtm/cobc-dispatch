@@ -3019,6 +3019,18 @@ async function sendPush(payload) {
   } catch (e) { console.warn('Push send failed:', e); }
 }
 
+// ── §FORMAT-PHONE  Display helper ────────────────────────────────────────────
+// Converts any stored phone format to (845) 531-9110 for display.
+// Stored values remain unchanged; only the rendered text changes.
+function formatPhone(raw) {
+  if (!raw) return '';
+  const digits = String(raw).replace(/\D/g, '');
+  // strip leading country code 1 if 11 digits
+  const local = digits.length === 11 && digits[0] === '1' ? digits.slice(1) : digits;
+  if (local.length === 10) return `(${local.slice(0,3)}) ${local.slice(3,6)}-${local.slice(6)}`;
+  return raw; // fallback: return as-is
+}
+
 // ── §WA-CONFIG  Twilio WhatsApp ──────────────────────────────────────────────
 // Point WA_SEND_URL at the same Apps Script as PUSH_SEND_URL (or a new deploy).
 // After pasting twilio-apps-script-addon.js into your Apps Script and re-deploying,
@@ -4399,7 +4411,7 @@ function renderAdminMembers(){
       <div style="width:38px;height:38px;border-radius:9px;background:var(--navy);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;">${m.unit}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:14px;font-weight:700;">${m.first||m.firstName||''} ${m.last||m.lastName||''}</div>
-        <div style="font-size:11px;color:var(--text3);">${m.phone||'No phone'}</div>
+        <div style="font-size:11px;color:var(--text3);">${formatPhone(m.phone)||'No phone'}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
         <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#f1f5f9;color:${roleColor};">${(m.role||'member').toUpperCase()}</span>
@@ -6387,7 +6399,7 @@ function openCallDetail(id) {
     <div class="detail-row"><span class="detail-key">Address</span><span class="detail-val"><a href="${mapLink}" target="_blank" style="color:var(--blue);text-decoration:none;">${call.address}</a></span></div>
     <div class="detail-row"><span class="detail-key">Time</span><span class="detail-val">${timeStr}</span></div>
     ${call.caller?`<div class="detail-row"><span class="detail-key">Caller</span><span class="detail-val">${call.caller}</span></div>`:''}
-    ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="tel:${call.phone}" style="color:var(--blue);text-decoration:none;">${call.phone}</a></span></div>`:''}
+    ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="tel:${call.phone}" style="color:var(--blue);text-decoration:none;">${formatPhone(call.phone)}</a></span></div>`:''}
     ${call.carMake?`<div class="detail-row"><span class="detail-key">Vehicle</span><span class="detail-val">${[call.carYear,call.carMake?.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ')}</span></div>`:''}
     ${call.noSpareAction==='plug'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--orange);font-weight:700;">🔧 Plug Kit</span></div>`:''}
     ${call.noSpareAction==='tow'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--red);font-weight:700;">🚛 Tow Needed</span></div>`:''}
@@ -7470,7 +7482,7 @@ function renderMemberDir() {
       <div class="list-icon ${m.role==='observer'?'list-icon-teal':m.role==='dispatch'?'list-icon-blue':'list-icon-gray'}" style="font-size:13px;font-weight:800;color:var(--navy2);width:auto;min-width:52px;padding:0 10px;white-space:nowrap;border-radius:10px;">${m.unit||'?'}</div>
       <div class="list-body">
         <div class="list-title">${(m.first||m.firstName||m.name||'Unknown')} ${m.last||m.lastName||''}${m.role==='observer'?'<span class="obs-badge">OBS</span>':''}</div>
-        <div class="list-sub">${m.phone||'No phone'} · <span style="color:var(--blue);font-size:10px;font-weight:700;">${(m.role||'member').split(',')[0].trim().toUpperCase()}</span></div>
+        <div class="list-sub">${formatPhone(m.phone)||'No phone'} · <span style="color:var(--blue);font-size:10px;font-weight:700;">${(m.role||'member').split(',')[0].trim().toUpperCase()}</span></div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
         ${m.phone?`<button class="responder-call-btn" onclick="event.stopPropagation();window.location='tel:${m.phone}'">📞</button>`:''}
@@ -7547,7 +7559,7 @@ function renderNumbers() {
     html+=`<div class="section-label">${cat}</div>`;
     groups[cat].forEach(n=>{
       html+=`<div class="number-item">
-        <div><div style="font-size:14px;font-weight:700;">${n.label}</div><div style="font-size:12px;color:var(--text3);">${n.phone}${n.dispatchOnly?'<span class="obs-badge">DISP</span>':''}</div></div>
+        <div><div style="font-size:14px;font-weight:700;">${n.label}</div><div style="font-size:12px;color:var(--text3);">${formatPhone(n.phone)}${n.dispatchOnly?'<span class="obs-badge">DISP</span>':''}</div></div>
         <div style="display:flex;gap:6px;">
           <button class="number-call-btn" onclick="window.location='tel:${n.phone}'">Call</button>
           ${SESSION.role==='admin'?`<button onclick="editNumber('${n.id}')" style="background:var(--border2);color:var(--text2);border:none;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:700;cursor:pointer;">✏️</button><button onclick="deleteNumber('${n.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
