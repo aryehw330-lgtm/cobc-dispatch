@@ -149,9 +149,9 @@ button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary
 #homeGreeting{color:#fff;}
 #homeDate{color:rgba(255,255,255,.55);}
 .page.hidden{opacity:0;pointer-events:none;transform:translateY(8px);}
-/* Equipment page text-size control */
-#page-equipment.eq-ts-lg{zoom:1.14;}
-#page-equipment.eq-ts-xl{zoom:1.30;}
+/* App-wide text-size control (A / A+ / A++) */
+#page-equipment.eq-ts-lg,#app.eq-ts-lg .pages{zoom:1.14;}
+#page-equipment.eq-ts-xl,#app.eq-ts-xl .pages{zoom:1.30;}
 .tabbar{background:linear-gradient(180deg,#141414,#000);display:flex;align-items:stretch;border-top:1px solid rgba(212,169,58,.3);padding-bottom:env(safe-area-inset-bottom);flex-shrink:0;position:relative;z-index:200;overflow:visible;touch-action:none;}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 4px;margin:6px 4px;border-radius:16px;border:none;background:none;cursor:pointer;color:rgba(255,255,255,.78);font-size:11px;letter-spacing:.2px;position:relative;transition:transform .18s cubic-bezier(.2,.7,.2,1),background .2s;letter-spacing:.2px;font-weight:600;font-family:'DM Sans',sans-serif;letter-spacing:.2px;transition:color .15s;min-height:52px;position:relative;}
 .tab.active{color:var(--gold-light);font-weight:800;text-shadow:0 1px 6px rgba(212,169,58,.55);background:linear-gradient(180deg,rgba(255,243,204,.28),rgba(212,169,58,.16) 55%,rgba(120,90,10,.22));box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 -3px 6px rgba(0,0,0,.3),0 4px 12px rgba(212,169,58,.28),0 1px 0 rgba(230,196,99,.4);transform:translateY(-3px) scale(1.04);}
@@ -221,6 +221,15 @@ button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary
 #rptTypeBtns button:active{transform:translateY(1px) scale(.99);}
 #rptTypeBtns button.active,#rptTypeBtns button[style*="navy"]{background:linear-gradient(180deg,rgba(255,243,204,.95),rgba(212,169,58,.9))!important;border-color:rgba(230,196,99,.8)!important;}
 #rptTypeBtns button.active span{color:#3a2c05!important;text-shadow:none;}
+/* Per-type active colors */
+#rptTypeBtns button.active[data-type="Missing"]{background:linear-gradient(135deg,rgba(220,38,38,.85),rgba(120,0,0,.95))!important;border-color:rgba(239,68,68,.9)!important;}
+#rptTypeBtns button.active[data-type="Missing"] span{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+#rptTypeBtns button.active[data-type="Damaged"]{background:linear-gradient(135deg,rgba(217,119,6,.9),rgba(100,50,0,.95))!important;border-color:rgba(251,191,36,.9)!important;}
+#rptTypeBtns button.active[data-type="Damaged"] span{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+#rptTypeBtns button.active[data-type="Need More"]{background:linear-gradient(135deg,rgba(37,99,235,.85),rgba(0,20,80,.95))!important;border-color:rgba(96,165,250,.9)!important;}
+#rptTypeBtns button.active[data-type="Need More"] span{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+#rptTypeBtns button.active[data-type="Other"]{background:linear-gradient(135deg,rgba(100,100,100,.85),rgba(20,20,20,.95))!important;border-color:rgba(180,180,180,.6)!important;}
+#rptTypeBtns button.active[data-type="Other"] span{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 #eq-reports .input{background:rgba(255,255,255,.1)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(230,196,99,.35)!important;color:#fff!important;}
 #eq-reports .input::placeholder{color:rgba(255,255,255,.55)!important;}
 #eq-reports .input option{color:#1a1407;}
@@ -294,7 +303,7 @@ textarea.input{min-height:80px;resize:vertical;}
 #page-dispatch .call-card.active .call-num,#page-home .call-card.active .call-num,#page-dispatch .call-card.urgent .call-num,#page-home .call-card.urgent .call-num{color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.4);}
 #page-dispatch .call-card.active .call-card-footer,#page-home .call-card.active .call-card-footer,#page-dispatch .call-card.urgent .call-card-footer,#page-home .call-card.urgent .call-card-footer{background:rgba(0,0,0,.12);border-top-color:rgba(255,255,255,.2);}
 .alert{border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start;}
-.alert-red{background:#fef2f2;border:1px solid #fecaca;}
+.alert-red{background:rgba(254,242,242,.9);border:1px solid #fecaca;}
 .alert-amber{background:#fffbeb;border:1px solid #fde68a;}
 /* Quick Action cards: black & gold glass to match buttons */
 .quick-actions-grid .card{background:linear-gradient(160deg,rgba(212,169,58,.22),rgba(20,16,8,.62))!important;-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);border:1px solid rgba(230,196,99,.45)!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.15)!important;color:#fff;transition:transform .12s,filter .2s;}
@@ -304,6 +313,13 @@ textarea.input{min-height:80px;resize:vertical;}
 .qa-emoji{width:58px;height:58px;margin:2px auto 10px;display:flex;align-items:center;justify-content:center;font-size:32px;line-height:1;border-radius:50%;background:radial-gradient(circle at 38% 30%,rgba(255,255,255,.22),rgba(212,169,58,.16) 45%,rgba(10,8,4,.55) 100%);box-shadow:inset 0 2px 4px rgba(255,255,255,.3),inset 0 -4px 8px rgba(0,0,0,.45),0 6px 14px rgba(0,0,0,.5);filter:drop-shadow(0 3px 3px rgba(0,0,0,.55));transform:translateZ(0);transition:transform .15s;}
 .quick-actions-grid .card:active .qa-emoji{transform:scale(.92);}
 .alert-green{background:#f0fdf4;border:1px solid #bbf7d0;}
+/* Equipment dashboard alerts: dark reddish-black glass */
+#eq-alerts-list .alert-red{background:linear-gradient(135deg,rgba(220,38,38,.45),rgba(60,0,0,.92))!important;border:1.5px solid rgba(239,68,68,.7)!important;box-shadow:0 2px 18px rgba(220,38,38,.3);}
+#eq-alerts-list .alert-amber{background:linear-gradient(135deg,rgba(217,119,6,.45),rgba(60,25,0,.92))!important;border:1.5px solid rgba(251,191,36,.6)!important;box-shadow:0 2px 18px rgba(217,119,6,.25);}
+#eq-alerts-list .alert-red *,#eq-alerts-list .alert-red .alert-title,#eq-alerts-list .alert-red .alert-sub{color:#fff!important;}
+#eq-alerts-list .alert-amber *,#eq-alerts-list .alert-amber .alert-title,#eq-alerts-list .alert-amber .alert-sub{color:#fff!important;}
+#eq-alerts-list .alert-red .alert-title{color:#ffb3b3!important;font-weight:800!important;}
+#eq-alerts-list .alert-amber .alert-title{color:#fde68a!important;font-weight:800!important;}
 /* Home equipment alerts: see-through blue→purple gradient glass */
 #homeEqAlerts .alert{background:linear-gradient(135deg,rgba(59,130,246,.4),rgba(124,58,237,.42),rgba(10,10,16,.6))!important;-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(139,120,246,.5)!important;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.16);}
 #homeEqAlerts .alert .alert-title{color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.4);}
@@ -667,7 +683,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .alert-blue{background:#eff6ff;border-left:3px solid var(--blue);}
 .alert-green{background:#f0fdf4;border-left:3px solid var(--green);}
 .alert-amber{background:#fffbeb;border-left:3px solid var(--amber);}
-.alert-red{background:#fef2f2;border-left:3px solid var(--red);}
+.alert-red{background:rgba(254,242,242,.9);border-left:3px solid var(--red);}
 .alert-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
 .alert-body .alert-title{font-size:13px;font-weight:700;color:var(--text);}
 .alert-body .alert-sub{font-size:12px;color:var(--text2);margin-top:2px;}
@@ -995,8 +1011,8 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="shiftSlotEquipment" style="display:none;"></div>
       <!-- DASHBOARD -->
       <div id="eq-dashboard">
-        <div id="eq-alerts-wrap" style="display:none;"><div class="section-label">Active Alerts</div><div id="eq-alerts-list"></div></div>
         <div id="eq-out-wrap" style="display:none;"><div class="section-label">Currently Out</div><div id="eq-out-list"></div></div>
+        <div id="eq-alerts-wrap" style="display:none;"><div class="section-label">Active Alerts</div><div id="eq-alerts-list"></div></div>
         <div class="section-label">Recent Activity</div>
         <div id="eq-recent-list"></div>
 
@@ -1068,10 +1084,10 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="eq-reports" style="display:none;">
         <div class="section-label">Report Type</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;" id="rptTypeBtns">
-          <button onclick="selRptType('Missing',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Missing Item</span></button>
-          <button onclick="selRptType('Damaged',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Damaged Item</span></button>
-          <button onclick="selRptType('Need More',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Need More</span></button>
-          <button onclick="selRptType('Other',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Other</span></button>
+          <button data-type="Missing" onclick="selRptType('Missing',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">🔍 Missing Item</span></button>
+          <button data-type="Damaged" onclick="selRptType('Damaged',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">🔧 Damaged Item</span></button>
+          <button data-type="Need More" onclick="selRptType('Need More',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">📦 Need More</span></button>
+          <button data-type="Other" onclick="selRptType('Other',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">📋 Other</span></button>
         </div>
         <div class="input-group"><label class="input-label">Item</label><select class="input" id="reportItem"></select></div>
         <div class="input-group"><label class="input-label">Your BC Member #</label><input class="input" type="text" inputmode="numeric" id="reportMember" placeholder="e.g. 38"/></div>
@@ -1357,8 +1373,8 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="card" style="margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <div style="flex:1;min-width:0;">
-              <div class="card-title">🔤 Equipment Text Size</div>
-              <div class="card-desc">Make the Equipment page text bigger.</div>
+              <div class="card-title">🔤 App Text Size</div>
+              <div class="card-desc">Make text bigger across the entire app.</div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;" id="eqTextSizeSetting">
               <button class="btn-sm btn-ghost eq-ts-opt" data-lvl="0" onclick="setEqTextSize(0)" style="font-weight:700;">A</button>
@@ -1955,9 +1971,28 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn qtype-btn-urgent" onclick="selectCallType('child_lockout',this)">🚨 Child<br><span style="font-size:10px;opacity:.9;">Locked in Car</span></button>
       <button class="qtype-btn" onclick="selectCallType('missing_person',this)">Missing Person</button>
       <button class="qtype-btn" onclick="selectCallType('flood',this)">Flood</button>
+      <button class="qtype-btn" onclick="selectCallType('needs_ac',this)">❄️ Needs A/C<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
+      <button class="qtype-btn" onclick="selectCallType('needs_fan',this)">💨 Needs Fans<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
+      <button class="qtype-btn" onclick="selectCallType('needs_heat',this)">🔥 Needs Heater<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
       <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
     </div>
     <input type="hidden" id="callType" value="flat_tire_no_spare"/>
+
+    <!-- EQUIPMENT QTY (A/C, Fans, Heaters) -->
+    <div id="eqQtySection" style="display:none;" class="input-group">
+      <label class="input-label" id="eqQtyLabel">How many needed?</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <select class="input" id="eqQtySelect" style="flex:1;margin-bottom:0;">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6+">6+</option>
+        </select>
+        <div style="font-size:22px;" id="eqQtyIcon">❄️</div>
+      </div>
+    </div>
 
     <!-- OTHER TYPE WRITE-IN -->
     <div id="otherTypeGroup" style="display:none;" class="input-group">
@@ -2445,21 +2480,26 @@ textarea.input{min-height:80px;resize:vertical;}
     <div id="editMbrInfo" style="background:#f8fafc;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;"></div>
     <div class="input-group"><label class="input-label">Roles (select all that apply)</label>
       <div id="editMbrRoles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;">
-        <label class="role-chk"><input type="checkbox" value="Member"/> Member</label>
-        <label class="role-chk"><input type="checkbox" value="Observer"/> Observer</label>
-        <label class="role-chk"><input type="checkbox" value="Dispatch"/> Dispatch</label>
-        <label class="role-chk"><input type="checkbox" value="Equipment Team"/> Equipment Team</label>
-        <label class="role-chk"><input type="checkbox" value="Admin"/> Admin</label>
+        <label class="role-chk"><input type="checkbox" value="Member" onchange="_autoSaveMemberRoles()"/> Member</label>
+        <label class="role-chk"><input type="checkbox" value="Observer" onchange="_autoSaveMemberRoles()"/> Observer</label>
+        <label class="role-chk"><input type="checkbox" value="Dispatch" onchange="_autoSaveMemberRoles()"/> Dispatch</label>
+        <label class="role-chk"><input type="checkbox" value="Equipment Team" onchange="_autoSaveMemberRoles()"/> Equipment Team</label>
+        <label class="role-chk"><input type="checkbox" value="Admin" onchange="_autoSaveMemberRoles()"/> Admin</label>
       </div>
     </div>
-    <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editMbrPhone" placeholder="555-000-0000"/></div>
+    <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editMbrPhone" placeholder="555-000-0000" onchange="_autoSaveMemberField('phone',this.value)"/></div>
     <div class="input-group">
       <label class="input-label">Responds to (leave all unchecked = responds to everything)</label>
       <div id="editMbrCallTypes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;"></div>
     </div>
-    <div class="input-group"><label class="input-label">Reset PIN <span id="editMbrCurrentPin" style="float:right;font-weight:700;color:var(--gold-light,#d4a93a);text-transform:none;letter-spacing:normal;"></span></label><input class="input" type="text" id="editMbrNewPin" placeholder="New PIN (leave blank to keep current)" inputmode="numeric"/></div>
-    <button class="btn-full btn-primary" onclick="saveEditMemberRole()" style="margin-bottom:8px;">Save Changes</button>
-    <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Cancel</button>
+    <div class="input-group">
+      <label class="input-label">Reset PIN <span id="editMbrCurrentPin" style="float:right;font-weight:700;color:var(--gold-light,#d4a93a);text-transform:none;letter-spacing:normal;"></span></label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input class="input" type="text" id="editMbrNewPin" placeholder="New PIN (4+ digits)" inputmode="numeric" style="margin-bottom:0;"/>
+        <button onclick="saveEditMemberPin()" style="flex-shrink:0;padding:12px 16px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Set PIN</button>
+      </div>
+    </div>
+    <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Done</button>
   </div>
 </div>
 
@@ -4192,6 +4232,8 @@ async function loadMembersFromSheet(){
       SHEET_MEMBERS=_rawApp.filter(_memberIsReal).filter(m=>!_deletedMemberIds.has(_normUnit(m.unit)));
       _sheetMembersLoaded=true;
       STATE.members=SHEET_MEMBERS.slice();
+      // Update car access count badge immediately after members load
+      try{_updateCarAccessCount&&_updateCarAccessCount();}catch(e){}
       // Sheet is source of truth for carAccess — refresh SESSION whenever sheet loads
       if (SESSION && SESSION.unit) {
         const me = SHEET_MEMBERS.find(m => _normUnit(m.unit) === _normUnit(SESSION.unit));
@@ -5037,6 +5079,10 @@ function renderHome() {
 const CALL_TYPE_LABELS = {
   flat_tire_spare:'Vehicle: Flat Tire - Has Spare',flat_tire_no_spare:'Vehicle: Flat Tire - No Spare',lockout:'🔑 House Lockout',car_lockout:'🔑 Car Lockout',child_lockout:'🚨 CHILD LOCKED IN CAR',missing_person:'Missing Person',jump_start:'⚡ Boost',
   flood:'💧 Flood',ac_heat:'❄️ A/C or Heat',generator:'⚡ Generator',
+  needs_ac:'❄️ Needs A/C',needs_fan:'💨 Needs Fans',needs_heat:'🔥 Needs Heater',
+  'needs_ac:qty1':'❄️ Needs A/C — Quantity: 1','needs_ac:qty2':'❄️ Needs A/Cs — Quantity: 2','needs_ac:qty3':'❄️ Needs A/Cs — Quantity: 3','needs_ac:qty4':'❄️ Needs A/Cs — Quantity: 4','needs_ac:qty5':'❄️ Needs A/Cs — Quantity: 5','needs_ac:qty6+':'❄️ Needs A/Cs — Quantity: 6+',
+  'needs_fan:qty1':'💨 Needs Fan — Quantity: 1','needs_fan:qty2':'💨 Needs Fans — Quantity: 2','needs_fan:qty3':'💨 Needs Fans — Quantity: 3','needs_fan:qty4':'💨 Needs Fans — Quantity: 4','needs_fan:qty5':'💨 Needs Fans — Quantity: 5','needs_fan:qty6+':'💨 Needs Fans — Quantity: 6+',
+  'needs_heat:qty1':'🔥 Needs Heater — Quantity: 1','needs_heat:qty2':'🔥 Needs Heaters — Quantity: 2','needs_heat:qty3':'🔥 Needs Heaters — Quantity: 3','needs_heat:qty4':'🔥 Needs Heaters — Quantity: 4','needs_heat:qty5':'🔥 Needs Heaters — Quantity: 5','needs_heat:qty6+':'🔥 Needs Heaters — Quantity: 6+',
   transport:'🚐 Transport',welfare:'🏥 Welfare Check',other:'📋 Other'
 };
 
@@ -5578,6 +5624,19 @@ function selectCallType(type, btn) {
   const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
+  // Show/hide equipment quantity picker (A/C, fans, heaters)
+  const eqTypes=['needs_ac','needs_fan','needs_heat'];
+  const eqQtySec=document.getElementById('eqQtySection');
+  if(eqQtySec){
+    eqQtySec.style.display=eqTypes.includes(type)?'block':'none';
+    if(eqTypes.includes(type)){
+      const icons={needs_ac:'❄️',needs_fan:'💨',needs_heat:'🔥'};
+      const labels={needs_ac:'How many A/C units needed?',needs_fan:'How many fans needed?',needs_heat:'How many heaters needed?'};
+      var iconEl=document.getElementById('eqQtyIcon'); if(iconEl) iconEl.textContent=icons[type]||'';
+      var lblEl=document.getElementById('eqQtyLabel'); if(lblEl) lblEl.textContent=labels[type]||'How many needed?';
+      var selEl=document.getElementById('eqQtySelect'); if(selEl) selEl.value='1';
+    }
+  }
   // Show/hide no-spare action picker
   const nsSec = document.getElementById('noSpareSection');
   if(nsSec) nsSec.style.display = (type==='flat_tire_no_spare') ? 'block' : 'none';
@@ -5631,6 +5690,12 @@ function createCall() {
   if(type==='other') {
     const customType=document.getElementById('otherTypeText')?.value?.trim();
     if(customType) type='other:'+customType;
+  }
+  // Embed quantity for equipment types
+  const eqTypes=['needs_ac','needs_fan','needs_heat'];
+  if(eqTypes.includes(type)){
+    const qty=(document.getElementById('eqQtySelect')?.value||'1');
+    type=type+':qty'+qty; // e.g. needs_ac:qty2
   }
   const address=document.getElementById('callAddress').value.trim();
   const townSel=document.getElementById('callTown').value;
@@ -7350,27 +7415,44 @@ function checkReRequests() {
 let memberFilter='all';
 
 function deleteMemberLocal(unit){
-  if(!confirm('Delete member '+unit+'?'))return;
-  const key=_normUnit(unit);
-  // Optimistic: hide instantly so one click is enough; guard stops a lagging sheet read re-adding them.
-  _deletedMemberIds.add(key);
-  STATE.members=(STATE.members||[]).filter(m=>_normUnit(m.unit||m.id)!==key);
-  save&&save();
-  renderMemberDir&&renderMemberDir();
-  renderAdminMembers&&renderAdminMembers();
-  sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{
-    if(r&&r.success){
-      showToast('Member deleted');
+  // Non-blocking custom confirm — avoids the UI freeze from browser confirm()
+  if(!window.__confirmDelete){
+    window.__confirmDelete = function(msg, cb){
+      var overlay=document.createElement('div');
+      overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:300px;width:88%;text-align:center;">'
+        +'<div style="font-size:32px;margin-bottom:10px">⚠️</div>'
+        +'<div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:6px;">Delete Member?</div>'
+        +'<div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:20px;">'+msg+'</div>'
+        +'<div style="display:flex;gap:10px;">'
+        +'<button id="__cd_c" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>'
+        +'<button id="__cd_ok" style="flex:1;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Delete</button>'
+        +'</div></div>';
+      document.body.appendChild(overlay);
+      overlay.querySelector('#__cd_c').onclick=function(){document.body.removeChild(overlay);};
+      overlay.querySelector('#__cd_ok').onclick=function(){document.body.removeChild(overlay);cb();};
+    };
+  }
+  window.__confirmDelete('This will remove BC-'+String(unit).replace(/^BC-?/i,'')+' from the roster and Firebase.',function(){
+    const key=_normUnit(unit);
+    _deletedMemberIds.add(key);
+    STATE.members=(STATE.members||[]).filter(m=>_normUnit(m.unit||m.id)!==key);
+    renderMemberDir&&renderMemberDir();
+    renderAdminMembers&&renderAdminMembers();
+    showToast('Deleting…');
+    sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{
+      if(r&&r.success){
+        _showSuccessModal('🗑️','Member Removed','BC-'+String(unit).replace(/^BC-?/i,''));
+      }else{
+        _deletedMemberIds.delete(key);
+        showToast('Error: '+(r&&r.error||'Delete failed'));
+        loadMembersFromSheet().then(()=>{renderMemberDir&&renderMemberDir();renderAdminMembers&&renderAdminMembers();});
+      }
+    }).catch(e=>{
+      showToast('Error deleting member');console.error(e);
       loadMembersFromSheet().then(()=>{renderMemberDir&&renderMemberDir();renderAdminMembers&&renderAdminMembers();});
-    }else{
-      _deletedMemberIds.delete(key);
-      showToast('Error: '+(r&&r.error||'Delete failed'));
       loadMembersFromSheet().then(()=>{renderMemberDir&&renderMemberDir();renderAdminMembers&&renderAdminMembers();});
-    }
-  }).catch(e=>{
-    _deletedMemberIds.delete(key);
-    showToast('Error deleting member');console.error(e);
-    loadMembersFromSheet().then(()=>{renderMemberDir&&renderMemberDir();renderAdminMembers&&renderAdminMembers();});
+    });
   });
 }
 function addMemberLocal(){const modal=document.getElementById('addMemberModal');if(modal)showModal('addMemberModal');else showToast('Use admin panel to add members');}
@@ -7411,47 +7493,184 @@ function openEditMemberRole(unit) {
     const isAdmin=(SESSION.role||'').toLowerCase().includes('admin');
     pinEl.textContent = isAdmin ? ('Current: '+(m.pin||'1234')) : '';
   }
-  // Render call type checkboxes
-  const existing=m.callTypes||[];
+  // Render call type checkboxes — load from Firestore for freshness, fall back to local
   const ctEl=document.getElementById('editMbrCallTypes');
-  if(ctEl) ctEl.innerHTML=CALL_TYPES_FOR_MEMBER.map(ct=>`
-    <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;background:#f8fafc;border-radius:7px;padding:6px 8px;">
-      <input type="checkbox" value="${ct.value}" ${existing.includes(ct.value)?'checked':''}/> ${ct.label}
+  const existing=m.callTypes||[];
+  function _renderCallTypeCBs(types){
+    if(!ctEl) return;
+    ctEl.innerHTML=CALL_TYPES_FOR_MEMBER.map(ct=>`
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;background:#f8fafc;border-radius:9px;padding:8px 10px;border:1.5px solid ${types.includes(ct.value)?'var(--navy)':'var(--border)'}; transition:border-color .15s;">
+      <input type="checkbox" value="${ct.value}" ${types.includes(ct.value)?'checked':''} style="width:16px;height:16px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;"/>
+      <span>${ct.label}</span>
     </label>`).join('');
+    // Highlight border on check/uncheck + auto-save
+    ctEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+      cb.addEventListener('change',function(){
+        this.closest('label').style.borderColor=this.checked?'var(--navy)':'var(--border)';
+        this.closest('label').style.background=this.checked?'rgba(15,37,64,.07)':'#f8fafc';
+        // Auto-save callTypes to Firestore
+        const unit=document.getElementById('editMbrUnit')?.value?.trim();
+        if(!unit) return;
+        const checkedTypes=[...document.querySelectorAll('#editMbrCallTypes input[type=checkbox]:checked')].map(cb=>cb.value);
+        const _u=_normUnit(unit);
+        const _m=(STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
+        if(_m) _m.callTypes=checkedTypes;
+        try{
+          if(window.firebase&&_firebaseReady){
+            const did=_fsMemberDocId(unit);
+            if(did) firebase.firestore().collection('members').doc(did).set({callTypes:checkedTypes},{merge:true}).catch(function(){});
+          }
+        }catch(e){}
+      });
+    });
+  }
+  _renderCallTypeCBs(existing);
+  // Fetch fresh callTypes from Firestore in background and update if different
+  try{
+    if(window.firebase&&_firebaseReady){
+      const did=_fsMemberDocId(unit);
+      if(did){
+        firebase.firestore().collection('members').doc(did).get().then(snap=>{
+          if(snap.exists){
+            const fsTypes=snap.data().callTypes||[];
+            // Update local state too
+            m.callTypes=fsTypes;
+            _renderCallTypeCBs(fsTypes);
+          }
+        }).catch(function(){});
+      }
+    }
+  }catch(e){}
   showModal('editMemberRoleModal');
 }
 function saveEditMemberRole(){
+  const btn = document.querySelector('#editMemberRoleModal .btn-primary');
+  const unlock = _btnLock(btn, 'Saving…');
   const unit=document.getElementById('editMbrUnit')?.value?.trim();
   const checkedRoles=[...document.querySelectorAll('#editMbrRoles input[type=checkbox]:checked')].map(cb=>cb.value);
   const role=checkedRoles.length?checkedRoles.join(', '):'Member';
   const phone=document.getElementById('editMbrPhone')?.value?.trim();
   const newPin=(document.getElementById('editMbrNewPin')?.value||'').trim();
-  if(!unit)return;
-  // Collect call type checkboxes
+  if(!unit){unlock();return;}
   const checkedTypes=[...document.querySelectorAll('#editMbrCallTypes input[type=checkbox]:checked')].map(cb=>cb.value);
   const update={role,phone};
   if(newPin&&newPin.length>=4) update.pin=newPin;
-  // "Responds to" call-type restrictions are stored in FIRESTORE (no sheet column).
-  // Write them straight to the member's Firestore doc so they persist + sync.
+  // Optimistic: update local state + re-render immediately
+  try{
+    const _u=_normUnit(unit);
+    const _m=(STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
+    if(_m){_m.role=role.toLowerCase();if(phone)_m.phone=phone;if(newPin&&newPin.length>=4)_m.pin=newPin;_m.callTypes=checkedTypes;}
+  }catch(e){}
+  hideModal('editMemberRoleModal');
+  renderAdminMembers&&renderAdminMembers();
+  renderMemberDir&&renderMemberDir();
+  // Firestore callTypes
   try{
     if(window.firebase&&_firebaseReady){
       const did=_fsMemberDocId(unit);
       if(did) firebase.firestore().collection('members').doc(did).set({callTypes:checkedTypes},{merge:true}).catch(function(){});
     }
   }catch(e){}
-  // Update local state immediately so the UI reflects it without waiting for a poll.
-  try{
-    const _u=_normUnit(unit);
-    const _m=(STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
-    if(_m) _m.callTypes=checkedTypes;
-  }catch(e){}
   sheetPOST({action:'updateMember',memberId:unit,...update}).then(r=>{
-    if(r&&r.success){showToast('Member updated ✅');hideModal('editMemberRoleModal');loadMembersFromSheet().then(()=>renderAdminMembers());}
-    else{showToast('Error: '+(r&&r.error||'Update failed'));}
-  }).catch(e=>{showToast('Error saving member');console.error(e);});
+    if(r&&r.success){ _showSuccessModal('✅','Member Updated', unit + (phone?' · '+phone:'')); }
+    else{showToast('Error: '+(r&&r.error||'Update failed'));loadMembersFromSheet().then(()=>{renderAdminMembers&&renderAdminMembers();});}
+    unlock();
+  }).catch(e=>{showToast('Error saving member');console.error(e);unlock();});
 }
 
-function submitAddMember(){const unit=(document.getElementById('addMbrUnit')?.value||'').trim().toUpperCase();const first=(document.getElementById('addMbrFirst')?.value||'').trim();const last=(document.getElementById('addMbrLast')?.value||'').trim();const phone=(document.getElementById('addMbrPhone')?.value||'').trim();const role=(document.getElementById('addMbrRole')?.value||'Member').trim();if(!unit||!first||!last){showToast('Unit, first and last name required');return;}let norm=unit;if(/^\d+$/.test(unit))norm='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');sheetPOST({action:'addMember',memberId:norm,firstName:first,lastName:last,phone,role,pin:'1234'}).then(r=>{if(r&&r.success){['addMbrUnit','addMbrFirst','addMbrLast','addMbrPhone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});hideModal('addMemberModal');showToast('Member added');loadMembersFromSheet();}else{showToast('Error: '+(r&&r.error||'Failed to add member'));}}).catch(e=>{showToast('Error adding member');console.error(e);});}
+// ── Auto-save roles when any role checkbox changes ──
+function _autoSaveMemberRoles() {
+  const checkedRoles = [...document.querySelectorAll('#editMbrRoles input[type=checkbox]:checked')].map(cb=>cb.value);
+  const role = checkedRoles.length ? checkedRoles.join(', ') : 'Member';
+  _autoSaveMemberField('role', role);
+}
+
+// ── Auto-save a single member field (role, phone, callTypes) without closing the modal ──
+function _autoSaveMemberField(field, value) {
+  const unit = document.getElementById('editMbrUnit')?.value?.trim();
+  if (!unit) return;
+  const _u = _normUnit(unit);
+  const _m = (STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
+  // Optimistic local update
+  if (_m) { _m[field] = field==='role' ? value.toLowerCase() : value; }
+  renderAdminMembers&&renderAdminMembers();
+  renderMemberDir&&renderMemberDir();
+  // Sync to sheet silently
+  sheetPOST({action:'updateMember', memberId:unit, [field]:value})
+    .then(r=>{ if(!r||!r.success) showToast('Sync error: '+(r&&r.error||'')); })
+    .catch(e=>{ console.error(e); });
+}
+
+// ── Save PIN only — shows confirm modal ──
+function saveEditMemberPin() {
+  const unit = document.getElementById('editMbrUnit')?.value?.trim();
+  const newPin = (document.getElementById('editMbrNewPin')?.value||'').trim();
+  if (!unit) return;
+  if (!newPin || newPin.length < 4) { showToast('PIN must be at least 4 digits'); return; }
+  if (!/^\d+$/.test(newPin)) { showToast('PIN must be numbers only'); return; }
+  const btn = document.querySelector('#editMemberRoleModal [onclick="saveEditMemberPin()"]');
+  const unlock = _btnLock(btn, 'Saving…');
+  // Optimistic local update
+  const _u = _normUnit(unit);
+  const _m = (STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
+  if (_m) _m.pin = newPin;
+  const pinEl = document.getElementById('editMbrCurrentPin');
+  if (pinEl) pinEl.textContent = 'Current: ' + newPin;
+  document.getElementById('editMbrNewPin').value = '';
+  sheetPOST({action:'updateMember', memberId:unit, pin:newPin})
+    .then(r=>{
+      if (r&&r.success) {
+        _showSuccessModal('🔑','PIN Updated','New PIN set for ' + unit);
+      } else {
+        showToast('Error: '+(r&&r.error||'Failed'));
+        if(_m) _m.pin = ''; // rollback unknown
+      }
+      unlock();
+    }).catch(e=>{ showToast('Error saving PIN'); console.error(e); unlock(); });
+}
+
+// ── Success confirmation modal — non-blocking, auto-dismisses in 2.5s ──
+function _showSuccessModal(icon, title, detail) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = '<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px 22px;max-width:280px;width:88%;text-align:center;">'
+    + '<div style="font-size:42px;margin-bottom:10px;">' + icon + '</div>'
+    + '<div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:4px;">' + title + '</div>'
+    + (detail ? '<div style="font-size:13px;color:rgba(255,255,255,.55);margin-top:4px;">' + detail + '</div>' : '')
+    + '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(){ if(document.body.contains(overlay)) document.body.removeChild(overlay); });
+  setTimeout(function(){ if(document.body.contains(overlay)) document.body.removeChild(overlay); }, 2500);
+}
+
+function submitAddMember(){
+  const btn = document.querySelector('#addMemberModal .btn-primary');
+  const unlock = _btnLock(btn, 'Adding…');
+  const unit=(document.getElementById('addMbrUnit')?.value||'').trim().toUpperCase();
+  const first=(document.getElementById('addMbrFirst')?.value||'').trim();
+  const last=(document.getElementById('addMbrLast')?.value||'').trim();
+  const phone=(document.getElementById('addMbrPhone')?.value||'').trim();
+  const role=(document.getElementById('addMbrRole')?.value||'Member').trim();
+  if(!unit||!first||!last){showToast('Unit, first and last name required');unlock();return;}
+  let norm=unit;
+  if(/^\d+$/.test(unit)) norm='BC-'+unit.padStart(2,'0');
+  else if(/^BC\d+$/i.test(unit)) norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');
+  // Optimistic: add to local state immediately
+  const newMem={id:norm.replace(/^BC-/i,''),unit:norm,firstName:first,lastName:last,
+    name:(first+' '+last).trim(),phone,role:role.toLowerCase(),pin:'1234',carAccess:false};
+  STATE.members=STATE.members||[];
+  if(!STATE.members.find(m=>m.unit===norm)) STATE.members.push(newMem);
+  ['addMbrUnit','addMbrFirst','addMbrLast','addMbrPhone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  hideModal('addMemberModal');
+  renderAdminMembers&&renderAdminMembers();
+  renderMemberDir&&renderMemberDir();
+  _showSuccessModal('✅', 'Member Added', norm + ' · ' + (first+' '+last).trim());
+  sheetPOST({action:'addMember',memberId:norm,firstName:first,lastName:last,phone,role,pin:'1234'}).then(r=>{
+    if(r&&r.success){ loadMembersFromSheet().then(()=>{renderAdminMembers&&renderAdminMembers();renderMemberDir&&renderMemberDir();}); }
+    else{ showToast('Error: '+(r&&r.error||'Failed to add member')); STATE.members=STATE.members.filter(m=>m.unit!==norm); renderAdminMembers&&renderAdminMembers(); }
+    unlock();
+  }).catch(e=>{ showToast('Error adding member'); console.error(e); unlock(); });
+}
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -8023,15 +8242,35 @@ function renderEqLocList2() {
 function addLocationFromMore(){const name=(document.getElementById('newLocName2')?.value||'').trim();if(!name){showToast('Enter a location name');return;}const locs=[...(STATE.locations||[])];if(locs.includes(name)){showToast('Already exists');return;}locs.push(name);STATE.locations=locs;sheetPOST({action:'updateLocations',locations:locs}).then(()=>{const el=document.getElementById('newLocName2');if(el)el.value='';showToast('Location added');save();renderEqLocList&&renderEqLocList();}).catch(e=>{showToast('Error');console.error(e);});}
 function removeLocationFromMore(idx){removeLocation(idx);}
 async function addEquipmentFromMore(){
+  const btn = document.querySelector('[onclick="addEquipmentFromMore()"]');
+  const unlock = _btnLock(btn, 'Adding…');
   const nameEl=document.getElementById('newEqName2');
   const name=(nameEl?.value||'').trim();
   const loc=(document.getElementById('newEqLoc2')?.value||'COBC').trim();
-  if(!name){showToast('Enter equipment name');return;}
+  if(!name){showToast('Enter equipment name');unlock();return;}
+  // Optimistic: add to local state immediately
+  const newItem={id:'tmp_'+Date.now(),name,homeLocation:loc,location:loc,status:'IN',row:99999,equipStatus:'OK',ccnc:'CC',isCNC:false};
+  STATE.equipment=STATE.equipment||[];
+  STATE.equipment.push(newItem);
+  if(nameEl) nameEl.value='';
+  renderInventory&&renderInventory();
   try{
     const r=await sheetPOST({action:'addItem',name,location:loc});
-    if(r&&r.success){if(nameEl)nameEl.value='';showToast('✅ Equipment added to sheet');await loadInventoryFromSheet();}
-    else{showToast('Error: '+(r?.error||'Unknown'));}
-  }catch(e){showToast('Error adding equipment');console.error(e);}
+    if(r&&r.success){
+      STATE.equipment=STATE.equipment.filter(e=>e.id!==newItem.id);
+      _showSuccessModal('✅','Item Added',name+' · '+loc);
+      await loadInventoryFromSheet();
+    }else{
+      STATE.equipment=STATE.equipment.filter(e=>e.id!==newItem.id);
+      showToast('Error: '+(r?.error||'Unknown'));
+      renderInventory&&renderInventory();
+    }
+  }catch(e){
+    STATE.equipment=STATE.equipment.filter(e=>e.id!==newItem.id);
+    showToast('Error adding equipment');console.error(e);
+    renderInventory&&renderInventory();
+  }
+  unlock();
 }
 function renderHlocList2() {
   const el = document.getElementById('hlocList2');
@@ -8057,9 +8296,16 @@ function hlocChanged2(id) {
   const btn = document.getElementById('hloc2-btn-'+id);
   const ok  = document.getElementById('hloc2-ok-'+id);
   const item = STATE.equipment.find(e=>e.id===id);
-  if(!item || !sel || !btn) return;
-  if(ok) ok.style.display='none';
-  btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
+  if(!item || !sel) return;
+  const newLoc = sel.value;
+  item.location = newLoc;
+  if(ok){ ok.style.display='inline'; ok.textContent='✓'; ok.style.color='var(--green,#16a34a)'; }
+  if(btn) btn.style.display='none';
+  save();
+  sheetPOST({action:'updateHomeLocation',row:item.row,location:newLoc})
+    .then(r=>{ if(!r||!r.success) showToast('Sync error: '+(r&&r.error||'Unknown')); })
+    .catch(e=>{ console.error(e); })
+    .finally(()=>{ setTimeout(()=>{ if(ok) ok.style.display='none'; }, 1500); });
 }
 async function saveHloc2(id){
   const sel=document.getElementById('hloc2-sel-'+id);
@@ -8114,13 +8360,24 @@ function renderEqAdminList2() {
 async function setAdminEqStatus(id,status){
   const eq=STATE.equipment.find(e=>e.id===id);
   if(!eq)return;
-  try{
-    await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:''});
-    eq.equipStatus=status;if(status==='OK')eq.equipNote='';
-    showToast('Status updated');
-    renderEqAdminList&&renderEqAdminList();renderEqAdminList2&&renderEqAdminList2();
-    renderInventory&&renderInventory();save();
-  }catch(e){showToast('Error');console.error(e);}
+  // Optimistic: update instantly, re-render, then sync
+  const prevStatus = eq.equipStatus;
+  eq.equipStatus=status;
+  if(status==='OK') eq.equipNote='';
+  renderEqAdminList&&renderEqAdminList();
+  renderEqAdminList2&&renderEqAdminList2();
+  renderInventory&&renderInventory();
+  save();
+  sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:''})
+    .then(r=>{
+      if(!r||!r.success){
+        eq.equipStatus=prevStatus; // rollback
+        showToast('Sync error — reverted');
+        renderEqAdminList&&renderEqAdminList();
+        renderInventory&&renderInventory();
+      }
+    })
+    .catch(e=>{ console.error(e); });
 }
 
 function _OLD_setMoreTab_unused(tab,el) {
@@ -9423,6 +9680,10 @@ function submitCobcet() {
 // Equipment page text-size control (Normal / Large / X-Large), persisted to localStorage.
 function _applyEqTextSize(){
   var lvl=parseInt(localStorage.getItem('cobc_eq_ts')||'0',10)||0;
+  // Apply to the whole app, not just the equipment page
+  var app=document.getElementById('app');
+  if(app){ app.classList.remove('eq-ts-lg','eq-ts-xl'); if(lvl===1)app.classList.add('eq-ts-lg'); else if(lvl===2)app.classList.add('eq-ts-xl'); }
+  // Also keep the equipment page class in sync (legacy)
   var pg=document.getElementById('page-equipment');
   if(pg){ pg.classList.remove('eq-ts-lg','eq-ts-xl'); if(lvl===1)pg.classList.add('eq-ts-lg'); else if(lvl===2)pg.classList.add('eq-ts-xl'); }
   // Highlight the active button in the Admin > Text Size setting
@@ -9539,7 +9800,21 @@ function renderEqMemberList() {
     </div>`;
   }).join('') + (filtered.length>200 ? `<div style="padding:8px;color:var(--text3);font-size:11px;text-align:center;">${filtered.length-200} more — use search</div>` : '');
 }
-function deleteMemberEq(unit){if(!confirm('Delete member '+unit+'?'))return;sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{if(r&&r.success){showToast('Member deleted');loadMembersFromSheet();}else{showToast('Error: '+(r&&r.error||'Delete failed'));}}).catch(e=>{showToast('Error');console.error(e);});}
+function deleteMemberEq(unit){
+  window.__confirmDelete
+    ? window.__confirmDelete('This will remove BC-'+String(unit).replace(/^BC-?/i,'')+' from the roster.',function(){
+        const key=_normUnit(unit);
+        _deletedMemberIds&&_deletedMemberIds.add(key);
+        STATE.members=(STATE.members||[]).filter(m=>_normUnit(m.unit||m.id)!==key);
+        renderEqAdminTab&&renderEqAdminTab();
+        showToast('Deleting…');
+        sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{
+          if(r&&r.success){showToast('Member deleted ✅');}
+          else{showToast('Error: '+(r&&r.error||'Delete failed'));loadMembersFromSheet();}
+        }).catch(e=>{showToast('Error');console.error(e);});
+      })
+    : (confirm('Delete member '+unit+'?')&&sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{if(r&&r.success){showToast('Member deleted');loadMembersFromSheet();}else{showToast('Error: '+(r&&r.error||'Delete failed'));}}));
+}
 function addMemberFromEq(){const unit=(document.getElementById('newMemberUnitEq')?.value||'').trim().toUpperCase();const first=(document.getElementById('newMemberFirstEq')?.value||'').trim();const last=(document.getElementById('newMemberLastEq')?.value||'').trim();const phone=(document.getElementById('newMemberPhoneEq')?.value||'').trim();const role=(document.getElementById('newMemberRoleEq')?.value||'Member').trim();if(!unit||!first||!last){showToast('Unit, first and last required');return;}let norm=unit;if(/^\d+$/.test(unit))norm='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');sheetPOST({action:'addMember',memberId:norm,firstName:first,lastName:last,phone,role,pin:'1234'}).then(r=>{if(r&&r.success){['newMemberUnitEq','newMemberFirstEq','newMemberLastEq','newMemberPhoneEq'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});showToast('Member added');loadMembersFromSheet();}else{showToast('Error: '+(r&&r.error||'Failed'));}}).catch(e=>{showToast('Error');console.error(e);});}
 
 function setEqFilter(f,el) {
@@ -9637,9 +9912,9 @@ function renderEquipmentDashboard() {
   }).join(''):'<div style="display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:12px;background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(18,24,18,.5));border:1px solid rgba(34,197,94,.3);"><div style="width:34px;height:34px;border-radius:50%;background:rgba(34,197,94,.22);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">✅</div><div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:#86efac;">All equipment OK</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:1px;">No missing, damaged, or misplaced items</div></div></div>';
 
   // Out items
-  const outItems=STATE.equipment.filter(e=>e.status==='out');
+  const outItems=STATE.equipment.filter(e=>(e.status||'').toUpperCase()==='OUT');
   const ow=document.getElementById('eq-out-wrap');
-  if(ow) ow.style.display=outItems.length?'block':'none';
+  if(ow) ow.style.display='block'; // always show so dashboard isn't empty
   const ol=document.getElementById('eq-out-list');
   if(ol) ol.innerHTML=outItems.length?outItems.map(e=>`
     <div style="background:linear-gradient(160deg,rgba(212,169,58,.16),rgba(18,16,12,.62));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(230,196,99,.34);border-left:3px solid var(--gold,#d4a93a);border-radius:12px;padding:11px 13px;margin-bottom:8px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;" onclick="openCheckout(${e.row||0})">
@@ -9653,7 +9928,7 @@ function renderEquipmentDashboard() {
         <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;">${fmtEqTime(e.lastUpdated)}</div>
       </div>
     </div>`).join(''):
-    '<div class="alert alert-green"><span class="alert-icon">+</span><div class="alert-body"><div class="alert-title">All equipment checked in</div></div></div>';
+    '<div class="alert alert-green" style="align-items:center;"><span class="alert-icon">✅</span><div class="alert-body"><div class="alert-title">All equipment checked in</div></div></div>';
 
   // Recent activity — derived from the live inventory (shared across all devices).
   const recent=[...STATE.equipment]
@@ -9712,10 +9987,18 @@ function renderInventory() {
   el.innerHTML=items.map(e=>{
     const isOut=e.status==='out';
     const statusBadge=isOut?'<span class="badge badge-red">OUT</span>':'<span class="badge badge-green">IN</span>';
-    const equipBadge=e.equipStatus&&e.equipStatus!=='OK'?`<span class="badge ${e.equipStatus==='Missing'?'badge-amber':e.equipStatus==='Damaged'?'badge-purple':'badge-blue'}" style="font-size:10px;">${e.equipStatus}</span>`:'';
+    const equipBadge=e.equipStatus&&e.equipStatus!=='OK'?`<span class="badge ${e.equipStatus==='Missing'?'badge-red':e.equipStatus==='Damaged'?'badge-amber':e.equipStatus==='Need More'?'badge-blue':'badge-blue'}" style="font-size:10px;">${e.equipStatus}</span>`:'';
     const cncBadge=e.isCNC?'<span class="badge badge-amber" style="font-size:10px;">CNC</span>':'';
-    const fl=e.equipStatus==='Missing'?'border-left:4px solid var(--red);':e.equipStatus==='Damaged'?'border-left:4px solid var(--amber);':e.isCNC?'border-left:4px solid var(--amber);':'';
-    return `<div data-row="${e.row||0}" class="eq-inv-card" style="background:#fff;border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);${fl}">
+    // Card background tint by status
+    const _bg = e.equipStatus==='Missing'   ? 'background:linear-gradient(135deg,rgba(220,38,38,.22),rgba(10,0,0,.88));border-left:4px solid rgba(239,68,68,.85);'
+      : e.equipStatus==='Damaged'            ? 'background:linear-gradient(135deg,rgba(217,119,6,.22),rgba(10,5,0,.88));border-left:4px solid rgba(251,191,36,.85);'
+      : e.equipStatus==='Need More'          ? 'background:linear-gradient(135deg,rgba(37,99,235,.22),rgba(0,5,20,.88));border-left:4px solid rgba(96,165,250,.85);'
+      : e.equipStatus==='Not Active'         ? 'background:linear-gradient(135deg,rgba(90,90,90,.18),rgba(10,10,10,.88));border-left:4px solid rgba(150,150,150,.55);'
+      : e.isCNC                              ? 'background:linear-gradient(135deg,rgba(217,119,6,.16),rgba(10,5,0,.88));border-left:4px solid rgba(251,191,36,.7);'
+      : isOut                                ? 'background:linear-gradient(135deg,rgba(239,68,68,.13),rgba(10,10,10,.88));border-left:4px solid rgba(239,68,68,.5);'
+      : 'background:#fff;';
+    const _tc = (e.equipStatus&&e.equipStatus!=='OK')||e.isCNC ? 'color:#fff;' : '';
+    return `<div data-row="${e.row||0}" class="eq-inv-card" style="${_bg}border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);${_tc}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
         <div style="font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
         <div style="display:flex;gap:4px;flex-shrink:0;">${statusBadge}${equipBadge}${cncBadge}</div>
@@ -10371,18 +10654,38 @@ function removeLocation(idx){const locs=[...(STATE.locations||[])];if(typeof idx
 
 // ── ADMIN: Add Equipment (adds row to Google Sheet + generates QR link) ──
 async function addEquipment(){
+  const btn = document.querySelector('[onclick="addEquipment()"]');
+  const unlock = _btnLock(btn, 'Adding…');
   const nameEl=document.getElementById('newEqName');
   const name=(nameEl?.value||'').trim();
   const loc=(document.getElementById('newEqLoc')?.value||'COBC').trim();
-  if(!name){showToast('Enter equipment name');return;}
+  if(!name){showToast('Enter equipment name');unlock();return;}
+  // Optimistic: add to local state immediately
+  const tempRow = 99999;
+  const newItem = {id:'tmp_'+Date.now(),name,homeLocation:loc,location:loc,status:'IN',row:tempRow,equipStatus:'OK',ccnc:'CC',isCNC:false};
+  STATE.equipment = STATE.equipment||[];
+  STATE.equipment.push(newItem);
+  if(nameEl) nameEl.value='';
+  renderInventory&&renderInventory();
+  renderEqAdminList&&renderEqAdminList();
   try{
     const r=await sheetPOST({action:'addItem',name,location:loc});
     if(r&&r.success){
-      if(nameEl)nameEl.value='';
-      showToast('✅ Equipment added to sheet');
+      // Replace temp with real row
+      STATE.equipment = STATE.equipment.filter(e=>e.id!==newItem.id);
+      _showSuccessModal('✅','Item Added', name + ' · ' + loc);
       await loadInventoryFromSheet();
-    }else{showToast('Error: '+(r?.error||'Unknown'));}
-  }catch(e){showToast('Error adding equipment');console.error(e);}
+    }else{
+      STATE.equipment = STATE.equipment.filter(e=>e.id!==newItem.id);
+      showToast('Error: '+(r?.error||'Unknown'));
+      renderInventory&&renderInventory();
+    }
+  }catch(e){
+    STATE.equipment = STATE.equipment.filter(e=>e.id!==newItem.id);
+    showToast('Error adding equipment');console.error(e);
+    renderInventory&&renderInventory();
+  }
+  unlock();
 }
 
 function showQRForItem(item) {
@@ -10501,9 +10804,18 @@ function hlocChanged(id) {
   const btn = document.getElementById('hloc-btn-'+id);
   const ok  = document.getElementById('hloc-ok-'+id);
   const item = STATE.equipment.find(e=>e.id===id);
-  if(!item || !sel || !btn) return;
-  if(ok) ok.style.display='none';
-  btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
+  if(!item || !sel) return;
+  // Optimistic: update local state + show ✓ immediately
+  const newLoc = sel.value;
+  item.location = newLoc;
+  if(ok){ ok.style.display='inline'; ok.textContent='✓'; ok.style.color='var(--green,#16a34a)'; }
+  if(btn) btn.style.display='none'; // hide Save button — auto-save on change
+  save();
+  // Sync to sheet in background
+  sheetPOST({action:'updateHomeLocation',row:item.row,location:newLoc})
+    .then(r=>{ if(!r||!r.success) showToast('Sync error: '+(r&&r.error||'Unknown')); })
+    .catch(e=>{ console.error(e); })
+    .finally(()=>{ setTimeout(()=>{ if(ok) ok.style.display='none'; }, 1500); });
 }
 
 async function saveHloc(id){
@@ -10563,11 +10875,13 @@ function renderReports() {
 }
 
 async function submitReport(){
+  const btn = document.querySelector('#eq-reports .btn-primary') || document.querySelector('[onclick="submitReport()"]');
+  const unlock = _btnLock(btn, 'Submitting…');
   const itemName=(document.getElementById('reportItem')?.value||'');
   const member=(document.getElementById('reportMember')?.value||SESSION?.unit||'').trim();
   const notes=(document.getElementById('reportNotes')?.value||'').trim();
-  if(!itemName||!notes){showToast('Select item and describe issue');return;}
-  if(!rptCurType){showToast('Select a report type first');return;}
+  if(!itemName||!notes){showToast('Select item and describe issue');unlock();return;}
+  if(!rptCurType){showToast('Select a report type first');unlock();return;}
   const item=STATE.equipment.find(e=>e.name===itemName);
   const location=item?.location||'';
   try{
@@ -10585,11 +10899,14 @@ async function submitReport(){
     const memberEl=document.getElementById('reportMember');if(memberEl)memberEl.value='';
     rptCurType='';
     document.querySelectorAll('#rptTypeBtns button').forEach(b=>{b.style.borderColor='var(--border)';b.style.color='var(--text2)';b.style.background='#fff';});
-    showToast('✅ Report submitted');
+    // Show success modal immediately — report already added to list
+    _showSuccessModal('📋','Report Submitted', itemName + (rptCurType?' · '+rptCurType:''));
+    rptCurType='';
     renderReports&&renderReports();
     renderInventory&&renderInventory();
     save();
-  }catch(e){showToast('Error submitting report');console.error(e);}
+    unlock();
+  }catch(e){showToast('Error submitting report');console.error(e);unlock();}
 }
 
 function resolveReport(reportId){
@@ -11773,6 +12090,13 @@ function stopShiftBannerTimer() {
 })();
 
 // ── Admin: Car Access ──────────────────────────────────────────────────────────
+// Updates the count badge in the accordion header whenever members load.
+function _updateCarAccessCount() {
+  var approved = (STATE.members||[]).filter(function(m){ return m.carAccess===true||m.carAccess==='TRUE'; }).length;
+  ['car-access-count','car-access-count2'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent=approved;
+  });
+}
 function renderCarAccessAdmin() {
   var el = document.getElementById('car-access-list');
   if (!el) return;
@@ -11784,10 +12108,11 @@ function renderCarAccessAdmin() {
   if (!mems.length) { el.innerHTML='<div style="color:#aaa;font-size:13px;">No members found.</div>'; return; }
   el.innerHTML = mems.map(function(m){
     var id = String(m.unit||m.id||'');
+    var displayId = id.replace(/^BC-?/i,''); // strip prefix — we add it once below
     var name = ((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
     var has = m.carAccess===true||m.carAccess==='TRUE';
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;">'
-      +'<div><div style="font-size:13px;font-weight:600;">BC-'+id+(name?' — '+name:'')+'</div></div>'
+      +'<div><div style="font-size:13px;font-weight:600;">BC-'+displayId+(name?' — '+name:'')+'</div></div>'
       +'<button onclick="toggleCarAccess(\''+id+'\','+(!has)+')" style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;'
       +(has?'background:#e8f5e9;color:#2e7d32;':'background:#fdecea;color:#c0392b;')+'">'
       +(has?'✓ Approved':'✕ No Access')+'</button>'
@@ -11796,18 +12121,32 @@ function renderCarAccessAdmin() {
 }
 
 function toggleCarAccess(memberId, hasAccess) {
-  // Google Sheet is source of truth — write directly there
+  // Optimistic: update local state + re-render instantly
+  var mem = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'')===String(memberId); });
+  if (mem) mem.carAccess = hasAccess;
+  if (SESSION && String(SESSION.unit) === String(memberId)) SESSION.carAccess = hasAccess;
+  renderCarAccessAdmin();
+  renderCarAccessAdmin2();
+  _updateCarAccessCount&&_updateCarAccessCount();
+  // Sync to sheet in background
   postJ('setCarAccess', {memberId: memberId, hasAccess: hasAccess}).then(function(r) {
     if (r && r.success) {
-      var mem = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'')===String(memberId); });
-      if (mem) mem.carAccess = hasAccess;
-      if (SESSION && String(SESSION.unit) === String(memberId)) SESSION.carAccess = hasAccess;
+      showToast(hasAccess ? '✅ Car access granted' : '🚫 Car access removed');
+    } else {
+      // Rollback on failure
+      if (mem) mem.carAccess = !hasAccess;
+      if (SESSION && String(SESSION.unit) === String(memberId)) SESSION.carAccess = !hasAccess;
       renderCarAccessAdmin();
       renderCarAccessAdmin2();
-      showToast(hasAccess ? '✅ Car access granted' : '🚫 Car access removed');
-      loadMembersFromSheet();
-    } else { showToast('Error updating car access'); }
-  }).catch(function(e) { showToast('Error: ' + (e.message||'Unknown')); });
+      _updateCarAccessCount&&_updateCarAccessCount();
+      showToast('Error updating car access');
+    }
+  }).catch(function(e) {
+    if (mem) mem.carAccess = !hasAccess;
+    renderCarAccessAdmin();
+    renderCarAccessAdmin2();
+    showToast('Error: ' + (e.message||'Unknown'));
+  });
 }
 
 // ── Admin: COBC 4 History ──────────────────────────────────────────────────────
