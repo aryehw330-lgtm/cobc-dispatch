@@ -264,6 +264,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .divider{height:1px;background:var(--border);margin:10px 0;}
 .section-label{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px;}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;z-index:1000;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+#liveMapModal{z-index:2000;}/* Always on top of other modals */
 .modal-overlay.hidden{display:none;}
 .modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:20px 20px;padding-bottom:calc(20px + env(safe-area-inset-bottom));}
 .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
@@ -5427,7 +5428,7 @@ function callCardHTML(call, mini=false) {
           return chips?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${chips}</div>`:'';
         })():''}
       </div>
-      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}</div>`:''}
+      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${(!isDispatch&&!iAmApproved&&!iAmPending&&call.status!=='done'&&(typeof currentTab==='undefined'||currentTab==='home'))?`<div onclick="event.stopPropagation();openCallDetail('${call.id}')" style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;cursor:pointer;white-space:nowrap;text-align:center;">I'm Available →</div>`:iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:iAmApproved?`<div style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">✓ Responding</div>`:''}}</div>`:''}
     </div>
     <div class="call-card-footer">
       ${respondBtn}
@@ -5517,8 +5518,20 @@ async function fillCardETAs() {
       const color = mins<=5?'var(--green)':mins<=12?'var(--amber)':'#6b7280';
       const bg    = mins<=5?'#dcfce7':mins<=12?'#fef3c7':'#f3f4f6';
       span.style.display = 'inline-flex';
-      span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;margin-top:5px;`;
-      span.textContent = `📍 Your ETA: ~${mins} min`;
+      span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;margin-top:5px;cursor:pointer;`;
+      span.textContent = `📍 Your ETA: ~${mins} min → Map`;
+      // Tap to open Google Maps directions
+      span.onclick = function(e) {
+        e.stopPropagation();
+        const call = (STATE.calls||[]).find(c => {
+          const el = document.getElementById('card-eta-'+c.id);
+          return el === span;
+        });
+        if (!call) return;
+        const dest = encodeURIComponent((call.address||'') + ' ' + (call.town||'') + ' NJ');
+        const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
+        window.open(mapsUrl, '_blank');
+      };
     } catch(e) { span.style.display='none'; }
   }
 }
@@ -6062,6 +6075,21 @@ function confirmRespond() {
       // No schedule — notify all dispatchers
       sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
     }
+    // Also push to every admin member individually (they must always be notified of response requests)
+    (STATE.members||[]).forEach(function(m){
+      if ((m.role||'').toLowerCase()==='admin') {
+        var adminUnit = String(m.unit||m.id||'').replace(/^BC-?/i,'');
+        if (adminUnit && !pushedUnits.has('admin:'+adminUnit)) {
+          pushedUnits.add('admin:'+adminUnit);
+          sendPush({ target:'unit', unit:adminUnit, title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+        }
+      }
+    });
+    // Also push to the on-duty dispatcher fields (in case they're not on the schedule)
+    var onDutyN = document.getElementById('dispOnDutyName')?.textContent?.trim();
+    var onDutyN2 = document.getElementById('dispOnDutyName2')?.textContent?.trim();
+    if (onDutyN && onDutyN !== '—') pushToScheduledName(onDutyN);
+    if (onDutyN2 && onDutyN2 !== '—') pushToScheduledName(onDutyN2);
   } catch(e) {
     sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
   }
@@ -6170,14 +6198,28 @@ function approveResponder(callId,unit) {
   const targetIsObserver = req.isObserver || (targetMember && targetMember.role === 'observer');
   if(!targetIsObserver && memberHasRestriction(unit) && !isAllowedForUnit(call.type, unit)) {
     const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    const allowedTxt = allowedTypesForUnit(unit).map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ');
-    const ok = confirm(
-      '⚠️ BC-'+String(unit).replace(/^BC-?/i,'')+' is not normally approved for this call type.\n\n'+
-      'They are approved for: '+allowedTxt+'.\n'+
-      'This call is: '+typeLabel+'.\n\n'+
-      'Override and approve anyway?'
-    );
-    if(!ok) return;
+    const allowedTxt = allowedTypesForUnit(unit).map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ') || 'None set';
+    const unitDisp = String(unit).replace(/^BC-?/i,'');
+    // Non-blocking warning modal
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = '<div style="background:#1c1c1e;border:2px solid rgba(239,68,68,.5);border-radius:18px;padding:24px 20px;max-width:310px;width:90%;text-align:center;">'
+      + '<div style="font-size:32px;margin-bottom:10px">⚠️</div>'
+      + '<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:6px;">Not Approved for This Call</div>'
+      + '<div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:6px;">BC-'+unitDisp+' is only approved for:</div>'
+      + '<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:16px;">'+allowedTxt+'</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;">This call is: <strong style="color:#fff;">'+typeLabel+'</strong></div>'
+      + '<div style="display:flex;gap:10px;">'
+      + '<button id="__ar_cancel" style="flex:1;padding:12px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Cancel</button>'
+      + '<button id="__ar_ok" style="flex:1;padding:12px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Override &amp; Approve</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#__ar_cancel').onclick = function(){ document.body.removeChild(overlay); };
+    overlay.querySelector('#__ar_ok').onclick = function(){
+      document.body.removeChild(overlay);
+      _doApproveResponder(callId, unit, call, req);
+    };
+    return;
   }
   if(req.isObserver && !isAllowedForObserver(call.type, unit)) {
     const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -6185,15 +6227,30 @@ function approveResponder(callId,unit) {
     const allowedTxt = allowedList.length
       ? allowedList.map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ')
       : '(no work permissions set — observe-only)';
-    const ok = confirm(
-      '👁️ BC-'+String(unit).replace(/^BC-?/i,'')+' is an OBSERVER.\n\n'+
-      'Approved work types: '+allowedTxt+'.\n'+
-      'This call is: '+typeLabel+'.\n\n'+
-      'Approving will let them work on this call. Otherwise they can still observe without approval.\n\n'+
-      'Override and approve as worker anyway?'
-    );
-    if(!ok) return;
+    const unitDisp2 = String(unit).replace(/^BC-?/i,'');
+    const overlay2 = document.createElement('div');
+    overlay2.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay2.innerHTML = '<div style="background:#1c1c1e;border:2px solid rgba(217,119,6,.5);border-radius:18px;padding:24px 20px;max-width:310px;width:90%;text-align:center;">'
+      + '<div style="font-size:32px;margin-bottom:10px">👁️</div>'
+      + '<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:6px;">BC-'+unitDisp2+' is an Observer</div>'
+      + '<div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:6px;">Approved work types:</div>'
+      + '<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:12px;">'+allowedTxt+'</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;">This call is: <strong style="color:#fff;">'+typeLabel+'</strong>. Approving lets them work on it.</div>'
+      + '<div style="display:flex;gap:10px;">'
+      + '<button id="__ao_cancel" style="flex:1;padding:12px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Cancel</button>'
+      + '<button id="__ao_ok" style="flex:1;padding:12px;background:#d97706;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Approve as Worker</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay2);
+    overlay2.querySelector('#__ao_cancel').onclick = function(){ document.body.removeChild(overlay2); };
+    overlay2.querySelector('#__ao_ok').onclick = function(){
+      document.body.removeChild(overlay2);
+      _doApproveResponder(callId, unit, call, req);
+    };
+    return;
   }
+  _doApproveResponder(callId, unit, call, req);
+}
+function _doApproveResponder(callId, unit, call, req) {
   call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
   call.responders=call.responders||[];
   const _approvedEntry = {...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
@@ -6250,12 +6307,19 @@ function rejectResponder(callId,unit) {
   logCallEvent(call, 'responder_rejected', {responder:unit, rejectedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   showToast(`❌ BC-${unit} rejected`);
+  // Smart rejection message: if member not allowed for this call type → chiefs message, else → capacity message
+  const notAllowed = memberHasRestriction(unit) && !isAllowedForUnit(call.type, unit);
+  const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  const rejTitle = notAllowed ? 'Not approved for this call type' : 'Coverage filled';
+  const rejBody  = notAllowed
+    ? `You are not approved for ${typeLabel} calls. Please contact the chiefs to find out more.`
+    : `Thank you for offering — we have enough members responding to the ${call.address} call.`;
   // PUSH HOOK #4 — member rejected → that specific member
   sendPush({
     target: 'unit',
     unit: String(unit),
-    title: 'Coverage filled',
-    body: `Thanks for offering — we have enough on the ${call.address} call.`,
+    title: rejTitle,
+    body: rejBody,
     url: '/cobc-dispatch/',
     callId: call.id
   });
