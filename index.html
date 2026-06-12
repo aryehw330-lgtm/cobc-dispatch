@@ -4235,6 +4235,20 @@ async function loadMembersFromSheet(){
       STATE.members=SHEET_MEMBERS.slice();
       // Update car access count badge immediately after members load
       try{_updateCarAccessCount&&_updateCarAccessCount();}catch(e){}
+      // Merge callTypes from Firestore into STATE.members (callTypes live in Firestore, not Sheet)
+      try{
+        if(window.firebase&&_firebaseReady){
+          firebase.firestore().collection('members').get().then(function(snap){
+            snap.forEach(function(doc){
+              const d=doc.data();
+              if(!d||!Array.isArray(d.callTypes)||!d.callTypes.length) return;
+              const docUnit=String(d.unit||doc.id||'').replace(/^BC-?/i,'');
+              const m=(STATE.members||[]).find(function(x){ return String(x.unit||x.id||'').replace(/^BC-?/i,'')=== docUnit; });
+              if(m) m.callTypes=d.callTypes;
+            });
+          }).catch(function(){});
+        }
+      }catch(e){}
       // Sheet is source of truth for carAccess — refresh SESSION whenever sheet loads
       if (SESSION && SESSION.unit) {
         const me = SHEET_MEMBERS.find(m => _normUnit(m.unit) === _normUnit(SESSION.unit));
@@ -5528,9 +5542,7 @@ async function fillCardETAs() {
           return el === span;
         });
         if (!call) return;
-        const dest = encodeURIComponent((call.address||'') + ' ' + (call.town||'') + ' NJ');
-        const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
-        window.open(mapsUrl, '_blank');
+        openMyRouteMap(call);
       };
     } catch(e) { span.style.display='none'; }
   }
@@ -7164,6 +7176,47 @@ function _gmLabel(map, latLng, html) {
   overlay.setMap(map);
   overlay._div = div;
   return overlay;
+}
+
+// ── Member route map (in-app, shows directions to call address) ─────────────
+function openMyRouteMap(call) {
+  if (!call) return;
+  const dest = encodeURIComponent((call.address||'') + ' ' + (call.town||'') + ' NJ');
+  // Use Google Maps embed with directions mode
+  const apiKey = typeof GOOGLE_MAPS_API_KEY !== 'undefined' ? GOOGLE_MAPS_API_KEY : '';
+  const title = `#${call.callNum||''} · ${call.address}${call.town?', '+call.town:''}`;
+
+  // Create or reuse modal
+  let modal = document.getElementById('myRouteMapModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'myRouteMapModal';
+    modal.className = 'modal-overlay hidden';
+    modal.style.cssText = 'z-index:2500;';
+    modal.innerHTML = '<div class="modal" style="padding:0;overflow:hidden;border-radius:20px;height:88vh;display:flex;flex-direction:column;">'
+      + '<div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;">'
+      + '<div><div style="font-size:16px;font-weight:700;">🧭 My Route</div><div id="myRouteMapTitle" style="font-size:12px;color:var(--text3);margin-top:1px;"></div></div>'
+      + '<div style="display:flex;gap:8px;align-items:center;">'
+      + '<a id="myRouteExtLink" href="" target="_blank" style="font-size:12px;font-weight:700;color:var(--navy);text-decoration:none;padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;">🔗 Open in Maps</a>'
+      + '<button onclick="hideModal(\'myRouteMapModal\')" style="background:var(--border2);border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;">✕</button>'
+      + '</div></div>'
+      + '<iframe id="myRouteMapFrame" src="" style="flex:1;width:100%;border:none;" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>'
+      + '</div>';
+    document.body.appendChild(modal);
+  }
+
+  document.getElementById('myRouteMapTitle').textContent = title;
+  // External link fallback
+  const extUrl = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
+  document.getElementById('myRouteExtLink').href = extUrl;
+
+  // Embed URL — shows directions from current location
+  const embedUrl = apiKey
+    ? `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&destination=${dest}&mode=driving`
+    : `https://maps.google.com/maps?q=${dest}&output=embed`;
+  document.getElementById('myRouteMapFrame').src = embedUrl;
+
+  showModal('myRouteMapModal');
 }
 
 async function openLiveMap(callId) {
