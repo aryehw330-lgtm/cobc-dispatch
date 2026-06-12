@@ -943,8 +943,8 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- Stats stacked left + On Duty card right — same height row -->
       <div id="ds-pending-card" style="display:none;"></div>
       <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:12px;">
-        <!-- Open / Active stacked vertically -->
-        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:52px;">
+        <!-- Open / Active / Pending stacked vertically -->
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:58px;overflow:hidden;">
           <div class="mini-stat stat-amber" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;min-width:0;">
             <div class="mini-stat-num" id="ds-open" style="font-size:20px;">0</div>
             <div class="mini-stat-label" style="font-size:9px;">Open</div>
@@ -953,7 +953,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <div class="mini-stat-num" id="ds-active" style="font-size:20px;">0</div>
             <div class="mini-stat-label" style="font-size:9px;">Active</div>
           </div>
-          <div class="mini-stat" id="ds-pending-inline" onclick="openPendingModal()" style="display:none;flex:1;align-items:center;justify-content:center;padding:6px 4px;cursor:pointer;border:2px solid var(--amber);background:linear-gradient(135deg,#fef3c7,#fef9c3);animation:pendingPulse 1.8s ease-in-out infinite;">
+          <div class="mini-stat" id="ds-pending-inline" onclick="openPendingModal()" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;cursor:pointer;border:2px solid var(--amber);background:linear-gradient(135deg,#fef3c7,#fef9c3);animation:pendingPulse 1.8s ease-in-out infinite;min-width:0;width:100%;">
             <div class="mini-stat-num" id="ds-pending" style="color:var(--amber);font-size:20px;">0</div>
             <div class="mini-stat-label" style="color:var(--amber);font-weight:700;font-size:9px;">Wait</div>
           </div>
