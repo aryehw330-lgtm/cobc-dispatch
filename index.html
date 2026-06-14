@@ -149,9 +149,9 @@ button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary
 #homeGreeting{color:#fff;}
 #homeDate{color:rgba(255,255,255,.55);}
 .page.hidden{opacity:0;pointer-events:none;transform:translateY(8px);}
-/* Equipment page text-size control */
-#page-equipment.eq-ts-lg{zoom:1.14;}
-#page-equipment.eq-ts-xl{zoom:1.30;}
+/* App-wide text-size control (A / A+ / A++) */
+#page-equipment.eq-ts-lg,#app.eq-ts-lg .pages{zoom:1.14;}
+#page-equipment.eq-ts-xl,#app.eq-ts-xl .pages{zoom:1.30;}
 .tabbar{background:linear-gradient(180deg,#141414,#000);display:flex;align-items:stretch;border-top:1px solid rgba(212,169,58,.3);padding-bottom:env(safe-area-inset-bottom);flex-shrink:0;position:relative;z-index:200;overflow:visible;touch-action:none;}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 4px;margin:6px 4px;border-radius:16px;border:none;background:none;cursor:pointer;color:rgba(255,255,255,.78);font-size:11px;letter-spacing:.2px;position:relative;transition:transform .18s cubic-bezier(.2,.7,.2,1),background .2s;letter-spacing:.2px;font-weight:600;font-family:'DM Sans',sans-serif;letter-spacing:.2px;transition:color .15s;min-height:52px;position:relative;}
 .tab.active{color:var(--gold-light);font-weight:800;text-shadow:0 1px 6px rgba(212,169,58,.55);background:linear-gradient(180deg,rgba(255,243,204,.28),rgba(212,169,58,.16) 55%,rgba(120,90,10,.22));box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 -3px 6px rgba(0,0,0,.3),0 4px 12px rgba(212,169,58,.28),0 1px 0 rgba(230,196,99,.4);transform:translateY(-3px) scale(1.04);}
@@ -221,6 +221,15 @@ button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary
 #rptTypeBtns button:active{transform:translateY(1px) scale(.99);}
 #rptTypeBtns button.active,#rptTypeBtns button[style*="navy"]{background:linear-gradient(180deg,rgba(255,243,204,.95),rgba(212,169,58,.9))!important;border-color:rgba(230,196,99,.8)!important;}
 #rptTypeBtns button.active span{color:#3a2c05!important;text-shadow:none;}
+/* Per-type active colors */
+#rptTypeBtns button.active[data-type="Missing"]{background:linear-gradient(135deg,rgba(220,38,38,.85),rgba(120,0,0,.95))!important;border-color:rgba(239,68,68,.9)!important;}
+#rptTypeBtns button.active[data-type="Missing"] span{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+#rptTypeBtns button.active[data-type="Damaged"]{background:linear-gradient(135deg,rgba(217,119,6,.9),rgba(100,50,0,.95))!important;border-color:rgba(251,191,36,.9)!important;}
+#rptTypeBtns button.active[data-type="Damaged"] span{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+#rptTypeBtns button.active[data-type="Need More"]{background:linear-gradient(135deg,rgba(37,99,235,.85),rgba(0,20,80,.95))!important;border-color:rgba(96,165,250,.9)!important;}
+#rptTypeBtns button.active[data-type="Need More"] span{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+#rptTypeBtns button.active[data-type="Other"]{background:linear-gradient(135deg,rgba(100,100,100,.85),rgba(20,20,20,.95))!important;border-color:rgba(180,180,180,.6)!important;}
+#rptTypeBtns button.active[data-type="Other"] span{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 #eq-reports .input{background:rgba(255,255,255,.1)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(230,196,99,.35)!important;color:#fff!important;}
 #eq-reports .input::placeholder{color:rgba(255,255,255,.55)!important;}
 #eq-reports .input option{color:#1a1407;}
@@ -255,6 +264,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .divider{height:1px;background:var(--border);margin:10px 0;}
 .section-label{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px;}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;z-index:1000;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+#liveMapModal{z-index:2000;}/* Always on top of other modals */
 .modal-overlay.hidden{display:none;}
 .modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:20px 20px;padding-bottom:calc(20px + env(safe-area-inset-bottom));}
 .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
@@ -294,7 +304,7 @@ textarea.input{min-height:80px;resize:vertical;}
 #page-dispatch .call-card.active .call-num,#page-home .call-card.active .call-num,#page-dispatch .call-card.urgent .call-num,#page-home .call-card.urgent .call-num{color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.4);}
 #page-dispatch .call-card.active .call-card-footer,#page-home .call-card.active .call-card-footer,#page-dispatch .call-card.urgent .call-card-footer,#page-home .call-card.urgent .call-card-footer{background:rgba(0,0,0,.12);border-top-color:rgba(255,255,255,.2);}
 .alert{border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start;}
-.alert-red{background:#fef2f2;border:1px solid #fecaca;}
+.alert-red{background:rgba(254,242,242,.9);border:1px solid #fecaca;}
 .alert-amber{background:#fffbeb;border:1px solid #fde68a;}
 /* Quick Action cards: black & gold glass to match buttons */
 .quick-actions-grid .card{background:linear-gradient(160deg,rgba(212,169,58,.22),rgba(20,16,8,.62))!important;-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);border:1px solid rgba(230,196,99,.45)!important;box-shadow:0 8px 22px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.15)!important;color:#fff;transition:transform .12s,filter .2s;}
@@ -304,6 +314,13 @@ textarea.input{min-height:80px;resize:vertical;}
 .qa-emoji{width:58px;height:58px;margin:2px auto 10px;display:flex;align-items:center;justify-content:center;font-size:32px;line-height:1;border-radius:50%;background:radial-gradient(circle at 38% 30%,rgba(255,255,255,.22),rgba(212,169,58,.16) 45%,rgba(10,8,4,.55) 100%);box-shadow:inset 0 2px 4px rgba(255,255,255,.3),inset 0 -4px 8px rgba(0,0,0,.45),0 6px 14px rgba(0,0,0,.5);filter:drop-shadow(0 3px 3px rgba(0,0,0,.55));transform:translateZ(0);transition:transform .15s;}
 .quick-actions-grid .card:active .qa-emoji{transform:scale(.92);}
 .alert-green{background:#f0fdf4;border:1px solid #bbf7d0;}
+/* Equipment dashboard alerts: dark reddish-black glass */
+#eq-alerts-list .alert-red{background:linear-gradient(135deg,rgba(220,38,38,.45),rgba(60,0,0,.92))!important;border:1.5px solid rgba(239,68,68,.7)!important;box-shadow:0 2px 18px rgba(220,38,38,.3);}
+#eq-alerts-list .alert-amber{background:linear-gradient(135deg,rgba(217,119,6,.45),rgba(60,25,0,.92))!important;border:1.5px solid rgba(251,191,36,.6)!important;box-shadow:0 2px 18px rgba(217,119,6,.25);}
+#eq-alerts-list .alert-red *,#eq-alerts-list .alert-red .alert-title,#eq-alerts-list .alert-red .alert-sub{color:#fff!important;}
+#eq-alerts-list .alert-amber *,#eq-alerts-list .alert-amber .alert-title,#eq-alerts-list .alert-amber .alert-sub{color:#fff!important;}
+#eq-alerts-list .alert-red .alert-title{color:#ffb3b3!important;font-weight:800!important;}
+#eq-alerts-list .alert-amber .alert-title{color:#fde68a!important;font-weight:800!important;}
 /* Home equipment alerts: see-through blue→purple gradient glass */
 #homeEqAlerts .alert{background:linear-gradient(135deg,rgba(59,130,246,.4),rgba(124,58,237,.42),rgba(10,10,16,.6))!important;-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(139,120,246,.5)!important;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.16);}
 #homeEqAlerts .alert .alert-title{color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.4);}
@@ -558,6 +575,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .qtype-btn-urgent.active{background:var(--red);border-color:var(--red);color:#fff;animation:urgentpulse 1.4s ease-in-out infinite;}
 @keyframes urgentpulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5);}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);}}
 @keyframes pendingPulse{0%,100%{box-shadow:0 0 0 0 rgba(217,119,6,.6);}50%{box-shadow:0 0 0 8px rgba(217,119,6,0);}}
+@keyframes incomingRing{0%,100%{transform:rotate(0deg);}15%{transform:rotate(-18deg);}30%{transform:rotate(18deg);}45%{transform:rotate(-12deg);}60%{transform:rotate(12deg);}75%{transform:rotate(0deg);}}
 .qtype-btn.ns-btn{padding:8px 4px;font-size:11px;background:rgba(255,255,255,.85);}
 .qtype-btn.ns-btn.active{background:#d97706;border-color:#d97706;color:#fff;}
 .qtype-btn.urgent-active{background:var(--red);border-color:var(--red);color:#fff;}
@@ -575,8 +593,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .eta-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
 .eta-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
 
-.call-card{background:#fff;border-radius:14px;margin-bottom:10px;box-shadow:var(--shadow-md);overflow:hidden;cursor:pointer;transition:transform .1s,box-shadow .1s;
-  content-visibility:auto;contain-intrinsic-size:0 90px;}
+.call-card{background:#fff;border-radius:14px;margin-bottom:10px;box-shadow:var(--shadow-md);overflow:hidden;cursor:pointer;transition:transform .1s,box-shadow .1s;}
 .call-card:active{transform:scale(.99);}
 .call-card.open{background:#fff;}
 .call-card.active{background:#f0fdf4;border-left:4px solid var(--green);}
@@ -584,12 +601,12 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.done{background:#f4f4f5;opacity:.75;filter:grayscale(20%);}
 .call-card.cancelled{background:#fff1f2;border-left:4px solid var(--red);opacity:.8;filter:grayscale(10%);}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
-.call-card-header{padding:12px 14px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.call-card-header{padding:12px 14px 10px;display:flex;align-items:stretch;justify-content:space-between;gap:10px;}
 .call-card-type{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
 .call-card-addr{font-size:14px;color:var(--text2);margin-top:2px;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
-.call-card-footer{padding:8px 14px;border-top:1px solid var(--border2);display:flex;gap:6px;background:rgba(0,0,0,.02);}
-.call-action{flex:1;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;}
+.call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
+.call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .call-action:active{opacity:.8;}
 .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;}
 .status-dot.open{background:var(--amber);}
@@ -667,7 +684,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .alert-blue{background:#eff6ff;border-left:3px solid var(--blue);}
 .alert-green{background:#f0fdf4;border-left:3px solid var(--green);}
 .alert-amber{background:#fffbeb;border-left:3px solid var(--amber);}
-.alert-red{background:#fef2f2;border-left:3px solid var(--red);}
+.alert-red{background:rgba(254,242,242,.9);border-left:3px solid var(--red);}
 .alert-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
 .alert-body .alert-title{font-size:13px;font-weight:700;color:var(--text);}
 .alert-body .alert-sub{font-size:12px;color:var(--text2);margin-top:2px;}
@@ -927,8 +944,8 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- Stats stacked left + On Duty card right — same height row -->
       <div id="ds-pending-card" style="display:none;"></div>
       <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:12px;">
-        <!-- Open / Active stacked vertically -->
-        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:52px;">
+        <!-- Open / Active / Pending stacked vertically -->
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:58px;overflow:hidden;">
           <div class="mini-stat stat-amber" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;min-width:0;">
             <div class="mini-stat-num" id="ds-open" style="font-size:20px;">0</div>
             <div class="mini-stat-label" style="font-size:9px;">Open</div>
@@ -937,7 +954,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <div class="mini-stat-num" id="ds-active" style="font-size:20px;">0</div>
             <div class="mini-stat-label" style="font-size:9px;">Active</div>
           </div>
-          <div class="mini-stat" id="ds-pending-inline" onclick="openPendingModal()" style="display:none;flex:1;align-items:center;justify-content:center;padding:6px 4px;cursor:pointer;border:2px solid var(--amber);background:linear-gradient(135deg,#fef3c7,#fef9c3);animation:pendingPulse 1.8s ease-in-out infinite;">
+          <div class="mini-stat" id="ds-pending-inline" onclick="openPendingModal()" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;cursor:pointer;border:2px solid var(--amber);background:linear-gradient(135deg,#fef3c7,#fef9c3);animation:pendingPulse 1.8s ease-in-out infinite;min-width:0;width:100%;">
             <div class="mini-stat-num" id="ds-pending" style="color:var(--amber);font-size:20px;">0</div>
             <div class="mini-stat-label" style="color:var(--amber);font-weight:700;font-size:9px;">Wait</div>
           </div>
@@ -966,6 +983,15 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- Pending Responder Requests Banner (admin/dispatch only) -->
       <div id="pendingRespondersBanner" style="display:none;"></div>
       <div id="callsList"></div>
+
+      <!-- Telzio: last 5 incoming calls (live heartbeat) — dispatch/admin only -->
+      <div id="telzioRecentPanel" style="display:none;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="section-label" style="margin:0;">📞 Recent Incoming Calls</div>
+          <div id="telzioRecentSub" style="font-size:11px;color:var(--text3);"></div>
+        </div>
+        <div id="telzioRecentList"></div>
+      </div>
     </div>
 
     <!-- ══ EQUIPMENT ══ -->
@@ -995,8 +1021,8 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="shiftSlotEquipment" style="display:none;"></div>
       <!-- DASHBOARD -->
       <div id="eq-dashboard">
-        <div id="eq-alerts-wrap" style="display:none;"><div class="section-label">Active Alerts</div><div id="eq-alerts-list"></div></div>
         <div id="eq-out-wrap" style="display:none;"><div class="section-label">Currently Out</div><div id="eq-out-list"></div></div>
+        <div id="eq-alerts-wrap" style="display:none;"><div class="section-label">Active Alerts</div><div id="eq-alerts-list"></div></div>
         <div class="section-label">Recent Activity</div>
         <div id="eq-recent-list"></div>
 
@@ -1068,10 +1094,10 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="eq-reports" style="display:none;">
         <div class="section-label">Report Type</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;" id="rptTypeBtns">
-          <button onclick="selRptType('Missing',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Missing Item</span></button>
-          <button onclick="selRptType('Damaged',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Damaged Item</span></button>
-          <button onclick="selRptType('Need More',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Need More</span></button>
-          <button onclick="selRptType('Other',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">Other</span></button>
+          <button data-type="Missing" onclick="selRptType('Missing',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">🔍 Missing Item</span></button>
+          <button data-type="Damaged" onclick="selRptType('Damaged',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">🔧 Damaged Item</span></button>
+          <button data-type="Need More" onclick="selRptType('Need More',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">📦 Need More</span></button>
+          <button data-type="Other" onclick="selRptType('Other',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">📋 Other</span></button>
         </div>
         <div class="input-group"><label class="input-label">Item</label><select class="input" id="reportItem"></select></div>
         <div class="input-group"><label class="input-label">Your BC Member #</label><input class="input" type="text" inputmode="numeric" id="reportMember" placeholder="e.g. 38"/></div>
@@ -1357,8 +1383,8 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="card" style="margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <div style="flex:1;min-width:0;">
-              <div class="card-title">🔤 Equipment Text Size</div>
-              <div class="card-desc">Make the Equipment page text bigger.</div>
+              <div class="card-title">🔤 App Text Size</div>
+              <div class="card-desc">Make text bigger across the entire app.</div>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;" id="eqTextSizeSetting">
               <button class="btn-sm btn-ghost eq-ts-opt" data-lvl="0" onclick="setEqTextSize(0)" style="font-weight:700;">A</button>
@@ -1919,6 +1945,58 @@ textarea.input{min-height:80px;resize:vertical;}
   // Re-bind when new sub-tab bars appear
   setInterval(initSubTabSwipe, 2000);
 })();
+/* Swipe-down-to-dismiss for bottom-sheet modals (natural iOS feel) */
+(function(){
+  function initModalSwipe(){
+    document.querySelectorAll('.modal-overlay').forEach(function(overlay){
+      if(overlay.dataset.swipeClose) return;
+      overlay.dataset.swipeClose='1';
+      var modal = overlay.querySelector('.modal');
+      if(!modal) return;
+      var startY=0, curDy=0, dragging=false, startedOnHandle=false;
+      modal.addEventListener('touchstart', function(e){
+        if(e.touches.length!==1) return;
+        startY = e.touches[0].clientY;
+        startedOnHandle = !!(e.target.closest && e.target.closest('.modal-handle'));
+        dragging = true; curDy = 0;
+        modal.style.transition='none';
+      }, {passive:true});
+      modal.addEventListener('touchmove', function(e){
+        if(!dragging) return;
+        var dy = e.touches[0].clientY - startY;
+        // Engage downward drag only when the sheet is scrolled to the top (or grabbed by the handle)
+        if(dy>0 && (modal.scrollTop<=0 || startedOnHandle)){
+          curDy = dy;
+          modal.style.transform='translateY('+dy+'px)';
+          overlay.style.background='rgba(0,0,0,'+Math.max(0,.5-dy/700)+')';
+          if(e.cancelable) e.preventDefault();
+        } else { curDy = 0; }
+      }, {passive:false});
+      function end(){
+        if(!dragging) return;
+        dragging=false;
+        modal.style.transition='transform .25s ease, background .25s';
+        if(curDy>120){
+          modal.style.transform='translateY(100%)';
+          overlay.style.background='rgba(0,0,0,0)';
+          setTimeout(function(){
+            if(overlay.id && typeof hideModal==='function') hideModal(overlay.id);
+            else overlay.classList.add('hidden');
+            modal.style.transform=''; modal.style.transition=''; overlay.style.background='';
+          }, 200);
+        } else {
+          modal.style.transform='translateY(0)';
+          overlay.style.background='';
+          setTimeout(function(){ modal.style.transition=''; modal.style.transform=''; }, 260);
+        }
+      }
+      modal.addEventListener('touchend', end, {passive:true});
+      modal.addEventListener('touchcancel', end, {passive:true});
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initModalSwipe); else initModalSwipe();
+  setInterval(initModalSwipe, 2000);
+})();
 </script>
 
 <!-- ═══ MODALS ═══ -->
@@ -1947,7 +2025,7 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <!-- QUICK TYPE GRID -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;" id="callTypeGrid">
-      <button class="qtype-btn active" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
+      <button class="qtype-btn" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
       <button class="qtype-btn" onclick="selectCallType('flat_tire_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">Has Spare</span></button>
       <button class="qtype-btn" onclick="selectCallType('jump_start',this)">Boost</button>
       <button class="qtype-btn" onclick="selectCallType('car_lockout',this)">Car Lockout</button>
@@ -1955,9 +2033,28 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn qtype-btn-urgent" onclick="selectCallType('child_lockout',this)">🚨 Child<br><span style="font-size:10px;opacity:.9;">Locked in Car</span></button>
       <button class="qtype-btn" onclick="selectCallType('missing_person',this)">Missing Person</button>
       <button class="qtype-btn" onclick="selectCallType('flood',this)">Flood</button>
+      <button class="qtype-btn" onclick="selectCallType('needs_ac',this)">❄️ Needs A/C<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
+      <button class="qtype-btn" onclick="selectCallType('needs_fan',this)">💨 Needs Fans<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
+      <button class="qtype-btn" onclick="selectCallType('needs_heat',this)">🔥 Needs Heater<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
       <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
     </div>
-    <input type="hidden" id="callType" value="flat_tire_no_spare"/>
+    <input type="hidden" id="callType" value=""/>
+
+    <!-- EQUIPMENT QTY (A/C, Fans, Heaters) -->
+    <div id="eqQtySection" style="display:none;" class="input-group">
+      <label class="input-label" id="eqQtyLabel">How many needed?</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <select class="input" id="eqQtySelect" style="flex:1;margin-bottom:0;">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6+">6+</option>
+        </select>
+        <div style="font-size:22px;" id="eqQtyIcon">❄️</div>
+      </div>
+    </div>
 
     <!-- OTHER TYPE WRITE-IN -->
     <div id="otherTypeGroup" style="display:none;" class="input-group">
@@ -2062,6 +2159,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <!-- CALLER INFO in one row -->
+    <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="width:100%;margin-bottom:8px;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
       <div class="input-group" style="margin-bottom:0;">
         <label class="input-label">Caller Name</label>
@@ -2438,28 +2536,33 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="modal">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:18px;font-weight:700;color:var(--text);">✏️ Edit Member Role</div>
+      <div style="font-size:18px;font-weight:700;color:var(--text);" id="editMbrModalTitle">✏️ Edit Member Role</div>
       <button onclick="hideModal('editMemberRoleModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">×</button>
     </div>
     <input type="hidden" id="editMbrUnit"/>
     <div id="editMbrInfo" style="background:#f8fafc;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;"></div>
     <div class="input-group"><label class="input-label">Roles (select all that apply)</label>
       <div id="editMbrRoles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;">
-        <label class="role-chk"><input type="checkbox" value="Member"/> Member</label>
-        <label class="role-chk"><input type="checkbox" value="Observer"/> Observer</label>
-        <label class="role-chk"><input type="checkbox" value="Dispatch"/> Dispatch</label>
-        <label class="role-chk"><input type="checkbox" value="Equipment Team"/> Equipment Team</label>
-        <label class="role-chk"><input type="checkbox" value="Admin"/> Admin</label>
+        <label class="role-chk"><input type="checkbox" value="Member" onchange="_autoSaveMemberRoles()"/> Member</label>
+        <label class="role-chk"><input type="checkbox" value="Observer" onchange="_autoSaveMemberRoles()"/> Observer</label>
+        <label class="role-chk"><input type="checkbox" value="Dispatch" onchange="_autoSaveMemberRoles()"/> Dispatch</label>
+        <label class="role-chk"><input type="checkbox" value="Equipment Team" onchange="_autoSaveMemberRoles()"/> Equipment Team</label>
+        <label class="role-chk"><input type="checkbox" value="Admin" onchange="_autoSaveMemberRoles()"/> Admin</label>
       </div>
     </div>
-    <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editMbrPhone" placeholder="555-000-0000"/></div>
+    <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editMbrPhone" placeholder="555-000-0000" onchange="_autoSaveMemberField('phone',this.value)"/></div>
     <div class="input-group">
       <label class="input-label">Responds to (leave all unchecked = responds to everything)</label>
       <div id="editMbrCallTypes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;"></div>
     </div>
-    <div class="input-group"><label class="input-label">Reset PIN <span id="editMbrCurrentPin" style="float:right;font-weight:700;color:var(--gold-light,#d4a93a);text-transform:none;letter-spacing:normal;"></span></label><input class="input" type="text" id="editMbrNewPin" placeholder="New PIN (leave blank to keep current)" inputmode="numeric"/></div>
-    <button class="btn-full btn-primary" onclick="saveEditMemberRole()" style="margin-bottom:8px;">Save Changes</button>
-    <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Cancel</button>
+    <div class="input-group" id="editMbrPinGroup">
+      <label class="input-label">Reset PIN <span id="editMbrCurrentPin" style="float:right;font-weight:700;color:var(--gold-light,#d4a93a);text-transform:none;letter-spacing:normal;"></span></label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input class="input" type="text" id="editMbrNewPin" placeholder="New PIN (4+ digits)" inputmode="numeric" style="margin-bottom:0;"/>
+        <button onclick="saveEditMemberPin()" style="flex-shrink:0;padding:12px 16px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Set PIN</button>
+      </div>
+    </div>
+    <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Done</button>
   </div>
 </div>
 
@@ -2802,6 +2905,9 @@ async function initFirebaseApp() {
     _firebaseReady = true;
     initFirestore(); // start Firestore real-time sync
     subscribeScheduleFromFirestore(); // sync dispatch schedule from Firestore
+    subscribeTelzioFromFirestore(); // live caller ID from Telzio webhook → Firestore
+    subscribeTelzioRecentList();    // last 5 incoming calls panel on Dispatch
+    startTelzioLivePolling();       // Option C: live polling every 3 s via own Cloudflare Worker
     // Attempt messaging (non-critical — silently fails on iOS non-standalone)
     initPushModule().catch(()=>{});
     // Restore saved session after Firebase is ready
@@ -4192,6 +4298,22 @@ async function loadMembersFromSheet(){
       SHEET_MEMBERS=_rawApp.filter(_memberIsReal).filter(m=>!_deletedMemberIds.has(_normUnit(m.unit)));
       _sheetMembersLoaded=true;
       STATE.members=SHEET_MEMBERS.slice();
+      // Update car access count badge immediately after members load
+      try{_updateCarAccessCount&&_updateCarAccessCount();}catch(e){}
+      // Merge callTypes from Firestore into STATE.members (callTypes live in Firestore, not Sheet)
+      try{
+        if(window.firebase&&_firebaseReady){
+          firebase.firestore().collection('members').get().then(function(snap){
+            snap.forEach(function(doc){
+              const d=doc.data();
+              if(!d||!Array.isArray(d.callTypes)||!d.callTypes.length) return;
+              const docUnit=_normUnit(d.unit||doc.id||'');
+              const m=(STATE.members||[]).find(function(x){ return _normUnit(x.unit||x.id||'')=== docUnit; });
+              if(m) m.callTypes=d.callTypes;
+            });
+          }).catch(function(){});
+        }
+      }catch(e){}
       // Sheet is source of truth for carAccess — refresh SESSION whenever sheet loads
       if (SESSION && SESSION.unit) {
         const me = SHEET_MEMBERS.find(m => _normUnit(m.unit) === _normUnit(SESSION.unit));
@@ -4640,7 +4762,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'&&typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(id==='scanModal')_openScanner();}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();}if(id==='scanModal')_openScanner();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -5037,10 +5159,16 @@ function renderHome() {
 const CALL_TYPE_LABELS = {
   flat_tire_spare:'Vehicle: Flat Tire - Has Spare',flat_tire_no_spare:'Vehicle: Flat Tire - No Spare',lockout:'🔑 House Lockout',car_lockout:'🔑 Car Lockout',child_lockout:'🚨 CHILD LOCKED IN CAR',missing_person:'Missing Person',jump_start:'⚡ Boost',
   flood:'💧 Flood',ac_heat:'❄️ A/C or Heat',generator:'⚡ Generator',
+  needs_ac:'❄️ Needs A/C',needs_fan:'💨 Needs Fans',needs_heat:'🔥 Needs Heater',
+  'needs_ac:qty1':'❄️ Needs A/C — Quantity: 1','needs_ac:qty2':'❄️ Needs A/Cs — Quantity: 2','needs_ac:qty3':'❄️ Needs A/Cs — Quantity: 3','needs_ac:qty4':'❄️ Needs A/Cs — Quantity: 4','needs_ac:qty5':'❄️ Needs A/Cs — Quantity: 5','needs_ac:qty6+':'❄️ Needs A/Cs — Quantity: 6+',
+  'needs_fan:qty1':'💨 Needs Fan — Quantity: 1','needs_fan:qty2':'💨 Needs Fans — Quantity: 2','needs_fan:qty3':'💨 Needs Fans — Quantity: 3','needs_fan:qty4':'💨 Needs Fans — Quantity: 4','needs_fan:qty5':'💨 Needs Fans — Quantity: 5','needs_fan:qty6+':'💨 Needs Fans — Quantity: 6+',
+  'needs_heat:qty1':'🔥 Needs Heater — Quantity: 1','needs_heat:qty2':'🔥 Needs Heaters — Quantity: 2','needs_heat:qty3':'🔥 Needs Heaters — Quantity: 3','needs_heat:qty4':'🔥 Needs Heaters — Quantity: 4','needs_heat:qty5':'🔥 Needs Heaters — Quantity: 5','needs_heat:qty6+':'🔥 Needs Heaters — Quantity: 6+',
   transport:'🚐 Transport',welfare:'🏥 Welfare Check',other:'📋 Other'
 };
 
 let dispatchFilter='active';
+// Live responder location is considered "fresh" for 2 minutes
+const LOC_STALE_MS = 120000;
 function _todayStartMs() { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
 function _localIso(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
 function setHistoryRange(r, el) {
@@ -5305,11 +5433,19 @@ function callCardHTML(call, mini=false) {
       ? respList.map(r=>{
           const unitNum = String(r.unit||'').replace(/^BC-?/i,'');
           const firstName = (r.name||'').split(' ')[0];
-          return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;
+          return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;
         }).join('')
       : '';
     const pendingBadge = pending
       ? `<span style="background:var(--amber);color:#fff;padding:5px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.3px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);animation:pendingPulse 1.8s ease-in-out infinite;white-space:nowrap;">⏳ ${pending} pending</span>`
+      : '';
+    // Respond action for the Open Calls (mini) card — shown for ALL members
+    const miniRespond = (call.status!=='done' && !isDraft)
+      ? (iAmApproved
+          ? `<div class="approved-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">✓ Approved to respond</div>`
+          : iAmPending
+            ? `<div class="pending-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">⏳ Pending approval…</div>`
+            : `<button class="call-action" style="background:${isUrgent?'var(--red)':'var(--green)'};color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${isUrgent?'⚠️ Respond Now':'✋ Request to Respond'}</button>`)
       : '';
     return `
     <div class="call-card ${isUrgent?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
@@ -5322,12 +5458,14 @@ function callCardHTML(call, mini=false) {
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
             <div class="call-card-addr" onclick="event.stopPropagation();openMaps('${(call.address+', '+call.town+', NJ').replace(/'/g,"\\'")}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${call.address}, ${call.town}</div>
             ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
+            ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
             <div class="call-card-meta">${timeStr}</div>
             ${responderBadges ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${responderBadges}</div>` : ''}
           </div>
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
+      ${miniRespond?`<div class="call-card-footer">${miniRespond}<button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}</div>`:''}
     </div>`;
   }
 
@@ -5356,8 +5494,8 @@ function callCardHTML(call, mini=false) {
     <div class="call-card-header">
       <div style="flex:1;min-width:0;">
         <div class="call-num" style="margin-bottom:2px;">#${callNumStr}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <div class="status-dot ${call.status}"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+          <div class="status-dot ${call.status}" style="flex-shrink:0;"></div>
           <div class="call-card-type" style="color:${townColor};">${typeLabel}</div>
           ${isDraft?'<span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}
           ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
@@ -5366,8 +5504,8 @@ function callCardHTML(call, mini=false) {
         <div class="call-card-addr">${call.address}${call.town?', '+call.town:''}</div>
         ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
-        ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
-        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
+        ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
+        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         <div class="call-card-meta" style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${timeStr}</div>
         ${(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch')?(()=>{
@@ -5381,7 +5519,7 @@ function callCardHTML(call, mini=false) {
           return chips?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${chips}</div>`:'';
         })():''}
       </div>
-      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}</div>`:''}
+      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:iAmApproved?`<div style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">✓ Responding</div>`:''}}</div>`:''}
     </div>
     <div class="call-card-footer">
       ${respondBtn}
@@ -5471,8 +5609,18 @@ async function fillCardETAs() {
       const color = mins<=5?'var(--green)':mins<=12?'var(--amber)':'#6b7280';
       const bg    = mins<=5?'#dcfce7':mins<=12?'#fef3c7':'#f3f4f6';
       span.style.display = 'inline-flex';
-      span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;margin-top:5px;`;
-      span.textContent = `📍 Your ETA: ~${mins} min`;
+      span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;margin-top:5px;cursor:pointer;`;
+      span.textContent = `📍 Your ETA: ~${mins} min → Map`;
+      // Tap to open Google Maps directions
+      span.onclick = function(e) {
+        e.stopPropagation();
+        const call = (STATE.calls||[]).find(c => {
+          const el = document.getElementById('card-eta-'+c.id);
+          return el === span;
+        });
+        if (!call) return;
+        openMyRouteMap(call);
+      };
     } catch(e) { span.style.display='none'; }
   }
 }
@@ -5522,8 +5670,8 @@ function renderCalls() {
   const todayStart = _todayStartMs();
   let list = [...STATE.calls]
     .filter(c=>isDispatch || c.status!=='draft') // drafts only visible to admin/dispatch
-    // Hide completed/cancelled calls from BEFORE today — they're only viewable via 📅 History
-    .filter(c=>(c.status!=='done'&&c.status!=='cancelled') || (c.completedAt||c.cancelledAt||c.createdAt||0) >= todayStart)
+    // Hide completed/cancelled calls — cancelled always goes to history immediately, done only hides after today
+    .filter(c=>c.status!=='cancelled' && (c.status!=='done' || (c.completedAt||c.createdAt||0) >= todayStart))
     .sort((a,b)=>sortRank(a)-sortRank(b)||(b.createdAt-a.createdAt));
   if (dispatchFilter!=='all') {
     if (dispatchFilter==='active') {
@@ -5570,6 +5718,14 @@ function populateModels() {
 }
 
 
+function resetCallTypeGrid() {
+  // No call type pre-selected — every button white until one is chosen
+  document.querySelectorAll('#callTypeGrid .qtype-btn').forEach(b=>b.classList.remove('active','urgent-active'));
+  const ct=document.getElementById('callType'); if(ct) ct.value='';
+  const ci=document.getElementById('carInfoSection'); if(ci) ci.style.display='none';
+  const og=document.getElementById('otherTypeGroup'); if(og) og.style.display='none';
+  const eq=document.getElementById('eqQtySection'); if(eq) eq.style.display='none';
+}
 function selectCallType(type, btn) {
   const prevType = document.getElementById('callType').value;
   document.getElementById('callType').value = type;
@@ -5578,6 +5734,19 @@ function selectCallType(type, btn) {
   const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
+  // Show/hide equipment quantity picker (A/C, fans, heaters)
+  const eqTypes=['needs_ac','needs_fan','needs_heat'];
+  const eqQtySec=document.getElementById('eqQtySection');
+  if(eqQtySec){
+    eqQtySec.style.display=eqTypes.includes(type)?'block':'none';
+    if(eqTypes.includes(type)){
+      const icons={needs_ac:'❄️',needs_fan:'💨',needs_heat:'🔥'};
+      const labels={needs_ac:'How many A/C units needed?',needs_fan:'How many fans needed?',needs_heat:'How many heaters needed?'};
+      var iconEl=document.getElementById('eqQtyIcon'); if(iconEl) iconEl.textContent=icons[type]||'';
+      var lblEl=document.getElementById('eqQtyLabel'); if(lblEl) lblEl.textContent=labels[type]||'How many needed?';
+      var selEl=document.getElementById('eqQtySelect'); if(selEl) selEl.value='1';
+    }
+  }
   // Show/hide no-spare action picker
   const nsSec = document.getElementById('noSpareSection');
   if(nsSec) nsSec.style.display = (type==='flat_tire_no_spare') ? 'block' : 'none';
@@ -5628,9 +5797,16 @@ function _nextCallNum() {
 function createCall() {
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Only dispatch can create calls'); return; }
   let type=document.getElementById('callType').value;
+  if(!type){ showToast('Please choose a call type'); return; }
   if(type==='other') {
     const customType=document.getElementById('otherTypeText')?.value?.trim();
     if(customType) type='other:'+customType;
+  }
+  // Embed quantity for equipment types
+  const eqTypes=['needs_ac','needs_fan','needs_heat'];
+  if(eqTypes.includes(type)){
+    const qty=(document.getElementById('eqQtySelect')?.value||'1');
+    type=type+':qty'+qty; // e.g. needs_ac:qty2
   }
   const address=document.getElementById('callAddress').value.trim();
   const townSel=document.getElementById('callTown').value;
@@ -5922,8 +6098,22 @@ function confirmRespond() {
   if(!isObserver && memberHasRestriction(SESSION.unit) && !isAllowedForUnit(call.type, SESSION.unit) && call.priority!=='urgent') {
     const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const allowedTxt = allowedTypesForUnit(SESSION.unit).map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ');
-    showToast('⛔ Not approved for this call type. You are approved for: '+allowedTxt);
     hideModal('respondModal');
+    (function(){
+      var ov=document.createElement('div');
+      ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      ov.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(239,68,68,.4);border-radius:18px;padding:26px 22px;max-width:320px;width:88%;text-align:center;">'
+        +'<div style="font-size:38px;margin-bottom:10px;">⛔</div>'
+        +'<div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:8px;">Not Approved for This Call</div>'
+        +'<div style="font-size:13px;color:rgba(255,255,255,.7);line-height:1.5;margin-bottom:6px;">You\'re not cleared to respond to this type of call.</div>'
+        +(allowedTxt?'<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:10px;">You\'re approved for: '+allowedTxt+'</div>':'')
+        +'<div style="font-size:13px;color:#fca5a5;font-weight:700;margin-bottom:18px;">Contact the chiefs to find out why.</div>'
+        +'<button id="__nar_ok" style="width:100%;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Got it</button>'
+        +'</div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#__nar_ok').onclick=function(){ document.body.removeChild(ov); };
+      ov.addEventListener('click',function(e){ if(e.target===ov) document.body.removeChild(ov); });
+    })();
     return;
   }
   if(isObserver && !isAllowedForObserver(call.type, SESSION.unit) && call.priority!=='urgent') {
@@ -5953,7 +6143,7 @@ function confirmRespond() {
   // Push notification: on-duty primary + secondary dispatcher + each admin
   // (all dispatchers still see it in the app via Firestore real-time sync)
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  const pushTitle = `📲 Response Request — BC-${SESSION.unit}`;
+  const pushTitle = `📲 Response Request — BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${call.address}, ${call.town} · ETA ${eta} min${notes?' · '+notes:''}`;
 
   // Helper: match a schedule name string to a member unit and push to them
@@ -5997,6 +6187,21 @@ function confirmRespond() {
       // No schedule — notify all dispatchers
       sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
     }
+    // Also push to every admin member individually (they must always be notified of response requests)
+    (STATE.members||[]).forEach(function(m){
+      if ((m.role||'').toLowerCase()==='admin') {
+        var adminUnit = String(m.unit||m.id||'').replace(/^BC-?/i,'');
+        if (adminUnit && !pushedUnits.has('admin:'+adminUnit)) {
+          pushedUnits.add('admin:'+adminUnit);
+          sendPush({ target:'unit', unit:adminUnit, title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+        }
+      }
+    });
+    // Also push to the on-duty dispatcher fields (in case they're not on the schedule)
+    var onDutyN = document.getElementById('dispOnDutyName')?.textContent?.trim();
+    var onDutyN2 = document.getElementById('dispOnDutyName2')?.textContent?.trim();
+    if (onDutyN && onDutyN !== '—') pushToScheduledName(onDutyN);
+    if (onDutyN2 && onDutyN2 !== '—') pushToScheduledName(onDutyN2);
   } catch(e) {
     sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
   }
@@ -6014,12 +6219,12 @@ function removeApprovedResponder(callId, unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
   const req=call.responders.find(r=>String(r.unit)===String(unit));
-  if(!confirm(`Remove BC-${unit} ${req?.name||''} from this call?`)) return;
+  if(!confirm(`Remove BC-${String(unit||'').replace(/^BC-?/i,'')} ${req?.name||''} from this call?`)) return;
   call.responders=call.responders.filter(r=>String(r.unit)!==String(unit));
   if(!call.responders.length && !call.pendingResponders?.length) call.status='open';
   logCallEvent(call,'responder_removed',{responder:unit,removedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); openCallDetail(callId); renderCalls(); renderHome();
-  showToast(`BC-${unit} removed from call`);
+  showToast(`BC-${String(unit||'').replace(/^BC-?/i,'')} removed from call`);
   // Notify the removed member — do not respond
   const _rmTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   sendPush({
@@ -6035,7 +6240,24 @@ function removeApprovedResponder(callId, unit) {
 function cancelCall(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  if(!confirm('Mark this call as CANCELLED?\nAll responders will be notified not to respond.')) return;
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:300px;width:88%;text-align:center;">'
+    +'<div style="font-size:32px;margin-bottom:10px">🚫</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:6px;">Cancel This Call?</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:18px;">All responders will be notified not to respond.</div>'
+    +'<div style="display:flex;gap:10px;">'
+    +'<button id="__cc_no" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Keep</button>'
+    +'<button id="__cc_yes" style="flex:1;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Cancel Call</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#__cc_no').onclick=function(){document.body.removeChild(overlay);};
+  overlay.querySelector('#__cc_yes').onclick=function(){
+    document.body.removeChild(overlay);
+    _doCancelCall(id,call);
+  };
+}
+function _doCancelCall(id,call) {
   const prevResponders=[...(call.responders||[]),...(call.pendingResponders||[])];
   call.status='cancelled';
   call.cancelledAt=Date.now();
@@ -6073,7 +6295,7 @@ function cancelCall(id) {
 // Members and observers can both have callTypes saved. If saved, they're restricted.
 // Observers without a list can still observe; non-observers without a list are unrestricted.
 function allowedTypesForUnit(unit) {
-  const m = (STATE.members||[]).find(x => String(x.unit).replace(/^BC-?/i,'') === String(unit).replace(/^BC-?/i,''));
+  const m = (STATE.members||[]).find(x => _normUnit(x.unit) === _normUnit(unit));
   if(m && Array.isArray(m.callTypes) && m.callTypes.length) return m.callTypes;
   return [];
 }
@@ -6105,14 +6327,28 @@ function approveResponder(callId,unit) {
   const targetIsObserver = req.isObserver || (targetMember && targetMember.role === 'observer');
   if(!targetIsObserver && memberHasRestriction(unit) && !isAllowedForUnit(call.type, unit)) {
     const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    const allowedTxt = allowedTypesForUnit(unit).map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ');
-    const ok = confirm(
-      '⚠️ BC-'+String(unit).replace(/^BC-?/i,'')+' is not normally approved for this call type.\n\n'+
-      'They are approved for: '+allowedTxt+'.\n'+
-      'This call is: '+typeLabel+'.\n\n'+
-      'Override and approve anyway?'
-    );
-    if(!ok) return;
+    const allowedTxt = allowedTypesForUnit(unit).map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ') || 'None set';
+    const unitDisp = String(unit).replace(/^BC-?/i,'');
+    // Non-blocking warning modal
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = '<div style="background:#1c1c1e;border:2px solid rgba(239,68,68,.5);border-radius:18px;padding:24px 20px;max-width:310px;width:90%;text-align:center;">'
+      + '<div style="font-size:32px;margin-bottom:10px">⚠️</div>'
+      + '<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:6px;">Not Approved for This Call</div>'
+      + '<div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:6px;">BC-'+unitDisp+' is only approved for:</div>'
+      + '<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:16px;">'+allowedTxt+'</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;">This call is: <strong style="color:#fff;">'+typeLabel+'</strong></div>'
+      + '<div style="display:flex;gap:10px;">'
+      + '<button id="__ar_cancel" style="flex:1;padding:12px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Cancel</button>'
+      + '<button id="__ar_ok" style="flex:1;padding:12px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Override &amp; Approve</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#__ar_cancel').onclick = function(){ document.body.removeChild(overlay); };
+    overlay.querySelector('#__ar_ok').onclick = function(){
+      document.body.removeChild(overlay);
+      _doApproveResponder(callId, unit, call, req);
+    };
+    return;
   }
   if(req.isObserver && !isAllowedForObserver(call.type, unit)) {
     const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -6120,15 +6356,30 @@ function approveResponder(callId,unit) {
     const allowedTxt = allowedList.length
       ? allowedList.map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ')
       : '(no work permissions set — observe-only)';
-    const ok = confirm(
-      '👁️ BC-'+String(unit).replace(/^BC-?/i,'')+' is an OBSERVER.\n\n'+
-      'Approved work types: '+allowedTxt+'.\n'+
-      'This call is: '+typeLabel+'.\n\n'+
-      'Approving will let them work on this call. Otherwise they can still observe without approval.\n\n'+
-      'Override and approve as worker anyway?'
-    );
-    if(!ok) return;
+    const unitDisp2 = String(unit).replace(/^BC-?/i,'');
+    const overlay2 = document.createElement('div');
+    overlay2.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay2.innerHTML = '<div style="background:#1c1c1e;border:2px solid rgba(217,119,6,.5);border-radius:18px;padding:24px 20px;max-width:310px;width:90%;text-align:center;">'
+      + '<div style="font-size:32px;margin-bottom:10px">👁️</div>'
+      + '<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:6px;">BC-'+unitDisp2+' is an Observer</div>'
+      + '<div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:6px;">Approved work types:</div>'
+      + '<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:12px;">'+allowedTxt+'</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:18px;">This call is: <strong style="color:#fff;">'+typeLabel+'</strong>. Approving lets them work on it.</div>'
+      + '<div style="display:flex;gap:10px;">'
+      + '<button id="__ao_cancel" style="flex:1;padding:12px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Cancel</button>'
+      + '<button id="__ao_ok" style="flex:1;padding:12px;background:#d97706;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Approve as Worker</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay2);
+    overlay2.querySelector('#__ao_cancel').onclick = function(){ document.body.removeChild(overlay2); };
+    overlay2.querySelector('#__ao_ok').onclick = function(){
+      document.body.removeChild(overlay2);
+      _doApproveResponder(callId, unit, call, req);
+    };
+    return;
   }
+  _doApproveResponder(callId, unit, call, req);
+}
+function _doApproveResponder(callId, unit, call, req) {
   call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
   call.responders=call.responders||[];
   const _approvedEntry = {...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
@@ -6138,7 +6389,7 @@ function approveResponder(callId,unit) {
   call.activatedAt=call.activatedAt||Date.now();
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
-  showToast(`✅ BC-${unit} ${req.name} approved`);
+  showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} approved`);
   // WA: personal approval message to the member
   sendWA({ target:'unit', unit:String(unit), message: _waMsgApproved(call, _approvedEntry) });
   // WA: group update — "BC-X is responding"
@@ -6166,7 +6417,7 @@ function approveResponder(callId,unit) {
   const allResponders=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
   sendPush({
     target:'all',
-    title:`🚗 BC-${unit} ${req.name} is responding`,
+    title:`🚗 BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding`,
     body:`${typeLabel} — ${call.address}, ${call.town} · Now: ${allResponders}`,
     url:'/cobc-dispatch/', callId:call.id
   });
@@ -6184,13 +6435,20 @@ function rejectResponder(callId,unit) {
   call.rejectedResponders.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:Date.now()});
   logCallEvent(call, 'responder_rejected', {responder:unit, rejectedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
-  showToast(`❌ BC-${unit} rejected`);
+  showToast(`❌ BC-${String(unit||'').replace(/^BC-?/i,'')} rejected`);
+  // Smart rejection message: if member not allowed for this call type → chiefs message, else → capacity message
+  const notAllowed = memberHasRestriction(unit) && !isAllowedForUnit(call.type, unit);
+  const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  const rejTitle = notAllowed ? 'Not approved for this call type' : 'Coverage filled';
+  const rejBody  = notAllowed
+    ? `You are not approved for ${typeLabel} calls. Please contact the chiefs to find out more.`
+    : `Thank you for offering — we have enough members responding to the ${call.address} call.`;
   // PUSH HOOK #4 — member rejected → that specific member
   sendPush({
     target: 'unit',
     unit: String(unit),
-    title: 'Coverage filled',
-    body: `Thanks for offering — we have enough on the ${call.address} call.`,
+    title: rejTitle,
+    body: rejBody,
     url: '/cobc-dispatch/',
     callId: call.id
   });
@@ -6595,17 +6853,28 @@ function updateCallStatus(id,status) {
   if(call) { call.status=status; if(status==='active') call.activatedAt=call.activatedAt||Date.now(); save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast(`Call → ${status}`); }
 }
 function deleteCall(id) {
-  if(!confirm('Delete this call?')) return;
-  _deletedCallIds.add(String(id));
-  STATE.calls = (STATE.calls||[]).filter(c=>c.id!==id);
-  save();
-  renderCalls(); renderHome();
-  firebase.firestore().collection('calls').doc(String(id)).delete()
-    .then(() => showToast('✅ Call deleted'))
-    .catch(e => {
-      console.error('Firestore delete error:', e);
-      showToast('⚠️ Local delete OK, cloud delete failed');
-    });
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:300px;width:88%;text-align:center;">'
+    +'<div style="font-size:32px;margin-bottom:10px">🗑️</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:6px;">Delete This Call?</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:18px;">This permanently removes the call from history. Cannot be undone.</div>'
+    +'<div style="display:flex;gap:10px;">'
+    +'<button id="__dc_no" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Keep</button>'
+    +'<button id="__dc_yes" style="flex:1;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Delete</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#__dc_no').onclick=function(){document.body.removeChild(overlay);};
+  overlay.querySelector('#__dc_yes').onclick=function(){
+    document.body.removeChild(overlay);
+    // Optimistic: remove instantly
+    _deletedCallIds.add(String(id));
+    STATE.calls=(STATE.calls||[]).filter(c=>c.id!==id);
+    save(); renderCalls(); renderHome();
+    firebase.firestore().collection('calls').doc(String(id)).delete()
+      .then(()=>showToast('✅ Call deleted'))
+      .catch(e=>{showToast('Error deleting');console.error(e);});
+  };
 }
 
 // ── CALL EDIT ──
@@ -6782,261 +7051,81 @@ function shareMyLocationOnCall(callId) {
 function openLiveDirections(callId) {
   const call = STATE.calls.find(c => c.id === callId);
   if(!call || !call.address) { showToast('No address on this call'); return; }
-  const dest = encodeURIComponent(`${call.address}, ${call.town||''} NJ`);
-  const openMapsNoOrigin = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank');
-
-  if(!navigator.geolocation) { openMapsNoOrigin(); return; }
-
-  // Only use live location if the user has ALREADY granted it (no permission prompt here)
-  const useLiveOriginIfGranted = () => {
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
-        window.open(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${dest}&travelmode=driving`, '_blank');
-      },
-      () => openMapsNoOrigin(),
-      { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
-    );
-  };
-
-  if(navigator.permissions && navigator.permissions.query) {
-    navigator.permissions.query({ name: 'geolocation' })
-      .then(p => {
-        if(p.state === 'granted') useLiveOriginIfGranted();
-        else openMapsNoOrigin(); // 'prompt' or 'denied' — don't show prompt; just open without origin
-      })
-      .catch(() => openMapsNoOrigin());
-  } else {
-    // Old browsers without permissions API — skip the live origin to avoid surprise prompt
-    openMapsNoOrigin();
-  }
+  // Always open in-app route map — never leave the app
+  openMyRouteMap(call);
 }
 
-// ── Live ETA — location sharing + OSRM routing ───────────────────────────────
-// Each approved responder's device watches its own GPS and writes to
-// call.liveLocations[unit] using dot-notation Firestore updates (no race conditions).
-// Dispatch sees updates in real-time via the existing calls onSnapshot listener.
-
-const _locationWatchers = {}; // callId → watchId | 'starting' | 'denied'
-const _geocodeCache     = {}; // "address|town" → {lat, lng}
-const _lastLocWrite     = {}; // callId → ms timestamp of last Firestore write
-const LOC_WRITE_INTERVAL = 30000;  // write location + recalculate ETA every 30 s
-const LOC_STALE_MS       = 600000; // 10 minutes — hide ETA if older than this
-
-// Geocode a call address to lat/lng — Google first, Nominatim fallback
-async function geocodeCallAddress(call) {
-  const key = `${call.address}|${call.town||''}`;
-  if (_geocodeCache[key]) return _geocodeCache[key];
-  // Try Google Geocoding API first
-  try {
-    await loadGoogleMapsAPI();
-    const geocoder = new google.maps.Geocoder();
-    const result = await geocoder.geocode({
-      address: `${call.address}, ${call.town||''}, NJ`,
-      region: 'us'
-    });
-    if (result.results && result.results[0]) {
-      const loc = result.results[0].geometry.location;
-      const r = { lat: loc.lat(), lng: loc.lng() };
-      _geocodeCache[key] = r;
-      return r;
-    }
-  } catch(e) { console.warn('[Geocode] Google failed, trying Nominatim:', e.message); }
-  // Fallback: Nominatim (free, no key needed)
-  try {
-    const q = encodeURIComponent(`${call.address}, ${call.town||''}, NJ`);
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'COBCDispatch/1.0' } });
-    const data = await res.json();
-    if (data.length > 0) {
-      const r = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-      _geocodeCache[key] = r;
-      return r;
-    }
-  } catch(e) { console.warn('[Geocode] Nominatim fallback also failed:', e); }
-  return null;
-}
-
-// Get driving ETA in minutes using OSRM (free, no API key)
-async function calcOsrmEtaMin(fromLat, fromLng, toLat, toLng) {
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.code === 'Ok' && data.routes?.length > 0) {
-      return Math.ceil(data.routes[0].duration / 60);
-    }
-  } catch(e) { console.warn('[ETA] OSRM failed:', e); }
-  return null;
-}
-
-// Write this member's location + ETA to Firestore
-async function pushLiveLocation(callId, lat, lng) {
-  const now = Date.now();
-
-  const call = (STATE.calls || []).find(c => c.id === callId);
+function openMyRouteMap(call) {
   if (!call) return;
+  const dest = encodeURIComponent((call.address||'') + ' ' + (call.town||'') + ' NJ');
+  const apiKey = typeof GOOGLE_MAPS_API_KEY !== 'undefined' ? GOOGLE_MAPS_API_KEY : '';
+  const title = `#${call.callNum||''} · ${call.address}${call.town?', '+call.town:''}`;
 
-  // Recalculate ETA on every 30 s write — geocode is cached, only OSRM is called
-  let liveEtaMin = null;
-  const dest = await geocodeCallAddress(call);
-  if (dest) {
-    liveEtaMin = await calcOsrmEtaMin(lat, lng, dest.lat, dest.lng);
+  // Create or reuse modal
+  let overlay = document.getElementById('myRouteMapModal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'myRouteMapModal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2500;display:flex;align-items:flex-end;';
+    overlay.innerHTML = '<div style="width:100%;height:88vh;background:#fff;border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden;">'
+      + '<div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5e7eb;flex-shrink:0;background:#fff;">'
+      + '<div><div style="font-size:16px;font-weight:700;">🧭 My Route</div><div id="myRouteMapTitle" style="font-size:12px;color:#6b7280;margin-top:1px;"></div></div>'
+      + '<div style="display:flex;gap:8px;align-items:center;">'
+      + '<a id="myRouteExtLink" href="" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;color:#1a3a5c;text-decoration:none;padding:6px 12px;border:1.5px solid #e5e7eb;border-radius:8px;">Open in Maps</a>'
+      + '<button onclick="document.getElementById(\'myRouteMapModal\').style.display=\'none\'" style="background:#f3f4f6;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;">✕</button>'
+      + '</div></div>'
+      + '<iframe id="myRouteMapFrame" src="" style="flex:1;width:100%;border:none;" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>'
+      + '</div>';
+    // Tap backdrop to close
+    overlay.addEventListener('click', function(e){ if(e.target===overlay) overlay.style.display='none'; });
+    document.body.appendChild(overlay);
   }
 
-  const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
-  const payload = { lat, lng, locationAt: now, name: SESSION.name };
-  if (liveEtaMin !== null) { payload.liveEtaMin = liveEtaMin; payload.liveEtaAt = now; }
+  document.getElementById('myRouteMapTitle').textContent = title;
+  const extUrl = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
+  document.getElementById('myRouteExtLink').href = extUrl;
 
-  try {
-    await firebase.firestore().collection('calls').doc(callId).update({
-      [`liveLocations.${unitKey}`]: payload
-    });
-    // Mirror into local state immediately so dispatch sees it without waiting for snapshot
-    const localCall = (STATE.calls || []).find(c => c.id === callId);
-    if (localCall) {
-      if (!localCall.liveLocations) localCall.liveLocations = {};
-      localCall.liveLocations[unitKey] = { ...localCall.liveLocations[unitKey], ...payload };
-      renderCalls && renderCalls();
-    }
-  } catch(e) { console.warn('[ETA] Firestore location write failed:', e); }
-}
+  const frame = document.getElementById('myRouteMapFrame');
+  const titleEl = document.getElementById('myRouteMapTitle');
+  overlay.style.display = 'flex';
 
-// Start GPS watching for a specific call — ONLY if location is already allowed in settings.
-// We never prompt for permission; members opt in via their device/browser settings.
-async function startLocationSharing(callId) {
-  if (_locationWatchers[callId] !== undefined) return; // already set up
-  if (!navigator.geolocation) { _locationWatchers[callId] = 'unavailable'; return; }
+  // Destination-only fallback (shows the pin but no route line)
+  const destOnly = `https://maps.google.com/maps?q=${dest}&z=14&output=embed`;
 
-  let permissionGranted = false;
-
-  // Step 1: Try the Permissions API (works reliably on Chrome/Android)
-  if (navigator.permissions && navigator.permissions.query) {
-    try {
-      const result = await navigator.permissions.query({ name: 'geolocation' });
-      if (result.state === 'granted') permissionGranted = true;
-      if (result.state === 'denied') { _locationWatchers[callId] = 'denied'; return; }
-      // state === 'prompt' → fall through to silent position check below
-    } catch(e) {
-      // iOS Safari doesn't support permissions.query for geolocation — fall through
-    }
+  function setRouteFrom(lat, lng) {
+    // Classic embed with saddr/daddr draws the actual route line — no API key needed
+    frame.src = `https://maps.google.com/maps?saddr=${lat},${lng}&daddr=${dest}&z=13&output=embed`;
+    if (titleEl) titleEl.textContent = title + ' · route from your location';
+    // Update the "Open in Maps" link to include origin too
+    document.getElementById('myRouteExtLink').href =
+      `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${dest}&travelmode=driving`;
   }
 
-  // Step 2: If we still don't know (iOS or 'prompt' state), try a silent getCurrentPosition
-  // with a very short timeout so we never show a dialog — if it fails we just skip.
-  if (!permissionGranted) {
-    try {
-      await new Promise((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 500,         // too short to show a dialog; returns from cache if granted
-          maximumAge: 300000,   // accept a 5-min-old cached position
-          enableHighAccuracy: false
-        })
-      );
-      permissionGranted = true; // got a position → permission must be granted
-    } catch(e) {
-      // PERMISSION_DENIED or TIMEOUT — either way, don't start watching
-      _locationWatchers[callId] = 'not-granted';
-      return;
-    }
-  }
-
-  // Permission confirmed — poll every 30 s with getCurrentPosition so OSRM
-  // recalculates on a fixed schedule regardless of whether the device moved.
-  const doUpdate = () => {
+  // Show destination immediately, then upgrade to a full route once we have GPS
+  frame.src = destOnly;
+  if (navigator.geolocation) {
+    if (titleEl) titleEl.textContent = title + ' · locating you…';
     navigator.geolocation.getCurrentPosition(
-      pos => pushLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
-      err => console.warn('[ETA] position error:', err),
-      { enableHighAccuracy: true, maximumAge: 25000, timeout: 30000 }
+      function(pos){ setRouteFrom(pos.coords.latitude.toFixed(6), pos.coords.longitude.toFixed(6)); },
+      function(){ if (titleEl) titleEl.textContent = title + ' · enable location for a live route'; frame.src = destOnly; },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     );
-  };
-  doUpdate(); // fire immediately on approval
-  const intervalId = setInterval(doUpdate, 30000);
-  _locationWatchers[callId] = { type: 'interval', id: intervalId };
-  console.log('[ETA] Location sharing started for call', callId);
-}
-
-// Stop GPS polling for a call (call ended or removed as responder)
-async function stopLocationSharing(callId) {
-  const watcher = _locationWatchers[callId];
-  if (watcher?.type === 'interval') {
-    clearInterval(watcher.id);
-    // Remove from Firestore
-    const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
-    try {
-      await firebase.firestore().collection('calls').doc(callId).update({
-        [`liveLocations.${unitKey}`]: firebase.firestore.FieldValue.delete()
-      });
-    } catch(e) {}
   }
-  delete _locationWatchers[callId];
-  delete _lastLocWrite[callId];
 }
 
-// Called after every calls onSnapshot update — start/stop watchers to match approval state
-function syncLocationWatchers() {
-  if (!SESSION?.unit) return;
-  // Respect the user's location sharing setting
-  const locEnabled = (JSON.parse(localStorage.getItem('cobc_settings')||'{}')).locationSharing !== false;
-  if (!locEnabled) {
-    // Make sure all watchers are stopped
-    Object.keys(_locationWatchers).forEach(callId => stopLocationSharing(callId));
-    return;
-  }
-  const myUnit = String(SESSION.unit).replace(/^BC-?/i, '');
-  (STATE.calls || []).forEach(call => {
-    const isActive = call.status !== 'done' && call.status !== 'cancelled';
-    const iAmApproved = isActive && (call.responders || []).some(r =>
-      String(r.unit).replace(/^BC-?/i, '') === myUnit
-    );
-    if (iAmApproved && _locationWatchers[call.id] === undefined) {
-      startLocationSharing(call.id);
-    } else if (!iAmApproved && _locationWatchers[call.id] !== undefined) {
-      stopLocationSharing(call.id);
-    }
-  });
-  // Clean up watchers for calls no longer in STATE
-  Object.keys(_locationWatchers).forEach(callId => {
-    if (!(STATE.calls || []).find(c => c.id === callId)) stopLocationSharing(callId);
-  });
-}
-
-// Clean up all watchers when app is closed
-window.addEventListener('beforeunload', () => {
-  Object.keys(_locationWatchers).forEach(stopLocationSharing);
-});
-
-// ── Live Tracking Map ─────────────────────────────────────────────────────────
-let _liveMap = null;           // Google Maps instance
+// Live tracking map globals (declared so first read never throws)
+let _liveMap = null;
 let _liveMapCallId = null;
 let _liveMapRefresh = null;
-let _destMarker = null;        // google.maps.Marker for destination
-const _responderMarkers = {};  // unitKey → google.maps.Marker
-const _responderRoutes  = {};  // unitKey → google.maps.Polyline
-const RESPONDER_COLORS  = ['#2563eb','#16a34a','#d97706','#9333ea','#dc2626','#0891b2'];
-
-function _responderColor(idx) { return RESPONDER_COLORS[idx % RESPONDER_COLORS.length]; }
-
-// Create a Google Maps label marker using a DOM overlay
-function _gmLabel(map, latLng, html) {
-  const overlay = new google.maps.OverlayView();
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  div.style.position = 'absolute';
-  div.style.transform = 'translate(-50%, -100%)';
-  overlay.onAdd = function() { this.getPanes().floatPane.appendChild(div); };
-  overlay.draw = function() {
-    const pos = this.getProjection().fromLatLngToDivPixel(latLng);
-    div.style.left = pos.x + 'px';
-    div.style.top = pos.y + 'px';
-  };
-  overlay.onRemove = function() { div.parentNode && div.parentNode.removeChild(div); };
-  overlay.setMap(map);
-  overlay._div = div;
-  return overlay;
+let _destMarker = null;
+let _responderMarkers = {};
+let _responderRoutes = {};
+// Geocode a call's address (wrapper around _geocode used by the live map + routing)
+async function geocodeCallAddress(call){
+  if(!call || !call.address) return null;
+  try { return await _geocode(call.address, call.town||''); }
+  catch(e){ return null; }
 }
-
 async function openLiveMap(callId) {
   _liveMapCallId = callId;
   const call = (STATE.calls || []).find(c => c.id === callId);
@@ -7350,27 +7439,44 @@ function checkReRequests() {
 let memberFilter='all';
 
 function deleteMemberLocal(unit){
-  if(!confirm('Delete member '+unit+'?'))return;
-  const key=_normUnit(unit);
-  // Optimistic: hide instantly so one click is enough; guard stops a lagging sheet read re-adding them.
-  _deletedMemberIds.add(key);
-  STATE.members=(STATE.members||[]).filter(m=>_normUnit(m.unit||m.id)!==key);
-  save&&save();
-  renderMemberDir&&renderMemberDir();
-  renderAdminMembers&&renderAdminMembers();
-  sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{
-    if(r&&r.success){
-      showToast('Member deleted');
+  // Non-blocking custom confirm — avoids the UI freeze from browser confirm()
+  if(!window.__confirmDelete){
+    window.__confirmDelete = function(msg, cb){
+      var overlay=document.createElement('div');
+      overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:300px;width:88%;text-align:center;">'
+        +'<div style="font-size:32px;margin-bottom:10px">⚠️</div>'
+        +'<div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:6px;">Delete Member?</div>'
+        +'<div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:20px;">'+msg+'</div>'
+        +'<div style="display:flex;gap:10px;">'
+        +'<button id="__cd_c" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>'
+        +'<button id="__cd_ok" style="flex:1;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Delete</button>'
+        +'</div></div>';
+      document.body.appendChild(overlay);
+      overlay.querySelector('#__cd_c').onclick=function(){document.body.removeChild(overlay);};
+      overlay.querySelector('#__cd_ok').onclick=function(){document.body.removeChild(overlay);cb();};
+    };
+  }
+  window.__confirmDelete('This will remove BC-'+String(unit).replace(/^BC-?/i,'')+' from the roster and Firebase.',function(){
+    const key=_normUnit(unit);
+    _deletedMemberIds.add(key);
+    STATE.members=(STATE.members||[]).filter(m=>_normUnit(m.unit||m.id)!==key);
+    renderMemberDir&&renderMemberDir();
+    renderAdminMembers&&renderAdminMembers();
+    showToast('Deleting…');
+    sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{
+      if(r&&r.success){
+        _showSuccessModal('🗑️','Member Removed','BC-'+String(unit).replace(/^BC-?/i,''));
+      }else{
+        _deletedMemberIds.delete(key);
+        showToast('Error: '+(r&&r.error||'Delete failed'));
+        loadMembersFromSheet().then(()=>{renderMemberDir&&renderMemberDir();renderAdminMembers&&renderAdminMembers();});
+      }
+    }).catch(e=>{
+      showToast('Error deleting member');console.error(e);
       loadMembersFromSheet().then(()=>{renderMemberDir&&renderMemberDir();renderAdminMembers&&renderAdminMembers();});
-    }else{
-      _deletedMemberIds.delete(key);
-      showToast('Error: '+(r&&r.error||'Delete failed'));
       loadMembersFromSheet().then(()=>{renderMemberDir&&renderMemberDir();renderAdminMembers&&renderAdminMembers();});
-    }
-  }).catch(e=>{
-    _deletedMemberIds.delete(key);
-    showToast('Error deleting member');console.error(e);
-    loadMembersFromSheet().then(()=>{renderMemberDir&&renderMemberDir();renderAdminMembers&&renderAdminMembers();});
+    });
   });
 }
 function addMemberLocal(){const modal=document.getElementById('addMemberModal');if(modal)showModal('addMemberModal');else showToast('Use admin panel to add members');}
@@ -7411,47 +7517,199 @@ function openEditMemberRole(unit) {
     const isAdmin=(SESSION.role||'').toLowerCase().includes('admin');
     pinEl.textContent = isAdmin ? ('Current: '+(m.pin||'1234')) : '';
   }
-  // Render call type checkboxes
-  const existing=m.callTypes||[];
+  // Render call type checkboxes — load from Firestore for freshness, fall back to local
   const ctEl=document.getElementById('editMbrCallTypes');
-  if(ctEl) ctEl.innerHTML=CALL_TYPES_FOR_MEMBER.map(ct=>`
-    <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;background:#f8fafc;border-radius:7px;padding:6px 8px;">
-      <input type="checkbox" value="${ct.value}" ${existing.includes(ct.value)?'checked':''}/> ${ct.label}
+  const existing=m.callTypes||[];
+  function _renderCallTypeCBs(types){
+    if(!ctEl) return;
+    const _canEdit = (SESSION.role||'').toLowerCase().includes('admin');
+    ctEl.innerHTML=CALL_TYPES_FOR_MEMBER.map(ct=>`
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text2);cursor:${_canEdit?'pointer':'default'};background:#f8fafc;border-radius:9px;padding:8px 10px;border:1.5px solid ${types.includes(ct.value)?'var(--navy)':'var(--border)'};opacity:${_canEdit?'1':'.9'};transition:border-color .15s;">
+      <input type="checkbox" value="${ct.value}" ${types.includes(ct.value)?'checked':''} ${_canEdit?'':'disabled'} style="width:16px;height:16px;accent-color:var(--navy);cursor:${_canEdit?'pointer':'default'};flex-shrink:0;"/>
+      <span>${ct.label}</span>
     </label>`).join('');
+    if(!_canEdit) return; // dispatch view: read-only, no change listeners
+    // Highlight border on check/uncheck + auto-save
+    ctEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+      cb.addEventListener('change',function(){
+        this.closest('label').style.borderColor=this.checked?'var(--navy)':'var(--border)';
+        this.closest('label').style.background=this.checked?'rgba(15,37,64,.07)':'#f8fafc';
+        // Auto-save callTypes to Firestore
+        const unit=document.getElementById('editMbrUnit')?.value?.trim();
+        if(!unit) return;
+        const checkedTypes=[...document.querySelectorAll('#editMbrCallTypes input[type=checkbox]:checked')].map(cb=>cb.value);
+        const _u=_normUnit(unit);
+        const _m=(STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
+        if(_m) _m.callTypes=checkedTypes;
+        try{
+          if(window.firebase&&_firebaseReady){
+            const did=_fsMemberDocId(unit);
+            if(did) firebase.firestore().collection('members').doc(did).set({callTypes:checkedTypes},{merge:true}).catch(function(){});
+          }
+        }catch(e){}
+      });
+    });
+  }
+  _renderCallTypeCBs(existing);
+  // Fetch fresh callTypes from Firestore in background and update if different
+  try{
+    if(window.firebase&&_firebaseReady){
+      const did=_fsMemberDocId(unit);
+      if(did){
+        firebase.firestore().collection('members').doc(did).get().then(snap=>{
+          if(snap.exists){
+            const fsTypes=snap.data().callTypes||[];
+            // Update local state too
+            m.callTypes=fsTypes;
+            _renderCallTypeCBs(fsTypes);
+          }
+        }).catch(function(){});
+      }
+    }
+  }catch(e){}
+  // ── Read-only enforcement for dispatch (non-admin): view "Responds to" but can't edit ──
+  const _canEditMember = (SESSION.role||'').toLowerCase().includes('admin');
+  const _titleEl = document.getElementById('editMbrModalTitle');
+  if(_titleEl) _titleEl.textContent = _canEditMember ? '✏️ Edit Member Role' : 'ℹ️ Member Info';
+  const _pinGroup = document.getElementById('editMbrPinGroup');
+  if(_pinGroup) _pinGroup.style.display = _canEditMember ? '' : 'none';
+  document.querySelectorAll('#editMbrRoles input[type=checkbox], #editMbrPhone').forEach(el=>{
+    el.disabled = !_canEditMember;
+    el.style.cursor = _canEditMember ? '' : 'not-allowed';
+  });
   showModal('editMemberRoleModal');
 }
 function saveEditMemberRole(){
+  const btn = document.querySelector('#editMemberRoleModal .btn-primary');
+  const unlock = _btnLock(btn, 'Saving…');
   const unit=document.getElementById('editMbrUnit')?.value?.trim();
   const checkedRoles=[...document.querySelectorAll('#editMbrRoles input[type=checkbox]:checked')].map(cb=>cb.value);
   const role=checkedRoles.length?checkedRoles.join(', '):'Member';
   const phone=document.getElementById('editMbrPhone')?.value?.trim();
   const newPin=(document.getElementById('editMbrNewPin')?.value||'').trim();
-  if(!unit)return;
-  // Collect call type checkboxes
+  if(!unit){unlock();return;}
   const checkedTypes=[...document.querySelectorAll('#editMbrCallTypes input[type=checkbox]:checked')].map(cb=>cb.value);
   const update={role,phone};
   if(newPin&&newPin.length>=4) update.pin=newPin;
-  // "Responds to" call-type restrictions are stored in FIRESTORE (no sheet column).
-  // Write them straight to the member's Firestore doc so they persist + sync.
+  // Optimistic: update local state + re-render immediately
+  try{
+    const _u=_normUnit(unit);
+    const _m=(STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
+    if(_m){_m.role=role.toLowerCase();if(phone)_m.phone=phone;if(newPin&&newPin.length>=4)_m.pin=newPin;_m.callTypes=checkedTypes;}
+  }catch(e){}
+  hideModal('editMemberRoleModal');
+  renderAdminMembers&&renderAdminMembers();
+  renderMemberDir&&renderMemberDir();
+  // Firestore callTypes
   try{
     if(window.firebase&&_firebaseReady){
       const did=_fsMemberDocId(unit);
       if(did) firebase.firestore().collection('members').doc(did).set({callTypes:checkedTypes},{merge:true}).catch(function(){});
     }
   }catch(e){}
-  // Update local state immediately so the UI reflects it without waiting for a poll.
-  try{
-    const _u=_normUnit(unit);
-    const _m=(STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
-    if(_m) _m.callTypes=checkedTypes;
-  }catch(e){}
   sheetPOST({action:'updateMember',memberId:unit,...update}).then(r=>{
-    if(r&&r.success){showToast('Member updated ✅');hideModal('editMemberRoleModal');loadMembersFromSheet().then(()=>renderAdminMembers());}
-    else{showToast('Error: '+(r&&r.error||'Update failed'));}
-  }).catch(e=>{showToast('Error saving member');console.error(e);});
+    if(r&&r.success){ _showSuccessModal('✅','Member Updated', unit + (phone?' · '+phone:'')); }
+    else{showToast('Error: '+(r&&r.error||'Update failed'));loadMembersFromSheet().then(()=>{renderAdminMembers&&renderAdminMembers();});}
+    unlock();
+  }).catch(e=>{showToast('Error saving member');console.error(e);unlock();});
 }
 
-function submitAddMember(){const unit=(document.getElementById('addMbrUnit')?.value||'').trim().toUpperCase();const first=(document.getElementById('addMbrFirst')?.value||'').trim();const last=(document.getElementById('addMbrLast')?.value||'').trim();const phone=(document.getElementById('addMbrPhone')?.value||'').trim();const role=(document.getElementById('addMbrRole')?.value||'Member').trim();if(!unit||!first||!last){showToast('Unit, first and last name required');return;}let norm=unit;if(/^\d+$/.test(unit))norm='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');sheetPOST({action:'addMember',memberId:norm,firstName:first,lastName:last,phone,role,pin:'1234'}).then(r=>{if(r&&r.success){['addMbrUnit','addMbrFirst','addMbrLast','addMbrPhone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});hideModal('addMemberModal');showToast('Member added');loadMembersFromSheet();}else{showToast('Error: '+(r&&r.error||'Failed to add member'));}}).catch(e=>{showToast('Error adding member');console.error(e);});}
+// ── Auto-save roles when any role checkbox changes ──
+function _autoSaveMemberRoles() {
+  if(!(SESSION.role||'').toLowerCase().includes('admin')) return; // dispatch: read-only
+  const checkedRoles = [...document.querySelectorAll('#editMbrRoles input[type=checkbox]:checked')].map(cb=>cb.value);
+  const role = checkedRoles.length ? checkedRoles.join(', ') : 'Member';
+  _autoSaveMemberField('role', role);
+}
+
+// ── Auto-save a single member field (role, phone, callTypes) without closing the modal ──
+function _autoSaveMemberField(field, value) {
+  if(!(SESSION.role||'').toLowerCase().includes('admin')) return; // dispatch: read-only
+  const unit = document.getElementById('editMbrUnit')?.value?.trim();
+  if (!unit) return;
+  const _u = _normUnit(unit);
+  const _m = (STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
+  // Optimistic local update
+  if (_m) { _m[field] = field==='role' ? value.toLowerCase() : value; }
+  renderAdminMembers&&renderAdminMembers();
+  renderMemberDir&&renderMemberDir();
+  // Sync to sheet silently
+  sheetPOST({action:'updateMember', memberId:unit, [field]:value})
+    .then(r=>{ if(!r||!r.success) showToast('Sync error: '+(r&&r.error||'')); })
+    .catch(e=>{ console.error(e); });
+}
+
+// ── Save PIN only — shows confirm modal ──
+function saveEditMemberPin() {
+  if(!(SESSION.role||'').toLowerCase().includes('admin')) { showToast('Only admin can change PINs'); return; }
+  const unit = document.getElementById('editMbrUnit')?.value?.trim();
+  const newPin = (document.getElementById('editMbrNewPin')?.value||'').trim();
+  if (!unit) return;
+  if (!newPin || newPin.length < 4) { showToast('PIN must be at least 4 digits'); return; }
+  if (!/^\d+$/.test(newPin)) { showToast('PIN must be numbers only'); return; }
+  const btn = document.querySelector('#editMemberRoleModal [onclick="saveEditMemberPin()"]');
+  const unlock = _btnLock(btn, 'Saving…');
+  // Optimistic local update
+  const _u = _normUnit(unit);
+  const _m = (STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
+  if (_m) _m.pin = newPin;
+  const pinEl = document.getElementById('editMbrCurrentPin');
+  if (pinEl) pinEl.textContent = 'Current: ' + newPin;
+  document.getElementById('editMbrNewPin').value = '';
+  sheetPOST({action:'updateMember', memberId:unit, pin:newPin})
+    .then(r=>{
+      if (r&&r.success) {
+        _showSuccessModal('🔑','PIN Updated','New PIN set for ' + unit);
+      } else {
+        showToast('Error: '+(r&&r.error||'Failed'));
+        if(_m) _m.pin = ''; // rollback unknown
+      }
+      unlock();
+    }).catch(e=>{ showToast('Error saving PIN'); console.error(e); unlock(); });
+}
+
+// ── Success confirmation modal — non-blocking, auto-dismisses in 2.5s ──
+function _showSuccessModal(icon, title, detail) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = '<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px 22px;max-width:280px;width:88%;text-align:center;">'
+    + '<div style="font-size:42px;margin-bottom:10px;">' + icon + '</div>'
+    + '<div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:4px;">' + title + '</div>'
+    + (detail ? '<div style="font-size:13px;color:rgba(255,255,255,.55);margin-top:4px;">' + detail + '</div>' : '')
+    + '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(){ if(document.body.contains(overlay)) document.body.removeChild(overlay); });
+  setTimeout(function(){ if(document.body.contains(overlay)) document.body.removeChild(overlay); }, 2500);
+}
+
+function submitAddMember(){
+  const btn = document.querySelector('#addMemberModal .btn-primary');
+  const unlock = _btnLock(btn, 'Adding…');
+  const unit=(document.getElementById('addMbrUnit')?.value||'').trim().toUpperCase();
+  const first=(document.getElementById('addMbrFirst')?.value||'').trim();
+  const last=(document.getElementById('addMbrLast')?.value||'').trim();
+  const phone=(document.getElementById('addMbrPhone')?.value||'').trim();
+  const role=(document.getElementById('addMbrRole')?.value||'Member').trim();
+  if(!unit||!first||!last){showToast('Unit, first and last name required');unlock();return;}
+  let norm=unit;
+  if(/^\d+$/.test(unit)) norm='BC-'+unit.padStart(2,'0');
+  else if(/^BC\d+$/i.test(unit)) norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');
+  // Optimistic: add to local state immediately
+  const newMem={id:norm.replace(/^BC-/i,''),unit:norm,firstName:first,lastName:last,
+    name:(first+' '+last).trim(),phone,role:role.toLowerCase(),pin:'1234',carAccess:false};
+  STATE.members=STATE.members||[];
+  if(!STATE.members.find(m=>m.unit===norm)) STATE.members.push(newMem);
+  ['addMbrUnit','addMbrFirst','addMbrLast','addMbrPhone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  hideModal('addMemberModal');
+  renderAdminMembers&&renderAdminMembers();
+  renderMemberDir&&renderMemberDir();
+  _showSuccessModal('✅', 'Member Added', norm + ' · ' + (first+' '+last).trim());
+  sheetPOST({action:'addMember',memberId:norm,firstName:first,lastName:last,phone,role,pin:'1234'}).then(r=>{
+    if(r&&r.success){ loadMembersFromSheet().then(()=>{renderAdminMembers&&renderAdminMembers();renderMemberDir&&renderMemberDir();}); }
+    else{ showToast('Error: '+(r&&r.error||'Failed to add member')); STATE.members=STATE.members.filter(m=>m.unit!==norm); renderAdminMembers&&renderAdminMembers(); }
+    unlock();
+  }).catch(e=>{ showToast('Error adding member'); console.error(e); unlock(); });
+}
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -7487,6 +7745,7 @@ function renderMemberDir() {
       <div style="display:flex;gap:6px;align-items:center;">
         ${m.phone?`<button class="responder-call-btn" onclick="event.stopPropagation();window.location='tel:${m.phone}'">📞</button>`:''}
         ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit||m.id}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Edit role">✏️</button>`:''}
+        ${SESSION.role==='dispatch'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit||m.id}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="View member info">ℹ️</button>`:''}
         ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();deleteMemberLocal('${m.unit||m.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
       </div>
     </div>`).join('');
@@ -8023,15 +8282,35 @@ function renderEqLocList2() {
 function addLocationFromMore(){const name=(document.getElementById('newLocName2')?.value||'').trim();if(!name){showToast('Enter a location name');return;}const locs=[...(STATE.locations||[])];if(locs.includes(name)){showToast('Already exists');return;}locs.push(name);STATE.locations=locs;sheetPOST({action:'updateLocations',locations:locs}).then(()=>{const el=document.getElementById('newLocName2');if(el)el.value='';showToast('Location added');save();renderEqLocList&&renderEqLocList();}).catch(e=>{showToast('Error');console.error(e);});}
 function removeLocationFromMore(idx){removeLocation(idx);}
 async function addEquipmentFromMore(){
+  const btn = document.querySelector('[onclick="addEquipmentFromMore()"]');
+  const unlock = _btnLock(btn, 'Adding…');
   const nameEl=document.getElementById('newEqName2');
   const name=(nameEl?.value||'').trim();
   const loc=(document.getElementById('newEqLoc2')?.value||'COBC').trim();
-  if(!name){showToast('Enter equipment name');return;}
+  if(!name){showToast('Enter equipment name');unlock();return;}
+  // Optimistic: add to local state immediately
+  const newItem={id:'tmp_'+Date.now(),name,homeLocation:loc,location:loc,status:'IN',row:99999,equipStatus:'OK',ccnc:'CC',isCNC:false};
+  STATE.equipment=STATE.equipment||[];
+  STATE.equipment.push(newItem);
+  if(nameEl) nameEl.value='';
+  renderInventory&&renderInventory();
   try{
     const r=await sheetPOST({action:'addItem',name,location:loc});
-    if(r&&r.success){if(nameEl)nameEl.value='';showToast('✅ Equipment added to sheet');await loadInventoryFromSheet();}
-    else{showToast('Error: '+(r?.error||'Unknown'));}
-  }catch(e){showToast('Error adding equipment');console.error(e);}
+    if(r&&r.success){
+      STATE.equipment=STATE.equipment.filter(e=>e.id!==newItem.id);
+      _showSuccessModal('✅','Item Added',name+' · '+loc);
+      await loadInventoryFromSheet();
+    }else{
+      STATE.equipment=STATE.equipment.filter(e=>e.id!==newItem.id);
+      showToast('Error: '+(r?.error||'Unknown'));
+      renderInventory&&renderInventory();
+    }
+  }catch(e){
+    STATE.equipment=STATE.equipment.filter(e=>e.id!==newItem.id);
+    showToast('Error adding equipment');console.error(e);
+    renderInventory&&renderInventory();
+  }
+  unlock();
 }
 function renderHlocList2() {
   const el = document.getElementById('hlocList2');
@@ -8057,9 +8336,16 @@ function hlocChanged2(id) {
   const btn = document.getElementById('hloc2-btn-'+id);
   const ok  = document.getElementById('hloc2-ok-'+id);
   const item = STATE.equipment.find(e=>e.id===id);
-  if(!item || !sel || !btn) return;
-  if(ok) ok.style.display='none';
-  btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
+  if(!item || !sel) return;
+  const newLoc = sel.value;
+  item.location = newLoc;
+  if(ok){ ok.style.display='inline'; ok.textContent='✓'; ok.style.color='var(--green,#16a34a)'; }
+  if(btn) btn.style.display='none';
+  save();
+  sheetPOST({action:'updateHomeLocation',row:item.row,location:newLoc})
+    .then(r=>{ if(!r||!r.success) showToast('Sync error: '+(r&&r.error||'Unknown')); })
+    .catch(e=>{ console.error(e); })
+    .finally(()=>{ setTimeout(()=>{ if(ok) ok.style.display='none'; }, 1500); });
 }
 async function saveHloc2(id){
   const sel=document.getElementById('hloc2-sel-'+id);
@@ -8114,13 +8400,24 @@ function renderEqAdminList2() {
 async function setAdminEqStatus(id,status){
   const eq=STATE.equipment.find(e=>e.id===id);
   if(!eq)return;
-  try{
-    await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:''});
-    eq.equipStatus=status;if(status==='OK')eq.equipNote='';
-    showToast('Status updated');
-    renderEqAdminList&&renderEqAdminList();renderEqAdminList2&&renderEqAdminList2();
-    renderInventory&&renderInventory();save();
-  }catch(e){showToast('Error');console.error(e);}
+  // Optimistic: update instantly, re-render, then sync
+  const prevStatus = eq.equipStatus;
+  eq.equipStatus=status;
+  if(status==='OK') eq.equipNote='';
+  renderEqAdminList&&renderEqAdminList();
+  renderEqAdminList2&&renderEqAdminList2();
+  renderInventory&&renderInventory();
+  save();
+  sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:''})
+    .then(r=>{
+      if(!r||!r.success){
+        eq.equipStatus=prevStatus; // rollback
+        showToast('Sync error — reverted');
+        renderEqAdminList&&renderEqAdminList();
+        renderInventory&&renderInventory();
+      }
+    })
+    .catch(e=>{ console.error(e); });
 }
 
 function _OLD_setMoreTab_unused(tab,el) {
@@ -8271,6 +8568,290 @@ function subscribeScheduleFromFirestore() {
       if(typeof updateOnDutyBanner==='function') updateOnDutyBanner();
     }, err => console.warn('schedule snapshot error:', err));
   } catch(e) { console.warn('subscribeScheduleFromFirestore failed:', e); }
+}
+// ── Telzio live caller ID: webhook writes config/telzioRecentCall, app reads it live ──
+// Option B direct proxy — used when Firestore has no fresh data
+var TELZIO_PROXY_URL = 'https://cobc-telzio.aryehw330.workers.dev';
+var TELZIO_TOKEN = 'cobc_7f3a9d2e8b1c4056af9e2d7b6c8a1f04';
+// Authenticated fetch helper — all Telzio proxy calls go through here
+function telzioFetch(path) {
+  return fetch(TELZIO_PROXY_URL + path, {
+    headers: { 'X-COBC-Token': TELZIO_TOKEN }
+  });
+}
+let _lastTelzioCall = null;        // { name, phone, at }
+let _telzioFirstSnap = true;       // skip banner on the initial load
+function subscribeTelzioFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('config').doc('telzioRecentCall').onSnapshot(doc => {
+      if(!doc.exists) return;
+      const d = doc.data() || {};
+      let phone = String(d.phone||d.From||'').replace(/\D+/g,'');
+      if(phone.length===11 && phone.charAt(0)==='1') phone = phone.substring(1);
+      const at = Number(d.at||d.updatedAt||Date.now());
+      const isNew = !_lastTelzioCall || at > (_lastTelzioCall.at||0);
+      _lastTelzioCall = { name: d.name||d.FromCnam||'', phone: phone, at: at };
+      // Live-fill the New Call modal if it's open with empty fields
+      const modal = document.getElementById('newCallModal');
+      if(modal && !modal.classList.contains('hidden')) _applyTelzioToForm(false);
+      // Pop the incoming-call banner (skip the very first snapshot on load)
+      if(_telzioFirstSnap){ _telzioFirstSnap=false; return; }
+      if(isNew && (Date.now()-at) < 2*60*1000) showIncomingCallBanner(_lastTelzioCall);
+    }, err => console.warn('telzio snapshot error:', err));
+  } catch(e) { console.warn('subscribeTelzioFromFirestore failed:', e); }
+}
+// ── Option C: Live polling — polls /calls/live every second, shows topbar badge ──
+var _telzioLivePollTimer = null;
+var _telzioLiveSeen = {};        // callSid → true, to detect new arrivals
+var _telzioLiveBadgeEl = null;
+
+function startTelzioLivePolling() {
+  if (_telzioLivePollTimer) return; // already running
+  // inject badge into topbar if not already there
+  if (!document.getElementById('telzioLiveBadge')) {
+    var badge = document.createElement('div');
+    badge.id = 'telzioLiveBadge';
+    badge.style.cssText = 'display:none;align-items:center;gap:4px;background:#e53935;color:#fff;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600;margin-right:6px;cursor:default;white-space:nowrap;';
+    badge.innerHTML = '<span style="width:7px;height:7px;background:#fff;border-radius:50%;display:inline-block;animation:telzioPulse 1s infinite;"></span><span id="telzioLiveBadgeText">Live Call</span>';
+    // insert before the first button in topbar-right
+    var topbarRight = document.querySelector('.topbar-right');
+    if (topbarRight) topbarRight.insertBefore(badge, topbarRight.firstChild);
+    // add pulse keyframe if needed
+    if (!document.getElementById('telzioPulseStyle')) {
+      var st = document.createElement('style');
+      st.id = 'telzioPulseStyle';
+      st.textContent = '@keyframes telzioPulse{0%,100%{opacity:1}50%{opacity:0.3}}';
+      document.head.appendChild(st);
+    }
+  }
+  _telzioLiveBadgeEl = document.getElementById('telzioLiveBadge');
+
+  async function poll() {
+    try {
+      var resp = await telzioFetch('/calls/live');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var data = await resp.json();
+      // Telzio returns { Calls: [...] } or an array
+      var calls = Array.isArray(data) ? data : (data.Calls || data.calls || []);
+      // Filter inbound only
+      var inbound = calls.filter(function(c){ return (c.Direction||c.direction||'').toLowerCase().indexOf('inbound') >= 0; });
+      if (inbound.length > 0) {
+        // Show badge
+        if (_telzioLiveBadgeEl) {
+          var txt = document.getElementById('telzioLiveBadgeText');
+          if (txt) txt.textContent = inbound.length === 1 ? 'Live Call' : inbound.length + ' Live Calls';
+          _telzioLiveBadgeEl.style.display = 'flex';
+        }
+        // For each new call, autofill form and show banner
+        inbound.forEach(function(c) {
+          var sid = c.CallSid || c.callSid || c.Sid || c.sid || JSON.stringify(c);
+          if (_telzioLiveSeen[sid]) return;
+          _telzioLiveSeen[sid] = true;
+          var rawPhone = c.From || c.from || c.CallerID || '';
+          var digits = rawPhone.replace(/\D+/g,'');
+          if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.substring(1);
+          var name = c.FromCnam || c.caller_name || c.CallerName || '';
+          _lastTelzioCall = { name: name, phone: digits || rawPhone, at: Date.now() };
+          // Auto-fill form if open
+          var modal = document.getElementById('newCallModal');
+          if (modal && !modal.classList.contains('hidden')) _applyTelzioToForm(false);
+          // Banner
+          showIncomingCallBanner(_lastTelzioCall);
+        });
+        // Clean up ended calls from seen map
+        var activeSids = {};
+        inbound.forEach(function(c){ var sid = c.CallSid||c.callSid||c.Sid||c.sid||JSON.stringify(c); activeSids[sid]=true; });
+        Object.keys(_telzioLiveSeen).forEach(function(k){ if(!activeSids[k]) delete _telzioLiveSeen[k]; });
+      } else {
+        // No live calls — hide badge
+        if (_telzioLiveBadgeEl) _telzioLiveBadgeEl.style.display = 'none';
+        _telzioLiveSeen = {};
+      }
+    } catch(e) {
+      // Silent — network errors shouldn't spam console
+    }
+  }
+
+  poll(); // first poll immediately
+  _telzioLivePollTimer = setInterval(poll, 3000); // poll every 3 s
+}
+
+function stopTelzioLivePolling() {
+  if (_telzioLivePollTimer) { clearInterval(_telzioLivePollTimer); _telzioLivePollTimer = null; }
+  if (_telzioLiveBadgeEl) _telzioLiveBadgeEl.style.display = 'none';
+}
+
+// Last 5 incoming calls — reads the telzioCalls collection (one doc per call), newest first
+function subscribeTelzioRecentList() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('telzioCalls').orderBy('at','desc').limit(5)
+      .onSnapshot(snap => {
+        const calls = [];
+        snap.forEach(doc => { const d=doc.data()||{}; calls.push({
+          name: d.name||'', phone: String(d.phone||'').replace(/\D+/g,''), at: Number(d.at||0)
+        }); });
+        renderTelzioRecentList(calls);
+      }, err => console.warn('telzioCalls snapshot error:', err));
+  } catch(e) { console.warn('subscribeTelzioRecentList failed:', e); }
+}
+function _telzioFmtPhone(p){
+  return (p && p.length===10) ? '('+p.slice(0,3)+') '+p.slice(3,6)+'-'+p.slice(6) : (p||'');
+}
+function _telzioFmtWhen(ts){
+  if(!ts) return '';
+  const diff = Date.now()-ts, m = Math.floor(diff/60000);
+  if(m < 1) return 'just now';
+  if(m < 60) return m+'m ago';
+  const h = Math.floor(m/60);
+  if(h < 24) return h+'h ago';
+  return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+function renderTelzioRecentList(calls){
+  const panel = document.getElementById('telzioRecentPanel');
+  const list  = document.getElementById('telzioRecentList');
+  const sub   = document.getElementById('telzioRecentSub');
+  if(!panel || !list) return;
+  // Dispatch/admin only
+  if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) { panel.style.display='none'; return; }
+  if(!calls || !calls.length){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  if(sub) sub.textContent = 'last '+calls.length;
+  list.innerHTML = calls.map(c=>{
+    const pretty=_telzioFmtPhone(c.phone);
+    const label=c.name||pretty||'Unknown';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;">'
+      +'<div style="font-size:16px;">📞</div>'
+      +'<div style="flex:1;min-width:0;">'
+      +  '<div style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+label+'</div>'
+      +  (c.name&&pretty?'<div style="font-size:12px;color:var(--text3);">'+pretty+'</div>':'')
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;">'+_telzioFmtWhen(c.at)+'</div>'
+      +(c.phone?'<button onclick="_newCallFromRecent(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+c.phone+'\')" style="background:var(--navy,#0f2540);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Call</button>':'')
+      +'</div>';
+  }).join('');
+}
+// Start a New Call pre-filled from a recent-calls row
+function _newCallFromRecent(name, phone){
+  if(typeof showModal==='function') showModal('newCallModal');
+  setTimeout(()=>{
+    const nameEl=document.getElementById('callCaller');
+    const phoneEl=document.getElementById('callPhone');
+    if(nameEl) nameEl.value=name||'';
+    if(phoneEl) phoneEl.value=phone||'';
+  }, 60);
+}
+// Fill the New Call caller fields from the latest Telzio call (fills empties unless force)
+function _applyTelzioToForm(force) {
+  if(!_lastTelzioCall) return false;
+  if(_lastTelzioCall.at && (Date.now() - _lastTelzioCall.at) > 15*60*1000) return false; // ignore stale
+  const nameEl = document.getElementById('callCaller');
+  const phoneEl = document.getElementById('callPhone');
+  let filled = false;
+  if(nameEl && _lastTelzioCall.name && (force || !nameEl.value)) { nameEl.value = _lastTelzioCall.name; filled = true; }
+  if(phoneEl && _lastTelzioCall.phone && (force || !phoneEl.value)) { phoneEl.value = _lastTelzioCall.phone; filled = true; }
+  return filled;
+}
+// Button handler: 📞 Pull from last call — instant live data first, then direct Telzio proxy
+async function autofillFromLastCall(){
+  const btn=document.getElementById('telzioPullBtn');
+  const orig=btn?btn.innerHTML:'';
+  if(_applyTelzioToForm(true)){
+    showToast('📞 Filled from last call'+(_lastTelzioCall&&_lastTelzioCall.name?' — '+_lastTelzioCall.name:''));
+    return;
+  }
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ Fetching…'; }
+  try{
+    // Option B: direct proxy call (bypasses Apps Script, no 403)
+    var resp = await telzioFetch('/calls/log?MaxResults=3&Direction=inbound');
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    var data = await resp.json();
+    var calls = Array.isArray(data) ? data : (data.Calls || data.calls || data.CallLog || []);
+    var call = null;
+    for(var i=0;i<calls.length;i++){ if(calls[i].From||calls[i].from){call=calls[i];break;} }
+    if(!call){ showToast('No recent call found'); return; }
+    var rawPhone = call.From||call.from||'';
+    var digits = rawPhone.replace(/\D+/g,'');
+    if(digits.length===11 && digits.charAt(0)==='1') digits=digits.substring(1);
+    var name = call.FromCnam||call.caller_name||'';
+    var nameEl=document.getElementById('callCaller');
+    var phoneEl=document.getElementById('callPhone');
+    if(nameEl && name) nameEl.value=name;
+    if(phoneEl) phoneEl.value=digits||rawPhone;
+    _lastTelzioCall={name:name,phone:digits||rawPhone,at:Date.now()};
+    showToast('📞 Filled from last call'+(name?' — '+name:''));
+  }catch(e){ showToast('Could not reach Telzio'); console.warn('autofillFromLastCall',e); }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML=orig; } }
+}
+// Auto-runs when the New Call modal OPENS — fills caller silently, no button tap needed.
+// 1) Use live webhook data instantly (Option A).  2) If none, quietly pull via Telzio (Option B).
+async function autoPullCallerOnOpen(){
+  // Option A: instant live data already in memory
+  if(_applyTelzioToForm(false)) return;
+  // Option B: silent background pull (no toasts, no button spinner)
+  const nameEl=document.getElementById('callCaller');
+  const phoneEl=document.getElementById('callPhone');
+  if((nameEl&&nameEl.value)||(phoneEl&&phoneEl.value)) return; // dispatcher already typing
+  const btn=document.getElementById('telzioPullBtn');
+  const orig=btn?btn.innerHTML:'';
+  if(btn){ btn.innerHTML='⏳ Getting last caller…'; btn.disabled=true; }
+  try{
+    // Option B: direct proxy — silent, no 403
+    var resp2 = await telzioFetch('/calls/log?MaxResults=3&Direction=inbound');
+    if(resp2.ok){
+      var data2 = await resp2.json();
+      var calls2 = Array.isArray(data2) ? data2 : (data2.Calls||data2.calls||data2.CallLog||[]);
+      var call2 = null;
+      for(var j=0;j<calls2.length;j++){ if(calls2[j].From||calls2[j].from){call2=calls2[j];break;} }
+      if(call2){
+        var rawP=call2.From||call2.from||'';
+        var digs=rawP.replace(/\D+/g,'');
+        if(digs.length===11&&digs.charAt(0)==='1') digs=digs.substring(1);
+        var nm=call2.FromCnam||call2.caller_name||'';
+        if(nameEl && nm && !nameEl.value) nameEl.value=nm;
+        if(phoneEl && (digs||rawP) && !phoneEl.value) phoneEl.value=digs||rawP;
+        _lastTelzioCall={name:nm,phone:digs||rawP,at:Date.now()};
+      }
+    }
+  }catch(e){ /* silent — button still available for manual retry */ }
+  finally{ if(btn){ btn.innerHTML=orig; btn.disabled=false; } }
+}
+// Live "📞 Incoming" banner — only dispatch/admin see it; tap to start a pre-filled New Call
+let _incomingBannerTimer = null;
+function showIncomingCallBanner(call){
+  if(!call || !(call.name||call.phone)) return;
+  if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) return;
+  let b = document.getElementById('incomingCallBanner');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'incomingCallBanner';
+    b.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 10px);z-index:3000;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:16px;padding:14px 16px;box-shadow:0 8px 30px rgba(22,163,74,.45);display:flex;align-items:center;gap:12px;transform:translateY(-160%);transition:transform .35s cubic-bezier(.2,.9,.3,1.2);';
+    document.body.appendChild(b);
+  }
+  const prettyPhone = call.phone && call.phone.length===10
+    ? '('+call.phone.slice(0,3)+') '+call.phone.slice(3,6)+'-'+call.phone.slice(6)
+    : (call.phone||'');
+  b.innerHTML = '<div style="font-size:26px;line-height:1;animation:incomingRing 1s ease-in-out infinite;">📞</div>'
+    + '<div style="flex:1;min-width:0;">'
+    +   '<div style="font-size:11px;font-weight:700;opacity:.85;letter-spacing:.4px;">INCOMING CALL</div>'
+    +   '<div style="font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(call.name||prettyPhone||'Unknown')+'</div>'
+    +   (call.name&&prettyPhone?'<div style="font-size:12px;opacity:.85;">'+prettyPhone+'</div>':'')
+    + '</div>'
+    + '<button onclick="_startCallFromBanner()" style="background:#fff;color:#15803d;border:none;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">+ New Call</button>'
+    + '<button onclick="_dismissIncomingBanner()" aria-label="Dismiss" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer;flex-shrink:0;">✕</button>';
+  requestAnimationFrame(()=>{ b.style.transform='translateY(0)'; });
+  if(_incomingBannerTimer) clearTimeout(_incomingBannerTimer);
+  _incomingBannerTimer = setTimeout(_dismissIncomingBanner, 20000); // auto-hide after 20s
+}
+function _dismissIncomingBanner(){
+  const b = document.getElementById('incomingCallBanner');
+  if(b) b.style.transform='translateY(-160%)';
+  if(_incomingBannerTimer){ clearTimeout(_incomingBannerTimer); _incomingBannerTimer=null; }
+}
+function _startCallFromBanner(){
+  _dismissIncomingBanner();
+  if(typeof showModal==='function') showModal('newCallModal'); // showModal auto-fills from _lastTelzioCall
 }
 function pushScheduleToFirestore() {
   try {
@@ -9423,6 +10004,10 @@ function submitCobcet() {
 // Equipment page text-size control (Normal / Large / X-Large), persisted to localStorage.
 function _applyEqTextSize(){
   var lvl=parseInt(localStorage.getItem('cobc_eq_ts')||'0',10)||0;
+  // Apply to the whole app, not just the equipment page
+  var app=document.getElementById('app');
+  if(app){ app.classList.remove('eq-ts-lg','eq-ts-xl'); if(lvl===1)app.classList.add('eq-ts-lg'); else if(lvl===2)app.classList.add('eq-ts-xl'); }
+  // Also keep the equipment page class in sync (legacy)
   var pg=document.getElementById('page-equipment');
   if(pg){ pg.classList.remove('eq-ts-lg','eq-ts-xl'); if(lvl===1)pg.classList.add('eq-ts-lg'); else if(lvl===2)pg.classList.add('eq-ts-xl'); }
   // Highlight the active button in the Admin > Text Size setting
@@ -9539,7 +10124,21 @@ function renderEqMemberList() {
     </div>`;
   }).join('') + (filtered.length>200 ? `<div style="padding:8px;color:var(--text3);font-size:11px;text-align:center;">${filtered.length-200} more — use search</div>` : '');
 }
-function deleteMemberEq(unit){if(!confirm('Delete member '+unit+'?'))return;sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{if(r&&r.success){showToast('Member deleted');loadMembersFromSheet();}else{showToast('Error: '+(r&&r.error||'Delete failed'));}}).catch(e=>{showToast('Error');console.error(e);});}
+function deleteMemberEq(unit){
+  window.__confirmDelete
+    ? window.__confirmDelete('This will remove BC-'+String(unit).replace(/^BC-?/i,'')+' from the roster.',function(){
+        const key=_normUnit(unit);
+        _deletedMemberIds&&_deletedMemberIds.add(key);
+        STATE.members=(STATE.members||[]).filter(m=>_normUnit(m.unit||m.id)!==key);
+        renderEqAdminTab&&renderEqAdminTab();
+        showToast('Deleting…');
+        sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{
+          if(r&&r.success){showToast('Member deleted ✅');}
+          else{showToast('Error: '+(r&&r.error||'Delete failed'));loadMembersFromSheet();}
+        }).catch(e=>{showToast('Error');console.error(e);});
+      })
+    : (confirm('Delete member '+unit+'?')&&sheetPOST({action:'deleteMember',memberId:unit}).then(r=>{if(r&&r.success){showToast('Member deleted');loadMembersFromSheet();}else{showToast('Error: '+(r&&r.error||'Delete failed'));}}));
+}
 function addMemberFromEq(){const unit=(document.getElementById('newMemberUnitEq')?.value||'').trim().toUpperCase();const first=(document.getElementById('newMemberFirstEq')?.value||'').trim();const last=(document.getElementById('newMemberLastEq')?.value||'').trim();const phone=(document.getElementById('newMemberPhoneEq')?.value||'').trim();const role=(document.getElementById('newMemberRoleEq')?.value||'Member').trim();if(!unit||!first||!last){showToast('Unit, first and last required');return;}let norm=unit;if(/^\d+$/.test(unit))norm='BC-'+unit.padStart(2,'0');else if(/^BC\d+$/i.test(unit))norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');sheetPOST({action:'addMember',memberId:norm,firstName:first,lastName:last,phone,role,pin:'1234'}).then(r=>{if(r&&r.success){['newMemberUnitEq','newMemberFirstEq','newMemberLastEq','newMemberPhoneEq'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});showToast('Member added');loadMembersFromSheet();}else{showToast('Error: '+(r&&r.error||'Failed'));}}).catch(e=>{showToast('Error');console.error(e);});}
 
 function setEqFilter(f,el) {
@@ -9637,9 +10236,9 @@ function renderEquipmentDashboard() {
   }).join(''):'<div style="display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:12px;background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(18,24,18,.5));border:1px solid rgba(34,197,94,.3);"><div style="width:34px;height:34px;border-radius:50%;background:rgba(34,197,94,.22);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">✅</div><div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:#86efac;">All equipment OK</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:1px;">No missing, damaged, or misplaced items</div></div></div>';
 
   // Out items
-  const outItems=STATE.equipment.filter(e=>e.status==='out');
+  const outItems=STATE.equipment.filter(e=>(e.status||'').toUpperCase()==='OUT');
   const ow=document.getElementById('eq-out-wrap');
-  if(ow) ow.style.display=outItems.length?'block':'none';
+  if(ow) ow.style.display='block'; // always show so dashboard isn't empty
   const ol=document.getElementById('eq-out-list');
   if(ol) ol.innerHTML=outItems.length?outItems.map(e=>`
     <div style="background:linear-gradient(160deg,rgba(212,169,58,.16),rgba(18,16,12,.62));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(230,196,99,.34);border-left:3px solid var(--gold,#d4a93a);border-radius:12px;padding:11px 13px;margin-bottom:8px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;" onclick="openCheckout(${e.row||0})">
@@ -9653,7 +10252,13 @@ function renderEquipmentDashboard() {
         <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;">${fmtEqTime(e.lastUpdated)}</div>
       </div>
     </div>`).join(''):
-    '<div class="alert alert-green"><span class="alert-icon">+</span><div class="alert-body"><div class="alert-title">All equipment checked in</div></div></div>';
+    '<div style="background:linear-gradient(160deg,rgba(34,197,94,.20),rgba(8,20,12,.66));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(74,222,128,.38);border-left:3px solid var(--green,#16a34a);border-radius:12px;padding:13px 15px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;align-items:center;gap:12px;"><span style="font-size:24px;">✅</span><div><div style="font-size:14px;font-weight:700;color:#fff;">All equipment checked in</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Everything is home and accounted for</div></div></div>';
+
+  // 🎉 Confetti when everything JUST came back in (transition from some-out → all-in)
+  if (typeof _prevEqOutCount === 'number' && _prevEqOutCount > 0 && outItems.length === 0) {
+    fireConfetti();
+  }
+  _prevEqOutCount = outItems.length;
 
   // Recent activity — derived from the live inventory (shared across all devices).
   const recent=[...STATE.equipment]
@@ -9688,6 +10293,51 @@ function fmtEqTime(s) {
 }
 
 // ── INVENTORY ──
+let _prevEqOutCount; // tracks last out-count so we only fire confetti on the some-out → all-in transition
+function fireConfetti() {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c = document.createElement('canvas');
+  c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99999;';
+  document.body.appendChild(c);
+  const ctx = c.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  function size(){ c.width = innerWidth*dpr; c.height = innerHeight*dpr; }
+  size();
+  const colors = ['#22c55e','#4ade80','#d4a93a','#e6c463','#ffffff','#16a34a'];
+  const N = 120;
+  const parts = [];
+  for (let i=0;i<N;i++){
+    parts.push({
+      x: (innerWidth/2 + (Math.random()-0.5)*120)*dpr,
+      y: (innerHeight*0.35)*dpr,
+      vx: (Math.random()-0.5)*16*dpr,
+      vy: (Math.random()*-14-6)*dpr,
+      g: (0.4+Math.random()*0.25)*dpr,
+      size: (5+Math.random()*6)*dpr,
+      color: colors[(Math.random()*colors.length)|0],
+      rot: Math.random()*Math.PI,
+      vr: (Math.random()-0.5)*0.4,
+      life: 0
+    });
+  }
+  const start = performance.now();
+  function frame(now){
+    const t = now - start;
+    ctx.clearRect(0,0,c.width,c.height);
+    parts.forEach(p=>{
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.vx *= 0.99; p.rot += p.vr; p.life = t;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.globalAlpha = Math.max(0, 1 - t/2600);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.6);
+      ctx.restore();
+    });
+    if (t < 2600) requestAnimationFrame(frame);
+    else c.remove();
+  }
+  requestAnimationFrame(frame);
+  try { haptic && haptic('success'); } catch(e){}
+}
 function renderInventory() {
   const search=(document.getElementById('eqSearch')?.value||'').toLowerCase();
   let items=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
@@ -9712,10 +10362,18 @@ function renderInventory() {
   el.innerHTML=items.map(e=>{
     const isOut=e.status==='out';
     const statusBadge=isOut?'<span class="badge badge-red">OUT</span>':'<span class="badge badge-green">IN</span>';
-    const equipBadge=e.equipStatus&&e.equipStatus!=='OK'?`<span class="badge ${e.equipStatus==='Missing'?'badge-amber':e.equipStatus==='Damaged'?'badge-purple':'badge-blue'}" style="font-size:10px;">${e.equipStatus}</span>`:'';
+    const equipBadge=e.equipStatus&&e.equipStatus!=='OK'?`<span class="badge ${e.equipStatus==='Missing'?'badge-red':e.equipStatus==='Damaged'?'badge-amber':e.equipStatus==='Need More'?'badge-blue':'badge-blue'}" style="font-size:10px;">${e.equipStatus}</span>`:'';
     const cncBadge=e.isCNC?'<span class="badge badge-amber" style="font-size:10px;">CNC</span>':'';
-    const fl=e.equipStatus==='Missing'?'border-left:4px solid var(--red);':e.equipStatus==='Damaged'?'border-left:4px solid var(--amber);':e.isCNC?'border-left:4px solid var(--amber);':'';
-    return `<div data-row="${e.row||0}" class="eq-inv-card" style="background:#fff;border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);${fl}">
+    // Card background tint by status
+    const _bg = e.equipStatus==='Missing'   ? 'background:linear-gradient(135deg,rgba(220,38,38,.22),rgba(10,0,0,.88));border-left:4px solid rgba(239,68,68,.85);'
+      : e.equipStatus==='Damaged'            ? 'background:linear-gradient(135deg,rgba(217,119,6,.22),rgba(10,5,0,.88));border-left:4px solid rgba(251,191,36,.85);'
+      : e.equipStatus==='Need More'          ? 'background:linear-gradient(135deg,rgba(37,99,235,.22),rgba(0,5,20,.88));border-left:4px solid rgba(96,165,250,.85);'
+      : e.equipStatus==='Not Active'         ? 'background:linear-gradient(135deg,rgba(90,90,90,.18),rgba(10,10,10,.88));border-left:4px solid rgba(150,150,150,.55);'
+      : e.isCNC                              ? 'background:linear-gradient(135deg,rgba(217,119,6,.16),rgba(10,5,0,.88));border-left:4px solid rgba(251,191,36,.7);'
+      : isOut                                ? 'background:linear-gradient(135deg,rgba(239,68,68,.13),rgba(10,10,10,.88));border-left:4px solid rgba(239,68,68,.5);'
+      : 'background:#fff;';
+    const _tc = (e.equipStatus&&e.equipStatus!=='OK')||e.isCNC ? 'color:#fff;' : '';
+    return `<div data-row="${e.row||0}" class="eq-inv-card" style="${_bg}border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);${_tc}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
         <div style="font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
         <div style="display:flex;gap:4px;flex-shrink:0;">${statusBadge}${equipBadge}${cncBadge}</div>
@@ -9900,6 +10558,14 @@ async function submitCO(action){
   const ccnc=(document.getElementById('coModalCCNC')?.value||'CC');
   const cncNote=(document.getElementById('coModalCNCNote')?.value||'').trim();
   if(!coModalItems.length){showToast('No items selected');return;}
+
+  // ── Conflict guard: warn if an item is already in the state you're setting it to ──
+  // e.g. tapping "Check OUT All" when an item is already OUT. (COBC 4 has its own flow below.)
+  const _conflict = coModalItems.find(it => !isCarItem(it.name) && (
+    (action==='OUT' && it.status==='out') ||
+    (action==='IN'  && it.status==='in')
+  ));
+  if (_conflict) { showEqConflictWarning(_conflict, action); return; }
 
   // ── COBC 4 shift enforcement ────────────────────────────────────────────────
   const hasCobc4Item = coModalItems.some(it => isCarItem(it.name));
@@ -10371,18 +11037,38 @@ function removeLocation(idx){const locs=[...(STATE.locations||[])];if(typeof idx
 
 // ── ADMIN: Add Equipment (adds row to Google Sheet + generates QR link) ──
 async function addEquipment(){
+  const btn = document.querySelector('[onclick="addEquipment()"]');
+  const unlock = _btnLock(btn, 'Adding…');
   const nameEl=document.getElementById('newEqName');
   const name=(nameEl?.value||'').trim();
   const loc=(document.getElementById('newEqLoc')?.value||'COBC').trim();
-  if(!name){showToast('Enter equipment name');return;}
+  if(!name){showToast('Enter equipment name');unlock();return;}
+  // Optimistic: add to local state immediately
+  const tempRow = 99999;
+  const newItem = {id:'tmp_'+Date.now(),name,homeLocation:loc,location:loc,status:'IN',row:tempRow,equipStatus:'OK',ccnc:'CC',isCNC:false};
+  STATE.equipment = STATE.equipment||[];
+  STATE.equipment.push(newItem);
+  if(nameEl) nameEl.value='';
+  renderInventory&&renderInventory();
+  renderEqAdminList&&renderEqAdminList();
   try{
     const r=await sheetPOST({action:'addItem',name,location:loc});
     if(r&&r.success){
-      if(nameEl)nameEl.value='';
-      showToast('✅ Equipment added to sheet');
+      // Replace temp with real row
+      STATE.equipment = STATE.equipment.filter(e=>e.id!==newItem.id);
+      _showSuccessModal('✅','Item Added', name + ' · ' + loc);
       await loadInventoryFromSheet();
-    }else{showToast('Error: '+(r?.error||'Unknown'));}
-  }catch(e){showToast('Error adding equipment');console.error(e);}
+    }else{
+      STATE.equipment = STATE.equipment.filter(e=>e.id!==newItem.id);
+      showToast('Error: '+(r?.error||'Unknown'));
+      renderInventory&&renderInventory();
+    }
+  }catch(e){
+    STATE.equipment = STATE.equipment.filter(e=>e.id!==newItem.id);
+    showToast('Error adding equipment');console.error(e);
+    renderInventory&&renderInventory();
+  }
+  unlock();
 }
 
 function showQRForItem(item) {
@@ -10501,9 +11187,18 @@ function hlocChanged(id) {
   const btn = document.getElementById('hloc-btn-'+id);
   const ok  = document.getElementById('hloc-ok-'+id);
   const item = STATE.equipment.find(e=>e.id===id);
-  if(!item || !sel || !btn) return;
-  if(ok) ok.style.display='none';
-  btn.style.display = sel.value !== item.location ? 'inline-block' : 'none';
+  if(!item || !sel) return;
+  // Optimistic: update local state + show ✓ immediately
+  const newLoc = sel.value;
+  item.location = newLoc;
+  if(ok){ ok.style.display='inline'; ok.textContent='✓'; ok.style.color='var(--green,#16a34a)'; }
+  if(btn) btn.style.display='none'; // hide Save button — auto-save on change
+  save();
+  // Sync to sheet in background
+  sheetPOST({action:'updateHomeLocation',row:item.row,location:newLoc})
+    .then(r=>{ if(!r||!r.success) showToast('Sync error: '+(r&&r.error||'Unknown')); })
+    .catch(e=>{ console.error(e); })
+    .finally(()=>{ setTimeout(()=>{ if(ok) ok.style.display='none'; }, 1500); });
 }
 
 async function saveHloc(id){
@@ -10563,11 +11258,13 @@ function renderReports() {
 }
 
 async function submitReport(){
+  const btn = document.querySelector('#eq-reports .btn-primary') || document.querySelector('[onclick="submitReport()"]');
+  const unlock = _btnLock(btn, 'Submitting…');
   const itemName=(document.getElementById('reportItem')?.value||'');
   const member=(document.getElementById('reportMember')?.value||SESSION?.unit||'').trim();
   const notes=(document.getElementById('reportNotes')?.value||'').trim();
-  if(!itemName||!notes){showToast('Select item and describe issue');return;}
-  if(!rptCurType){showToast('Select a report type first');return;}
+  if(!itemName||!notes){showToast('Select item and describe issue');unlock();return;}
+  if(!rptCurType){showToast('Select a report type first');unlock();return;}
   const item=STATE.equipment.find(e=>e.name===itemName);
   const location=item?.location||'';
   try{
@@ -10585,11 +11282,14 @@ async function submitReport(){
     const memberEl=document.getElementById('reportMember');if(memberEl)memberEl.value='';
     rptCurType='';
     document.querySelectorAll('#rptTypeBtns button').forEach(b=>{b.style.borderColor='var(--border)';b.style.color='var(--text2)';b.style.background='#fff';});
-    showToast('✅ Report submitted');
+    // Show success modal immediately — report already added to list
+    _showSuccessModal('📋','Report Submitted', itemName + (rptCurType?' · '+rptCurType:''));
+    rptCurType='';
     renderReports&&renderReports();
     renderInventory&&renderInventory();
     save();
-  }catch(e){showToast('Error submitting report');console.error(e);}
+    unlock();
+  }catch(e){showToast('Error submitting report');console.error(e);unlock();}
 }
 
 function resolveReport(reportId){
@@ -11773,6 +12473,13 @@ function stopShiftBannerTimer() {
 })();
 
 // ── Admin: Car Access ──────────────────────────────────────────────────────────
+// Updates the count badge in the accordion header whenever members load.
+function _updateCarAccessCount() {
+  var approved = (STATE.members||[]).filter(function(m){ return m.carAccess===true||m.carAccess==='TRUE'; }).length;
+  ['car-access-count','car-access-count2'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent=approved;
+  });
+}
 function renderCarAccessAdmin() {
   var el = document.getElementById('car-access-list');
   if (!el) return;
@@ -11784,10 +12491,11 @@ function renderCarAccessAdmin() {
   if (!mems.length) { el.innerHTML='<div style="color:#aaa;font-size:13px;">No members found.</div>'; return; }
   el.innerHTML = mems.map(function(m){
     var id = String(m.unit||m.id||'');
+    var displayId = id.replace(/^BC-?/i,''); // strip prefix — we add it once below
     var name = ((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
     var has = m.carAccess===true||m.carAccess==='TRUE';
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;">'
-      +'<div><div style="font-size:13px;font-weight:600;">BC-'+id+(name?' — '+name:'')+'</div></div>'
+      +'<div><div style="font-size:13px;font-weight:600;">BC-'+displayId+(name?' — '+name:'')+'</div></div>'
       +'<button onclick="toggleCarAccess(\''+id+'\','+(!has)+')" style="padding:5px 14px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;'
       +(has?'background:#e8f5e9;color:#2e7d32;':'background:#fdecea;color:#c0392b;')+'">'
       +(has?'✓ Approved':'✕ No Access')+'</button>'
@@ -11796,18 +12504,32 @@ function renderCarAccessAdmin() {
 }
 
 function toggleCarAccess(memberId, hasAccess) {
-  // Google Sheet is source of truth — write directly there
+  // Optimistic: update local state + re-render instantly
+  var mem = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'')===String(memberId); });
+  if (mem) mem.carAccess = hasAccess;
+  if (SESSION && String(SESSION.unit) === String(memberId)) SESSION.carAccess = hasAccess;
+  renderCarAccessAdmin();
+  renderCarAccessAdmin2();
+  _updateCarAccessCount&&_updateCarAccessCount();
+  // Sync to sheet in background
   postJ('setCarAccess', {memberId: memberId, hasAccess: hasAccess}).then(function(r) {
     if (r && r.success) {
-      var mem = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'')===String(memberId); });
-      if (mem) mem.carAccess = hasAccess;
-      if (SESSION && String(SESSION.unit) === String(memberId)) SESSION.carAccess = hasAccess;
+      showToast(hasAccess ? '✅ Car access granted' : '🚫 Car access removed');
+    } else {
+      // Rollback on failure
+      if (mem) mem.carAccess = !hasAccess;
+      if (SESSION && String(SESSION.unit) === String(memberId)) SESSION.carAccess = !hasAccess;
       renderCarAccessAdmin();
       renderCarAccessAdmin2();
-      showToast(hasAccess ? '✅ Car access granted' : '🚫 Car access removed');
-      loadMembersFromSheet();
-    } else { showToast('Error updating car access'); }
-  }).catch(function(e) { showToast('Error: ' + (e.message||'Unknown')); });
+      _updateCarAccessCount&&_updateCarAccessCount();
+      showToast('Error updating car access');
+    }
+  }).catch(function(e) {
+    if (mem) mem.carAccess = !hasAccess;
+    renderCarAccessAdmin();
+    renderCarAccessAdmin2();
+    showToast('Error: ' + (e.message||'Unknown'));
+  });
 }
 
 // ── Admin: COBC 4 History ──────────────────────────────────────────────────────
