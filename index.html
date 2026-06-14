@@ -575,6 +575,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .qtype-btn-urgent.active{background:var(--red);border-color:var(--red);color:#fff;animation:urgentpulse 1.4s ease-in-out infinite;}
 @keyframes urgentpulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5);}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);}}
 @keyframes pendingPulse{0%,100%{box-shadow:0 0 0 0 rgba(217,119,6,.6);}50%{box-shadow:0 0 0 8px rgba(217,119,6,0);}}
+@keyframes incomingRing{0%,100%{transform:rotate(0deg);}15%{transform:rotate(-18deg);}30%{transform:rotate(18deg);}45%{transform:rotate(-12deg);}60%{transform:rotate(12deg);}75%{transform:rotate(0deg);}}
 .qtype-btn.ns-btn{padding:8px 4px;font-size:11px;background:rgba(255,255,255,.85);}
 .qtype-btn.ns-btn.active{background:#d97706;border-color:#d97706;color:#fff;}
 .qtype-btn.urgent-active{background:var(--red);border-color:var(--red);color:#fff;}
@@ -982,6 +983,15 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- Pending Responder Requests Banner (admin/dispatch only) -->
       <div id="pendingRespondersBanner" style="display:none;"></div>
       <div id="callsList"></div>
+
+      <!-- Telzio: last 5 incoming calls (live heartbeat) — dispatch/admin only -->
+      <div id="telzioRecentPanel" style="display:none;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="section-label" style="margin:0;">📞 Recent Incoming Calls</div>
+          <div id="telzioRecentSub" style="font-size:11px;color:var(--text3);"></div>
+        </div>
+        <div id="telzioRecentList"></div>
+      </div>
     </div>
 
     <!-- ══ EQUIPMENT ══ -->
@@ -2895,6 +2905,8 @@ async function initFirebaseApp() {
     _firebaseReady = true;
     initFirestore(); // start Firestore real-time sync
     subscribeScheduleFromFirestore(); // sync dispatch schedule from Firestore
+    subscribeTelzioFromFirestore(); // live caller ID from Telzio webhook → Firestore
+    subscribeTelzioRecentList(); // last 5 incoming calls panel on Dispatch
     // Attempt messaging (non-critical — silently fails on iOS non-standalone)
     initPushModule().catch(()=>{});
     // Restore saved session after Firebase is ready
@@ -4749,7 +4761,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();}if(id==='scanModal')_openScanner();}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();}if(id==='scanModal')_openScanner();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -8555,6 +8567,180 @@ function subscribeScheduleFromFirestore() {
       if(typeof updateOnDutyBanner==='function') updateOnDutyBanner();
     }, err => console.warn('schedule snapshot error:', err));
   } catch(e) { console.warn('subscribeScheduleFromFirestore failed:', e); }
+}
+// ── Telzio live caller ID: webhook writes config/telzioRecentCall, app reads it live ──
+let _lastTelzioCall = null;        // { name, phone, at }
+let _telzioFirstSnap = true;       // skip banner on the initial load
+function subscribeTelzioFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('config').doc('telzioRecentCall').onSnapshot(doc => {
+      if(!doc.exists) return;
+      const d = doc.data() || {};
+      let phone = String(d.phone||d.From||'').replace(/\D+/g,'');
+      if(phone.length===11 && phone.charAt(0)==='1') phone = phone.substring(1);
+      const at = Number(d.at||d.updatedAt||Date.now());
+      const isNew = !_lastTelzioCall || at > (_lastTelzioCall.at||0);
+      _lastTelzioCall = { name: d.name||d.FromCnam||'', phone: phone, at: at };
+      // Live-fill the New Call modal if it's open with empty fields
+      const modal = document.getElementById('newCallModal');
+      if(modal && !modal.classList.contains('hidden')) _applyTelzioToForm(false);
+      // Pop the incoming-call banner (skip the very first snapshot on load)
+      if(_telzioFirstSnap){ _telzioFirstSnap=false; return; }
+      if(isNew && (Date.now()-at) < 2*60*1000) showIncomingCallBanner(_lastTelzioCall);
+    }, err => console.warn('telzio snapshot error:', err));
+  } catch(e) { console.warn('subscribeTelzioFromFirestore failed:', e); }
+}
+// Last 5 incoming calls — reads the telzioCalls collection (one doc per call), newest first
+function subscribeTelzioRecentList() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('telzioCalls').orderBy('at','desc').limit(5)
+      .onSnapshot(snap => {
+        const calls = [];
+        snap.forEach(doc => { const d=doc.data()||{}; calls.push({
+          name: d.name||'', phone: String(d.phone||'').replace(/\D+/g,''), at: Number(d.at||0)
+        }); });
+        renderTelzioRecentList(calls);
+      }, err => console.warn('telzioCalls snapshot error:', err));
+  } catch(e) { console.warn('subscribeTelzioRecentList failed:', e); }
+}
+function _telzioFmtPhone(p){
+  return (p && p.length===10) ? '('+p.slice(0,3)+') '+p.slice(3,6)+'-'+p.slice(6) : (p||'');
+}
+function _telzioFmtWhen(ts){
+  if(!ts) return '';
+  const diff = Date.now()-ts, m = Math.floor(diff/60000);
+  if(m < 1) return 'just now';
+  if(m < 60) return m+'m ago';
+  const h = Math.floor(m/60);
+  if(h < 24) return h+'h ago';
+  return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+function renderTelzioRecentList(calls){
+  const panel = document.getElementById('telzioRecentPanel');
+  const list  = document.getElementById('telzioRecentList');
+  const sub   = document.getElementById('telzioRecentSub');
+  if(!panel || !list) return;
+  // Dispatch/admin only
+  if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) { panel.style.display='none'; return; }
+  if(!calls || !calls.length){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  if(sub) sub.textContent = 'last '+calls.length;
+  list.innerHTML = calls.map(c=>{
+    const pretty=_telzioFmtPhone(c.phone);
+    const label=c.name||pretty||'Unknown';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;">'
+      +'<div style="font-size:16px;">📞</div>'
+      +'<div style="flex:1;min-width:0;">'
+      +  '<div style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+label+'</div>'
+      +  (c.name&&pretty?'<div style="font-size:12px;color:var(--text3);">'+pretty+'</div>':'')
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;">'+_telzioFmtWhen(c.at)+'</div>'
+      +(c.phone?'<button onclick="_newCallFromRecent(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+c.phone+'\')" style="background:var(--navy,#0f2540);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Call</button>':'')
+      +'</div>';
+  }).join('');
+}
+// Start a New Call pre-filled from a recent-calls row
+function _newCallFromRecent(name, phone){
+  if(typeof showModal==='function') showModal('newCallModal');
+  setTimeout(()=>{
+    const nameEl=document.getElementById('callCaller');
+    const phoneEl=document.getElementById('callPhone');
+    if(nameEl) nameEl.value=name||'';
+    if(phoneEl) phoneEl.value=phone||'';
+  }, 60);
+}
+// Fill the New Call caller fields from the latest Telzio call (fills empties unless force)
+function _applyTelzioToForm(force) {
+  if(!_lastTelzioCall) return false;
+  if(_lastTelzioCall.at && (Date.now() - _lastTelzioCall.at) > 15*60*1000) return false; // ignore stale
+  const nameEl = document.getElementById('callCaller');
+  const phoneEl = document.getElementById('callPhone');
+  let filled = false;
+  if(nameEl && _lastTelzioCall.name && (force || !nameEl.value)) { nameEl.value = _lastTelzioCall.name; filled = true; }
+  if(phoneEl && _lastTelzioCall.phone && (force || !phoneEl.value)) { phoneEl.value = _lastTelzioCall.phone; filled = true; }
+  return filled;
+}
+// Button handler: 📞 Pull from last call — instant live data first, then Telzio pull fallback
+async function autofillFromLastCall(){
+  const btn=document.getElementById('telzioPullBtn');
+  const orig=btn?btn.innerHTML:'';
+  if(_applyTelzioToForm(true)){
+    showToast('📞 Filled from last call'+(_lastTelzioCall&&_lastTelzioCall.name?' — '+_lastTelzioCall.name:''));
+    return;
+  }
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ Fetching…'; }
+  try{
+    const d=await sheetPOST({action:'getRecentCall'});
+    if(d && (d.phone || d.name)){
+      const nameEl=document.getElementById('callCaller');
+      const phoneEl=document.getElementById('callPhone');
+      if(nameEl && d.name) nameEl.value=d.name;
+      if(phoneEl && d.phone) phoneEl.value=d.phone;
+      showToast('📞 Filled from last call'+(d.name?' — '+d.name:''));
+    } else if(d && d.error){ showToast('Telzio: '+d.error); }
+    else { showToast('No recent call found'); }
+  }catch(e){ showToast('Could not reach Telzio'); console.warn('autofillFromLastCall',e); }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML=orig; } }
+}
+// Auto-runs when the New Call modal OPENS — fills caller silently, no button tap needed.
+// 1) Use live webhook data instantly (Option A).  2) If none, quietly pull via Telzio (Option B).
+async function autoPullCallerOnOpen(){
+  // Option A: instant live data already in memory
+  if(_applyTelzioToForm(false)) return;
+  // Option B: silent background pull (no toasts, no button spinner)
+  const nameEl=document.getElementById('callCaller');
+  const phoneEl=document.getElementById('callPhone');
+  if((nameEl&&nameEl.value)||(phoneEl&&phoneEl.value)) return; // dispatcher already typing
+  const btn=document.getElementById('telzioPullBtn');
+  const orig=btn?btn.innerHTML:'';
+  if(btn){ btn.innerHTML='⏳ Getting last caller…'; btn.disabled=true; }
+  try{
+    const d=await sheetPOST({action:'getRecentCall'});
+    // Don't overwrite anything the dispatcher started typing while we waited
+    if(d && (d.phone||d.name)){
+      if(nameEl && d.name && !nameEl.value) nameEl.value=d.name;
+      if(phoneEl && d.phone && !phoneEl.value) phoneEl.value=d.phone;
+    }
+  }catch(e){ /* silent — button still available for manual retry */ }
+  finally{ if(btn){ btn.innerHTML=orig; btn.disabled=false; } }
+}
+// Live "📞 Incoming" banner — only dispatch/admin see it; tap to start a pre-filled New Call
+let _incomingBannerTimer = null;
+function showIncomingCallBanner(call){
+  if(!call || !(call.name||call.phone)) return;
+  if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) return;
+  let b = document.getElementById('incomingCallBanner');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'incomingCallBanner';
+    b.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 10px);z-index:3000;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:16px;padding:14px 16px;box-shadow:0 8px 30px rgba(22,163,74,.45);display:flex;align-items:center;gap:12px;transform:translateY(-160%);transition:transform .35s cubic-bezier(.2,.9,.3,1.2);';
+    document.body.appendChild(b);
+  }
+  const prettyPhone = call.phone && call.phone.length===10
+    ? '('+call.phone.slice(0,3)+') '+call.phone.slice(3,6)+'-'+call.phone.slice(6)
+    : (call.phone||'');
+  b.innerHTML = '<div style="font-size:26px;line-height:1;animation:incomingRing 1s ease-in-out infinite;">📞</div>'
+    + '<div style="flex:1;min-width:0;">'
+    +   '<div style="font-size:11px;font-weight:700;opacity:.85;letter-spacing:.4px;">INCOMING CALL</div>'
+    +   '<div style="font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(call.name||prettyPhone||'Unknown')+'</div>'
+    +   (call.name&&prettyPhone?'<div style="font-size:12px;opacity:.85;">'+prettyPhone+'</div>':'')
+    + '</div>'
+    + '<button onclick="_startCallFromBanner()" style="background:#fff;color:#15803d;border:none;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">+ New Call</button>'
+    + '<button onclick="_dismissIncomingBanner()" aria-label="Dismiss" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer;flex-shrink:0;">✕</button>';
+  requestAnimationFrame(()=>{ b.style.transform='translateY(0)'; });
+  if(_incomingBannerTimer) clearTimeout(_incomingBannerTimer);
+  _incomingBannerTimer = setTimeout(_dismissIncomingBanner, 20000); // auto-hide after 20s
+}
+function _dismissIncomingBanner(){
+  const b = document.getElementById('incomingCallBanner');
+  if(b) b.style.transform='translateY(-160%)';
+  if(_incomingBannerTimer){ clearTimeout(_incomingBannerTimer); _incomingBannerTimer=null; }
+}
+function _startCallFromBanner(){
+  _dismissIncomingBanner();
+  if(typeof showModal==='function') showModal('newCallModal'); // showModal auto-fills from _lastTelzioCall
 }
 function pushScheduleToFirestore() {
   try {
