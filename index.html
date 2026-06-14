@@ -8676,9 +8676,10 @@ var TELZIO_PROXY_URL = 'https://cobc-telzio.aryehw330.workers.dev';
 var TELZIO_TOKEN = 'cobc_7f3a9d2e8b1c4056af9e2d7b6c8a1f04';
 // Authenticated fetch helper — all Telzio proxy calls go through here
 function telzioFetch(path) {
-  return fetch(TELZIO_PROXY_URL + path, {
-    headers: { 'X-COBC-Token': TELZIO_TOKEN }
-  });
+  // Send the token as a URL parameter (NOT a custom header) so the request stays a
+  // "simple" CORS request — no slow preflight OPTIONS round-trip before every poll.
+  var sep = path.indexOf('?') >= 0 ? '&' : '?';
+  return fetch(TELZIO_PROXY_URL + path + sep + 'token=' + encodeURIComponent(TELZIO_TOKEN));
 }
 let _lastTelzioCall = null;        // { name, phone, at }
 let _telzioFirstSnap = true;       // skip banner on the initial load
@@ -8728,11 +8729,21 @@ function startTelzioLivePolling() {
   }
   _telzioLiveBadgeEl = document.getElementById('telzioLiveBadge');
 
+  var _inFlight = false;     // skip a tick if the previous request hasn't returned
+  var _failStreak = 0;       // back off after repeated failures
+  var _skipUntil = 0;        // timestamp to resume after backoff
+
   async function poll() {
+    // Don't stack requests, don't poll a hidden tab, respect backoff window
+    if (_inFlight) return;
+    if (document.hidden) return;
+    if (Date.now() < _skipUntil) return;
+    _inFlight = true;
     try {
       var resp = await telzioFetch('/calls/live');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       var data = await resp.json();
+      _failStreak = 0; // success resets backoff
       // Telzio returns { Calls: [...] } or an array
       var calls = Array.isArray(data) ? data : (data.Calls || data.calls || []);
       // Filter inbound only
@@ -8770,12 +8781,17 @@ function startTelzioLivePolling() {
         _telzioLiveSeen = {};
       }
     } catch(e) {
-      // Silent — network errors shouldn't spam console
+      // Network/CORS/401 error — back off so we don't hammer a failing endpoint.
+      // After 3 straight failures, pause polling for 60s, then try again.
+      _failStreak++;
+      if (_failStreak >= 3) { _skipUntil = Date.now() + 60000; _failStreak = 0; }
+    } finally {
+      _inFlight = false;
     }
   }
 
   poll(); // first poll immediately
-  _telzioLivePollTimer = setInterval(poll, 3000); // poll every 3 s
+  _telzioLivePollTimer = setInterval(poll, 3000); // poll every 3 s (skips when hidden / in-flight / backing off)
 }
 
 function stopTelzioLivePolling() {
@@ -8785,6 +8801,9 @@ function stopTelzioLivePolling() {
 
 // Last 5 incoming calls — pulls from the Cloudflare Worker proxy (works without the webhook).
 let _telzioRecentTimer = null;
+let _telzioRecentInFlight = false;
+let _telzioRecentFails = 0;
+let _telzioRecentSkipUntil = 0;
 function subscribeTelzioRecentList() {
   // Fetch immediately, then refresh every 30s while logged in
   _loadTelzioRecent();
@@ -8795,10 +8814,15 @@ async function _loadTelzioRecent() {
   // Dispatch/admin only — skip the network call entirely for members
   if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) return;
   if(typeof telzioFetch !== 'function') return;
+  if(document.hidden) return;            // don't poll a hidden tab
+  if(_telzioRecentInFlight) return;      // don't stack requests
+  if(Date.now() < _telzioRecentSkipUntil) return; // honor backoff
+  _telzioRecentInFlight = true;
   try {
     const resp = await telzioFetch('/calls/log?MaxResults=5&Direction=inbound');
-    if(!resp.ok) return;
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
     const data = await resp.json();
+    _telzioRecentFails = 0;
     const raw = Array.isArray(data) ? data : (data.Calls || data.calls || data.CallLog || []);
     const calls = raw.slice(0,5).map(c => {
       let phone = String(c.From || c.from || '').replace(/\D+/g,'');
@@ -8809,7 +8833,12 @@ async function _loadTelzioRecent() {
       return { name: c.FromCnam || c.caller_name || '', phone: phone, at: at };
     });
     renderTelzioRecentList(calls);
-  } catch(e) { /* silent — panel just stays hidden if proxy unreachable */ }
+  } catch(e) {
+    _telzioRecentFails++;
+    if(_telzioRecentFails >= 3){ _telzioRecentSkipUntil = Date.now() + 120000; _telzioRecentFails = 0; } // pause 2 min after 3 fails
+  } finally {
+    _telzioRecentInFlight = false;
+  }
 }
 function _telzioFmtPhone(p){
   return (p && p.length===10) ? '('+p.slice(0,3)+') '+p.slice(3,6)+'-'+p.slice(6) : (p||'');
