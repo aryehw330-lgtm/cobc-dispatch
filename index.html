@@ -8676,10 +8676,10 @@ var TELZIO_PROXY_URL = 'https://cobc-telzio.aryehw330.workers.dev';
 var TELZIO_TOKEN = 'cobc_7f3a9d2e8b1c4056af9e2d7b6c8a1f04';
 // Authenticated fetch helper — all Telzio proxy calls go through here
 function telzioFetch(path) {
-  // Send the token as a URL parameter (NOT a custom header) so the request stays a
-  // "simple" CORS request — no slow preflight OPTIONS round-trip before every poll.
-  var sep = path.indexOf('?') >= 0 ? '&' : '?';
-  return fetch(TELZIO_PROXY_URL + path + sep + 'token=' + encodeURIComponent(TELZIO_TOKEN));
+  // Authorization: Bearer is a "simple" CORS header — no preflight, token stays out of URLs/logs
+  return fetch(TELZIO_PROXY_URL + path, {
+    headers: { 'Authorization': 'Bearer ' + TELZIO_TOKEN }
+  });
 }
 let _lastTelzioCall = null;        // { name, phone, at }
 let _telzioFirstSnap = true;       // skip banner on the initial load
