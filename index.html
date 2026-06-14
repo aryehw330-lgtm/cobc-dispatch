@@ -592,8 +592,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .eta-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
 .eta-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
 
-.call-card{background:#fff;border-radius:14px;margin-bottom:10px;box-shadow:var(--shadow-md);overflow:hidden;cursor:pointer;transition:transform .1s,box-shadow .1s;
-  content-visibility:auto;contain-intrinsic-size:0 90px;}
+.call-card{background:#fff;border-radius:14px;margin-bottom:10px;box-shadow:var(--shadow-md);overflow:hidden;cursor:pointer;transition:transform .1s,box-shadow .1s;}
 .call-card:active{transform:scale(.99);}
 .call-card.open{background:#fff;}
 .call-card.active{background:#f0fdf4;border-left:4px solid var(--green);}
@@ -601,12 +600,12 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.done{background:#f4f4f5;opacity:.75;filter:grayscale(20%);}
 .call-card.cancelled{background:#fff1f2;border-left:4px solid var(--red);opacity:.8;filter:grayscale(10%);}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
-.call-card-header{padding:12px 14px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.call-card-header{padding:12px 14px 10px;display:flex;align-items:stretch;justify-content:space-between;gap:10px;}
 .call-card-type{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
 .call-card-addr{font-size:14px;color:var(--text2);margin-top:2px;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
-.call-card-footer{padding:8px 14px;border-top:1px solid var(--border2);display:flex;gap:6px;background:rgba(0,0,0,.02);}
-.call-action{flex:1;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;}
+.call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
+.call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .call-action:active{opacity:.8;}
 .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;}
 .status-dot.open{background:var(--amber);}
@@ -1964,7 +1963,7 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <!-- QUICK TYPE GRID -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;" id="callTypeGrid">
-      <button class="qtype-btn active" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
+      <button class="qtype-btn" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
       <button class="qtype-btn" onclick="selectCallType('flat_tire_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">Has Spare</span></button>
       <button class="qtype-btn" onclick="selectCallType('jump_start',this)">Boost</button>
       <button class="qtype-btn" onclick="selectCallType('car_lockout',this)">Car Lockout</button>
@@ -1977,7 +1976,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn" onclick="selectCallType('needs_heat',this)">🔥 Needs Heater<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
       <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
     </div>
-    <input type="hidden" id="callType" value="flat_tire_no_spare"/>
+    <input type="hidden" id="callType" value=""/>
 
     <!-- EQUIPMENT QTY (A/C, Fans, Heaters) -->
     <div id="eqQtySection" style="display:none;" class="input-group">
@@ -4697,7 +4696,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'&&typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(id==='scanModal')_openScanner();}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();}if(id==='scanModal')_openScanner();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -5102,6 +5101,8 @@ const CALL_TYPE_LABELS = {
 };
 
 let dispatchFilter='active';
+// Live responder location is considered "fresh" for 2 minutes
+const LOC_STALE_MS = 120000;
 function _todayStartMs() { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
 function _localIso(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
 function setHistoryRange(r, el) {
@@ -5366,11 +5367,19 @@ function callCardHTML(call, mini=false) {
       ? respList.map(r=>{
           const unitNum = String(r.unit||'').replace(/^BC-?/i,'');
           const firstName = (r.name||'').split(' ')[0];
-          return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;
+          return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;
         }).join('')
       : '';
     const pendingBadge = pending
       ? `<span style="background:var(--amber);color:#fff;padding:5px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.3px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);animation:pendingPulse 1.8s ease-in-out infinite;white-space:nowrap;">⏳ ${pending} pending</span>`
+      : '';
+    // Respond action for the Open Calls (mini) card — shown for ALL members
+    const miniRespond = (call.status!=='done' && !isDraft)
+      ? (iAmApproved
+          ? `<div class="approved-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">✓ Approved to respond</div>`
+          : iAmPending
+            ? `<div class="pending-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">⏳ Pending approval…</div>`
+            : `<button class="call-action" style="background:${isUrgent?'var(--red)':'var(--green)'};color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${isUrgent?'⚠️ Respond Now':'✋ Request to Respond'}</button>`)
       : '';
     return `
     <div class="call-card ${isUrgent?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
@@ -5389,6 +5398,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
+      ${miniRespond?`<div class="call-card-footer">${miniRespond}<button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}</div>`:''}
     </div>`;
   }
 
@@ -5417,8 +5427,8 @@ function callCardHTML(call, mini=false) {
     <div class="call-card-header">
       <div style="flex:1;min-width:0;">
         <div class="call-num" style="margin-bottom:2px;">#${callNumStr}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <div class="status-dot ${call.status}"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+          <div class="status-dot ${call.status}" style="flex-shrink:0;"></div>
           <div class="call-card-type" style="color:${townColor};">${typeLabel}</div>
           ${isDraft?'<span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}
           ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
@@ -5428,7 +5438,7 @@ function callCardHTML(call, mini=false) {
         ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
         ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
-        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
+        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         <div class="call-card-meta" style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${timeStr}</div>
         ${(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch')?(()=>{
@@ -5442,7 +5452,7 @@ function callCardHTML(call, mini=false) {
           return chips?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${chips}</div>`:'';
         })():''}
       </div>
-      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${(!isDispatch&&!iAmApproved&&!iAmPending&&call.status!=='done'&&(typeof currentTab==='undefined'||currentTab==='home'))?`<div onclick="event.stopPropagation();openCallDetail('${call.id}')" style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;cursor:pointer;white-space:nowrap;text-align:center;">I'm Available →</div>`:iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:iAmApproved?`<div style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">✓ Responding</div>`:''}}</div>`:''}
+      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:iAmApproved?`<div style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">✓ Responding</div>`:''}}</div>`:''}
     </div>
     <div class="call-card-footer">
       ${respondBtn}
@@ -5593,8 +5603,8 @@ function renderCalls() {
   const todayStart = _todayStartMs();
   let list = [...STATE.calls]
     .filter(c=>isDispatch || c.status!=='draft') // drafts only visible to admin/dispatch
-    // Hide completed/cancelled calls from BEFORE today — they're only viewable via 📅 History
-    .filter(c=>(c.status!=='done'&&c.status!=='cancelled') || (c.completedAt||c.cancelledAt||c.createdAt||0) >= todayStart)
+    // Hide completed/cancelled calls — cancelled always goes to history immediately, done only hides after today
+    .filter(c=>c.status!=='cancelled' && (c.status!=='done' || (c.completedAt||c.createdAt||0) >= todayStart))
     .sort((a,b)=>sortRank(a)-sortRank(b)||(b.createdAt-a.createdAt));
   if (dispatchFilter!=='all') {
     if (dispatchFilter==='active') {
@@ -5641,6 +5651,14 @@ function populateModels() {
 }
 
 
+function resetCallTypeGrid() {
+  // No call type pre-selected — every button white until one is chosen
+  document.querySelectorAll('#callTypeGrid .qtype-btn').forEach(b=>b.classList.remove('active','urgent-active'));
+  const ct=document.getElementById('callType'); if(ct) ct.value='';
+  const ci=document.getElementById('carInfoSection'); if(ci) ci.style.display='none';
+  const og=document.getElementById('otherTypeGroup'); if(og) og.style.display='none';
+  const eq=document.getElementById('eqQtySection'); if(eq) eq.style.display='none';
+}
 function selectCallType(type, btn) {
   const prevType = document.getElementById('callType').value;
   document.getElementById('callType').value = type;
@@ -5712,6 +5730,7 @@ function _nextCallNum() {
 function createCall() {
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Only dispatch can create calls'); return; }
   let type=document.getElementById('callType').value;
+  if(!type){ showToast('Please choose a call type'); return; }
   if(type==='other') {
     const customType=document.getElementById('otherTypeText')?.value?.trim();
     if(customType) type='other:'+customType;
@@ -6140,7 +6159,24 @@ function removeApprovedResponder(callId, unit) {
 function cancelCall(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  if(!confirm('Mark this call as CANCELLED?\nAll responders will be notified not to respond.')) return;
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:300px;width:88%;text-align:center;">'
+    +'<div style="font-size:32px;margin-bottom:10px">🚫</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:6px;">Cancel This Call?</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:18px;">All responders will be notified not to respond.</div>'
+    +'<div style="display:flex;gap:10px;">'
+    +'<button id="__cc_no" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Keep</button>'
+    +'<button id="__cc_yes" style="flex:1;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Cancel Call</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#__cc_no').onclick=function(){document.body.removeChild(overlay);};
+  overlay.querySelector('#__cc_yes').onclick=function(){
+    document.body.removeChild(overlay);
+    _doCancelCall(id,call);
+  };
+}
+function _doCancelCall(id,call) {
   const prevResponders=[...(call.responders||[]),...(call.pendingResponders||[])];
   call.status='cancelled';
   call.cancelledAt=Date.now();
@@ -6736,17 +6772,28 @@ function updateCallStatus(id,status) {
   if(call) { call.status=status; if(status==='active') call.activatedAt=call.activatedAt||Date.now(); save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast(`Call → ${status}`); }
 }
 function deleteCall(id) {
-  if(!confirm('Delete this call?')) return;
-  _deletedCallIds.add(String(id));
-  STATE.calls = (STATE.calls||[]).filter(c=>c.id!==id);
-  save();
-  renderCalls(); renderHome();
-  firebase.firestore().collection('calls').doc(String(id)).delete()
-    .then(() => showToast('✅ Call deleted'))
-    .catch(e => {
-      console.error('Firestore delete error:', e);
-      showToast('⚠️ Local delete OK, cloud delete failed');
-    });
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:300px;width:88%;text-align:center;">'
+    +'<div style="font-size:32px;margin-bottom:10px">🗑️</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:6px;">Delete This Call?</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:18px;">This permanently removes the call from history. Cannot be undone.</div>'
+    +'<div style="display:flex;gap:10px;">'
+    +'<button id="__dc_no" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Keep</button>'
+    +'<button id="__dc_yes" style="flex:1;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Delete</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#__dc_no').onclick=function(){document.body.removeChild(overlay);};
+  overlay.querySelector('#__dc_yes').onclick=function(){
+    document.body.removeChild(overlay);
+    // Optimistic: remove instantly
+    _deletedCallIds.add(String(id));
+    STATE.calls=(STATE.calls||[]).filter(c=>c.id!==id);
+    save(); renderCalls(); renderHome();
+    firebase.firestore().collection('calls').doc(String(id)).delete()
+      .then(()=>showToast('✅ Call deleted'))
+      .catch(e=>{showToast('Error deleting');console.error(e);});
+  };
 }
 
 // ── CALL EDIT ──
@@ -6923,300 +6970,66 @@ function shareMyLocationOnCall(callId) {
 function openLiveDirections(callId) {
   const call = STATE.calls.find(c => c.id === callId);
   if(!call || !call.address) { showToast('No address on this call'); return; }
-  const dest = encodeURIComponent(`${call.address}, ${call.town||''} NJ`);
-  const openMapsNoOrigin = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank');
-
-  if(!navigator.geolocation) { openMapsNoOrigin(); return; }
-
-  // Only use live location if the user has ALREADY granted it (no permission prompt here)
-  const useLiveOriginIfGranted = () => {
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
-        window.open(`https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${dest}&travelmode=driving`, '_blank');
-      },
-      () => openMapsNoOrigin(),
-      { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
-    );
-  };
-
-  if(navigator.permissions && navigator.permissions.query) {
-    navigator.permissions.query({ name: 'geolocation' })
-      .then(p => {
-        if(p.state === 'granted') useLiveOriginIfGranted();
-        else openMapsNoOrigin(); // 'prompt' or 'denied' — don't show prompt; just open without origin
-      })
-      .catch(() => openMapsNoOrigin());
-  } else {
-    // Old browsers without permissions API — skip the live origin to avoid surprise prompt
-    openMapsNoOrigin();
-  }
+  // Always open in-app route map — never leave the app
+  openMyRouteMap(call);
 }
 
-// ── Live ETA — location sharing + OSRM routing ───────────────────────────────
-// Each approved responder's device watches its own GPS and writes to
-// call.liveLocations[unit] using dot-notation Firestore updates (no race conditions).
-// Dispatch sees updates in real-time via the existing calls onSnapshot listener.
-
-const _locationWatchers = {}; // callId → watchId | 'starting' | 'denied'
-const _geocodeCache     = {}; // "address|town" → {lat, lng}
-const _lastLocWrite     = {}; // callId → ms timestamp of last Firestore write
-const LOC_WRITE_INTERVAL = 30000;  // write location + recalculate ETA every 30 s
-const LOC_STALE_MS       = 600000; // 10 minutes — hide ETA if older than this
-
-// Geocode a call address to lat/lng — Google first, Nominatim fallback
-async function geocodeCallAddress(call) {
-  const key = `${call.address}|${call.town||''}`;
-  if (_geocodeCache[key]) return _geocodeCache[key];
-  // Try Google Geocoding API first
-  try {
-    await loadGoogleMapsAPI();
-    const geocoder = new google.maps.Geocoder();
-    const result = await geocoder.geocode({
-      address: `${call.address}, ${call.town||''}, NJ`,
-      region: 'us'
-    });
-    if (result.results && result.results[0]) {
-      const loc = result.results[0].geometry.location;
-      const r = { lat: loc.lat(), lng: loc.lng() };
-      _geocodeCache[key] = r;
-      return r;
-    }
-  } catch(e) { console.warn('[Geocode] Google failed, trying Nominatim:', e.message); }
-  // Fallback: Nominatim (free, no key needed)
-  try {
-    const q = encodeURIComponent(`${call.address}, ${call.town||''}, NJ`);
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'COBCDispatch/1.0' } });
-    const data = await res.json();
-    if (data.length > 0) {
-      const r = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-      _geocodeCache[key] = r;
-      return r;
-    }
-  } catch(e) { console.warn('[Geocode] Nominatim fallback also failed:', e); }
-  return null;
-}
-
-// Get driving ETA in minutes using OSRM (free, no API key)
-async function calcOsrmEtaMin(fromLat, fromLng, toLat, toLng) {
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.code === 'Ok' && data.routes?.length > 0) {
-      return Math.ceil(data.routes[0].duration / 60);
-    }
-  } catch(e) { console.warn('[ETA] OSRM failed:', e); }
-  return null;
-}
-
-// Write this member's location + ETA to Firestore
-async function pushLiveLocation(callId, lat, lng) {
-  const now = Date.now();
-
-  const call = (STATE.calls || []).find(c => c.id === callId);
-  if (!call) return;
-
-  // Recalculate ETA on every 30 s write — geocode is cached, only OSRM is called
-  let liveEtaMin = null;
-  const dest = await geocodeCallAddress(call);
-  if (dest) {
-    liveEtaMin = await calcOsrmEtaMin(lat, lng, dest.lat, dest.lng);
-  }
-
-  const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
-  const payload = { lat, lng, locationAt: now, name: SESSION.name };
-  if (liveEtaMin !== null) { payload.liveEtaMin = liveEtaMin; payload.liveEtaAt = now; }
-
-  try {
-    await firebase.firestore().collection('calls').doc(callId).update({
-      [`liveLocations.${unitKey}`]: payload
-    });
-    // Mirror into local state immediately so dispatch sees it without waiting for snapshot
-    const localCall = (STATE.calls || []).find(c => c.id === callId);
-    if (localCall) {
-      if (!localCall.liveLocations) localCall.liveLocations = {};
-      localCall.liveLocations[unitKey] = { ...localCall.liveLocations[unitKey], ...payload };
-      renderCalls && renderCalls();
-    }
-  } catch(e) { console.warn('[ETA] Firestore location write failed:', e); }
-}
-
-// Start GPS watching for a specific call — ONLY if location is already allowed in settings.
-// We never prompt for permission; members opt in via their device/browser settings.
-async function startLocationSharing(callId) {
-  if (_locationWatchers[callId] !== undefined) return; // already set up
-  if (!navigator.geolocation) { _locationWatchers[callId] = 'unavailable'; return; }
-
-  let permissionGranted = false;
-
-  // Step 1: Try the Permissions API (works reliably on Chrome/Android)
-  if (navigator.permissions && navigator.permissions.query) {
-    try {
-      const result = await navigator.permissions.query({ name: 'geolocation' });
-      if (result.state === 'granted') permissionGranted = true;
-      if (result.state === 'denied') { _locationWatchers[callId] = 'denied'; return; }
-      // state === 'prompt' → fall through to silent position check below
-    } catch(e) {
-      // iOS Safari doesn't support permissions.query for geolocation — fall through
-    }
-  }
-
-  // Step 2: If we still don't know (iOS or 'prompt' state), try a silent getCurrentPosition
-  // with a very short timeout so we never show a dialog — if it fails we just skip.
-  if (!permissionGranted) {
-    try {
-      await new Promise((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 500,         // too short to show a dialog; returns from cache if granted
-          maximumAge: 300000,   // accept a 5-min-old cached position
-          enableHighAccuracy: false
-        })
-      );
-      permissionGranted = true; // got a position → permission must be granted
-    } catch(e) {
-      // PERMISSION_DENIED or TIMEOUT — either way, don't start watching
-      _locationWatchers[callId] = 'not-granted';
-      return;
-    }
-  }
-
-  // Permission confirmed — poll every 30 s with getCurrentPosition so OSRM
-  // recalculates on a fixed schedule regardless of whether the device moved.
-  const doUpdate = () => {
-    navigator.geolocation.getCurrentPosition(
-      pos => pushLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
-      err => console.warn('[ETA] position error:', err),
-      { enableHighAccuracy: true, maximumAge: 25000, timeout: 30000 }
-    );
-  };
-  doUpdate(); // fire immediately on approval
-  const intervalId = setInterval(doUpdate, 30000);
-  _locationWatchers[callId] = { type: 'interval', id: intervalId };
-  console.log('[ETA] Location sharing started for call', callId);
-}
-
-// Stop GPS polling for a call (call ended or removed as responder)
-async function stopLocationSharing(callId) {
-  const watcher = _locationWatchers[callId];
-  if (watcher?.type === 'interval') {
-    clearInterval(watcher.id);
-    // Remove from Firestore
-    const unitKey = String(SESSION.unit).replace(/^BC-?/i, '');
-    try {
-      await firebase.firestore().collection('calls').doc(callId).update({
-        [`liveLocations.${unitKey}`]: firebase.firestore.FieldValue.delete()
-      });
-    } catch(e) {}
-  }
-  delete _locationWatchers[callId];
-  delete _lastLocWrite[callId];
-}
-
-// Called after every calls onSnapshot update — start/stop watchers to match approval state
-function syncLocationWatchers() {
-  if (!SESSION?.unit) return;
-  // Respect the user's location sharing setting
-  const locEnabled = (JSON.parse(localStorage.getItem('cobc_settings')||'{}')).locationSharing !== false;
-  if (!locEnabled) {
-    // Make sure all watchers are stopped
-    Object.keys(_locationWatchers).forEach(callId => stopLocationSharing(callId));
-    return;
-  }
-  const myUnit = String(SESSION.unit).replace(/^BC-?/i, '');
-  (STATE.calls || []).forEach(call => {
-    const isActive = call.status !== 'done' && call.status !== 'cancelled';
-    const iAmApproved = isActive && (call.responders || []).some(r =>
-      String(r.unit).replace(/^BC-?/i, '') === myUnit
-    );
-    if (iAmApproved && _locationWatchers[call.id] === undefined) {
-      startLocationSharing(call.id);
-    } else if (!iAmApproved && _locationWatchers[call.id] !== undefined) {
-      stopLocationSharing(call.id);
-    }
-  });
-  // Clean up watchers for calls no longer in STATE
-  Object.keys(_locationWatchers).forEach(callId => {
-    if (!(STATE.calls || []).find(c => c.id === callId)) stopLocationSharing(callId);
-  });
-}
-
-// Clean up all watchers when app is closed
-window.addEventListener('beforeunload', () => {
-  Object.keys(_locationWatchers).forEach(stopLocationSharing);
-});
-
-// ── Live Tracking Map ─────────────────────────────────────────────────────────
-let _liveMap = null;           // Google Maps instance
-let _liveMapCallId = null;
-let _liveMapRefresh = null;
-let _destMarker = null;        // google.maps.Marker for destination
-const _responderMarkers = {};  // unitKey → google.maps.Marker
-const _responderRoutes  = {};  // unitKey → google.maps.Polyline
-const RESPONDER_COLORS  = ['#2563eb','#16a34a','#d97706','#9333ea','#dc2626','#0891b2'];
-
-function _responderColor(idx) { return RESPONDER_COLORS[idx % RESPONDER_COLORS.length]; }
-
-// Create a Google Maps label marker using a DOM overlay
-function _gmLabel(map, latLng, html) {
-  const overlay = new google.maps.OverlayView();
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  div.style.position = 'absolute';
-  div.style.transform = 'translate(-50%, -100%)';
-  overlay.onAdd = function() { this.getPanes().floatPane.appendChild(div); };
-  overlay.draw = function() {
-    const pos = this.getProjection().fromLatLngToDivPixel(latLng);
-    div.style.left = pos.x + 'px';
-    div.style.top = pos.y + 'px';
-  };
-  overlay.onRemove = function() { div.parentNode && div.parentNode.removeChild(div); };
-  overlay.setMap(map);
-  overlay._div = div;
-  return overlay;
-}
-
-// ── Member route map (in-app, shows directions to call address) ─────────────
 function openMyRouteMap(call) {
   if (!call) return;
   const dest = encodeURIComponent((call.address||'') + ' ' + (call.town||'') + ' NJ');
-  // Use Google Maps embed with directions mode
   const apiKey = typeof GOOGLE_MAPS_API_KEY !== 'undefined' ? GOOGLE_MAPS_API_KEY : '';
   const title = `#${call.callNum||''} · ${call.address}${call.town?', '+call.town:''}`;
 
   // Create or reuse modal
-  let modal = document.getElementById('myRouteMapModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'myRouteMapModal';
-    modal.className = 'modal-overlay hidden';
-    modal.style.cssText = 'z-index:2500;';
-    modal.innerHTML = '<div class="modal" style="padding:0;overflow:hidden;border-radius:20px;height:88vh;display:flex;flex-direction:column;">'
-      + '<div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;">'
-      + '<div><div style="font-size:16px;font-weight:700;">🧭 My Route</div><div id="myRouteMapTitle" style="font-size:12px;color:var(--text3);margin-top:1px;"></div></div>'
+  let overlay = document.getElementById('myRouteMapModal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'myRouteMapModal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2500;display:flex;align-items:flex-end;';
+    overlay.innerHTML = '<div style="width:100%;height:88vh;background:#fff;border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden;">'
+      + '<div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5e7eb;flex-shrink:0;background:#fff;">'
+      + '<div><div style="font-size:16px;font-weight:700;">🧭 My Route</div><div id="myRouteMapTitle" style="font-size:12px;color:#6b7280;margin-top:1px;"></div></div>'
       + '<div style="display:flex;gap:8px;align-items:center;">'
-      + '<a id="myRouteExtLink" href="" target="_blank" style="font-size:12px;font-weight:700;color:var(--navy);text-decoration:none;padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;">🔗 Open in Maps</a>'
-      + '<button onclick="hideModal(\'myRouteMapModal\')" style="background:var(--border2);border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;">✕</button>'
+      + '<a id="myRouteExtLink" href="" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;color:#1a3a5c;text-decoration:none;padding:6px 12px;border:1.5px solid #e5e7eb;border-radius:8px;">Open in Maps</a>'
+      + '<button onclick="document.getElementById(\'myRouteMapModal\').style.display=\'none\'" style="background:#f3f4f6;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;">✕</button>'
       + '</div></div>'
       + '<iframe id="myRouteMapFrame" src="" style="flex:1;width:100%;border:none;" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>'
       + '</div>';
-    document.body.appendChild(modal);
+    // Tap backdrop to close
+    overlay.addEventListener('click', function(e){ if(e.target===overlay) overlay.style.display='none'; });
+    document.body.appendChild(overlay);
   }
 
   document.getElementById('myRouteMapTitle').textContent = title;
-  // External link fallback
   const extUrl = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
   document.getElementById('myRouteExtLink').href = extUrl;
 
-  // Embed URL — shows directions from current location
-  const embedUrl = apiKey
-    ? `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&destination=${dest}&mode=driving`
-    : `https://maps.google.com/maps?q=${dest}&output=embed`;
-  document.getElementById('myRouteMapFrame').src = embedUrl;
+  const frame = document.getElementById('myRouteMapFrame');
+  const titleEl = document.getElementById('myRouteMapTitle');
+  overlay.style.display = 'flex';
 
-  showModal('myRouteMapModal');
+  // Destination-only fallback (shows the pin but no route line)
+  const destOnly = `https://maps.google.com/maps?q=${dest}&z=14&output=embed`;
+
+  function setRouteFrom(lat, lng) {
+    // Classic embed with saddr/daddr draws the actual route line — no API key needed
+    frame.src = `https://maps.google.com/maps?saddr=${lat},${lng}&daddr=${dest}&z=13&output=embed`;
+    if (titleEl) titleEl.textContent = title + ' · route from your location';
+    // Update the "Open in Maps" link to include origin too
+    document.getElementById('myRouteExtLink').href =
+      `https://www.google.com/maps/dir/?api=1&origin=${lat},${lng}&destination=${dest}&travelmode=driving`;
+  }
+
+  // Show destination immediately, then upgrade to a full route once we have GPS
+  frame.src = destOnly;
+  if (navigator.geolocation) {
+    if (titleEl) titleEl.textContent = title + ' · locating you…';
+    navigator.geolocation.getCurrentPosition(
+      function(pos){ setRouteFrom(pos.coords.latitude.toFixed(6), pos.coords.longitude.toFixed(6)); },
+      function(){ if (titleEl) titleEl.textContent = title + ' · enable location for a live route'; frame.src = destOnly; },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }
 }
 
 async function openLiveMap(callId) {
@@ -10045,7 +9858,13 @@ function renderEquipmentDashboard() {
         <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;">${fmtEqTime(e.lastUpdated)}</div>
       </div>
     </div>`).join(''):
-    '<div class="alert alert-green" style="align-items:center;"><span class="alert-icon">✅</span><div class="alert-body"><div class="alert-title">All equipment checked in</div></div></div>';
+    '<div style="background:linear-gradient(160deg,rgba(34,197,94,.20),rgba(8,20,12,.66));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(74,222,128,.38);border-left:3px solid var(--green,#16a34a);border-radius:12px;padding:13px 15px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;align-items:center;gap:12px;"><span style="font-size:24px;">✅</span><div><div style="font-size:14px;font-weight:700;color:#fff;">All equipment checked in</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Everything is home and accounted for</div></div></div>';
+
+  // 🎉 Confetti when everything JUST came back in (transition from some-out → all-in)
+  if (typeof _prevEqOutCount === 'number' && _prevEqOutCount > 0 && outItems.length === 0) {
+    fireConfetti();
+  }
+  _prevEqOutCount = outItems.length;
 
   // Recent activity — derived from the live inventory (shared across all devices).
   const recent=[...STATE.equipment]
@@ -10080,6 +9899,51 @@ function fmtEqTime(s) {
 }
 
 // ── INVENTORY ──
+let _prevEqOutCount; // tracks last out-count so we only fire confetti on the some-out → all-in transition
+function fireConfetti() {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c = document.createElement('canvas');
+  c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99999;';
+  document.body.appendChild(c);
+  const ctx = c.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  function size(){ c.width = innerWidth*dpr; c.height = innerHeight*dpr; }
+  size();
+  const colors = ['#22c55e','#4ade80','#d4a93a','#e6c463','#ffffff','#16a34a'];
+  const N = 120;
+  const parts = [];
+  for (let i=0;i<N;i++){
+    parts.push({
+      x: (innerWidth/2 + (Math.random()-0.5)*120)*dpr,
+      y: (innerHeight*0.35)*dpr,
+      vx: (Math.random()-0.5)*16*dpr,
+      vy: (Math.random()*-14-6)*dpr,
+      g: (0.4+Math.random()*0.25)*dpr,
+      size: (5+Math.random()*6)*dpr,
+      color: colors[(Math.random()*colors.length)|0],
+      rot: Math.random()*Math.PI,
+      vr: (Math.random()-0.5)*0.4,
+      life: 0
+    });
+  }
+  const start = performance.now();
+  function frame(now){
+    const t = now - start;
+    ctx.clearRect(0,0,c.width,c.height);
+    parts.forEach(p=>{
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.vx *= 0.99; p.rot += p.vr; p.life = t;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.globalAlpha = Math.max(0, 1 - t/2600);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.6);
+      ctx.restore();
+    });
+    if (t < 2600) requestAnimationFrame(frame);
+    else c.remove();
+  }
+  requestAnimationFrame(frame);
+  try { haptic && haptic('success'); } catch(e){}
+}
 function renderInventory() {
   const search=(document.getElementById('eqSearch')?.value||'').toLowerCase();
   let items=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
@@ -10300,6 +10164,14 @@ async function submitCO(action){
   const ccnc=(document.getElementById('coModalCCNC')?.value||'CC');
   const cncNote=(document.getElementById('coModalCNCNote')?.value||'').trim();
   if(!coModalItems.length){showToast('No items selected');return;}
+
+  // ── Conflict guard: warn if an item is already in the state you're setting it to ──
+  // e.g. tapping "Check OUT All" when an item is already OUT. (COBC 4 has its own flow below.)
+  const _conflict = coModalItems.find(it => !isCarItem(it.name) && (
+    (action==='OUT' && it.status==='out') ||
+    (action==='IN'  && it.status==='in')
+  ));
+  if (_conflict) { showEqConflictWarning(_conflict, action); return; }
 
   // ── COBC 4 shift enforcement ────────────────────────────────────────────────
   const hasCobc4Item = coModalItems.some(it => isCarItem(it.name));
