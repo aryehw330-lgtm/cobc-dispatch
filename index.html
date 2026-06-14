@@ -8791,7 +8791,7 @@ function startTelzioLivePolling() {
   }
 
   poll(); // first poll immediately
-  _telzioLivePollTimer = setInterval(poll, 3000); // poll every 3 s (skips when hidden / in-flight / backing off)
+  _telzioLivePollTimer = setInterval(poll, 1000); // poll every 1 s (skips when hidden / in-flight / backing off)
 }
 
 function stopTelzioLivePolling() {
