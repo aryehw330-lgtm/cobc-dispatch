@@ -2380,6 +2380,28 @@ textarea.input{min-height:80px;resize:vertical;}
   </div>
 </div>
 
+<!-- Member Completion Request Modal (CC/CNC) — needs dispatch approval -->
+<div class="modal-overlay hidden" id="memberCompleteModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Report Call Complete</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Dispatch will review and confirm before the call is closed.</div>
+    <input type="hidden" id="memberCompleteCallId"/>
+    <div class="input-group"><label class="input-label">Outcome</label>
+      <select class="input" id="memberCompleteOutcome" onchange="document.getElementById('memberCompleteNoteGroup').style.display=this.value==='CNC'?'block':'none'">
+        <option value="CC">CC — Condition Corrected</option>
+        <option value="CNC">CNC — Condition Not Corrected</option>
+      </select>
+    </div>
+    <div id="memberCompleteNoteGroup" style="display:none;" class="input-group">
+      <label class="input-label">Reason (CNC)</label>
+      <input class="input" id="memberCompleteNote" placeholder="Why couldn't it be corrected?"/>
+    </div>
+    <button class="btn-full btn-green" style="margin-bottom:8px;" onclick="submitMemberCompletion()">📋 Send to Dispatch</button>
+    <button class="btn-full btn-ghost" onclick="hideModal('memberCompleteModal')">Cancel</button>
+  </div>
+</div>
+
 <!-- Call Complete Modal (CC/CNC) -->
 <div class="modal-overlay hidden" id="callCompleteModal">
   <div class="modal">
@@ -5447,6 +5469,22 @@ function callCardHTML(call, mini=false) {
             ? `<div class="pending-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">⏳ Pending approval…</div>`
             : `<button class="call-action" style="background:${isUrgent?'var(--red)':'var(--green)'};color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${isUrgent?'⚠️ Respond Now':'✋ Request to Respond'}</button>`)
       : '';
+    // Completion-request state (member reports CC/CNC, dispatch must approve)
+    const _cr = call.completionRequest;
+    // Member's own "Mark Complete" button — only for approved responders on a live call
+    const miniComplete = (iAmApproved && call.status!=='done' && !isDraft)
+      ? (_cr
+          ? `<div style="flex:1;text-align:center;padding:7px 10px;font-size:12px;font-weight:700;color:#7c3aed;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:8px;">⏳ ${_cr.outcome} sent — awaiting dispatch</div>`
+          : `<button class="call-action" style="background:#7c3aed;color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openMemberCompleteModal('${call.id}')">✓ Mark Complete</button>`)
+      : '';
+    // Dispatch approval banner — shown to dispatch/admin when a member has requested completion
+    const completionBanner = (_cr && isDispatch && call.status!=='done')
+      ? `<div style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;" onclick="event.stopPropagation();">`
+         + `<div style="flex:1;min-width:0;font-size:12px;font-weight:700;">📋 BC-${String(_cr.by||'').replace(/^BC-?/i,'')} reports <span style="background:rgba(255,255,255,.25);padding:1px 7px;border-radius:6px;">${_cr.outcome}</span> complete${_cr.note?` — ${_cr.note}`:''}</div>`
+         + `<button onclick="event.stopPropagation();approveCallCompletion('${call.id}')" style="background:#fff;color:#5b21b6;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ Approve</button>`
+         + `<button onclick="event.stopPropagation();denyCallCompletion('${call.id}')" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">✕ Deny</button>`
+         + `</div>`
+      : '';
     return `
     <div class="call-card ${isUrgent?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
       ${call.status==='done'?'<div style="background:#16a34a;color:#fff;font-size:13px;font-weight:800;padding:7px 14px;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">✅ CALL COMPLETED</div>':''}
@@ -5465,7 +5503,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      ${miniRespond?`<div class="call-card-footer">${miniRespond}<button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}</div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer">${miniRespond}${miniComplete}<button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}</div>`:''}
     </div>`;
   }
 
@@ -5490,6 +5528,7 @@ function callCardHTML(call, mini=false) {
   return `
   <div class="call-card ${isUrgent?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
     ${call.status==='done'?'<div style="background:#16a34a;color:#fff;font-size:14px;font-weight:800;padding:8px 16px;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">✅ CALL COMPLETED</div>':''}
+    ${(call.completionRequest && isDispatch && call.status!=='done')?`<div style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;" onclick="event.stopPropagation();"><div style="flex:1;min-width:0;font-size:12px;font-weight:700;">📋 BC-${String(call.completionRequest.by||'').replace(/^BC-?/i,'')} reports <span style="background:rgba(255,255,255,.25);padding:1px 7px;border-radius:6px;">${call.completionRequest.outcome}</span> complete${call.completionRequest.note?` — ${call.completionRequest.note}`:''}</div><button onclick="event.stopPropagation();approveCallCompletion('${call.id}')" style="background:#fff;color:#5b21b6;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">✓ Approve</button><button onclick="event.stopPropagation();denyCallCompletion('${call.id}')" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">✕ Deny</button></div>`:''}
     ${isUrgent?'<div style="background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:5px 14px;letter-spacing:.5px;">URGENT</div>':''}
     <div class="call-card-header">
       <div style="flex:1;min-width:0;">
@@ -7002,12 +7041,74 @@ function confirmCompleteCall() {
   call.completedAt=Date.now();
   call.completionOutcome=outcome;  call.completionNote=outcome==='CNC'?cnc:'';
   call.completionNotes=notes;
+  delete call.completionRequest; // clear any pending member completion request
   logCallEvent(call, 'completed', {outcome, cncReason:outcome==='CNC'?cnc:null, responders:(call.responders||[]).length, durationMin:Math.round((call.completedAt-call.createdAt)/60000)});
   save(); hideModal('callCompleteModal');
   renderCalls(); renderHome(); showToast('Call completed'); firestoreUpsertCall(call);
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
+}
+// ── MEMBER COMPLETION REQUEST (needs dispatch approval) ──
+function openMemberCompleteModal(id){
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call) return;
+  document.getElementById('memberCompleteCallId').value=id;
+  document.getElementById('memberCompleteOutcome').value='CC';
+  document.getElementById('memberCompleteNoteGroup').style.display='none';
+  document.getElementById('memberCompleteNote').value='';
+  showModal('memberCompleteModal');
+}
+function submitMemberCompletion(){
+  const id=document.getElementById('memberCompleteCallId').value;
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call) return;
+  const outcome=document.getElementById('memberCompleteOutcome').value;
+  const note=outcome==='CNC'?document.getElementById('memberCompleteNote').value.trim():'';
+  call.completionRequest={
+    by: SESSION.unit,
+    name: SESSION.name||SESSION.firstName||'',
+    outcome: outcome,
+    note: note,
+    at: Date.now()
+  };
+  logCallEvent(call,'completion_requested',{by:SESSION.unit,outcome,note});
+  save(); firestoreUpsertCall(call);
+  hideModal('memberCompleteModal');
+  renderHome(); renderCalls();
+  showToast('📋 Sent to dispatch for approval');
+  const _tl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  sendPush({target:'dispatchers',title:'📋 Completion Request',body:`BC-${String(SESSION.unit).replace(/^BC-?/i,'')} reports ${outcome} — ${_tl}`,url:'/cobc-dispatch/',urgent:'true',callId:call.id});
+}
+function approveCallCompletion(id){
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call || !call.completionRequest) return;
+  if(!['admin','dispatch'].includes(SESSION.role)){ showToast('Only dispatch can approve'); return; }
+  const cr=call.completionRequest;
+  call.status='done';
+  call.completedAt=Date.now();
+  call.completionOutcome=cr.outcome;
+  call.completionNote=cr.outcome==='CNC'?(cr.note||''):'';
+  call.completionNotes=`Reported complete by BC-${String(cr.by||'').replace(/^BC-?/i,'')}${cr.name?' '+cr.name:''}`;
+  delete call.completionRequest;
+  logCallEvent(call,'completed',{outcome:cr.outcome,cncReason:cr.outcome==='CNC'?cr.note:null,approvedBy:SESSION.unit,viaMemberRequest:true});
+  save(); firestoreUpsertCall(call); renderCalls(); renderHome();
+  showToast(`✅ Call completed (${cr.outcome})`);
+  // Notify the member who requested it
+  sendPush({target:'unit',unit:String(cr.by),title:'✅ Completion Approved',body:`Dispatch confirmed your ${cr.outcome} report. Call closed.`,url:'/cobc-dispatch/',callId:call.id});
+  const _cl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cl} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
+}
+function denyCallCompletion(id){
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call || !call.completionRequest) return;
+  if(!['admin','dispatch'].includes(SESSION.role)){ showToast('Only dispatch can deny'); return; }
+  const cr=call.completionRequest;
+  delete call.completionRequest;
+  logCallEvent(call,'completion_denied',{requestedBy:cr.by,deniedBy:SESSION.unit});
+  save(); firestoreUpsertCall(call); renderCalls(); renderHome();
+  showToast('Completion request denied — call stays active');
+  sendPush({target:'unit',unit:String(cr.by),title:'Completion Not Confirmed',body:'Dispatch needs the call to stay active. Please check in.',url:'/cobc-dispatch/',callId:call.id});
 }
 // Share responder's live location with other members via WhatsApp or Google Maps link
 function shareMyLocationOnCall(callId) {
