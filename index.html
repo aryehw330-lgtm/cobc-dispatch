@@ -8682,19 +8682,33 @@ function stopTelzioLivePolling() {
   if (_telzioLiveBadgeEl) _telzioLiveBadgeEl.style.display = 'none';
 }
 
-// Last 5 incoming calls — reads the telzioCalls collection (one doc per call), newest first
+// Last 5 incoming calls — pulls from the Cloudflare Worker proxy (works without the webhook).
+let _telzioRecentTimer = null;
 function subscribeTelzioRecentList() {
+  // Fetch immediately, then refresh every 30s while logged in
+  _loadTelzioRecent();
+  if(_telzioRecentTimer) clearInterval(_telzioRecentTimer);
+  _telzioRecentTimer = setInterval(_loadTelzioRecent, 30000);
+}
+async function _loadTelzioRecent() {
+  // Dispatch/admin only — skip the network call entirely for members
+  if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) return;
+  if(typeof telzioFetch !== 'function') return;
   try {
-    if(typeof firebase === 'undefined') return;
-    firebase.firestore().collection('telzioCalls').orderBy('at','desc').limit(5)
-      .onSnapshot(snap => {
-        const calls = [];
-        snap.forEach(doc => { const d=doc.data()||{}; calls.push({
-          name: d.name||'', phone: String(d.phone||'').replace(/\D+/g,''), at: Number(d.at||0)
-        }); });
-        renderTelzioRecentList(calls);
-      }, err => console.warn('telzioCalls snapshot error:', err));
-  } catch(e) { console.warn('subscribeTelzioRecentList failed:', e); }
+    const resp = await telzioFetch('/calls/log?MaxResults=5&Direction=inbound');
+    if(!resp.ok) return;
+    const data = await resp.json();
+    const raw = Array.isArray(data) ? data : (data.Calls || data.calls || data.CallLog || []);
+    const calls = raw.slice(0,5).map(c => {
+      let phone = String(c.From || c.from || '').replace(/\D+/g,'');
+      if(phone.length===11 && phone.charAt(0)==='1') phone = phone.substring(1);
+      const tsRaw = c.Started || c.started || c.StartTime || c.Date || c.date || '';
+      let at = tsRaw ? Date.parse(tsRaw) : 0;
+      if(isNaN(at)) at = 0;
+      return { name: c.FromCnam || c.caller_name || '', phone: phone, at: at };
+    });
+    renderTelzioRecentList(calls);
+  } catch(e) { /* silent — panel just stays hidden if proxy unreachable */ }
 }
 function _telzioFmtPhone(p){
   return (p && p.length===10) ? '('+p.slice(0,3)+') '+p.slice(3,6)+'-'+p.slice(6) : (p||'');
