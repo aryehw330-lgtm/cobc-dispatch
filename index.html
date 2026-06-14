@@ -1935,6 +1935,58 @@ textarea.input{min-height:80px;resize:vertical;}
   // Re-bind when new sub-tab bars appear
   setInterval(initSubTabSwipe, 2000);
 })();
+/* Swipe-down-to-dismiss for bottom-sheet modals (natural iOS feel) */
+(function(){
+  function initModalSwipe(){
+    document.querySelectorAll('.modal-overlay').forEach(function(overlay){
+      if(overlay.dataset.swipeClose) return;
+      overlay.dataset.swipeClose='1';
+      var modal = overlay.querySelector('.modal');
+      if(!modal) return;
+      var startY=0, curDy=0, dragging=false, startedOnHandle=false;
+      modal.addEventListener('touchstart', function(e){
+        if(e.touches.length!==1) return;
+        startY = e.touches[0].clientY;
+        startedOnHandle = !!(e.target.closest && e.target.closest('.modal-handle'));
+        dragging = true; curDy = 0;
+        modal.style.transition='none';
+      }, {passive:true});
+      modal.addEventListener('touchmove', function(e){
+        if(!dragging) return;
+        var dy = e.touches[0].clientY - startY;
+        // Engage downward drag only when the sheet is scrolled to the top (or grabbed by the handle)
+        if(dy>0 && (modal.scrollTop<=0 || startedOnHandle)){
+          curDy = dy;
+          modal.style.transform='translateY('+dy+'px)';
+          overlay.style.background='rgba(0,0,0,'+Math.max(0,.5-dy/700)+')';
+          if(e.cancelable) e.preventDefault();
+        } else { curDy = 0; }
+      }, {passive:false});
+      function end(){
+        if(!dragging) return;
+        dragging=false;
+        modal.style.transition='transform .25s ease, background .25s';
+        if(curDy>120){
+          modal.style.transform='translateY(100%)';
+          overlay.style.background='rgba(0,0,0,0)';
+          setTimeout(function(){
+            if(overlay.id && typeof hideModal==='function') hideModal(overlay.id);
+            else overlay.classList.add('hidden');
+            modal.style.transform=''; modal.style.transition=''; overlay.style.background='';
+          }, 200);
+        } else {
+          modal.style.transform='translateY(0)';
+          overlay.style.background='';
+          setTimeout(function(){ modal.style.transition=''; modal.style.transform=''; }, 260);
+        }
+      }
+      modal.addEventListener('touchend', end, {passive:true});
+      modal.addEventListener('touchcancel', end, {passive:true});
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initModalSwipe); else initModalSwipe();
+  setInterval(initModalSwipe, 2000);
+})();
 </script>
 
 <!-- ═══ MODALS ═══ -->
@@ -2097,6 +2149,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <!-- CALLER INFO in one row -->
+    <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="width:100%;margin-bottom:8px;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
       <div class="input-group" style="margin-bottom:0;">
         <label class="input-label">Caller Name</label>
@@ -2473,7 +2526,7 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="modal">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:18px;font-weight:700;color:var(--text);">✏️ Edit Member Role</div>
+      <div style="font-size:18px;font-weight:700;color:var(--text);" id="editMbrModalTitle">✏️ Edit Member Role</div>
       <button onclick="hideModal('editMemberRoleModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">×</button>
     </div>
     <input type="hidden" id="editMbrUnit"/>
@@ -2492,7 +2545,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <label class="input-label">Responds to (leave all unchecked = responds to everything)</label>
       <div id="editMbrCallTypes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;"></div>
     </div>
-    <div class="input-group">
+    <div class="input-group" id="editMbrPinGroup">
       <label class="input-label">Reset PIN <span id="editMbrCurrentPin" style="float:right;font-weight:700;color:var(--gold-light,#d4a93a);text-transform:none;letter-spacing:normal;"></span></label>
       <div style="display:flex;gap:8px;align-items:center;">
         <input class="input" type="text" id="editMbrNewPin" placeholder="New PIN (4+ digits)" inputmode="numeric" style="margin-bottom:0;"/>
@@ -4241,8 +4294,8 @@ async function loadMembersFromSheet(){
             snap.forEach(function(doc){
               const d=doc.data();
               if(!d||!Array.isArray(d.callTypes)||!d.callTypes.length) return;
-              const docUnit=String(d.unit||doc.id||'').replace(/^BC-?/i,'');
-              const m=(STATE.members||[]).find(function(x){ return String(x.unit||x.id||'').replace(/^BC-?/i,'')=== docUnit; });
+              const docUnit=_normUnit(d.unit||doc.id||'');
+              const m=(STATE.members||[]).find(function(x){ return _normUnit(x.unit||x.id||'')=== docUnit; });
               if(m) m.callTypes=d.callTypes;
             });
           }).catch(function(){});
@@ -5392,6 +5445,7 @@ function callCardHTML(call, mini=false) {
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
             <div class="call-card-addr" onclick="event.stopPropagation();openMaps('${(call.address+', '+call.town+', NJ').replace(/'/g,"\\'")}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${call.address}, ${call.town}</div>
             ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
+            ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
             <div class="call-card-meta">${timeStr}</div>
             ${responderBadges ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${responderBadges}</div>` : ''}
           </div>
@@ -5437,7 +5491,7 @@ function callCardHTML(call, mini=false) {
         <div class="call-card-addr">${call.address}${call.town?', '+call.town:''}</div>
         ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
-        ${call.notes?`<div style="font-size:12px;color:var(--text2);margin-top:5px;padding:6px 8px;background:var(--border2);border-radius:6px;">${call.notes}</div>`:''}
+        ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
         ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         <div class="call-card-meta" style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${timeStr}</div>
@@ -6031,8 +6085,22 @@ function confirmRespond() {
   if(!isObserver && memberHasRestriction(SESSION.unit) && !isAllowedForUnit(call.type, SESSION.unit) && call.priority!=='urgent') {
     const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const allowedTxt = allowedTypesForUnit(SESSION.unit).map(t => (CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ');
-    showToast('⛔ Not approved for this call type. You are approved for: '+allowedTxt);
     hideModal('respondModal');
+    (function(){
+      var ov=document.createElement('div');
+      ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      ov.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(239,68,68,.4);border-radius:18px;padding:26px 22px;max-width:320px;width:88%;text-align:center;">'
+        +'<div style="font-size:38px;margin-bottom:10px;">⛔</div>'
+        +'<div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:8px;">Not Approved for This Call</div>'
+        +'<div style="font-size:13px;color:rgba(255,255,255,.7);line-height:1.5;margin-bottom:6px;">You\'re not cleared to respond to this type of call.</div>'
+        +(allowedTxt?'<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:10px;">You\'re approved for: '+allowedTxt+'</div>':'')
+        +'<div style="font-size:13px;color:#fca5a5;font-weight:700;margin-bottom:18px;">Contact the chiefs to find out why.</div>'
+        +'<button id="__nar_ok" style="width:100%;padding:13px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Got it</button>'
+        +'</div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#__nar_ok').onclick=function(){ document.body.removeChild(ov); };
+      ov.addEventListener('click',function(e){ if(e.target===ov) document.body.removeChild(ov); });
+    })();
     return;
   }
   if(isObserver && !isAllowedForObserver(call.type, SESSION.unit) && call.priority!=='urgent') {
@@ -6062,7 +6130,7 @@ function confirmRespond() {
   // Push notification: on-duty primary + secondary dispatcher + each admin
   // (all dispatchers still see it in the app via Firestore real-time sync)
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  const pushTitle = `📲 Response Request — BC-${SESSION.unit}`;
+  const pushTitle = `📲 Response Request — BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${call.address}, ${call.town} · ETA ${eta} min${notes?' · '+notes:''}`;
 
   // Helper: match a schedule name string to a member unit and push to them
@@ -6138,12 +6206,12 @@ function removeApprovedResponder(callId, unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
   const req=call.responders.find(r=>String(r.unit)===String(unit));
-  if(!confirm(`Remove BC-${unit} ${req?.name||''} from this call?`)) return;
+  if(!confirm(`Remove BC-${String(unit||'').replace(/^BC-?/i,'')} ${req?.name||''} from this call?`)) return;
   call.responders=call.responders.filter(r=>String(r.unit)!==String(unit));
   if(!call.responders.length && !call.pendingResponders?.length) call.status='open';
   logCallEvent(call,'responder_removed',{responder:unit,removedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); openCallDetail(callId); renderCalls(); renderHome();
-  showToast(`BC-${unit} removed from call`);
+  showToast(`BC-${String(unit||'').replace(/^BC-?/i,'')} removed from call`);
   // Notify the removed member — do not respond
   const _rmTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   sendPush({
@@ -6214,7 +6282,7 @@ function _doCancelCall(id,call) {
 // Members and observers can both have callTypes saved. If saved, they're restricted.
 // Observers without a list can still observe; non-observers without a list are unrestricted.
 function allowedTypesForUnit(unit) {
-  const m = (STATE.members||[]).find(x => String(x.unit).replace(/^BC-?/i,'') === String(unit).replace(/^BC-?/i,''));
+  const m = (STATE.members||[]).find(x => _normUnit(x.unit) === _normUnit(unit));
   if(m && Array.isArray(m.callTypes) && m.callTypes.length) return m.callTypes;
   return [];
 }
@@ -6308,7 +6376,7 @@ function _doApproveResponder(callId, unit, call, req) {
   call.activatedAt=call.activatedAt||Date.now();
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
-  showToast(`✅ BC-${unit} ${req.name} approved`);
+  showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} approved`);
   // WA: personal approval message to the member
   sendWA({ target:'unit', unit:String(unit), message: _waMsgApproved(call, _approvedEntry) });
   // WA: group update — "BC-X is responding"
@@ -6336,7 +6404,7 @@ function _doApproveResponder(callId, unit, call, req) {
   const allResponders=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
   sendPush({
     target:'all',
-    title:`🚗 BC-${unit} ${req.name} is responding`,
+    title:`🚗 BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding`,
     body:`${typeLabel} — ${call.address}, ${call.town} · Now: ${allResponders}`,
     url:'/cobc-dispatch/', callId:call.id
   });
@@ -6354,7 +6422,7 @@ function rejectResponder(callId,unit) {
   call.rejectedResponders.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:Date.now()});
   logCallEvent(call, 'responder_rejected', {responder:unit, rejectedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
-  showToast(`❌ BC-${unit} rejected`);
+  showToast(`❌ BC-${String(unit||'').replace(/^BC-?/i,'')} rejected`);
   // Smart rejection message: if member not allowed for this call type → chiefs message, else → capacity message
   const notAllowed = memberHasRestriction(unit) && !isAllowedForUnit(call.type, unit);
   const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -7032,6 +7100,19 @@ function openMyRouteMap(call) {
   }
 }
 
+// Live tracking map globals (declared so first read never throws)
+let _liveMap = null;
+let _liveMapCallId = null;
+let _liveMapRefresh = null;
+let _destMarker = null;
+let _responderMarkers = {};
+let _responderRoutes = {};
+// Geocode a call's address (wrapper around _geocode used by the live map + routing)
+async function geocodeCallAddress(call){
+  if(!call || !call.address) return null;
+  try { return await _geocode(call.address, call.town||''); }
+  catch(e){ return null; }
+}
 async function openLiveMap(callId) {
   _liveMapCallId = callId;
   const call = (STATE.calls || []).find(c => c.id === callId);
@@ -7428,11 +7509,13 @@ function openEditMemberRole(unit) {
   const existing=m.callTypes||[];
   function _renderCallTypeCBs(types){
     if(!ctEl) return;
+    const _canEdit = (SESSION.role||'').toLowerCase().includes('admin');
     ctEl.innerHTML=CALL_TYPES_FOR_MEMBER.map(ct=>`
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;background:#f8fafc;border-radius:9px;padding:8px 10px;border:1.5px solid ${types.includes(ct.value)?'var(--navy)':'var(--border)'}; transition:border-color .15s;">
-      <input type="checkbox" value="${ct.value}" ${types.includes(ct.value)?'checked':''} style="width:16px;height:16px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;"/>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text2);cursor:${_canEdit?'pointer':'default'};background:#f8fafc;border-radius:9px;padding:8px 10px;border:1.5px solid ${types.includes(ct.value)?'var(--navy)':'var(--border)'};opacity:${_canEdit?'1':'.9'};transition:border-color .15s;">
+      <input type="checkbox" value="${ct.value}" ${types.includes(ct.value)?'checked':''} ${_canEdit?'':'disabled'} style="width:16px;height:16px;accent-color:var(--navy);cursor:${_canEdit?'pointer':'default'};flex-shrink:0;"/>
       <span>${ct.label}</span>
     </label>`).join('');
+    if(!_canEdit) return; // dispatch view: read-only, no change listeners
     // Highlight border on check/uncheck + auto-save
     ctEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
       cb.addEventListener('change',function(){
@@ -7471,6 +7554,16 @@ function openEditMemberRole(unit) {
       }
     }
   }catch(e){}
+  // ── Read-only enforcement for dispatch (non-admin): view "Responds to" but can't edit ──
+  const _canEditMember = (SESSION.role||'').toLowerCase().includes('admin');
+  const _titleEl = document.getElementById('editMbrModalTitle');
+  if(_titleEl) _titleEl.textContent = _canEditMember ? '✏️ Edit Member Role' : 'ℹ️ Member Info';
+  const _pinGroup = document.getElementById('editMbrPinGroup');
+  if(_pinGroup) _pinGroup.style.display = _canEditMember ? '' : 'none';
+  document.querySelectorAll('#editMbrRoles input[type=checkbox], #editMbrPhone').forEach(el=>{
+    el.disabled = !_canEditMember;
+    el.style.cursor = _canEditMember ? '' : 'not-allowed';
+  });
   showModal('editMemberRoleModal');
 }
 function saveEditMemberRole(){
@@ -7510,6 +7603,7 @@ function saveEditMemberRole(){
 
 // ── Auto-save roles when any role checkbox changes ──
 function _autoSaveMemberRoles() {
+  if(!(SESSION.role||'').toLowerCase().includes('admin')) return; // dispatch: read-only
   const checkedRoles = [...document.querySelectorAll('#editMbrRoles input[type=checkbox]:checked')].map(cb=>cb.value);
   const role = checkedRoles.length ? checkedRoles.join(', ') : 'Member';
   _autoSaveMemberField('role', role);
@@ -7517,6 +7611,7 @@ function _autoSaveMemberRoles() {
 
 // ── Auto-save a single member field (role, phone, callTypes) without closing the modal ──
 function _autoSaveMemberField(field, value) {
+  if(!(SESSION.role||'').toLowerCase().includes('admin')) return; // dispatch: read-only
   const unit = document.getElementById('editMbrUnit')?.value?.trim();
   if (!unit) return;
   const _u = _normUnit(unit);
@@ -7533,6 +7628,7 @@ function _autoSaveMemberField(field, value) {
 
 // ── Save PIN only — shows confirm modal ──
 function saveEditMemberPin() {
+  if(!(SESSION.role||'').toLowerCase().includes('admin')) { showToast('Only admin can change PINs'); return; }
   const unit = document.getElementById('editMbrUnit')?.value?.trim();
   const newPin = (document.getElementById('editMbrNewPin')?.value||'').trim();
   if (!unit) return;
@@ -7636,6 +7732,7 @@ function renderMemberDir() {
       <div style="display:flex;gap:6px;align-items:center;">
         ${m.phone?`<button class="responder-call-btn" onclick="event.stopPropagation();window.location='tel:${m.phone}'">📞</button>`:''}
         ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit||m.id}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Edit role">✏️</button>`:''}
+        ${SESSION.role==='dispatch'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit||m.id}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="View member info">ℹ️</button>`:''}
         ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();deleteMemberLocal('${m.unit||m.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
       </div>
     </div>`).join('');
