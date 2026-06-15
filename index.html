@@ -1974,15 +1974,15 @@ textarea.input{min-height:80px;resize:vertical;}
         var now = Date.now();
         velY = (e.touches[0].clientY - lastY) / Math.max(1, now - lastT);
         lastY = e.touches[0].clientY; lastT = now;
-        if(dy > 0 && (modal.scrollTop <= 0 || startedOnHandle)){
+        if(dy > 0 && (modal.scrollTop <= 2 || startedOnHandle)){
           curDy = dy;
           // Rubbery resistance: full speed until 60px, then slow to 40% beyond
           var visual = dy < 60 ? dy : 60 + (dy - 60) * 0.4;
           modal.style.transform = 'translateY(' + visual + 'px)';
           // Fade backdrop proportionally
           overlay.style.background = 'rgba(0,0,0,' + Math.max(0, 0.5 - visual / 600) + ')';
-          // Handle grows slightly as a tactile cue
-          if(handle){ var sc = 1 + Math.min(visual/180, 0.6); handle.style.transform='scaleX('+sc+')'; handle.style.background='rgba(100,100,100,.6)'; }
+          // Handle gets slightly wider as tactile cue (no separate translateY — it moves with the modal)
+          if(handle){ handle.style.background='rgba(100,100,100,.6)'; }
           if(e.cancelable) e.preventDefault();
         } else { curDy = 0; }
       }, {passive:false});
