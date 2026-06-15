@@ -1955,7 +1955,8 @@ textarea.input{min-height:80px;resize:vertical;}
       if(!modal) return;
       var handle = modal.querySelector('.modal-handle');
       var startY=0, curDy=0, dragging=false, startedOnHandle=false, velY=0, lastY=0, lastT=0;
-      modal.style.willChange='transform';
+      // Apply transform to overlay (contains the sheet) so the whole thing slides
+      overlay.style.willChange='transform';
 
       modal.addEventListener('touchstart', function(e){
         if(e.touches.length!==1) return;
@@ -1965,6 +1966,7 @@ textarea.input{min-height:80px;resize:vertical;}
         dragging = true; curDy = 0; velY = 0;
         modal.style.transition='none';
         modal.style.transform='translateY(0)';
+        overlay.style.transition='none';
         if(handle) handle.style.transition='none';
       }, {passive:true});
 
@@ -1979,9 +1981,7 @@ textarea.input{min-height:80px;resize:vertical;}
           // Rubbery resistance: full speed until 60px, then slow to 40% beyond
           var visual = dy < 60 ? dy : 60 + (dy - 60) * 0.4;
           modal.style.transform = 'translateY(' + visual + 'px)';
-          // Fade backdrop proportionally
           overlay.style.background = 'rgba(0,0,0,' + Math.max(0, 0.5 - visual / 600) + ')';
-          // Handle gets slightly wider as tactile cue (no separate translateY — it moves with the modal)
           if(handle){ handle.style.background='rgba(100,100,100,.6)'; }
           if(e.cancelable) e.preventDefault();
         } else { curDy = 0; }
@@ -8832,10 +8832,15 @@ let _telzioRecentInFlight = false;
 let _telzioRecentFails = 0;
 let _telzioRecentSkipUntil = 0;
 function subscribeTelzioRecentList() {
-  // Fetch immediately, then refresh every 30s while logged in
+  // Show cached data immediately on load (before first fetch)
+  try {
+    var cached = JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null');
+    if(cached && cached.length) renderTelzioRecentList(cached);
+  } catch(e){}
+  // Fetch immediately, then refresh every 8s while logged in
   _loadTelzioRecent();
   if(_telzioRecentTimer) clearInterval(_telzioRecentTimer);
-  _telzioRecentTimer = setInterval(_loadTelzioRecent, 30000);
+  _telzioRecentTimer = setInterval(_loadTelzioRecent, 8000);
 }
 async function _loadTelzioRecent() {
   // Dispatch/admin only — skip the network call entirely for members
@@ -8886,11 +8891,18 @@ function renderTelzioRecentList(calls){
   if(!panel || !list) return;
   // Dispatch/admin only
   if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) { panel.style.display='none'; return; }
-  if(!calls || !calls.length){ 
-    // Don't hide if it was already showing — keep the last data visible
-    if(panel.style.display==='none') panel.style.display='none';
-    return; 
+  // Persist to localStorage so panel survives app restart
+  if(calls && calls.length) {
+    try { localStorage.setItem('cobc_telzio_recent', JSON.stringify(calls)); } catch(e){}
   }
+  // Use cached data if no fresh data
+  if(!calls || !calls.length) {
+    try {
+      var cached = JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null');
+      if(cached && cached.length) calls = cached;
+    } catch(e){}
+  }
+  if(!calls || !calls.length){ panel.style.display='none'; return; }
   panel.style.display='block';
   if(sub) sub.textContent = 'last '+calls.length;
   list.innerHTML = calls.map(c=>{
