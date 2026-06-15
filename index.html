@@ -5520,8 +5520,8 @@ function callCardHTML(call, mini=false) {
     } else {
       const isUrgent = call.priority==='urgent' && call.status!=='done';
       const btnBg = isUrgent ? 'var(--red)' : 'var(--green)';
-      const btnLabel = isUrgent ? '⚠️ Respond Now' : 'Request to Respond';
-      respondBtn = `<button class="call-action" style="background:${btnBg};color:#fff;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${btnLabel}</button>`;
+      const btnLabel = isUrgent ? '⚠️ Respond Now' : '✋ Respond';
+      respondBtn = `<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;background:${btnBg};color:#fff;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${btnLabel}</button>`;
     }
   }
 
@@ -5560,17 +5560,16 @@ function callCardHTML(call, mini=false) {
       </div>
       ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:iAmApproved?`<div style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">✓ Responding</div>`:''}}</div>`:''}
     </div>
-    <div class="call-card-footer">
+    <div class="call-card-footer" style="gap:5px;flex-wrap:wrap;">
+      ${isDispatch?`<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" onclick="event.stopPropagation();openRadioModal('${call.id}')">📻 Radio</button>`:''}
       ${respondBtn}
-      <button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
-      ${call.address && isDispatch?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveMap('${call.id}')" title="Live responder map">🗺️ Live Map</button>`:''}
-      ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')" title="Live directions from your location">🗺️ Navigate</button>`:''}
-      ${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}
-      ${call.phone?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">Call</button>`:''}
+      <button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" onclick="event.stopPropagation();openCallDetail('${call.id}')">🔎 Details</button>
+      ${call.address && isDispatch?`<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveMap('${call.id}')">🗺️ Live</button>`:''}
+      ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Nav</button>`:''}
+      ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}
     </div>
-  </div>`;
+  `;
 }
-
 // ══════════════════════════════════════════════════════════
 //  AUTO-ETA — shows approx drive time to each call on card
 // ══════════════════════════════════════════════════════════
@@ -8859,7 +8858,11 @@ function renderTelzioRecentList(calls){
   if(!panel || !list) return;
   // Dispatch/admin only
   if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) { panel.style.display='none'; return; }
-  if(!calls || !calls.length){ panel.style.display='none'; return; }
+  if(!calls || !calls.length){ 
+    // Don't hide if it was already showing — keep the last data visible
+    if(panel.style.display==='none') panel.style.display='none';
+    return; 
+  }
   panel.style.display='block';
   if(sub) sub.textContent = 'last '+calls.length;
   list.innerHTML = calls.map(c=>{
