@@ -5503,7 +5503,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer">${miniRespond}${miniComplete}<button class="call-action" style="background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="background:#fef3c7;color:var(--amber);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}${call.address?`<button class="call-action" style="background:#eff6ff;color:var(--blue);flex:none;padding:8px 10px;" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="background:#f0fdf4;color:var(--green);flex:none;padding:8px 10px;font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}</div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Nav</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div></div>`:''}
     </div>`;
   }
 
@@ -8676,10 +8676,10 @@ var TELZIO_PROXY_URL = 'https://cobc-telzio.aryehw330.workers.dev';
 var TELZIO_TOKEN = 'cobc_7f3a9d2e8b1c4056af9e2d7b6c8a1f04';
 // Authenticated fetch helper — all Telzio proxy calls go through here
 function telzioFetch(path) {
-  // Authorization: Bearer is a "simple" CORS header — no preflight, token stays out of URLs/logs
-  return fetch(TELZIO_PROXY_URL + path, {
-    headers: { 'Authorization': 'Bearer ' + TELZIO_TOKEN }
-  });
+  // Send token both as URL param AND header so it works with old Worker (header) and new (URL param)
+  var sep = path.indexOf('?') >= 0 ? '&' : '?';
+  var url = TELZIO_PROXY_URL + path + sep + 'token=' + encodeURIComponent(TELZIO_TOKEN);
+  return fetch(url, { headers: { 'X-COBC-Token': TELZIO_TOKEN }, cache: 'no-store' });
 }
 let _lastTelzioCall = null;        // { name, phone, at }
 let _telzioFirstSnap = true;       // skip banner on the initial load
@@ -8745,7 +8745,7 @@ function startTelzioLivePolling() {
       var data = await resp.json();
       _failStreak = 0; // success resets backoff
       // Telzio returns { Calls: [...] } or an array
-      var calls = Array.isArray(data) ? data : (data.LiveCalls || data.Calls || data.calls || []);
+      var calls = Array.isArray(data) ? data : (data.Calls || data.calls || []);
       // Filter inbound only
       var inbound = calls.filter(function(c){ return (c.Direction||c.direction||'').toLowerCase().indexOf('inbound') >= 0; });
       if (inbound.length > 0) {
@@ -8791,7 +8791,7 @@ function startTelzioLivePolling() {
   }
 
   poll(); // first poll immediately
-  _telzioLivePollTimer = setInterval(poll, 1000); // poll every 1 s (skips when hidden / in-flight / backing off)
+  _telzioLivePollTimer = setInterval(poll, 3000); // poll every 3 s (skips when hidden / in-flight / backing off)
 }
 
 function stopTelzioLivePolling() {
