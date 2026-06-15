@@ -1953,41 +1953,64 @@ textarea.input{min-height:80px;resize:vertical;}
       overlay.dataset.swipeClose='1';
       var modal = overlay.querySelector('.modal');
       if(!modal) return;
-      var startY=0, curDy=0, dragging=false, startedOnHandle=false;
+      var handle = modal.querySelector('.modal-handle');
+      var startY=0, curDy=0, dragging=false, startedOnHandle=false, velY=0, lastY=0, lastT=0;
+      modal.style.willChange='transform';
+
       modal.addEventListener('touchstart', function(e){
         if(e.touches.length!==1) return;
-        startY = e.touches[0].clientY;
+        startY = lastY = e.touches[0].clientY;
+        lastT = Date.now();
         startedOnHandle = !!(e.target.closest && e.target.closest('.modal-handle'));
-        dragging = true; curDy = 0;
+        dragging = true; curDy = 0; velY = 0;
         modal.style.transition='none';
+        modal.style.transform='translateY(0)';
+        if(handle) handle.style.transition='none';
       }, {passive:true});
+
       modal.addEventListener('touchmove', function(e){
         if(!dragging) return;
         var dy = e.touches[0].clientY - startY;
-        // Engage downward drag only when the sheet is scrolled to the top (or grabbed by the handle)
-        if(dy>0 && (modal.scrollTop<=0 || startedOnHandle)){
+        var now = Date.now();
+        velY = (e.touches[0].clientY - lastY) / Math.max(1, now - lastT);
+        lastY = e.touches[0].clientY; lastT = now;
+        if(dy > 0 && (modal.scrollTop <= 0 || startedOnHandle)){
           curDy = dy;
-          modal.style.transform='translateY('+dy+'px)';
-          overlay.style.background='rgba(0,0,0,'+Math.max(0,.5-dy/700)+')';
+          // Rubbery resistance: full speed until 60px, then slow to 40% beyond
+          var visual = dy < 60 ? dy : 60 + (dy - 60) * 0.4;
+          modal.style.transform = 'translateY(' + visual + 'px)';
+          // Fade backdrop proportionally
+          overlay.style.background = 'rgba(0,0,0,' + Math.max(0, 0.5 - visual / 600) + ')';
+          // Handle grows slightly as a tactile cue
+          if(handle){ var sc = 1 + Math.min(visual/180, 0.6); handle.style.transform='scaleX('+sc+')'; handle.style.background='rgba(100,100,100,.6)'; }
           if(e.cancelable) e.preventDefault();
         } else { curDy = 0; }
       }, {passive:false});
+
       function end(){
         if(!dragging) return;
-        dragging=false;
-        modal.style.transition='transform .25s ease, background .25s';
-        if(curDy>120){
-          modal.style.transform='translateY(100%)';
-          overlay.style.background='rgba(0,0,0,0)';
+        dragging = false;
+        if(handle){ handle.style.transition='transform .3s,background .3s'; handle.style.transform=''; handle.style.background=''; }
+        // Fast flick OR dragged past 110px → dismiss
+        var shouldDismiss = curDy > 110 || (curDy > 40 && velY > 0.6);
+        if(shouldDismiss){
+          modal.style.transition = 'transform .28s cubic-bezier(.4,0,.6,1)';
+          modal.style.transform = 'translateY(105%)';
+          overlay.style.transition = 'background .28s';
+          overlay.style.background = 'rgba(0,0,0,0)';
           setTimeout(function(){
             if(overlay.id && typeof hideModal==='function') hideModal(overlay.id);
             else overlay.classList.add('hidden');
-            modal.style.transform=''; modal.style.transition=''; overlay.style.background='';
-          }, 200);
+            modal.style.transform=''; modal.style.transition='';
+            overlay.style.background=''; overlay.style.transition='';
+          }, 260);
         } else {
-          modal.style.transform='translateY(0)';
-          overlay.style.background='';
-          setTimeout(function(){ modal.style.transition=''; modal.style.transform=''; }, 260);
+          // Spring snap-back
+          modal.style.transition = 'transform .35s cubic-bezier(.175,.885,.32,1.275)';
+          modal.style.transform = 'translateY(0)';
+          overlay.style.transition = 'background .3s';
+          overlay.style.background = '';
+          setTimeout(function(){ modal.style.transition=''; overlay.style.transition=''; }, 360);
         }
       }
       modal.addEventListener('touchend', end, {passive:true});
@@ -5560,13 +5583,18 @@ function callCardHTML(call, mini=false) {
       </div>
       ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:iAmApproved?`<div style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">✓ Responding</div>`:''}}</div>`:''}
     </div>
-    <div class="call-card-footer" style="gap:5px;flex-wrap:wrap;">
-      ${isDispatch?`<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" onclick="event.stopPropagation();openRadioModal('${call.id}')">📻 Radio</button>`:''}
-      ${respondBtn}
-      <button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" onclick="event.stopPropagation();openCallDetail('${call.id}')">🔎 Details</button>
-      ${call.address && isDispatch?`<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveMap('${call.id}')">🗺️ Live</button>`:''}
-      ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Nav</button>`:''}
-      ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}
+    <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
+      <div style="display:flex;gap:5px;">
+        ${isDispatch?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openRadioModal('${call.id}')">📻 Radio</button>`:''}
+        ${respondBtn}
+      </div>
+      <div style="display:flex;gap:5px;">
+        <button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openCallDetail('${call.id}')">🔎 Details</button>
+        ${call.address && isDispatch?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveMap('${call.id}')">🗺️ Live Map</button>`:''}
+        ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}
+        ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}
+      </div>
+    </div>
     </div>
   `;
 }
