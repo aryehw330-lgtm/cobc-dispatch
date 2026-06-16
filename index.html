@@ -5911,8 +5911,17 @@ function createCall() {
     showToast('Notes: Call saved as draft');
   } else {
     showToast('✅ Call created & dispatched');
-    // PUSH HOOK #1 — new call → all members
+    // PUSH HOOK #1 — new call → all members (WA dispatch piggybacked server-side)
     const _typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    const _waDispatch = (()=>{
+      let m = `📢 *COBC Call #${call.callNum||''}*\n`;
+      m += `${_typeLabel} — ${call.address}, ${call.town}`;
+      if (call.caller) m += `\nCaller: ${call.caller}`;
+      if (call.phone)  m += ` · ${call.phone}`;
+      m += `\n\nWaiver: https://form.jotform.com/212776438913868`;
+      m += `\nApp: https://aryehw330-lgtm.github.io/cobc-dispatch/`;
+      return m;
+    })();
 setTimeout(() => {
       sendPush({
       target: 'all',
@@ -5920,7 +5929,9 @@ setTimeout(() => {
       body: `${_typeLabel} — ${call.address}, ${call.town}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
-      callId: call.id
+      callId: call.id,
+      waChat: WA_GROUP_ID,
+      waText: _waDispatch
     });
   }, 0); // deferred so confirm() doesn't block the fetch on iOS
   }
@@ -6754,27 +6765,34 @@ function renderCallDetail(id) { openCallDetail(id); } // alias for re-render aft
 function publishCall(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  // Assign a sequential call number now that it's going out (drafts have none until sent)
   if(!call.callNum) call.callNum = _nextCallNum();
   call.status='open'; call.rrLastSent=Date.now();
 
-  // Send WA FIRST — before any rendering/navigation so keepalive fetch isn't cancelled
-  const _waShortMsg = (()=>{
-    const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
+  const _typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
+  const _waMsg = (()=>{
     let m = `📢 *COBC Call #${call.callNum||''}*\n`;
-    m += `${typeLabel} — ${call.address}, ${call.town}`;
+    m += `${_typeLabel} — ${call.address}, ${call.town}`;
     if (call.caller) m += `\nCaller: ${call.caller}`;
     if (call.phone)  m += ` · ${call.phone}`;
     m += `\n\nWaiver: https://form.jotform.com/212776438913868`;
     m += `\nApp: https://aryehw330-lgtm.github.io/cobc-dispatch/`;
     return m;
   })();
-  sendWA({ target:'all', message: _waShortMsg });
 
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   hideModal('callDetailModal');
   showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
+
+  // Push + WA piggybacked in one server-side request (most reliable path)
+  setTimeout(()=>sendPush({
+    target:'all',
+    title:`⚡ New COBC Call #${call.callNum||''}`,
+    body:`${_typeLabel} — ${call.address}, ${call.town}`,
+    url:'/cobc-dispatch/', callId:call.id,
+    waChat: WA_GROUP_ID,
+    waText: _waMsg
+  }), 200);
 }
 
 function toggleVehicleOnCall(callId, vName) {
