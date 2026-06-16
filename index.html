@@ -6141,71 +6141,21 @@ function confirmRespond() {
   // WA: notify dispatchers/admins that this member wants to respond
   // individual WA messages disabled — group only
 
-  // Push notification: on-duty primary + secondary dispatcher + each admin
-  // (all dispatchers still see it in the app via Firestore real-time sync)
+  // Push notification: on-duty dispatchers + every admin.
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const pushTitle = `📲 Response Request — BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${call.address}, ${call.town} · ETA ${eta} min${notes?' · '+notes:''}`;
 
-  // Helper: match a schedule name string to a member unit and push to them
-  function pushToScheduledName(scheduleName) {
-    if (!scheduleName || scheduleName === 'OPEN' || scheduleName === 'CHIEFS') return false;
-    const norm = scheduleName.toLowerCase().trim();
-    const member = (STATE.members||[]).find(m => {
-      const full = `${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim().toLowerCase();
-      const nameField = String(m.name||'').toLowerCase();
-      const bcFull = `bc${String(m.unit||'')} ${full}`.trim();
-      return full === norm || nameField === norm || bcFull === norm || norm.includes(full) || full.includes(norm.replace(/^bc\d+\s*/i,''));
-    });
-    if (member) {
-      sendPush({ target:'unit', unit:String(member.unit), title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
-      return true;
+  // 1) All on-duty dispatchers (reliable group broadcast)
+  setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' }),0);
+
+  // 2) Every admin individually (target:'unit' — proven reliable). Runs unconditionally.
+  (STATE.members||[]).forEach(function(m){
+    if ((m.role||'').toLowerCase()==='admin') {
+      var adminUnit = String(m.unit||m.id||'').replace(/^BC-?/i,'');
+      if (adminUnit) sendPush({ target:'unit', unit:adminUnit, title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
     }
-    return false;
-  }
-
-  try {
-    const now = new Date();
-    const shiftIdx = typeof getShiftIndexNow==='function' ? getShiftIndexNow() : 0;
-    const slot = DISPATCH_SCHEDULE[shiftIdx]?.slots?.[now.getDay()] || null;
-    const primary   = slot?.p || '';
-    const secondary = slot?.s || '';
-    const pushedUnits = new Set();
-
-    const pushOne = (name) => {
-      if (!name || name==='OPEN' || name==='CHIEFS') return;
-      const ok = pushToScheduledName(name);
-      if (!ok) {
-        // Can't match — fall back to all dispatchers once
-        if (!pushedUnits.has('all')) { pushedUnits.add('all'); sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' }); }
-      }
-    };
-
-    if (primary || secondary) {
-      pushOne(primary);
-      if (secondary && secondary !== primary) pushOne(secondary);
-    } else {
-      // No schedule — notify all dispatchers
-      sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
-    }
-    // Also push to every admin member individually (they must always be notified of response requests)
-    (STATE.members||[]).forEach(function(m){
-      if ((m.role||'').toLowerCase()==='admin') {
-        var adminUnit = String(m.unit||m.id||'').replace(/^BC-?/i,'');
-        if (adminUnit && !pushedUnits.has('admin:'+adminUnit)) {
-          pushedUnits.add('admin:'+adminUnit);
-          sendPush({ target:'unit', unit:adminUnit, title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
-        }
-      }
-    });
-    // Also push to the on-duty dispatcher fields (in case they're not on the schedule)
-    var onDutyN = document.getElementById('dispOnDutyName')?.textContent?.trim();
-    var onDutyN2 = document.getElementById('dispOnDutyName2')?.textContent?.trim();
-    if (onDutyN && onDutyN !== '—') pushToScheduledName(onDutyN);
-    if (onDutyN2 && onDutyN2 !== '—') pushToScheduledName(onDutyN2);
-  } catch(e) {
-    sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
-  }
+  });
 
   showToast('Response request sent to on-duty dispatchers & admin');
 }
@@ -6400,13 +6350,13 @@ function _doApproveResponder(callId, unit, call, req) {
     body:`${typeLabel} · ${call.address}, ${call.town} · ETA ${req.eta} min`,
     url:'/cobc-dispatch/', callId:call.id, urgent:'true'
   });
-  // Push 2: update everyone EXCEPT the approved member — short title only, no body
-  sendPush({
+  // Push 2: tell everyone this member is responding — simple broadcast (same reliable path as radio adds)
+  setTimeout(()=>sendPush({
     target:'all',
-    excludeUnit: String(unit),
-    title:`🚗 BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding to call #${call.callNum||''}`,
+    title:'Assigned to Call',
+    body:`#${call.callNum||''} · BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding — ${typeLabel}, ${call.town}`,
     url:'/cobc-dispatch/', callId:call.id
-  });
+  }),0);
   hideModal('callDetailModal');
   showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
 }
