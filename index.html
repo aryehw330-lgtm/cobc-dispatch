@@ -3206,44 +3206,22 @@ async function sendWA(payload) {
     } catch (e) { console.warn('WA (Twilio) send failed:', e); }
   }
 
-  // ── Path 2: Bergen bot direct API ──
+  // ── Path 2: Bergen bot direct API — group only ──
   if (!WA_API_URL || !WA_API_TOKEN) return;
-  const { target, unit, phones, message } = payload;
+  const { target, message } = payload;
   if (!message) return;
 
-  const chats = [];
-  if (target === 'all' || target === 'dispatchers') {
-    chats.push(WA_GROUP_ID);
-  } else if (target === 'unit') {
-    const norm = String(unit || '').replace(/^BC-?/i, '').trim();
-    const member = (STATE.members || []).find(m => String(m.unit || '').replace(/^BC-?/i, '').trim() === norm);
-    const phone = member && member.phone;
-    if (phone) {
-      const digits = String(phone).replace(/\D+/g, '');
-      chats.push((digits.length === 10 ? '1' + digits : digits) + '@c.us');
-    } else {
-      console.warn('sendWA: no phone on file for unit', unit);
-    }
-  } else if (target === 'phones' && Array.isArray(phones)) {
-    phones.forEach(p => {
-      const digits = String(p).replace(/\D+/g, '');
-      if (digits) chats.push((digits.length === 10 ? '1' + digits : digits) + '@c.us');
-    });
-  }
+  // Only send to the group — no individual/private messages
+  if (target !== 'all') return;
 
-  for (const chat of chats) {
-    try {
-      await fetch(
-        `${WA_API_URL}?token=${encodeURIComponent(WA_API_TOKEN)}&chat=${encodeURIComponent(chat)}`,
-        {
-          method: 'POST',
-          mode: 'no-cors',  // server doesn't send CORS headers — no-cors still delivers the message
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: message })
-        }
-      );
-    } catch (e) { console.warn('WA (Bergen bot) send failed to', chat, e); }
-  }
+  try {
+    // text goes in URL param so no-cors mode can deliver it (browsers strip
+    // application/json headers in no-cors, making the body invisible to PHP)
+    await fetch(
+      `${WA_API_URL}?token=${encodeURIComponent(WA_API_TOKEN)}&chat=${encodeURIComponent(WA_GROUP_ID)}&text=${encodeURIComponent(message)}`,
+      { method: 'GET', mode: 'no-cors' }
+    );
+  } catch (e) { console.warn('WA (Bergen bot) group send failed:', e); }
 }
 
 // Build the group dispatch message (reuses existing buildDispatchWhatsApp logic).
@@ -3285,9 +3263,23 @@ function _waMsgResponderUpdate(call, newResponder) {
   const typeLabel    = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const unitDisp     = String(newResponder.unit||'').replace(/^BC-?/i,'');
   const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
-  let msg = `🚗 *BC-${unitDisp} ${newResponder.name||''} is responding*\n`;
+  const callNum = call.callNum ? ` to call #${call.callNum}` : '';
+  let msg = `🚗 *BC-${unitDisp} ${newResponder.name||''} is responding${callNum}*\n`;
   msg += `${typeLabel} · ${call.address}, ${call.town}\n`;
   if (allResponders) msg += `On call: ${allResponders}`;
+  return msg;
+}
+
+// "✅ Call complete — thank you"
+function _waMsgComplete(call) {
+  const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
+  const responders = (call.responders || []);
+  let msg = `✅ *Call Complete*\n`;
+  msg += `${typeLabel} · ${call.address}, ${call.town}\n`;
+  if (responders.length) {
+    const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')} ${r.name||r.firstName||''}`).join(', ');
+    msg += `\nThank you to: ${names}`;
+  }
   return msg;
 }
 
@@ -6248,7 +6240,7 @@ function confirmRespond() {
   save(); firestoreUpsertCall(call); hideModal('respondModal');
   renderCalls(); renderHome();
   // WA: notify dispatchers/admins that this member wants to respond
-  sendWA({ target:'dispatchers', message: _waMsgPendingResponder(call, _pendReq) });
+  // individual WA messages disabled — group only
 
   // Push notification: on-duty primary + secondary dispatcher + each admin
   // (all dispatchers still see it in the app via Firestore real-time sync)
@@ -6497,7 +6489,6 @@ function _doApproveResponder(callId, unit, call, req) {
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} approved`);
   // WA: personal approval message to the member
-  sendWA({ target:'unit', unit:String(unit), message: _waMsgApproved(call, _approvedEntry) });
   // WA: group update — "BC-X is responding"
   setTimeout(()=>sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }), 500);
   // PUSH HOOK #3 — member approved → that specific member
@@ -6680,8 +6671,10 @@ async function submitRadioResponders() {
   const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
   setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
-  // WA: group update for radio add
-  setTimeout(()=>sendWA({ target:'all', message: _waMsgRadioAdd(call, radioSelectedMembers) }),400);
+  // WA: same "BC-X is responding" message for each radio member
+  radioSelectedMembers.forEach((m, i) => {
+    setTimeout(() => sendWA({ target:'all', message: _waMsgResponderUpdate(call, m) }), 400 + i * 600);
+  });
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
@@ -7105,6 +7098,7 @@ function confirmCompleteCall() {
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
+  setTimeout(()=>sendWA({ target:'all', message: _waMsgComplete(call) }),400);
 }
 // ── MEMBER COMPLETION REQUEST (needs dispatch approval) ──
 function openMemberCompleteModal(id){
@@ -7155,6 +7149,7 @@ function approveCallCompletion(id){
   sendPush({target:'unit',unit:String(cr.by),title:'✅ Completion Approved',body:`Dispatch confirmed your ${cr.outcome} report. Call closed.`,url:'/cobc-dispatch/',callId:call.id});
   const _cl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cl} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
+  setTimeout(()=>sendWA({ target:'all', message: _waMsgComplete(call) }),400);
 }
 function denyCallCompletion(id){
   const call=STATE.calls.find(c=>c.id===id);
