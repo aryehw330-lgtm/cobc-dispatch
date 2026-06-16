@@ -3198,7 +3198,7 @@ function formatPhone(raw) {
 // Routes through the same Apps Script as push notifications (server-side → Bergen bot)
 const WA_GROUP_ID = '120363429005503944@g.us'; // test group
 
-// Send a WhatsApp message via image beacon — fires even if iOS PWA navigates
+// Send a WhatsApp message via keepalive fetch — survives iOS PWA navigation
 function sendWA(payload) {
   const { target, message } = payload;
   if (!message || target !== 'all') return;
@@ -3208,19 +3208,18 @@ function sendWA(payload) {
       + '&key=' + encodeURIComponent(PUSH_SHARED_KEY)
       + '&chat=' + encodeURIComponent(WA_GROUP_ID)
       + '&text=' + encodeURIComponent(message);
-    const img = new Image();
-    img.src = url;
-    console.log('[WA] beacon fired, length=' + message.length);
+    fetch(url, { keepalive: true }).catch(e => console.warn('WA fetch error:', e));
+    console.log('[WA] keepalive fetch fired, length=' + message.length);
   } catch(e) { console.warn('WA send error:', e); }
 }
 
-// "🚗 BC-24 John is responding to call #142"
+// "🚗 BC-24 is responding to call #142"
 function _waMsgResponderUpdate(call, newResponder) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const unitDisp  = String(newResponder.unit||'').replace(/^BC-?/i,'');
-  const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+(r.name||'')).join(', ');
+  const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ');
   const callNum = call.callNum ? ` to call #${call.callNum}` : '';
-  let msg = `🚗 *BC-${unitDisp} ${newResponder.name||newResponder.first||''} is responding${callNum}*\n`;
+  let msg = `🚗 *BC-${unitDisp} is responding${callNum}*\n`;
   msg += `${typeLabel} · ${call.address}, ${call.town}`;
   if (allResponders) msg += `\nOn call: ${allResponders}`;
   return msg;
@@ -3242,8 +3241,8 @@ function _waMsgComplete(call) {
   let msg = `✅ *Call #${call.callNum||''} Complete*\n${typeLabel} · ${call.address}, ${call.town}`;
   const responders = (call.responders||[]);
   if (responders.length) {
-    const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')} ${r.name||''}`).join(', ');
-    msg += `\nThank you to: ${names}`;
+    const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
+    msg += `\nOn call: ${names}`;
   }
   return msg;
 }
@@ -6378,7 +6377,7 @@ function _doApproveResponder(callId, unit, call, req) {
   call.activatedAt=call.activatedAt||Date.now();
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
-  showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} approved`);
+  showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} approved`);
   // WA: group update — "BC-X is responding to call #X"
   setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }); } catch(e){} }, 800);
   // (duplicate push removed — single approval notification below)
@@ -6394,7 +6393,7 @@ function _doApproveResponder(callId, unit, call, req) {
   setTimeout(()=>sendPush({
     target:'all',
     title:'Assigned to Call',
-    body:`#${call.callNum||''} · BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding — ${typeLabel}, ${call.town}`,
+    body:`#${call.callNum||''} · BC-${String(unit||'').replace(/^BC-?/i,'')} is responding — ${typeLabel}, ${call.town}`,
     url:'/cobc-dispatch/', callId:call.id
   }),0);
   hideModal('callDetailModal');
@@ -6758,9 +6757,8 @@ function publishCall(id) {
   // Assign a sequential call number now that it's going out (drafts have none until sent)
   if(!call.callNum) call.callNum = _nextCallNum();
   call.status='open'; call.rrLastSent=Date.now();
-  save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('📢 Call published');
-  logCallEvent(call, 'published', {dispatcher:SESSION.unit});
-  // WA: short dispatch message with waiver + app links
+
+  // Send WA FIRST — before any rendering/navigation so keepalive fetch isn't cancelled
   const _waShortMsg = (()=>{
     const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
     let m = `📢 *COBC Call #${call.callNum||''}*\n`;
@@ -6771,10 +6769,10 @@ function publishCall(id) {
     m += `\nApp: https://aryehw330-lgtm.github.io/cobc-dispatch/`;
     return m;
   })();
-  setTimeout(() => {
-    sendWA({ target:'all', message: _waShortMsg });
-    console.log('[WA] dispatch sent, length=' + _waShortMsg.length);
-  }, 800);
+  sendWA({ target:'all', message: _waShortMsg });
+
+  save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('📢 Call published');
+  logCallEvent(call, 'published', {dispatcher:SESSION.unit});
 }
 
 function toggleVehicleOnCall(callId, vName) {
