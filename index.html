@@ -5137,13 +5137,13 @@ function renderHome() {
 //  DISPATCH
 // ──────────────────────────────────────────────
 const CALL_TYPE_LABELS = {
-  flat_tire_spare:'Vehicle: Flat Tire - Has Spare',flat_tire_no_spare:'Vehicle: Flat Tire - No Spare',lockout:'🔑 House Lockout',car_lockout:'🔑 Car Lockout',child_lockout:'🚨 CHILD LOCKED IN CAR',missing_person:'Missing Person',jump_start:'⚡ Boost',
-  flood:'💧 Flood',ac_heat:'❄️ A/C or Heat',generator:'⚡ Generator',
-  needs_ac:'❄️ Needs A/C',needs_fan:'💨 Needs Fans',needs_heat:'🔥 Needs Heater',
-  'needs_ac:qty1':'❄️ Needs A/C — Quantity: 1','needs_ac:qty2':'❄️ Needs A/Cs — Quantity: 2','needs_ac:qty3':'❄️ Needs A/Cs — Quantity: 3','needs_ac:qty4':'❄️ Needs A/Cs — Quantity: 4','needs_ac:qty5':'❄️ Needs A/Cs — Quantity: 5','needs_ac:qty6+':'❄️ Needs A/Cs — Quantity: 6+',
-  'needs_fan:qty1':'💨 Needs Fan — Quantity: 1','needs_fan:qty2':'💨 Needs Fans — Quantity: 2','needs_fan:qty3':'💨 Needs Fans — Quantity: 3','needs_fan:qty4':'💨 Needs Fans — Quantity: 4','needs_fan:qty5':'💨 Needs Fans — Quantity: 5','needs_fan:qty6+':'💨 Needs Fans — Quantity: 6+',
-  'needs_heat:qty1':'🔥 Needs Heater — Quantity: 1','needs_heat:qty2':'🔥 Needs Heaters — Quantity: 2','needs_heat:qty3':'🔥 Needs Heaters — Quantity: 3','needs_heat:qty4':'🔥 Needs Heaters — Quantity: 4','needs_heat:qty5':'🔥 Needs Heaters — Quantity: 5','needs_heat:qty6+':'🔥 Needs Heaters — Quantity: 6+',
-  transport:'🚐 Transport',welfare:'🏥 Welfare Check',other:'📋 Other'
+  flat_tire_spare:'Flat Tire - Has Spare',flat_tire_no_spare:'Flat Tire - No Spare',lockout:'House Lockout',car_lockout:'Car Lockout',child_lockout:'Child Locked in Car',missing_person:'Missing Person',jump_start:'Boost',
+  flood:'Flood',ac_heat:'A/C or Heat',generator:'Generator',
+  needs_ac:'Needs A/C',needs_fan:'Needs Fans',needs_heat:'Needs Heater',
+  'needs_ac:qty1':'Needs A/C — Quantity: 1','needs_ac:qty2':'Needs A/Cs — Quantity: 2','needs_ac:qty3':'Needs A/Cs — Quantity: 3','needs_ac:qty4':'Needs A/Cs — Quantity: 4','needs_ac:qty5':'Needs A/Cs — Quantity: 5','needs_ac:qty6+':'Needs A/Cs — Quantity: 6+',
+  'needs_fan:qty1':'Needs Fan — Quantity: 1','needs_fan:qty2':'Needs Fans — Quantity: 2','needs_fan:qty3':'Needs Fans — Quantity: 3','needs_fan:qty4':'Needs Fans — Quantity: 4','needs_fan:qty5':'Needs Fans — Quantity: 5','needs_fan:qty6+':'Needs Fans — Quantity: 6+',
+  'needs_heat:qty1':'Needs Heater — Quantity: 1','needs_heat:qty2':'Needs Heaters — Quantity: 2','needs_heat:qty3':'Needs Heaters — Quantity: 3','needs_heat:qty4':'Needs Heaters — Quantity: 4','needs_heat:qty5':'Needs Heaters — Quantity: 5','needs_heat:qty6+':'Needs Heaters — Quantity: 6+',
+  transport:'Transport',welfare:'Welfare Check',other:'Other'
 };
 
 let dispatchFilter='active';
@@ -5874,7 +5874,7 @@ function createCall() {
 setTimeout(() => {
       sendPush({
       target: 'all',
-      title: '🚨 New COBC Call',
+      title: (priority === 'high' || priority === 'urgent') ? '🚨 New COBC Call' : '⚡ New COBC Call',
       body: `${_typeLabel} — ${call.address}, ${call.town}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
@@ -6146,14 +6146,14 @@ function confirmRespond() {
   const pushTitle = `📲 Response Request — BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${call.address}, ${call.town} · ETA ${eta} min${notes?' · '+notes:''}`;
 
-  // 1) All on-duty dispatchers (reliable group broadcast)
-  setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' }),0);
+  // 1) All on-duty dispatchers — no callId so tapping opens dispatch tab, not call detail
+  setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', urgent:'true' }),0);
 
   // 2) Every admin individually (target:'unit' — proven reliable). Runs unconditionally.
   (STATE.members||[]).forEach(function(m){
     if ((m.role||'').toLowerCase()==='admin') {
       var adminUnit = String(m.unit||m.id||'').replace(/^BC-?/i,'');
-      if (adminUnit) sendPush({ target:'unit', unit:adminUnit, title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
+      if (adminUnit) sendPush({ target:'unit', unit:adminUnit, title:pushTitle, body:pushBody, url:'/cobc-dispatch/', urgent:'true' });
     }
   });
 
@@ -6216,26 +6216,23 @@ function _doCancelCall(id,call) {
   hideModal('callDetailModal');
   showToast('🚫 Call cancelled');
   const _cxTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  // Always broadcast to everyone — "Call #X cancelled"
+  setTimeout(()=>sendPush({
+    target:'all',
+    title:`🚫 Call #${call.callNum||''} Cancelled`,
+    body:`${_cxTypeLabel} — ${call.address}, ${call.town}`,
+    url:'/cobc-dispatch/'
+  }),0);
+  // Also send personal "do not respond" to each responder
   if(prevResponders.length) {
-    // Notify each responder individually
     prevResponders.forEach(r=>{
       sendPush({
         target:'unit',
         unit:String(r.unit),
-        title:'🚫 Call Cancelled — Do Not Respond',
+        title:`🚫 Call #${call.callNum||''} Cancelled — Do Not Respond`,
         body:`${_cxTypeLabel} at ${call.address}, ${call.town} has been cancelled.`,
-        url:'/cobc-dispatch/',
-        callId:id
+        url:'/cobc-dispatch/'
       });
-    });
-  } else {
-    // No specific responders — broadcast to all
-    sendPush({
-      target:'all',
-      title:'🚫 Call Cancelled',
-      body:`${_cxTypeLabel} at ${call.address}, ${call.town}`,
-      url:'/cobc-dispatch/',
-      callId:id
     });
   }
 }
