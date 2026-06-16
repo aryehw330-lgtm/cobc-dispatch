@@ -6316,10 +6316,6 @@ function confirmRespond() {
     sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
   }
 
-  // Always push to each admin individually
-  (STATE.members||[]).filter(m=>String(m.role||'').toLowerCase()==='admin').forEach(admin=>{
-    sendPush({ target:'unit', unit:String(admin.unit), title:pushTitle, body:pushBody, url:'/cobc-dispatch/', callId:call.id, urgent:'true' });
-  });
   showToast('Response request sent to on-duty dispatchers & admin');
 }
 
@@ -6678,22 +6674,12 @@ async function submitRadioResponders() {
   call.status='active';
   call.activatedAt=call.activatedAt||Date.now();
   save(); firestoreUpsertCall(call); hideModal('radioModal');
-  openCallDetail(id); renderCalls(); renderHome();
+  renderCalls(); renderHome(); showTab('dispatch');
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
-    // PUSH #6: radio responders added
-    const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
-       setTimeout(()=>sendPush({target:'dispatchers',title:'📻 Responding by Radio',body:`${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
-
-  // Push to all with full current responder list
-  const allNow=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
-  const radioNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')} ${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim()).join(', ');
-  setTimeout(()=>sendPush({
-    target:'all',
-    title:`📻 ${radioNames} responding by radio`,
-    body:`${typeLabel} — ${call.address}, ${call.town}${allNow?' · On call: '+allNow:''}`,
-    url:'/cobc-dispatch/', callId:id
-  }),300);
+  // Single clean push to all with call number
+  const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
+  setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
   // WA: group update for radio add
   setTimeout(()=>sendWA({ target:'all', message: _waMsgRadioAdd(call, radioSelectedMembers) }),400);
 }
@@ -8750,7 +8736,7 @@ function telzioFetch(path) {
   // Send token both as URL param AND header so it works with old Worker (header) and new (URL param)
   var sep = path.indexOf('?') >= 0 ? '&' : '?';
   var url = TELZIO_PROXY_URL + path + sep + 'token=' + encodeURIComponent(TELZIO_TOKEN);
-  return fetch(url, { headers: { 'X-COBC-Token': TELZIO_TOKEN }, cache: 'no-store' });
+  return fetch(url, { headers: { 'Authorization': 'Bearer ' + TELZIO_TOKEN }, cache: 'no-store' });
 }
 let _lastTelzioCall = null;        // { name, phone, at }
 let _telzioFirstSnap = true;       // skip banner on the initial load
