@@ -3198,16 +3198,17 @@ function formatPhone(raw) {
 // Routes through the same Apps Script as push notifications (server-side → Bergen bot)
 const WA_GROUP_ID = '120363429005503944@g.us'; // test group
 
-// Send a WhatsApp message to the group via Apps Script proxy
+// Send a WhatsApp message to the group via Apps Script proxy (GET — avoids POST redirect body loss)
 async function sendWA(payload) {
   const { target, message } = payload;
   if (!message || target !== 'all') return;
   try {
-    const res = await fetch(PUSH_SEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action:'sendWA', key:PUSH_SHARED_KEY, chat:WA_GROUP_ID, text:message })
-    });
+    const url = PUSH_SEND_URL
+      + '?action=sendWA'
+      + '&key=' + encodeURIComponent(PUSH_SHARED_KEY)
+      + '&chat=' + encodeURIComponent(WA_GROUP_ID)
+      + '&text=' + encodeURIComponent(message);
+    const res = await fetch(url);
     const data = await res.json().catch(()=>({}));
     if (!data.ok) console.warn('WA send failed:', data);
     else console.log('WA sent OK:', data);
@@ -6760,10 +6761,11 @@ function publishCall(id) {
   call.status='open'; call.rrLastSent=Date.now();
   save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
-  // WA: dispatch message to group — deferred so iOS PWA doesn't abort the fetch
+  // WA: build message immediately (before any async ops), send after short delay
+  const _waDispatchMsg = buildDispatchWhatsApp(call);
   setTimeout(() => {
-    try { sendWA({ target:'all', message: buildDispatchWhatsApp(call) }); }
-    catch(e) { console.warn('WA dispatch error:', e); }
+    sendWA({ target:'all', message: _waDispatchMsg });
+    console.log('[WA] dispatch message sent for call #' + call.callNum);
   }, 800);
 }
 
