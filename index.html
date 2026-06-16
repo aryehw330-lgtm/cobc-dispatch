@@ -3198,20 +3198,31 @@ function formatPhone(raw) {
 // Routes through the same Apps Script as push notifications (server-side → Bergen bot)
 const WA_GROUP_ID = '120363429005503944@g.us'; // test group
 
-// Send a WhatsApp message to the group via Apps Script proxy (GET — avoids POST redirect body loss)
+// Send a WhatsApp message to the group via Apps Script proxy
+// Short messages use GET (avoids redirect body loss)
+// Long messages (dispatch) use POST — GET URL would be too long
 async function sendWA(payload) {
   const { target, message } = payload;
   if (!message || target !== 'all') return;
   try {
-    const url = PUSH_SEND_URL
-      + '?action=sendWA'
-      + '&key=' + encodeURIComponent(PUSH_SHARED_KEY)
-      + '&chat=' + encodeURIComponent(WA_GROUP_ID)
-      + '&text=' + encodeURIComponent(message);
-    const res = await fetch(url);
-    const data = await res.json().catch(()=>({}));
-    if (!data.ok) console.warn('WA send failed:', data);
-    else console.log('WA sent OK:', data);
+    if (message.length > 300) {
+      // POST for long dispatch messages
+      await fetch(PUSH_SEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action:'sendWA', key:PUSH_SHARED_KEY, chat:WA_GROUP_ID, text:message })
+      });
+      console.log('[WA] sent via POST, length=' + message.length);
+    } else {
+      // GET for short messages
+      const url = PUSH_SEND_URL
+        + '?action=sendWA'
+        + '&key=' + encodeURIComponent(PUSH_SHARED_KEY)
+        + '&chat=' + encodeURIComponent(WA_GROUP_ID)
+        + '&text=' + encodeURIComponent(message);
+      await fetch(url);
+      console.log('[WA] sent via GET, length=' + message.length);
+    }
   } catch(e) { console.warn('WA send error:', e); }
 }
 
