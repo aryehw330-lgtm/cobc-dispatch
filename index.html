@@ -1309,15 +1309,9 @@ textarea.input{min-height:80px;resize:vertical;}
               <div class="card-title">🔔 Push Notifications</div>
               <div class="card-desc" id="settings-notif-desc">Get alerted when a new call is dispatched.</div>
             </div>
-            <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;">
+            <div style="display:flex;gap:6px;flex-shrink:0;">
               <button id="settings-notif-test" class="btn-sm btn-ghost" onclick="sendTestPush()" style="display:none;font-size:11px;">Test</button>
-              <button class="btn-sm btn-ghost" onclick="_showPushDiagnostic('Tap a step to investigate')" style="font-size:11px;">Diagnose</button>
-              <label id="settings-notif-toggle-wrap" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                <span id="settings-notif-label" style="font-size:12px;font-weight:700;color:var(--text2);">Off</span>
-                <div onclick="togglePushNotifications()" id="settings-notif-pill" style="width:44px;height:26px;border-radius:13px;background:#ccc;position:relative;transition:background .2s;cursor:pointer;flex-shrink:0;">
-                  <div id="settings-notif-thumb" style="width:22px;height:22px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>
-                </div>
-              </label>
+              <button id="settings-notif-btn" class="btn-sm btn-primary" onclick="togglePushNotifications()">Enable</button>
             </div>
           </div>
         </div>
@@ -3123,8 +3117,13 @@ async function enablePushForThisDevice() {
     setStatus('On','btn-green');
     showToast('✅ Notifications enabled!');
     renderHome && renderHome();
-    // Show diagnostic so user can confirm all steps passed
-    setTimeout(() => _showPushDiagnostic('✅ All steps passed — notifications are active'), 400);
+
+    // Offer a test push to confirm end-to-end delivery
+    setTimeout(() => {
+      if (confirm('Notifications enabled ✅\n\nSend a test notification to confirm delivery on this device?')) {
+        sendTestPush();
+      }
+    }, 600);
 
   } catch(e) {
     console.error('Push enable error:', e);
@@ -3185,25 +3184,22 @@ function formatPhone(raw) {
 
 // ── §WA-CONFIG  Twilio WhatsApp ──────────────────────────────────────────────
 // Point WA_SEND_URL at the same Apps Script as PUSH_SEND_URL (or a new deploy).
-// ── WhatsApp Bot — direct API (mosheadest.com/bergen) ──
-// Sends to the group automatically — no Twilio, no Apps Script needed.
-const WA_API_URL   = 'https://mosheadest.com/bergen/sendApi.php';
-const WA_API_TOKEN = '153da9b01a89fbacf9417a3f9c5e5b94';
-const WA_GROUP_ID  = '120363429005503944@g.us'; // test group — replace with real group ID when ready
+// After pasting twilio-apps-script-addon.js into your Apps Script and re-deploying,
+// paste the new /exec URL here. WA_SHARED_KEY must match WA_SHARED_KEY in the script.
+const WA_SEND_URL   = "https://us-east1-cobc-dispatch.cloudfunctions.net/sendWhatsApp"; // ✅ set
+const WA_SHARED_KEY = "cobc-2026-shared-secret";              // ← must match Apps Script
 
+// Sends a WhatsApp message via Twilio through the Apps Script proxy.
+// payload: { target:'all'|'dispatchers'|'unit'|'phones', unit?:'24', phones?:['+1…'], message:'' }
 async function sendWA(payload) {
-  if (!WA_API_URL || !WA_API_TOKEN) return;
-  const msg = payload.message || payload.text || '';
-  if (!msg) return;
+  if (!WA_SEND_URL || WA_SEND_URL.startsWith("PASTE_")) return;
   try {
-    const resp = await fetch(`${WA_API_URL}?token=${WA_API_TOKEN}&chat=${encodeURIComponent(WA_GROUP_ID)}`, {
+    await fetch(WA_SEND_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: msg })
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'sendWhatsApp', key: WA_SHARED_KEY, ...payload })
     });
-    const data = await resp.json();
-    if (!data.ok) console.warn('WA send failed:', data.error);
-  } catch(e) { console.warn('WA send error:', e); }
+  } catch (e) { console.warn('WA send failed:', e); }
 }
 
 // Build the group dispatch message (reuses existing buildDispatchWhatsApp logic).
@@ -3274,34 +3270,9 @@ function _waMsgRadioAdd(call, radioMembers) {
   return msg;
 }
 
-function _showPushDiagnostic(finalStatus) {
-  const old = document.getElementById('pushDiagPanel');
-  if (old) old.remove();
-  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
-  const isStandalone = window.navigator.standalone === true;
-  const iosVer = parseInt((navigator.userAgent.match(/OS (\d+)_/) || [])[1] || '0');
-  const steps = [
-    { label: 'Platform', value: isIOS ? `iOS ${iosVer}` : navigator.userAgent.slice(0, 60), ok: !isIOS || iosVer >= 16 },
-    { label: 'Installed as PWA (Add to Home Screen)', value: isStandalone ? 'Yes ✓' : 'NO — must be added to Home Screen first', ok: isStandalone },
-    { label: 'Notification API available', value: ('Notification' in window) ? 'Yes ✓' : 'Not supported in this browser', ok: ('Notification' in window) },
-    { label: 'Notification permission', value: ('Notification' in window) ? (Notification.permission === 'granted' ? 'granted ✓' : Notification.permission === 'denied' ? 'DENIED — go to iPhone Settings → this app → Notifications' : Notification.permission) : 'N/A', ok: ('Notification' in window) && Notification.permission === 'granted' },
-    { label: 'Service Worker supported', value: ('serviceWorker' in navigator) ? 'Yes ✓' : 'Not supported', ok: ('serviceWorker' in navigator) },
-    { label: 'Firebase Messaging loaded', value: (typeof _fcmMessaging !== 'undefined' && _fcmMessaging) ? 'Yes ✓' : 'NOT loaded', ok: !!(typeof _fcmMessaging !== 'undefined' && _fcmMessaging) },
-    { label: 'FCM push token', value: (typeof _fcmToken !== 'undefined' && _fcmToken) ? _fcmToken.slice(0, 20) + '…' : 'NOT obtained yet', ok: !!(typeof _fcmToken !== 'undefined' && _fcmToken) },
-    { label: 'Token saved for unit ' + (SESSION.unit || '?'), value: (SESSION.unit && localStorage.getItem('cobc_fcm_token_' + SESSION.unit)) ? localStorage.getItem('cobc_fcm_token_' + SESSION.unit).slice(0, 20) + '…' : 'NOT saved', ok: !!(SESSION.unit && localStorage.getItem('cobc_fcm_token_' + SESSION.unit)) },
-    { label: 'Push server URL configured', value: (typeof PUSH_SEND_URL !== 'undefined' && PUSH_SEND_URL && !PUSH_SEND_URL.startsWith('PASTE_')) ? PUSH_SEND_URL.slice(0, 50) + '…' : 'NOT SET', ok: !!(typeof PUSH_SEND_URL !== 'undefined' && PUSH_SEND_URL && !PUSH_SEND_URL.startsWith('PASTE_')) }
-  ];
-  const html = steps.map(s =>
-    `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);"><div style="font-size:18px;flex-shrink:0;">${s.ok ? '✅' : '❌'}</div><div><div style="font-size:12px;font-weight:700;color:${s.ok ? 'rgba(255,255,255,.5)' : '#fbbf24'};">${s.label}</div><div style="font-size:13px;color:${s.ok ? '#fff' : '#fca5a5'};">${s.value}</div></div></div>`
-  ).join('');
-  const panel = document.createElement('div');
-  panel.id = 'pushDiagPanel';
-  panel.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0f172a;overflow-y:auto;padding:calc(env(safe-area-inset-top)+16px) 16px calc(env(safe-area-inset-bottom)+16px);';
-  panel.innerHTML = `<div style="max-width:500px;margin:0 auto;"><div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;"><button onclick="document.getElementById('pushDiagPanel').remove()" style="background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:50%;width:34px;height:34px;font-size:18px;cursor:pointer;flex-shrink:0;">←</button><div style="font-size:17px;font-weight:800;color:#fff;">Notification Diagnostics</div></div><div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 16px;margin-bottom:16px;">${html}</div><div style="background:${finalStatus.startsWith('❌') ? 'rgba(239,68,68,.15)' : 'rgba(34,197,94,.15)'};border:1px solid ${finalStatus.startsWith('❌') ? 'rgba(239,68,68,.3)' : 'rgba(34,197,94,.3)'};border-radius:12px;padding:12px 14px;margin-bottom:16px;"><div style="font-size:13px;font-weight:700;color:#fff;">Result</div><div style="font-size:13px;color:rgba(255,255,255,.8);margin-top:4px;">${finalStatus}</div></div><button onclick="document.getElementById('pushDiagPanel').remove();if(typeof enablePush==='function')enablePush();else togglePushNotifications();" style="width:100%;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">Try Again</button><button onclick="document.getElementById('pushDiagPanel').remove();" style="width:100%;background:rgba(255,255,255,.08);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;">Close</button></div>`;
-  document.body.appendChild(panel);
-}
-
 async function sendTestPush() {
+  if (!SESSION.unit) return;
+  // On iOS the system banner only appears when the app is backgrounded.
   // Show a dialog so the user backgrounds the app before the notification arrives.
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   if (isIOS) {
@@ -4902,13 +4873,6 @@ function updateOnDutyBanner() {
   const phoneEl = document.getElementById('onDutyPhone');
   const dispEl  = document.getElementById('dispOnDutyName');
   const dispPhEl= document.getElementById('dispOnDutyPhone');
-  // Compact home banner
-  const compactEl = document.getElementById('onDutyBannerVisible');
-  const compactName = document.getElementById('onDutyNameCompact');
-  if (compactEl) {
-    compactEl.style.display = name ? '' : 'none';
-    if (compactName && name) compactName.textContent = name;
-  }
   if(nameEl)  nameEl.textContent  = name || '—';
   if(dispEl)  dispEl.textContent  = name || '—';
   if(phoneEl) phoneEl.textContent = phone || (name ? (source==='schedule' ? 'From schedule · no phone' : 'No phone') : 'No dispatcher set');
@@ -5080,34 +5044,6 @@ function renderPendingRespondersBanner(targetEl) {
         </div>`;
       }).join('')}
     </div>`;
-
-  // ── Completion request purple banner ──
-  const compItems = [];
-  if(isDisp) {
-    (STATE.calls||[]).forEach(call => {
-      if(call.completionRequest && call.status!=='done') compItems.push(call);
-    });
-  }
-  if(compItems.length) {
-    const compHtml = compItems.map(call => {
-      const cr = call.completionRequest;
-      const typeRaw = call.type||'other';
-      const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
-      return `<div style="background:rgba(255,255,255,.12);border:1px solid rgba(167,139,250,.3);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">`
-        +`<div style="flex:1;min-width:0;">`
-        +`<div style="font-size:13px;font-weight:700;color:#fff;">BC-${String(cr.by||'').replace(/^BC-?/i,'')} ${cr.name||''} reports <span style="background:rgba(167,139,250,.3);color:#c4b5fd;padding:1px 7px;border-radius:5px;">${cr.outcome}</span>${cr.note?' — '+cr.note:''}</div>`
-        +`<div style="font-size:11px;color:rgba(255,255,255,.65);">${typeLabel} #${call.callNum||''} · ${call.address}${call.town?', '+call.town:''}</div>`
-        +`</div>`
-        +`<button onclick="approveCallCompletion('${call.id}')" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✓ Approve</button>`
-        +`<button onclick="denyCallCompletion('${call.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✕</button>`
-        +`</div>`;
-    }).join('');
-    targetEl.innerHTML += `<div style="background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(10,4,30,.6));-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5);border:1px solid rgba(167,139,250,.5);border-radius:16px;padding:12px;margin-bottom:12px;box-shadow:0 10px 30px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.12);">`
-      +`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">`
-      +`<div style="background:#7c3aed;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;animation:pendingPulse 1.8s ease-in-out infinite;">${compItems.length}</div>`
-      +`<div style="font-size:13px;font-weight:800;color:#c4b5fd;text-transform:uppercase;letter-spacing:.5px;">📋 Completion Request${compItems.length>1?'s':''}</div>`
-      +`</div>${compHtml}</div>`;
-  }
 }
 
 // ── Home clock + weather widgets ──
@@ -6698,15 +6634,24 @@ async function submitRadioResponders() {
   call.status='active';
   call.activatedAt=call.activatedAt||Date.now();
   save(); firestoreUpsertCall(call); hideModal('radioModal');
-  renderCalls(); renderHome(); showTab('dispatch');
+  openCallDetail(id); renderCalls(); renderHome();
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
     // PUSH #6: radio responders added
     const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
-       setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
+       setTimeout(()=>sendPush({target:'dispatchers',title:'📻 Responding by Radio',body:`${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
 
+  // Push to all with full current responder list
+  const allNow=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
+  const radioNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')} ${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim()).join(', ');
+  setTimeout(()=>sendPush({
+    target:'all',
+    title:`📻 ${radioNames} responding by radio`,
+    body:`${typeLabel} — ${call.address}, ${call.town}${allNow?' · On call: '+allNow:''}`,
+    url:'/cobc-dispatch/', callId:id
+  }),300);
   // WA: group update for radio add
-  setTimeout(()=>{ if(typeof sendWA==='function' && typeof _waMsgRadioAdd==='function') sendWA({ target:'all', message: _waMsgRadioAdd(call, radioSelectedMembers) }); },400);
+  setTimeout(()=>sendWA({ target:'all', message: _waMsgRadioAdd(call, radioSelectedMembers) }),400);
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
@@ -6743,19 +6688,13 @@ function checkIdbPendingCall() {
 // ── Deep-link opener — called whenever Firestore data refreshes ──
 function tryOpenPendingDeepLink() {
   if (!window._pendingDeepLink) return;
-  if (!SESSION || !SESSION.role) return;
+  if (!SESSION || !SESSION.role) return; // not logged in yet
   const callId = window._pendingDeepLink;
   const call = (STATE.calls || []).find(c => c.id === callId);
-  if (!call) return;
+  if (!call) return; // data not loaded yet — will retry on next snapshot
   window._pendingDeepLink = null;
   try { sessionStorage.removeItem('cobc_pending_call'); } catch(e) {}
-  // Dispatch/admin: go to dispatch tab and show banner (not a popup)
-  if (['admin','dispatch'].includes(SESSION.role)) {
-    showTab('dispatch');
-    renderCalls && renderCalls();
-  } else {
-    openCallDetail(callId);
-  }
+  openCallDetail(callId);
 }
 
 // ── Call Detail ──
@@ -8121,32 +8060,32 @@ function renderSettingsTab() {
   // Vibrate
   const vibrateEl = document.getElementById('settings-vibrate');
   if(vibrateEl) vibrateEl.checked = settings.vibrate !== false; // default on
-  // Notification state — toggle pill
+  // Notification state
   const notifDesc = document.getElementById('settings-notif-desc');
+  const notifBtn = document.getElementById('settings-notif-btn');
   const notifTest = document.getElementById('settings-notif-test');
-  const pill  = document.getElementById('settings-notif-pill');
-  const thumb = document.getElementById('settings-notif-thumb');
-  const lbl   = document.getElementById('settings-notif-label');
-  const _setPillOn = function(on, blocked) {
-    if(pill)  pill.style.background  = blocked ? '#f87171' : on ? '#16a34a' : '#cbd5e1';
-    if(thumb) thumb.style.transform  = on ? 'translateX(18px)' : 'translateX(0)';
-    if(lbl)   { lbl.textContent = blocked ? 'Blocked' : on ? 'On' : 'Off';
-                lbl.style.color = blocked ? 'var(--red)' : on ? 'var(--green)' : 'var(--text2)'; }
-  };
-  const has  = !!localStorage.getItem('cobc_fcm_token_' + (SESSION?.unit||''));
-  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
-  if(perm === 'granted' && has) {
-    _setPillOn(true, false);
-    if(notifDesc) notifDesc.textContent = '✅ Notifications on — tap toggle to disable.';
-    if(notifTest) notifTest.style.display = '';
-  } else if(perm === 'denied') {
-    _setPillOn(false, true);
-    if(notifDesc) notifDesc.textContent = '🚫 Blocked by system — go to Settings → COBC → Notifications to allow.';
-    if(notifTest) notifTest.style.display = 'none';
-  } else {
-    _setPillOn(false, false);
-    if(notifDesc) notifDesc.textContent = 'Get alerted when a new call is dispatched.';
-    if(notifTest) notifTest.style.display = 'none';
+  if(notifBtn) {
+    const has = !!localStorage.getItem('cobc_fcm_token_' + (SESSION?.unit||''));
+    const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+    if(perm === 'granted' && has) {
+      notifBtn.textContent = 'Turn Off';
+      notifBtn.className = 'btn-sm btn-ghost';
+      notifBtn.style.color = 'var(--red)';
+      if(notifDesc) notifDesc.textContent = '✅ Notifications on — tap to disable on this device.';
+      if(notifTest) notifTest.style.display = '';
+    } else if(perm === 'denied') {
+      notifBtn.textContent = 'Blocked';
+      notifBtn.className = 'btn-sm btn-ghost';
+      notifBtn.style.color = '';
+      if(notifDesc) notifDesc.textContent = 'Blocked — go to iPhone Settings → COBC → Notifications.';
+      if(notifTest) notifTest.style.display = 'none';
+    } else {
+      notifBtn.textContent = 'Enable';
+      notifBtn.className = 'btn-sm btn-primary';
+      notifBtn.style.color = '';
+      if(notifDesc) notifDesc.textContent = 'Get alerted when a new call is dispatched.';
+      if(notifTest) notifTest.style.display = 'none';
+    }
   }
   // Location toggle state
   const locToggle = document.getElementById('settings-loc-toggle');
