@@ -6714,7 +6714,7 @@ function openCallDetail(id) {
 
   if(isDispatch) {
     html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Radio</button>`;
-    if(call.status==='draft') html+=`<button class="btn-sm btn-primary" onclick="publishCall('${id}');hideModal('callDetailModal')">📢 Publish</button>`;
+    if(call.status==='draft') html+=`<button class="btn-sm btn-primary" onclick="publishCall('${id}')">📢 Publish</button>`;
     // ▶ Active button removed — calls go active automatically when a responder is approved/radio-assigned
     if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" onclick="reopenCall('${id}');renderCallDetail('${id}')">🔄 Re-open</button>`;
     if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
@@ -6771,7 +6771,9 @@ function publishCall(id) {
   })();
   sendWA({ target:'all', message: _waShortMsg });
 
-  save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('📢 Call published');
+  save(); firestoreUpsertCall(call); renderCalls(); renderHome();
+  hideModal('callDetailModal');
+  showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
 }
 
