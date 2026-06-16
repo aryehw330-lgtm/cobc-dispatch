@@ -876,7 +876,6 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
     <div class="topbar-right">
-      <div id="homeWeather" class="topbar-weather">…</div>
       <button class="topbar-sync" onclick="goToNumbers()" title="Important Numbers" aria-label="Important Numbers">☎️</button>
       <button id="topbarSync" class="topbar-sync" onclick="manualSync()" title="Sync inventory from Google Sheet" aria-label="Sync">↻</button>
       <div class="status-pill"><span class="dot-live"></span><span id="activeCalls">0 Active</span></div>
@@ -889,31 +888,29 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- ══ HOME ══ -->
     <div class="page" id="page-home">
       <div id="shiftSlotHome" style="display:none;"></div>
-      <div class="home-header">
-        <div class="home-greet">
-          <div class="section-title" id="homeGreeting">Welcome</div>
-          <div class="section-sub" id="homeDate"></div>
-        </div>
-        <button class="btn-sm metal-gold home-newcall" id="homeNewCallBtn" onclick="showTab('dispatch');showModal('newCallModal')" style="display:none;">+ New Call</button>
-      </div>
-      <!-- On-Duty banner + stats on one row -->
-      <div class="home-top-row">
-        <!-- Stats strip -->
-        <div class="scroll-row" style="margin-bottom:0;">
-          <div class="mini-stat stat-amber" id="hs-pending-card" onclick="showTab('dispatch')" style="display:none;cursor:pointer;border:2px solid var(--amber);background:linear-gradient(135deg,#fef3c7,#fef9c3);animation:pendingPulse 1.8s ease-in-out infinite;"><div class="mini-stat-num" id="hs-pending" style="color:var(--amber);">0</div><div class="mini-stat-label" style="color:var(--amber);font-weight:700;">⏳ Pending</div></div>
-          <div class="mini-stat stat-amber"><div class="mini-stat-num" id="hs-open">0</div><div class="mini-stat-label">Open</div></div>
-          <div class="mini-stat stat-green"><div class="mini-stat-num" id="hs-active">0</div><div class="mini-stat-label">Active</div></div>
-        </div>
-        <!-- On-Duty Dispatcher Banner -->
-        <div class="on-duty-banner" id="onDutyBanner" style="margin-bottom:0;">
-          <div>
-            <div style="font-size:11px;color:rgba(255,255,255,.6);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Dispatcher On Duty</div>
-            <div class="on-duty-name" id="onDutyName">—</div>
-            <div class="on-duty-sub" id="onDutyPhone">No dispatcher set</div>
+      <!-- Hidden home header elements for JS compatibility -->
+      <div style="display:none;">
+        <div class="home-header">
+          <div class="home-greet">
+            <div class="section-title" id="homeGreeting">Welcome</div>
+            <div class="section-sub" id="homeDate"></div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:7px;flex-shrink:0;">
-            <button class="call-dispatch-btn" id="callDispatchBtn" onclick="callDispatchOnDuty()">📞 <span class="btn-label-full">Call Dispatcher</span><span class="btn-label-short">Call</span></button>
-            <a class="call-hotline-btn" href="tel:+12018004357">☎️ <span class="btn-label-full">Hotline · (201) 800-4357</span><span class="btn-label-short">Hotline</span></a>
+          <button class="btn-sm metal-gold home-newcall" id="homeNewCallBtn" onclick="showTab('dispatch');showModal('newCallModal')" style="display:none;">+ New Call</button>
+        </div>
+        <div id="hs-pending-card"><div id="hs-pending">0</div></div>
+        <div id="hs-open">0</div><div id="hs-active">0</div>
+        <div id="onDutyBanner"><div id="onDutyName"></div><div id="onDutyPhone"></div><button id="callDispatchBtn"></button></div>
+      </div>
+      <!-- Compact on-duty banner for open calls -->
+      <div class="on-duty-banner" id="onDutyBannerVisible" style="margin-bottom:10px;padding:8px 12px;min-height:0;margin-left:auto;margin-right:auto;">
+        <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px;">
+          <div>
+            <div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Dispatcher On Duty</div>
+            <div style="font-size:14px;font-weight:700;color:#fff;" id="onDutyNameCompact">—</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-left:auto;flex-shrink:0;">
+            <button class="call-dispatch-btn" style="padding:5px 10px;font-size:11px;" onclick="callDispatchOnDuty()">📞 Call</button>
+            <a class="call-hotline-btn" href="tel:+12018004357" style="text-decoration:none;padding:5px 10px;font-size:11px;">☎️ Hotline</a>
           </div>
         </div>
       </div>
@@ -938,47 +935,18 @@ textarea.input{min-height:80px;resize:vertical;}
       <div class="filter-chips" id="dispatchFilters" style="overflow-x:auto;flex-wrap:nowrap;margin-bottom:12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
         <div class="chip active" data-filter="active" onclick="setDispatchFilter('active',this)">Active</div>
         <div class="chip" id="historyChip" onclick="openHistoryModal()" style="background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700;">📅 History</div>
-        <div class="chip" data-filter="draft" onclick="setDispatchFilter('draft',this)" id="draftFilterChip">Draft</div>
+        <div class="chip" data-filter="draft" onclick="setDispatchFilter('draft',this)" id="draftFilterChip" style="display:none;">Draft</div>
       </div>
 
       <!-- Stats stacked left + On Duty card right — same height row -->
       <div id="ds-pending-card" style="display:none;"></div>
-      <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:12px;">
-        <!-- Open / Active / Pending stacked vertically -->
-        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:58px;overflow:hidden;">
-          <div class="mini-stat stat-amber" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;min-width:0;">
-            <div class="mini-stat-num" id="ds-open" style="font-size:20px;">0</div>
-            <div class="mini-stat-label" style="font-size:9px;">Open</div>
-          </div>
-          <div class="mini-stat stat-green" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;min-width:0;">
-            <div class="mini-stat-num" id="ds-active" style="font-size:20px;">0</div>
-            <div class="mini-stat-label" style="font-size:9px;">Active</div>
-          </div>
-          <div class="mini-stat" id="ds-pending-inline" onclick="openPendingModal()" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;cursor:pointer;border:2px solid var(--amber);background:linear-gradient(135deg,#fef3c7,#fef9c3);animation:pendingPulse 1.8s ease-in-out infinite;min-width:0;width:100%;">
-            <div class="mini-stat-num" id="ds-pending" style="color:var(--amber);font-size:20px;">0</div>
-            <div class="mini-stat-label" style="color:var(--amber);font-weight:700;font-size:9px;">Wait</div>
-          </div>
-        </div>
-        <!-- On Duty full card with Call + Hotline + optional secondary -->
-        <div class="on-duty-banner" id="dispatchOnDutyRow" style="flex:1;min-width:0;margin-bottom:0;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;color:rgba(255,255,255,.6);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1px;">Dispatcher on Duty</div>
-            <div class="on-duty-name" id="dispOnDutyName">—</div>
-            <div class="on-duty-sub" id="dispOnDutyPhone">No dispatcher set</div>
-            <!-- Secondary dispatcher (shown when set) -->
-            <div id="dispOnDuty2Wrap" style="display:none;margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.15);">
-              <div style="font-size:9px;color:rgba(255,255,255,.5);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Secondary</div>
-              <div style="font-size:13px;font-weight:700;color:#fff;" id="dispOnDutyName2">—</div>
-              <div style="font-size:11px;color:rgba(255,255,255,.55);" id="dispOnDutyPhone2"></div>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
-            <button class="call-dispatch-btn" onclick="callDispatchOnDuty()">📞 <span class="btn-label-full">Call</span></button>
-            <a class="call-hotline-btn" href="tel:+12018004357" style="text-decoration:none;">☎️ <span class="btn-label-full">Hotline</span></a>
-            <button class="call-dispatch-btn" id="callDispatch2Btn" onclick="callDispatchOnDuty2()" style="display:none;background:linear-gradient(180deg,rgba(95,180,224,.5),rgba(30,120,178,.45));">📞 <span class="btn-label-full">Call 2nd</span></button>
-          </div>
-        </div>
+      <!-- Hidden stat elements kept for JS compatibility -->
+      <div style="display:none;">
+        <div id="ds-open">0</div><div id="ds-active">0</div>
+        <div id="ds-pending-inline"><div id="ds-pending">0</div></div>
       </div>
+      <!-- Hidden on-duty elements for JS compatibility -->
+      <div style="display:none;" id="dispatchOnDutyRow"><div id="dispOnDutyName"></div><div id="dispOnDutyPhone"></div><div id="dispOnDuty2Wrap"><div id="dispOnDutyName2"></div><div id="dispOnDutyPhone2"></div></div><button id="callDispatch2Btn"></button></div>
 
       <!-- Pending Responder Requests Banner (admin/dispatch only) -->
       <div id="pendingRespondersBanner" style="display:none;"></div>
@@ -1311,6 +1279,7 @@ textarea.input{min-height:80px;resize:vertical;}
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;">
               <button id="settings-notif-test" class="btn-sm btn-ghost" onclick="sendTestPush()" style="display:none;font-size:11px;">Test</button>
+              <button class="btn-sm btn-ghost" onclick="_showPushDiagnostic('Tap a step to investigate')" style="font-size:11px;">Diagnose</button>
               <button id="settings-notif-btn" class="btn-sm btn-primary" onclick="togglePushNotifications()">Enable</button>
             </div>
           </div>
@@ -1955,8 +1924,7 @@ textarea.input{min-height:80px;resize:vertical;}
       if(!modal) return;
       var handle = modal.querySelector('.modal-handle');
       var startY=0, curDy=0, dragging=false, startedOnHandle=false, velY=0, lastY=0, lastT=0;
-      // Apply transform to overlay (contains the sheet) so the whole thing slides
-      overlay.style.willChange='transform';
+      modal.style.willChange='transform';
 
       modal.addEventListener('touchstart', function(e){
         if(e.touches.length!==1) return;
@@ -1966,7 +1934,6 @@ textarea.input{min-height:80px;resize:vertical;}
         dragging = true; curDy = 0; velY = 0;
         modal.style.transition='none';
         modal.style.transform='translateY(0)';
-        overlay.style.transition='none';
         if(handle) handle.style.transition='none';
       }, {passive:true});
 
@@ -1981,7 +1948,9 @@ textarea.input{min-height:80px;resize:vertical;}
           // Rubbery resistance: full speed until 60px, then slow to 40% beyond
           var visual = dy < 60 ? dy : 60 + (dy - 60) * 0.4;
           modal.style.transform = 'translateY(' + visual + 'px)';
+          // Fade backdrop proportionally
           overlay.style.background = 'rgba(0,0,0,' + Math.max(0, 0.5 - visual / 600) + ')';
+          // Handle gets slightly wider as tactile cue (no separate translateY — it moves with the modal)
           if(handle){ handle.style.background='rgba(100,100,100,.6)'; }
           if(e.cancelable) e.preventDefault();
         } else { curDy = 0; }
@@ -2199,11 +2168,8 @@ textarea.input{min-height:80px;resize:vertical;}
       <textarea class="input" id="callNotes" placeholder="Additional details..." style="min-height:60px;resize:none;"></textarea>
     </div>
 
-    <!-- Draft toggle -->
-    <div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:8px;padding:11px 14px;margin-bottom:14px;">
-      <input type="checkbox" id="callDontPublish" onchange="updateDispatchBtn()" style="width:18px;height:18px;cursor:pointer;accent-color:var(--blue);"/>
-      <div><div style="font-size:13px;font-weight:600;">Save as Draft</div><div style="font-size:11px;color:var(--text3);">Won't dispatch to members</div></div>
-    </div>
+    <!-- Draft toggle removed -->
+    <input type="hidden" id="callDontPublish" value=""/>
 
     <button id="callSubmitBtn" class="btn-full btn-primary metal-gold" onclick="createCall()" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);font-size:16px;font-weight:700;padding:16px;letter-spacing:-.2px;">Dispatch Call</button>
     <button class="btn-full btn-ghost" onclick="hideModal('newCallModal')" style="margin-top:8px;">Cancel</button>
@@ -2234,7 +2200,7 @@ textarea.input{min-height:80px;resize:vertical;}
 <div class="modal-overlay hidden" id="respondModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="respondModalTitle" style="font-size:18px;font-weight:700;margin-bottom:6px;">✋ Request to Respond</div>
+    <div class="modal-title" id="respondModalTitle" style="font-size:18px;font-weight:700;margin-bottom:6px;">Request to Respond</div>
     <div id="respondUrgentHint" style="display:none;background:#fef2f2;border:1px solid var(--red);border-radius:8px;padding:10px 14px;margin-bottom:12px;color:var(--red);font-size:13px;font-weight:600;">🚨 This is an URGENT call. You'll be auto-approved — no need to wait for dispatch.</div>
     <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">Your request goes directly to the on-duty dispatcher for approval.</div>
     <input type="hidden" id="respondCallId"/>
@@ -2273,7 +2239,7 @@ textarea.input{min-height:80px;resize:vertical;}
 <div class="modal-overlay hidden" id="radioModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">📻 Radio Responders</div>
+    <div class="modal-title">📻 Assign Unit</div>
     <input type="hidden" id="radioCallId"/>
     <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">Add everyone responding via radio at once. One group WhatsApp message will be sent — no private messages.</div>
     <!-- Search -->
@@ -2283,7 +2249,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;">Selected</div>
     <div id="radioSelectedList" style="margin-bottom:10px;min-height:36px;"></div>
     <div class="input-group"><label class="input-label">ETA (minutes)</label><input class="input" type="number" id="radioETA" value="5" min="1"/></div>
-    <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="submitRadioResponders()">Add All + Post to Group</button>
+    <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="submitRadioResponders()">Submit</button>
     <button class="btn-full btn-ghost" onclick="hideModal('radioModal')">Cancel</button>
   </div>
 </div>
@@ -3118,6 +3084,9 @@ async function enablePushForThisDevice() {
     showToast('✅ Notifications enabled!');
     renderHome && renderHome();
 
+    // Show diagnostic so user can confirm all steps passed
+    setTimeout(() => _showPushDiagnostic('✅ All steps passed — notifications are active'), 400);
+
     // Offer a test push to confirm end-to-end delivery
     setTimeout(() => {
       if (confirm('Notifications enabled ✅\n\nSend a test notification to confirm delivery on this device?')) {
@@ -3132,8 +3101,119 @@ async function enablePushForThisDevice() {
     if (msg.includes('timed out') || msg.includes('reload')) showToast('⚠️ ' + msg);
     else if (msg.includes('unsupported-browser') || msg.includes('not supported')) showToast('Push not supported here — use Safari on iOS 16.4+');
     else showToast('⚠️ ' + (msg.slice(0,80) || 'Notification error — try again'));
+    // Show diagnostic panel on any error
+    _showPushDiagnostic('❌ Error: ' + (msg || 'unknown'));
   }
 }
+
+// Show a full-screen diagnostic panel so the user can see exactly where push failed
+function _showPushDiagnostic(finalStatus) {
+  // Remove any existing panel
+  const old = document.getElementById('pushDiagPanel');
+  if (old) old.remove();
+
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true;
+  const iosVer = parseInt((navigator.userAgent.match(/OS (\d+)_/) || [])[1] || '0');
+
+  // Collect all diagnostic info
+  const steps = [];
+
+  // 1. Platform
+  steps.push({
+    label: 'Platform',
+    value: isIOS ? `iOS ${iosVer}` : navigator.userAgent.slice(0, 60),
+    ok: !isIOS || iosVer >= 16
+  });
+
+  // 2. Standalone (PWA)
+  steps.push({
+    label: 'Installed as PWA (Add to Home Screen)',
+    value: isStandalone ? 'Yes ✓' : 'NO — must be added to Home Screen first',
+    ok: isStandalone
+  });
+
+  // 3. Notification API
+  steps.push({
+    label: 'Notification API available',
+    value: ('Notification' in window) ? 'Yes ✓' : 'Not supported in this browser',
+    ok: ('Notification' in window)
+  });
+
+  // 4. Permission
+  const perm = ('Notification' in window) ? Notification.permission : 'N/A';
+  steps.push({
+    label: 'Notification permission',
+    value: perm === 'granted' ? 'granted ✓' : perm === 'denied' ? 'DENIED — go to iPhone Settings → this app → Notifications' : perm,
+    ok: perm === 'granted'
+  });
+
+  // 5. Service Worker support
+  steps.push({
+    label: 'Service Worker supported',
+    value: ('serviceWorker' in navigator) ? 'Yes ✓' : 'Not supported',
+    ok: ('serviceWorker' in navigator)
+  });
+
+  // 6. FCM messaging loaded
+  steps.push({
+    label: 'Firebase Messaging loaded',
+    value: _fcmMessaging ? 'Yes ✓' : 'NOT loaded — Firebase init may have failed',
+    ok: !!_fcmMessaging
+  });
+
+  // 7. FCM token
+  steps.push({
+    label: 'FCM push token',
+    value: _fcmToken ? _fcmToken.slice(0, 20) + '…' : 'NOT obtained yet',
+    ok: !!_fcmToken
+  });
+
+  // 8. Token saved locally
+  const savedToken = SESSION.unit ? localStorage.getItem('cobc_fcm_token_' + SESSION.unit) : null;
+  steps.push({
+    label: 'Token saved for unit ' + (SESSION.unit || '?'),
+    value: savedToken ? savedToken.slice(0, 20) + '…' : 'NOT saved',
+    ok: !!savedToken
+  });
+
+  // 9. Push server URL
+  steps.push({
+    label: 'Push server URL configured',
+    value: (PUSH_SEND_URL && !PUSH_SEND_URL.startsWith('PASTE_')) ? PUSH_SEND_URL.slice(0, 50) + '…' : 'NOT SET',
+    ok: !!(PUSH_SEND_URL && !PUSH_SEND_URL.startsWith('PASTE_'))
+  });
+
+  const html = steps.map(s =>
+    `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+      <div style="font-size:18px;flex-shrink:0;">${s.ok ? '✅' : '❌'}</div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:${s.ok ? 'rgba(255,255,255,.5)' : '#fbbf24'};">${s.label}</div>
+        <div style="font-size:13px;color:${s.ok ? '#fff' : '#fca5a5'};">${s.value}</div>
+      </div>
+    </div>`
+  ).join('');
+
+  const panel = document.createElement('div');
+  panel.id = 'pushDiagPanel';
+  panel.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0f172a;overflow-y:auto;padding:calc(env(safe-area-inset-top)+16px) 16px calc(env(safe-area-inset-bottom)+16px);';
+  panel.innerHTML = `
+    <div style="max-width:500px;margin:0 auto;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <button onclick="document.getElementById('pushDiagPanel').remove()" style="background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:50%;width:34px;height:34px;font-size:18px;cursor:pointer;flex-shrink:0;">←</button>
+        <div style="font-size:17px;font-weight:800;color:#fff;">Notification Diagnostics</div>
+      </div>
+      <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 16px;margin-bottom:16px;">
+        ${html}
+      </div>
+      <div style="background:${finalStatus.startsWith('❌') ? 'rgba(239,68,68,.15)' : 'rgba(34,197,94,.15)'};border:1px solid ${finalStatus.startsWith('❌') ? 'rgba(239,68,68,.3)' : 'rgba(34,197,94,.3)'};border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;color:#fff;">Final result</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.8);margin-top:4px;">${finalStatus}</div>
+      </div>
+      <button onclick="document.getElementById('pushDiagPanel').remove();enablePush();" style="width:100%;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">Try Again</button>
+      <button onclick="document.getElementById('pushDiagPanel').remove();" style="width:100%;background:rgba(255,255,255,.08);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;">Close</button>
+    </div>`;
+  document.body.appendChild(panel);
 
 async function sendTestPush() {
   if (!SESSION.unit) return;
@@ -4873,8 +4953,10 @@ function updateOnDutyBanner() {
   const phoneEl = document.getElementById('onDutyPhone');
   const dispEl  = document.getElementById('dispOnDutyName');
   const dispPhEl= document.getElementById('dispOnDutyPhone');
+  const compactEl = document.getElementById('onDutyNameCompact');
   if(nameEl)  nameEl.textContent  = name || '—';
   if(dispEl)  dispEl.textContent  = name || '—';
+  if(compactEl) compactEl.textContent = name || '—';
   if(phoneEl) phoneEl.textContent = phone || (name ? (source==='schedule' ? 'From schedule · no phone' : 'No phone') : 'No dispatcher set');
   if(dispPhEl) dispPhEl.textContent = phone || (name ? '' : 'No dispatcher set');
 
@@ -5107,6 +5189,28 @@ function renderHome() {
   // Refresh the on-duty banner each time Home renders (schedule shifts every few hours)
   try { updateOnDutyBanner(); } catch(e){}
   try { initHomeWidgets(); } catch(e){}
+  // Check for rejection notices for this member and show an in-app banner
+  if(SESSION.unit) {
+    (STATE.calls||[]).forEach(call => {
+      if(!call._rejectionNotice) return;
+      const notice = call._rejectionNotice[String(SESSION.unit)];
+      if(!notice) return;
+      // Show once — use a toast-style banner
+      const bannerId = 'denialBanner_'+call.id+'_'+SESSION.unit;
+      if(document.getElementById(bannerId)) return;
+      const b = document.createElement('div');
+      b.id = bannerId;
+      b.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top)+10px);z-index:3000;background:#dc2626;color:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 6px 24px rgba(220,38,38,.4);display:flex;align-items:center;gap:12px;';
+      b.innerHTML = '<div style="flex:1"><div style="font-size:13px;font-weight:800;">Request Denied</div><div style="font-size:12px;opacity:.9;margin-top:2px;">'+notice.body+'</div></div>'
+        +'<button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:14px;cursor:pointer;flex-shrink:0;">✕</button>';
+      document.body.appendChild(b);
+      setTimeout(()=>{ if(b.parentElement) b.remove(); }, 8000);
+      // Clear the notice from the call so it doesn't repeat
+      delete call._rejectionNotice[String(SESSION.unit)];
+      if(Object.keys(call._rejectionNotice).length===0) delete call._rejectionNotice;
+      save(); firestoreUpsertCall(call);
+    });
+  }
   // Pending requests show in the floating top banner on Home (not inline)
   const _homePend = document.getElementById('homePendingBanner');
   if(_homePend){ _homePend.style.display='none'; _homePend.innerHTML=''; }
@@ -5477,20 +5581,15 @@ function callCardHTML(call, mini=false) {
     const responderBadges = respList.length
       ? respList.map(r=>{
           const unitNum = String(r.unit||'').replace(/^BC-?/i,'');
-          const firstName = (r.name||'').split(' ')[0];
-          return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;
+          return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum}</span>`;
         }).join('')
       : '';
     const pendingBadge = pending
       ? `<span style="background:var(--amber);color:#fff;padding:5px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.3px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);animation:pendingPulse 1.8s ease-in-out infinite;white-space:nowrap;">⏳ ${pending} pending</span>`
       : '';
     // Respond action for the Open Calls (mini) card — shown for ALL members
-    const miniRespond = (call.status!=='done' && !isDraft)
-      ? (iAmApproved
-          ? `<div class="approved-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">✓ Approved to respond</div>`
-          : iAmPending
-            ? `<div class="pending-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">⏳ Pending approval…</div>`
-            : `<button class="call-action" style="background:${isUrgent?'var(--red)':'var(--green)'};color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${isUrgent?'⚠️ Respond Now':'✋ Request to Respond'}</button>`)
+    const miniRespond = (call.status!=='done' && !isDraft && !iAmApproved && !iAmPending)
+      ? `<button class="call-action" style="background:${isUrgent?'var(--red)':'var(--green)'};color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${isUrgent?'⚠️ Respond Now':'Request to Respond'}</button>`
       : '';
     // Completion-request state (member reports CC/CNC, dispatch must approve)
     const _cr = call.completionRequest;
@@ -5526,7 +5625,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Nav</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div></div>`:''}
+      ${(miniRespond||miniComplete||iAmPending)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}${iAmPending&&!miniComplete?`<div class="pending-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">⏳ Pending approval…</div>`:''}</div></div>`:''}
     </div>`;
   }
 
@@ -5537,13 +5636,13 @@ function callCardHTML(call, mini=false) {
   let respondBtn = '';
   if(call.status!=='done' && !isDraft) {
     if(iAmApproved) {
-      respondBtn = `<div class="approved-badge" style="padding:7px 12px;font-size:12px;">Approved to respond</div>`;
+      respondBtn = ''; // shown as 2713 Responding in status area
     } else if(iAmPending) {
       respondBtn = `<div class="pending-badge" style="padding:7px 12px;font-size:12px;">Pending approval...</div>`;
     } else {
       const isUrgent = call.priority==='urgent' && call.status!=='done';
       const btnBg = isUrgent ? 'var(--red)' : 'var(--green)';
-      const btnLabel = isUrgent ? '⚠️ Respond Now' : '✋ Respond';
+      const btnLabel = isUrgent ? '⚠️ Respond Now' : 'Respond';
       respondBtn = `<button class="call-action" style="flex:1;min-width:0;padding:8px 4px;font-size:12px;font-weight:700;text-align:center;background:${btnBg};color:#fff;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${btnLabel}</button>`;
     }
   }
@@ -5567,7 +5666,7 @@ function callCardHTML(call, mini=false) {
         ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
-        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
+        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum}</span>`;}).join('')}</div>`:''}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         <div class="call-card-meta" style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${timeStr}</div>
         ${(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch')?(()=>{
@@ -5583,18 +5682,7 @@ function callCardHTML(call, mini=false) {
       </div>
       ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:iAmApproved?`<div style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">✓ Responding</div>`:''}}</div>`:''}
     </div>
-    <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
-      <div style="display:flex;gap:5px;">
-        ${isDispatch?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openRadioModal('${call.id}')">📻 Radio</button>`:''}
-        ${respondBtn}
-      </div>
-      <div style="display:flex;gap:5px;">
-        <button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openCallDetail('${call.id}')">🔎 Details</button>
-        ${call.address && isDispatch?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveMap('${call.id}')">🗺️ Live Map</button>`:''}
-        ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}
-        ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}
-      </div>
-    </div>
+    ${isDispatch?`<div class="call-card-footer"><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openRadioModal('${call.id}')">Assign Unit</button>${call.status==='active'?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:var(--green);color:#fff;" onclick="event.stopPropagation();openCompleteModal('${call.id}')">Close Call</button>`:''}</div></div>`:''}
     </div>
   `;
 }
@@ -5939,7 +6027,7 @@ function createCall() {
 setTimeout(() => {
       sendPush({
       target: 'all',
-      title: '🚨 New COBC Call',
+      title: 'New Call',
       body: `${_typeLabel} — ${call.address}, ${call.town}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
@@ -6080,7 +6168,7 @@ function openRespondModal(id) {
   // Update title/hint/submit based on urgency
   const isUrgent = call && call.priority==='urgent' && SESSION.role!=='observer';
   const titleEl = document.getElementById('respondModalTitle');
-  if(titleEl) titleEl.innerHTML = isUrgent ? '🚨 Urgent — Respond Now' : '✋ Request to Respond';
+  if(titleEl) titleEl.innerHTML = isUrgent ? '🚨 Urgent — Respond Now' : 'Request to Respond';
   const hintEl = document.getElementById('respondUrgentHint');
   if(hintEl) hintEl.style.display = isUrgent ? 'block' : 'none';
   const submitBtn = document.getElementById('respondSubmitBtn');
@@ -6460,34 +6548,26 @@ function _doApproveResponder(callId, unit, call, req) {
   sendWA({ target:'unit', unit:String(unit), message: _waMsgApproved(call, _approvedEntry) });
   // WA: group update — "BC-X is responding"
   setTimeout(()=>sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }), 500);
-  // PUSH HOOK #3 — member approved → that specific member
+  // Single approval push — unit number only, no name, no branding
   const _typeLabelApp = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  sendPush({
-    target: 'unit',
-    unit: String(unit),
-    title: '✅ Approved to Respond',
-    body: `${_typeLabelApp} — ${call.address}, ${call.town}`,
-    url: '/cobc-dispatch/',
-    urgent: 'true',
-    callId: call.id
-  });
-  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  // Push 1: personal approval to the member
+  const _unitDisp = String(unit).replace(/^BC-?/i,'');
+  // To the approved member
   sendPush({
     target:'unit', unit:String(unit),
-    title:'✅ You\'re approved!',
-    body:`Respond to ${typeLabel} at ${call.address}, ${call.town} · ETA ${req.eta} min`,
+    title:'Approved to Respond',
+    body:`BC-${_unitDisp} — ${_typeLabelApp} at ${call.address}, ${call.town}`,
     url:'/cobc-dispatch/', callId:call.id, urgent:'true'
   });
-  // Push 2: update everyone with full current responder list
-  const allResponders=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
+  // Broadcast — unit number only, no member name
   sendPush({
     target:'all',
-    title:`🚗 BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding`,
-    body:`${typeLabel} — ${call.address}, ${call.town} · Now: ${allResponders}`,
+    title:'Unit Responding',
+    body:`BC-${_unitDisp} — ${_typeLabelApp} at ${call.address}, ${call.town}`,
     url:'/cobc-dispatch/', callId:call.id
   });
-  openCallDetail(callId);
+  // Navigate back to dispatch main screen (not call detail)
+  hideModal('callDetailModal');
+  showTab('dispatch');
 }
 
 // ── Dispatcher rejects a pending responder ──
@@ -6509,15 +6589,11 @@ function rejectResponder(callId,unit) {
   const rejBody  = notAllowed
     ? `You are not approved for ${typeLabel} calls. Please contact the chiefs to find out more.`
     : `Thank you for offering — we have enough members responding to the ${call.address} call.`;
-  // PUSH HOOK #4 — member rejected → that specific member
-  sendPush({
-    target: 'unit',
-    unit: String(unit),
-    title: rejTitle,
-    body: rejBody,
-    url: '/cobc-dispatch/',
-    callId: call.id
-  });
+  // Show in-app denial notice to the member via a Firestore flag instead of push
+  // Store rejection notice on the call so the member sees it in their open calls view
+  call._rejectionNotice = call._rejectionNotice || {};
+  call._rejectionNotice[String(unit)] = { title: rejTitle, body: rejBody, at: Date.now() };
+  save(); firestoreUpsertCall(call);
   openCallDetail(callId);
 }
 
@@ -6634,12 +6710,12 @@ async function submitRadioResponders() {
   call.status='active';
   call.activatedAt=call.activatedAt||Date.now();
   save(); firestoreUpsertCall(call); hideModal('radioModal');
-  openCallDetail(id); renderCalls(); renderHome();
+  renderCalls(); renderHome(); showTab('dispatch');
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
     // PUSH #6: radio responders added
     const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
-       setTimeout(()=>sendPush({target:'dispatchers',title:'📻 Responding by Radio',body:`${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
+       setTimeout(()=>sendPush({target:'dispatchers',title:'Assigned to Call',body:`${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
 
   // Push to all with full current responder list
   const allNow=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
@@ -6742,7 +6818,7 @@ function openCallDetail(id) {
       html+=`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 14px;margin-bottom:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div>
-            <div style="font-size:14px;font-weight:700;">BC-${String(r.unit||'').replace(/^BC-?/i,'')} ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
+            <div style="font-size:14px;font-weight:700;">BC-${String(r.unit||'').replace(/^BC-?/i,'')}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
             <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${r.notes?` · ${r.notes}`:''} · ${new Date(r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>
           </div>
           ${m?.phone?`<button class="responder-call-btn" onclick="window.location='tel:${m.phone}'">📞</button>`:''}
@@ -6770,7 +6846,7 @@ function openCallDetail(id) {
       html+=`<div class="responder-row">
         <div style="flex:1;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <div style="font-size:14px;font-weight:700;">BC-${unitKey}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
+            <div style="font-size:14px;font-weight:700;">BC-${unitKey}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
             ${isDispatch&&liveEta!=null?`<span onclick="openLiveMap('${id}')" style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};cursor:pointer;">📍 ${liveEta} min — tap for map</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
@@ -6800,25 +6876,16 @@ function openCallDetail(id) {
   }
 
   // Actions
-  html+=`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">`;
-  if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
-  if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
-  if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Map</button>`;
-  if(call.phone) html+=`<button class="btn-sm btn-ghost" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
-  // Share my location — for approved responders who are on their way
   const _iAmApprovedDetail = (call.responders||[]).some(r=>String(r.unit)===String(SESSION.unit));
-  if(_iAmApprovedDetail && call.status!=='done') html+=`<button class="btn-sm" style="background:#25d366;color:#fff;border:none;" onclick="shareMyLocationOnCall('${id}')">📍 Share Location</button>`;
-
+  html+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">`;
   if(isDispatch) {
-    html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Radio</button>`;
-    if(call.status==='draft') html+=`<button class="btn-sm btn-primary" onclick="publishCall('${id}');hideModal('callDetailModal')">📢 Publish</button>`;
-    // ▶ Active button removed — calls go active automatically when a responder is approved/radio-assigned
-    if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" onclick="reopenCall('${id}');renderCallDetail('${id}')">🔄 Re-open</button>`;
-    if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
-    if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-danger" onclick="cancelCall('${id}')">🚫 Cancel Call</button>`;
-    html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
-    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">WhatsApp</button>`;
-    html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
+    html+=`<button class="btn-sm btn-ghost" style="width:100%;padding:12px;" onclick="openRadioModal('${id}')">Assign Unit</button>`;
+    if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" style="width:100%;padding:12px;" onclick="openBackupModal('${id}')">Backup</button>`;
+    html+=`<button class="btn-sm btn-ghost" style="width:100%;padding:12px;" onclick="openCallEdit('${id}')">Edit</button>`;
+    if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-danger" style="width:100%;padding:12px;" onclick="cancelCall('${id}')">Cancel Call</button>`;
+    if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" style="width:100%;padding:12px;" onclick="openCompleteModal('${id}')">Complete Call</button>`;
+    if(call.status==='draft') html+=`<button class="btn-sm btn-primary" style="width:100%;padding:12px;" onclick="publishCall('${id}');hideModal('callDetailModal')">Publish</button>`;
+    if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" style="width:100%;padding:12px;" onclick="reopenCall('${id}');renderCallDetail('${id}')">Re-open</button>`;
 
     // Vehicle assignment
     if(STATE.vehicles?.length) {
@@ -6827,17 +6894,6 @@ function openCallDetail(id) {
         const assigned=(call.assignedVehicles||[]).includes(v.name);
         html+=`<button class="btn-sm ${assigned?'btn-primary':'btn-ghost'}" onclick="toggleVehicleOnCall('${id}','${v.name}')">${assigned?'✓ ':''} ${v.name}</button>`;
       });
-    }
-
-    // Equipment assignment
-    {
-      const _esc=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      const assignedEq=call.assignedEquipment||[];
-      html+=`</div><div class="section-label">Assign Equipment</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">`;
-      assignedEq.forEach(name=>{
-        html+=`<button class="btn-sm btn-primary" onclick="toggleEquipmentOnCall('${id}','${_esc(name)}')" title="Remove">✓ ${name} <span style="opacity:.7;">✕</span></button>`;
-      });
-      html+=`<button class="btn-sm btn-ghost" onclick="hideModal('callDetailModal');showTab('equipment');setTimeout(()=>setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)')),60)">📦 ${assignedEq.length?'Add / Manage':'Assign Equipment'}</button>`;
     }
   }
   html+=`</div><div style="margin-top:12px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
@@ -7070,11 +7126,11 @@ function confirmCompleteCall() {
   call.completionNotes=notes;
   delete call.completionRequest; // clear any pending member completion request
   logCallEvent(call, 'completed', {outcome, cncReason:outcome==='CNC'?cnc:null, responders:(call.responders||[]).length, durationMin:Math.round((call.completedAt-call.createdAt)/60000)});
-  save(); hideModal('callCompleteModal');
-  renderCalls(); renderHome(); showToast('Call completed'); firestoreUpsertCall(call);
+  save(); hideModal('callCompleteModal'); hideModal('callDetailModal');
+  renderCalls(); renderHome(); showToast('Call closed'); firestoreUpsertCall(call); showTab('dispatch');
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
+    setTimeout(()=>sendPush({target:'all',title:'Call Closed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
 }
 // ── MEMBER COMPLETION REQUEST (needs dispatch approval) ──
 function openMemberCompleteModal(id){
@@ -7092,6 +7148,22 @@ function submitMemberCompletion(){
   if(!call) return;
   const outcome=document.getElementById('memberCompleteOutcome').value;
   const note=outcome==='CNC'?document.getElementById('memberCompleteNote').value.trim():'';
+  // CC auto-closes the call immediately; CNC still requires dispatch approval
+  if(outcome === 'CC') {
+    call.status = 'done';
+    call.completedAt = Date.now();
+    call.completionOutcome = 'CC';
+    call.completionNote = '';
+    call.completionNotes = `Condition Corrected — reported by BC-${String(SESSION.unit).replace(/^BC-?/i,'')}${SESSION.name||SESSION.firstName?' '+(SESSION.name||SESSION.firstName):''}`;
+    logCallEvent(call, 'completed', {outcome:'CC', autoClosedByCc:true, by:SESSION.unit});
+    save(); firestoreUpsertCall(call);
+    hideModal('memberCompleteModal');
+    renderHome(); renderCalls();
+    showToast('✅ Condition Corrected — call closed');
+    const _tl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    sendPush({target:'dispatchers',title:'Call Closed',body:`BC-${String(SESSION.unit).replace(/^BC-?/i,'')} marked Condition Corrected — ${_tl}`,url:'/cobc-dispatch/',callId:call.id});
+    return;
+  }
   call.completionRequest={
     by: SESSION.unit,
     name: SESSION.name||SESSION.firstName||'',
@@ -7122,7 +7194,7 @@ function approveCallCompletion(id){
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   showToast(`✅ Call completed (${cr.outcome})`);
   // Notify the member who requested it
-  sendPush({target:'unit',unit:String(cr.by),title:'✅ Completion Approved',body:`Dispatch confirmed your ${cr.outcome} report. Call closed.`,url:'/cobc-dispatch/',callId:call.id});
+  sendPush({target:'unit',unit:String(cr.by),title:'Call Closed',body:`${cr.outcome} confirmed — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id});
   const _cl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cl} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
 }
@@ -7871,7 +7943,7 @@ function renderMemberDir() {
         <div class="list-sub">${formatPhone(m.phone)||'No phone'} · <span style="color:var(--blue);font-size:10px;font-weight:700;">${(m.role||'member').split(',')[0].trim().toUpperCase()}</span></div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
-        ${m.phone?`<button class="responder-call-btn" onclick="event.stopPropagation();window.location='tel:${m.phone}'">📞</button>`:''}
+        ${m.phone?`<button class="responder-call-btn" onclick="event.stopPropagation();window.location='tel:${m.phone}'">📞</button><a href="https://wa.me/${m.phone.replace(/\D/g,'')}" onclick="event.stopPropagation()" target="_blank" style="display:inline-flex;align-items:center;justify-content:center;background:#25d366;color:#fff;border-radius:8px;padding:6px 10px;font-size:15px;text-decoration:none;">💬</a>`:''}
         ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit||m.id}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Edit role">✏️</button>`:''}
         ${SESSION.role==='dispatch'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit||m.id}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="View member info">ℹ️</button>`:''}
         ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();deleteMemberLocal('${m.unit||m.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
@@ -8832,15 +8904,10 @@ let _telzioRecentInFlight = false;
 let _telzioRecentFails = 0;
 let _telzioRecentSkipUntil = 0;
 function subscribeTelzioRecentList() {
-  // Show cached data immediately on load (before first fetch)
-  try {
-    var cached = JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null');
-    if(cached && cached.length) renderTelzioRecentList(cached);
-  } catch(e){}
-  // Fetch immediately, then refresh every 8s while logged in
+  // Fetch immediately, then refresh every 30s while logged in
   _loadTelzioRecent();
   if(_telzioRecentTimer) clearInterval(_telzioRecentTimer);
-  _telzioRecentTimer = setInterval(_loadTelzioRecent, 8000);
+  _telzioRecentTimer = setInterval(_loadTelzioRecent, 30000);
 }
 async function _loadTelzioRecent() {
   // Dispatch/admin only — skip the network call entirely for members
@@ -8891,18 +8958,11 @@ function renderTelzioRecentList(calls){
   if(!panel || !list) return;
   // Dispatch/admin only
   if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) { panel.style.display='none'; return; }
-  // Persist to localStorage so panel survives app restart
-  if(calls && calls.length) {
-    try { localStorage.setItem('cobc_telzio_recent', JSON.stringify(calls)); } catch(e){}
+  if(!calls || !calls.length){ 
+    // Don't hide if it was already showing — keep the last data visible
+    if(panel.style.display==='none') panel.style.display='none';
+    return; 
   }
-  // Use cached data if no fresh data
-  if(!calls || !calls.length) {
-    try {
-      var cached = JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null');
-      if(cached && cached.length) calls = cached;
-    } catch(e){}
-  }
-  if(!calls || !calls.length){ panel.style.display='none'; return; }
   panel.style.display='block';
   if(sub) sub.textContent = 'last '+calls.length;
   list.innerHTML = calls.map(c=>{
@@ -8915,19 +8975,45 @@ function renderTelzioRecentList(calls){
       +  (c.name&&pretty?'<div style="font-size:12px;color:var(--text3);">'+pretty+'</div>':'')
       +'</div>'
       +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;">'+_telzioFmtWhen(c.at)+'</div>'
-      +(c.phone?'<button onclick="_newCallFromRecent(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+c.phone+'\')" style="background:var(--navy,#0f2540);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Call</button>':'')
+      +(c.phone?'<button onclick="_newCallFromRecent(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+c.phone+'\')" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">🚨 Create Call</button>':'')
       +'</div>';
   }).join('');
 }
-// Start a New Call pre-filled from a recent-calls row
+// Auto-create a pending call from a Telzio recent-calls row
 function _newCallFromRecent(name, phone){
-  if(typeof showModal==='function') showModal('newCallModal');
-  setTimeout(()=>{
-    const nameEl=document.getElementById('callCaller');
-    const phoneEl=document.getElementById('callPhone');
-    if(nameEl) nameEl.value=name||'';
-    if(phoneEl) phoneEl.value=phone||'';
-  }, 60);
+  if(!['admin','dispatch'].includes(SESSION.role)){ showToast('Only dispatch can create calls'); return; }
+  const call = {
+    id: 'C'+Date.now(),
+    callNum: null,           // no number yet — not dispatched
+    type: '',                // dispatcher must fill in
+    address: '',
+    town: (STATE.settings?.defaultTown || 'Teaneck'),
+    caller: name || '',
+    phone: phone || '',
+    priority: 'normal',
+    notes: '',
+    status: 'open',          // visible to dispatch immediately
+    _pendingInfo: true,      // flag to show "needs info" badge
+    createdAt: Date.now(),
+    responders: [],
+    pendingResponders: [],
+    rejectedResponders: [],
+    backupRequests: [],
+    assignedVehicles: [],
+    assignedEquipment: [],
+    createdBy: SESSION.unit,
+    rrCount: 0,
+    rrLastSent: null,
+    source: 'telzio',
+  };
+  STATE.calls.push(call);
+  save();
+  firestoreUpsertCall(call);
+  logCallEvent(call, 'created', {dispatcher:SESSION.unit, source:'telzio', caller:name, phone});
+  renderCalls(); renderHome();
+  showToast('📞 Call created from incoming — tap to complete details');
+  // Open the edit modal so dispatcher can fill in type/address etc.
+  setTimeout(()=>{ openCallEdit(call.id); }, 200);
 }
 // Fill the New Call caller fields from the latest Telzio call (fills empties unless force)
 function _applyTelzioToForm(force) {
@@ -9038,7 +9124,11 @@ function _dismissIncomingBanner(){
 }
 function _startCallFromBanner(){
   _dismissIncomingBanner();
-  if(typeof showModal==='function') showModal('newCallModal'); // showModal auto-fills from _lastTelzioCall
+  if(_lastTelzioCall && (_lastTelzioCall.phone || _lastTelzioCall.name)){
+    _newCallFromRecent(_lastTelzioCall.name||'', _lastTelzioCall.phone||'');
+  } else {
+    if(typeof showModal==='function') showModal('newCallModal');
+  }
 }
 function pushScheduleToFirestore() {
   try {
