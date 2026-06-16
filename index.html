@@ -3198,32 +3198,19 @@ function formatPhone(raw) {
 // Routes through the same Apps Script as push notifications (server-side → Bergen bot)
 const WA_GROUP_ID = '120363429005503944@g.us'; // test group
 
-// Send a WhatsApp message to the group via Apps Script proxy
-// Short messages use GET (avoids redirect body loss)
-// Long messages (dispatch) use POST — GET URL would be too long
-async function sendWA(payload) {
+// Send a WhatsApp message via image beacon — fires even if iOS PWA navigates
+function sendWA(payload) {
   const { target, message } = payload;
   if (!message || target !== 'all') return;
   try {
-    if (message.length > 300) {
-      // Message too long for GET — use POST
-      // Note: POST may have redirect issues on iOS PWA; keep messages short when possible
-      await fetch(PUSH_SEND_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action:'sendWA', key:PUSH_SHARED_KEY, chat:WA_GROUP_ID, text:message })
-      });
-      console.log('[WA] sent via POST, length=' + message.length);
-    } else {
-      // GET for short messages
-      const url = PUSH_SEND_URL
-        + '?action=sendWA'
-        + '&key=' + encodeURIComponent(PUSH_SHARED_KEY)
-        + '&chat=' + encodeURIComponent(WA_GROUP_ID)
-        + '&text=' + encodeURIComponent(message);
-      await fetch(url);
-      console.log('[WA] sent via GET, length=' + message.length);
-    }
+    const url = PUSH_SEND_URL
+      + '?action=sendWA'
+      + '&key=' + encodeURIComponent(PUSH_SHARED_KEY)
+      + '&chat=' + encodeURIComponent(WA_GROUP_ID)
+      + '&text=' + encodeURIComponent(message);
+    const img = new Image();
+    img.src = url;
+    console.log('[WA] beacon fired, length=' + message.length);
   } catch(e) { console.warn('WA send error:', e); }
 }
 
@@ -5930,7 +5917,7 @@ function createCall() {
 setTimeout(() => {
       sendPush({
       target: 'all',
-      title: (priority === 'high' || priority === 'urgent') ? '🚨 New COBC Call' : '⚡ New COBC Call',
+      title: (priority === 'high' || priority === 'urgent') ? `🚨 New COBC Call #${call.callNum||''}` : `⚡ New COBC Call #${call.callNum||''}`,
       body: `${_typeLabel} — ${call.address}, ${call.town}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
