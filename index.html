@@ -3185,22 +3185,25 @@ function formatPhone(raw) {
 
 // ── §WA-CONFIG  Twilio WhatsApp ──────────────────────────────────────────────
 // Point WA_SEND_URL at the same Apps Script as PUSH_SEND_URL (or a new deploy).
-// After pasting twilio-apps-script-addon.js into your Apps Script and re-deploying,
-// paste the new /exec URL here. WA_SHARED_KEY must match WA_SHARED_KEY in the script.
-const WA_SEND_URL   = "https://us-east1-cobc-dispatch.cloudfunctions.net/sendWhatsApp"; // ✅ set
-const WA_SHARED_KEY = "cobc-2026-shared-secret";              // ← must match Apps Script
+// ── WhatsApp Bot — direct API (mosheadest.com/bergen) ──
+// Sends to the group automatically — no Twilio, no Apps Script needed.
+const WA_API_URL   = 'https://mosheadest.com/bergen/sendApi.php';
+const WA_API_TOKEN = '153da9b01a89fbacf9417a3f9c5e5b94';
+const WA_GROUP_ID  = '120363429005503944@g.us'; // test group — replace with real group ID when ready
 
-// Sends a WhatsApp message via Twilio through the Apps Script proxy.
-// payload: { target:'all'|'dispatchers'|'unit'|'phones', unit?:'24', phones?:['+1…'], message:'' }
 async function sendWA(payload) {
-  if (!WA_SEND_URL || WA_SEND_URL.startsWith("PASTE_")) return;
+  if (!WA_API_URL || !WA_API_TOKEN) return;
+  const msg = payload.message || payload.text || '';
+  if (!msg) return;
   try {
-    await fetch(WA_SEND_URL, {
+    const resp = await fetch(`${WA_API_URL}?token=${WA_API_TOKEN}&chat=${encodeURIComponent(WA_GROUP_ID)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'sendWhatsApp', key: WA_SHARED_KEY, ...payload })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: msg })
     });
-  } catch (e) { console.warn('WA send failed:', e); }
+    const data = await resp.json();
+    if (!data.ok) console.warn('WA send failed:', data.error);
+  } catch(e) { console.warn('WA send error:', e); }
 }
 
 // Build the group dispatch message (reuses existing buildDispatchWhatsApp logic).
@@ -8909,7 +8912,7 @@ async function _loadTelzioRecent() {
   if(Date.now() < _telzioRecentSkipUntil) return; // honor backoff
   _telzioRecentInFlight = true;
   try {
-    const resp = await telzioFetch('/calls/log?MaxResults=5');
+    const resp = await telzioFetch('/calls/log?MaxResults=5&Direction=inbound');
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     const data = await resp.json();
     _telzioRecentFails = 0;
@@ -9009,7 +9012,7 @@ async function autofillFromLastCall(){
   if(btn){ btn.disabled=true; btn.innerHTML='⏳ Fetching…'; }
   try{
     // Option B: direct proxy call (bypasses Apps Script, no 403)
-    var resp = await telzioFetch('/calls/log?MaxResults=3');
+    var resp = await telzioFetch('/calls/log?MaxResults=3&Direction=inbound');
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     var data = await resp.json();
     var calls = Array.isArray(data) ? data : (data.Calls || data.calls || data.CallLog || []);
@@ -9043,7 +9046,7 @@ async function autoPullCallerOnOpen(){
   if(btn){ btn.innerHTML='⏳ Getting last caller…'; btn.disabled=true; }
   try{
     // Option B: direct proxy — silent, no 403
-    var resp2 = await telzioFetch('/calls/log?MaxResults=3');
+    var resp2 = await telzioFetch('/calls/log?MaxResults=3&Direction=inbound');
     if(resp2.ok){
       var data2 = await resp2.json();
       var calls2 = Array.isArray(data2) ? data2 : (data2.Calls||data2.calls||data2.CallLog||[]);
