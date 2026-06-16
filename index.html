@@ -6380,7 +6380,7 @@ function _doApproveResponder(callId, unit, call, req) {
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} approved`);
   // WA: group update — "BC-X is responding to call #X"
-  setTimeout(()=>sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }), 500);
+  setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }); } catch(e){} }, 800);
   // (duplicate push removed — single approval notification below)
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   // Push 1: personal approval to the member
@@ -6459,7 +6459,7 @@ function submitBackup() {
     const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
     setTimeout(()=>sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
   // WA: backup alert → all members
-    setTimeout(()=>sendWA({ target:'all', message: _waMsgBackup(call, _backupReq) }),200);
+    setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgBackup(call, _backupReq) }); } catch(e){} }, 800);
 }
 
 // ── Radio Responder ──
@@ -6760,8 +6760,11 @@ function publishCall(id) {
   call.status='open'; call.rrLastSent=Date.now();
   save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
-  // WA: dispatch message to group
-  sendWA({ target:'all', message: buildDispatchWhatsApp(call) });
+  // WA: dispatch message to group — deferred so iOS PWA doesn't abort the fetch
+  setTimeout(() => {
+    try { sendWA({ target:'all', message: buildDispatchWhatsApp(call) }); }
+    catch(e) { console.warn('WA dispatch error:', e); }
+  }, 800);
 }
 
 function toggleVehicleOnCall(callId, vName) {
@@ -6977,7 +6980,7 @@ function confirmCompleteCall() {
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:`Thank you for responding 🙏`,url:'/cobc-dispatch/'}),0);
-    setTimeout(()=>sendWA({ target:'all', message: _waMsgComplete(call) }),600);
+    setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgComplete(call) }); } catch(e){} },800);
 }
 // ── MEMBER COMPLETION REQUEST (needs dispatch approval) ──
 function openMemberCompleteModal(id){
@@ -7035,7 +7038,7 @@ function approveCallCompletion(id){
   sendPush({target:'unit',unit:String(cr.by),title:'✅ Completion Approved',body:`Dispatch confirmed your ${cr.outcome} report. Call closed.`,url:'/cobc-dispatch/',callId:call.id});
   const _cl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:`Thank you for responding 🙏`,url:'/cobc-dispatch/'}),0);
-  setTimeout(()=>sendWA({ target:'all', message: _waMsgComplete(call) }),600);
+  setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgComplete(call) }); } catch(e){} },800);
 }
 function denyCallCompletion(id){
   const call=STATE.calls.find(c=>c.id===id);
