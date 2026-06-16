@@ -3206,7 +3206,8 @@ async function sendWA(payload) {
   if (!message || target !== 'all') return;
   try {
     if (message.length > 300) {
-      // POST for long dispatch messages
+      // Message too long for GET — use POST
+      // Note: POST may have redirect issues on iOS PWA; keep messages short when possible
       await fetch(PUSH_SEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -6772,11 +6773,20 @@ function publishCall(id) {
   call.status='open'; call.rrLastSent=Date.now();
   save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
-  // WA: build message immediately (before any async ops), send after short delay
-  const _waDispatchMsg = buildDispatchWhatsApp(call);
+  // WA: short dispatch message with waiver + app links
+  const _waShortMsg = (()=>{
+    const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
+    let m = `📢 *COBC Call #${call.callNum||''}*\n`;
+    m += `${typeLabel} — ${call.address}, ${call.town}`;
+    if (call.caller) m += `\nCaller: ${call.caller}`;
+    if (call.phone)  m += ` · ${call.phone}`;
+    m += `\n\nWaiver: https://form.jotform.com/212776438913868`;
+    m += `\nApp: https://aryehw330-lgtm.github.io/cobc-dispatch/`;
+    return m;
+  })();
   setTimeout(() => {
-    sendWA({ target:'all', message: _waDispatchMsg });
-    console.log('[WA] dispatch message sent for call #' + call.callNum);
+    sendWA({ target:'all', message: _waShortMsg });
+    console.log('[WA] dispatch sent, length=' + _waShortMsg.length);
   }, 800);
 }
 
