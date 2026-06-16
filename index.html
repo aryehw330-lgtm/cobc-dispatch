@@ -3194,138 +3194,15 @@ function formatPhone(raw) {
   return raw; // fallback: return as-is
 }
 
-// ── §WA-CONFIG  Twilio WhatsApp (original) ───────────────────────────────────
-const WA_SEND_URL   = "https://us-east1-cobc-dispatch.cloudfunctions.net/sendWhatsApp"; // ✅ set
-const WA_SHARED_KEY = "cobc-2026-shared-secret";              // ← must match Apps Script
+// ── §WA-CONFIG  WhatsApp — disabled, pending re-implementation ──────────────
+// Fill these in when ready to reconnect:
+const WA_WORKER_URL = ''; // e.g. 'https://cobc-telzio.aryehw330.workers.dev/sendwa'
+const WA_GROUP_ID   = ''; // e.g. '120363429005503944@g.us'
 
-// ── §WA-CONFIG2  WhatsApp proxy via Cloudflare Worker ───────────────────────
-// Worker handles CORS + logging — deploy wa-worker.js to Cloudflare first.
-// If using the existing cobc-telzio worker, the URL is:
-const WA_WORKER_URL = ''; // disabled — re-enable when Cloudflare worker is ready
-// Test group — when ready for the real group, update this one line:
-const WA_GROUP_ID  = '120363429005503944@g.us';
-
-// Sends a WhatsApp message via BOTH the original Twilio proxy AND the new Bergen bot API.
-// payload: { target:'all'|'dispatchers'|'unit'|'phones', unit?:'24', phones?:['+1…'], message:'' }
+// sendWA — stub until WhatsApp integration is reconnected
 async function sendWA(payload) {
-  // ── Path 1: Original Twilio / Firebase Cloud Function ──
-  if (WA_SEND_URL && !WA_SEND_URL.startsWith("PASTE_")) {
-    try {
-      await fetch(WA_SEND_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'sendWhatsApp', key: WA_SHARED_KEY, ...payload })
-      });
-    } catch (e) { console.warn('WA (Twilio) send failed:', e); }
-  }
-
-  // ── Path 2: Bergen bot via Cloudflare Worker proxy ──
-  if (!WA_WORKER_URL) return;
-  const { target, message } = payload;
-  if (!message) return;
-
-  // Only send to the group — no individual/private messages
-  if (target !== 'all') return;
-
-  try {
-    // Worker handles CORS — we can use full JSON + read the real response
-    const res = await fetch(WA_WORKER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-cobc-token': TELZIO_TOKEN  // reuse existing COBC token
-      },
-      body: JSON.stringify({ chat: WA_GROUP_ID, text: message })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) {
-      console.warn('WA group send failed:', res.status, data);
-    } else {
-      console.log('WA group sent OK:', data);
-    }
-  } catch (e) { console.warn('WA (Worker) group send failed:', e); }
-}
-
-// Build the group dispatch message (reuses existing buildDispatchWhatsApp logic).
-// We call sendWA here instead of openWA so it fires automatically.
-function _waMsgDispatch(call) {
-  return buildDispatchWhatsApp(call);
-}
-
-// "BC-24 John D. wants to respond — tap to review in the app"
-function _waMsgPendingResponder(call, responder) {
-  const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  const appLink   = `https://aryehw330-lgtm.github.io/cobc-dispatch/`;
-  const unitDisp  = String(responder.unit||'').replace(/^BC-?/i,'');
-  let msg = `📲 *BC-${unitDisp} ${responder.name||''} wants to respond*\n`;
-  if (responder.observerOnly) msg = `👁️ *BC-${unitDisp} ${responder.name||''} wants to observe*\n`;
-  msg += `${typeLabel} · ${call.address}, ${call.town}\n`;
-  msg += `ETA: ${responder.eta||'?'} min`;
-  if (responder.notes) msg += ` · ${responder.notes}`;
-  msg += `\n\nTap to approve/deny:\n${appLink}`;
-  return msg;
-}
-
-// "✅ You're approved — here's your call"
-function _waMsgApproved(call, responder) {
-  const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  const mapLink   = `https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
-  const appLink   = `https://aryehw330-lgtm.github.io/cobc-dispatch/`;
-  let msg = `✅ *You're approved to respond!*\n`;
-  msg += `${typeLabel} · ${call.address}, ${call.town}\n`;
-  if (call.caller) msg += `Caller: ${call.caller}\n`;
-  if (call.phone)  msg += `Phone: ${call.phone}\n`;
-  if (call.notes)  msg += `Notes: ${call.notes}\n`;
-  msg += `\nMap: ${mapLink}\nApp: ${appLink}`;
-  return msg;
-}
-
-// "🚗 BC-24 John D. is responding" — sent to all members
-function _waMsgResponderUpdate(call, newResponder) {
-  const typeLabel    = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  const unitDisp     = String(newResponder.unit||'').replace(/^BC-?/i,'');
-  const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
-  const callNum = call.callNum ? ` to call #${call.callNum}` : '';
-  let msg = `🚗 *BC-${unitDisp} ${newResponder.name||''} is responding${callNum}*\n`;
-  msg += `${typeLabel} · ${call.address}, ${call.town}\n`;
-  if (allResponders) msg += `On call: ${allResponders}`;
-  return msg;
-}
-
-// "✅ Call complete — thank you"
-function _waMsgComplete(call) {
-  const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  const responders = (call.responders || []);
-  let msg = `✅ *Call Complete*\n`;
-  msg += `${typeLabel} · ${call.address}, ${call.town}\n`;
-  if (responders.length) {
-    const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')} ${r.name||r.firstName||''}`).join(', ');
-    msg += `\nThank you to: ${names}`;
-  }
-  return msg;
-}
-
-// "🆘 BACKUP NEEDED"
-function _waMsgBackup(call, backupReq) {
-  const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  const appLink   = `https://aryehw330-lgtm.github.io/cobc-dispatch/`;
-  let msg = `🆘 *BACKUP NEEDED*\n`;
-  msg += `${typeLabel} · ${call.address}, ${call.town}\n`;
-  if (backupReq.equipment) msg += `Equipment: ${backupReq.equipment}\n`;
-  if (backupReq.notes)     msg += `Notes: ${backupReq.notes}\n`;
-  msg += `\nApp: ${appLink}`;
-  return msg;
-}
-
-// "📻 BC-24 John D., BC-31 Mike S. responding by radio" — sent to all members
-function _waMsgRadioAdd(call, radioMembers) {
-  const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  const names = radioMembers.map(m => `BC-${String(m.unit).replace(/^BC-/i,'')} ${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim()).join(', ');
-  const allNow = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
-  let msg = `📻 *${names} responding by radio*\n`;
-  msg += `${typeLabel} · ${call.address}, ${call.town}`;
-  if (allNow) msg += `\nOn call: ${allNow}`;
-  return msg;
+  if (!WA_WORKER_URL || !WA_GROUP_ID) return; // not configured yet
+  // TODO: implement when Cloudflare worker is ready
 }
 
 async function sendTestPush() {
@@ -6343,7 +6220,9 @@ function removeApprovedResponder(callId, unit) {
   call.responders=call.responders.filter(r=>String(r.unit)!==String(unit));
   if(!call.responders.length && !call.pendingResponders?.length) call.status='open';
   logCallEvent(call,'responder_removed',{responder:unit,removedBy:SESSION.unit});
-  save(); firestoreUpsertCall(call); openCallDetail(callId); renderCalls(); renderHome();
+  save(); firestoreUpsertCall(call); renderCalls(); renderHome();
+  hideModal('callDetailModal');
+  showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
   showToast(`BC-${String(unit||'').replace(/^BC-?/i,'')} removed from call`);
   // Notify the removed member — do not respond
   const _rmTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -6510,9 +6389,8 @@ function _doApproveResponder(callId, unit, call, req) {
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} approved`);
-  // WA: personal approval message to the member
-  // WA: group update — "BC-X is responding"
-  setTimeout(()=>sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }), 500);
+  // WA: group update — re-enable when WhatsApp is reconnected
+  // setTimeout(()=>sendWA({ target:'all', message: `🚗 BC-${unit} is responding to call #${call.callNum}` }), 500);
   // (duplicate push removed — single approval notification below)
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   // Push 1: personal approval to the member
@@ -6529,7 +6407,8 @@ function _doApproveResponder(callId, unit, call, req) {
     title:`🚗 BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding to call #${call.callNum||''}`,
     url:'/cobc-dispatch/', callId:call.id
   });
-  openCallDetail(callId);
+  hideModal('callDetailModal');
+  showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
 }
 
 // ── Dispatcher rejects a pending responder ──
@@ -6560,7 +6439,8 @@ function rejectResponder(callId,unit) {
     url: '/cobc-dispatch/',
     callId: call.id
   });
-  openCallDetail(callId);
+  hideModal('callDetailModal');
+  showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
 }
 
 // ── Backup Request ──
@@ -6588,8 +6468,8 @@ function submitBackup() {
     // PUSH #5: backup request → all
     const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
     setTimeout(()=>sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
-    // WA: backup alert → all members
-    setTimeout(()=>sendWA({ target:'all', message: _waMsgBackup(call, _backupReq) }),200);
+    // WA: backup alert — re-enable when WhatsApp is reconnected
+    // setTimeout(()=>sendWA({ target:'all', message: `🆘 BACKUP NEEDED · ${call.address}, ${call.town}` }),200);
 }
 
 // ── Radio Responder ──
@@ -6682,10 +6562,8 @@ async function submitRadioResponders() {
   const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
   setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
-  // WA: same "BC-X is responding" message for each radio member
-  radioSelectedMembers.forEach((m, i) => {
-    setTimeout(() => sendWA({ target:'all', message: _waMsgResponderUpdate(call, m) }), 400 + i * 600);
-  });
+  // WA: radio responders — re-enable when WhatsApp is reconnected
+  // radioSelectedMembers.forEach((m, i) => { setTimeout(() => sendWA({...}), 400 + i*600); });
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
@@ -6890,8 +6768,8 @@ function publishCall(id) {
   call.status='open'; call.rrLastSent=Date.now();
   save(); firestoreUpsertCall(call); renderCalls(); renderHome(); showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
-  // Auto-send dispatch message to all members via Twilio WhatsApp
-  sendWA({ target:'all', message: _waMsgDispatch(call) });
+  // WA: dispatch message — re-enable when WhatsApp is reconnected
+  // sendWA({ target:'all', message: buildDispatchWhatsApp(call) });
 }
 
 function toggleVehicleOnCall(callId, vName) {
@@ -7086,7 +6964,6 @@ function openCompleteModal(id) {
   document.getElementById('completeNote').value='';
   document.getElementById('completeNotes').value='';
   document.getElementById('completeNoteGroup').style.display='none';
-  document.getElementById('completeSendWA').checked=true;
   hideModal('callDetailModal');
   showModal('callCompleteModal');
 }
@@ -7097,7 +6974,6 @@ function confirmCompleteCall() {
   const outcome=document.getElementById('completeOutcome').value;
   const cnc=document.getElementById('completeNote').value.trim();
   const notes=document.getElementById('completeNotes').value.trim();
-  const sendWA=document.getElementById('completeSendWA').checked;
   call.status='done';
   call.completedAt=Date.now();
   call.completionOutcome=outcome;  call.completionNote=outcome==='CNC'?cnc:'';
