@@ -2950,9 +2950,9 @@ async function initFirebaseApp() {
     _firebaseReady = true;
     initFirestore(); // start Firestore real-time sync
     subscribeScheduleFromFirestore(); // sync dispatch schedule from Firestore
-    subscribeTelzioFromFirestore(); // live caller ID from Telzio webhook → Firestore
-    subscribeTelzioRecentList();    // last 5 incoming calls panel on Dispatch
-    startTelzioLivePolling();       // Option C: live polling every 3 s via own Cloudflare Worker
+    // subscribeTelzioFromFirestore(); // disabled — re-enable when Cloudflare worker is ready
+    // subscribeTelzioRecentList();    // disabled — re-enable when Cloudflare worker is ready
+    // startTelzioLivePolling();       // disabled — re-enable when Cloudflare worker is ready
     // Attempt messaging (non-critical — silently fails on iOS non-standalone)
     initPushModule().catch(()=>{});
     // Restore saved session after Firebase is ready
@@ -3159,8 +3159,20 @@ async function sendTestPush() {
 const PUSH_SEND_URL  = "https://script.google.com/macros/s/AKfycbyrOTdBNqyvoDOBRx_n_BuxvSXP6IvrndPQv0dKBKCoQyhOTXT1KoxBHlbArty9eBxsFQ/exec";    // ✅ set
 const PUSH_SHARED_KEY = "cobc-2026-shared-secret";   // ✅ set
 async function sendPush(payload) {
-  // payload: { target: 'all' | 'dispatchers' | 'unit', unit?: '24', title, body, url?, urgent? }
+  // payload: { target: 'all' | 'dispatchers' | 'unit', unit?: '24', title, body, url?, urgent?, excludeUnit? }
   if (!PUSH_SEND_URL || PUSH_SEND_URL.startsWith("PASTE_")) return;
+
+  // excludeUnit: when target='all', loop members and skip that unit
+  if (payload.excludeUnit && payload.target === 'all') {
+    const excl = String(payload.excludeUnit||'').replace(/^BC-?/i,'').trim();
+    const { excludeUnit, ...rest } = payload;
+    (STATE.members||[]).forEach(m => {
+      const u = String(m.unit||'').replace(/^BC-?/i,'').trim();
+      if (u && u !== excl) sendPush({...rest, target:'unit', unit:u});
+    });
+    return;
+  }
+
   try {
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
@@ -3186,9 +3198,10 @@ function formatPhone(raw) {
 const WA_SEND_URL   = "https://us-east1-cobc-dispatch.cloudfunctions.net/sendWhatsApp"; // ✅ set
 const WA_SHARED_KEY = "cobc-2026-shared-secret";              // ← must match Apps Script
 
-// ── §WA-CONFIG2  Direct WhatsApp API (Bergen County bot) ─────────────────────
-const WA_API_URL   = 'https://mosheadest.com/bergen/sendApi.php';
-const WA_API_TOKEN = '153da9b01a89fbacf9417a3f9c5e5b94';
+// ── §WA-CONFIG2  WhatsApp proxy via Cloudflare Worker ───────────────────────
+// Worker handles CORS + logging — deploy wa-worker.js to Cloudflare first.
+// If using the existing cobc-telzio worker, the URL is:
+const WA_WORKER_URL = ''; // disabled — re-enable when Cloudflare worker is ready
 // Test group — when ready for the real group, update this one line:
 const WA_GROUP_ID  = '120363429005503944@g.us';
 
@@ -3206,8 +3219,8 @@ async function sendWA(payload) {
     } catch (e) { console.warn('WA (Twilio) send failed:', e); }
   }
 
-  // ── Path 2: Bergen bot direct API — group only ──
-  if (!WA_API_URL || !WA_API_TOKEN) return;
+  // ── Path 2: Bergen bot via Cloudflare Worker proxy ──
+  if (!WA_WORKER_URL) return;
   const { target, message } = payload;
   if (!message) return;
 
@@ -3215,13 +3228,22 @@ async function sendWA(payload) {
   if (target !== 'all') return;
 
   try {
-    // text goes in URL param so no-cors mode can deliver it (browsers strip
-    // application/json headers in no-cors, making the body invisible to PHP)
-    await fetch(
-      `${WA_API_URL}?token=${encodeURIComponent(WA_API_TOKEN)}&chat=${encodeURIComponent(WA_GROUP_ID)}&text=${encodeURIComponent(message)}`,
-      { method: 'GET', mode: 'no-cors' }
-    );
-  } catch (e) { console.warn('WA (Bergen bot) group send failed:', e); }
+    // Worker handles CORS — we can use full JSON + read the real response
+    const res = await fetch(WA_WORKER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cobc-token': TELZIO_TOKEN  // reuse existing COBC token
+      },
+      body: JSON.stringify({ chat: WA_GROUP_ID, text: message })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      console.warn('WA group send failed:', res.status, data);
+    } else {
+      console.log('WA group sent OK:', data);
+    }
+  } catch (e) { console.warn('WA (Worker) group send failed:', e); }
 }
 
 // Build the group dispatch message (reuses existing buildDispatchWhatsApp logic).
@@ -6491,31 +6513,20 @@ function _doApproveResponder(callId, unit, call, req) {
   // WA: personal approval message to the member
   // WA: group update — "BC-X is responding"
   setTimeout(()=>sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }), 500);
-  // PUSH HOOK #3 — member approved → that specific member
-  const _typeLabelApp = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  sendPush({
-    target: 'unit',
-    unit: String(unit),
-    title: '✅ Approved to Respond',
-    body: `${_typeLabelApp} — ${call.address}, ${call.town}`,
-    url: '/cobc-dispatch/',
-    urgent: 'true',
-    callId: call.id
-  });
+  // (duplicate push removed — single approval notification below)
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   // Push 1: personal approval to the member
   sendPush({
     target:'unit', unit:String(unit),
-    title:'✅ You\'re approved!',
-    body:`Respond to ${typeLabel} at ${call.address}, ${call.town} · ETA ${req.eta} min`,
+    title:`✅ Approved to respond to call #${call.callNum||''}`,
+    body:`${typeLabel} · ${call.address}, ${call.town} · ETA ${req.eta} min`,
     url:'/cobc-dispatch/', callId:call.id, urgent:'true'
   });
-  // Push 2: update everyone with full current responder list
-  const allResponders=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
+  // Push 2: update everyone EXCEPT the approved member — short title only, no body
   sendPush({
     target:'all',
-    title:`🚗 BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding`,
-    body:`${typeLabel} — ${call.address}, ${call.town} · Now: ${allResponders}`,
+    excludeUnit: String(unit),
+    title:`🚗 BC-${String(unit||'').replace(/^BC-?/i,'')} ${req.name} is responding to call #${call.callNum||''}`,
     url:'/cobc-dispatch/', callId:call.id
   });
   openCallDetail(callId);
@@ -7097,8 +7108,7 @@ function confirmCompleteCall() {
   renderCalls(); renderHome(); showToast('Call completed'); firestoreUpsertCall(call);
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
-  setTimeout(()=>sendWA({ target:'all', message: _waMsgComplete(call) }),400);
+    setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:`Thank you for responding 🙏`,url:'/cobc-dispatch/'}),0);
 }
 // ── MEMBER COMPLETION REQUEST (needs dispatch approval) ──
 function openMemberCompleteModal(id){
@@ -7127,9 +7137,16 @@ function submitMemberCompletion(){
   save(); firestoreUpsertCall(call);
   hideModal('memberCompleteModal');
   renderHome(); renderCalls();
+  // Go to main area — not the call card
+  showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
   showToast('📋 Sent to dispatch for approval');
   const _tl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  sendPush({target:'dispatchers',title:'📋 Completion Request',body:`BC-${String(SESSION.unit).replace(/^BC-?/i,'')} reports ${outcome} — ${_tl}`,url:'/cobc-dispatch/',urgent:'true',callId:call.id});
+  // Notify dispatchers on duty (no callId → opens dispatch tab, not call card)
+  sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/',urgent:'true'});
+  // Also notify every admin
+  (STATE.members||[]).filter(m=>m.role==='admin'&&m.unit).forEach(m=>{
+    sendPush({target:'unit',unit:String(m.unit),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/',urgent:'true'});
+  });
 }
 function approveCallCompletion(id){
   const call=STATE.calls.find(c=>c.id===id);
@@ -7148,8 +7165,7 @@ function approveCallCompletion(id){
   // Notify the member who requested it
   sendPush({target:'unit',unit:String(cr.by),title:'✅ Completion Approved',body:`Dispatch confirmed your ${cr.outcome} report. Call closed.`,url:'/cobc-dispatch/',callId:call.id});
   const _cl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  setTimeout(()=>sendPush({target:'all',title:'✅ Call Completed',body:`${_cl} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:call.id}),0);
-  setTimeout(()=>sendWA({ target:'all', message: _waMsgComplete(call) }),400);
+  setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:`Thank you for responding 🙏`,url:'/cobc-dispatch/'}),0);
 }
 function denyCallCompletion(id){
   const call=STATE.calls.find(c=>c.id===id);
