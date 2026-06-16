@@ -3237,6 +3237,7 @@ async function sendWA(payload) {
         `${WA_API_URL}?token=${encodeURIComponent(WA_API_TOKEN)}&chat=${encodeURIComponent(chat)}`,
         {
           method: 'POST',
+          mode: 'no-cors',  // server doesn't send CORS headers — no-cors still delivers the message
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: message })
         }
