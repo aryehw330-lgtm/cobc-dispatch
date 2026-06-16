@@ -5077,6 +5077,34 @@ function renderPendingRespondersBanner(targetEl) {
         </div>`;
       }).join('')}
     </div>`;
+
+  // ── Completion request purple banner ──
+  const compItems = [];
+  if(isDisp) {
+    (STATE.calls||[]).forEach(call => {
+      if(call.completionRequest && call.status!=='done') compItems.push(call);
+    });
+  }
+  if(compItems.length) {
+    const compHtml = compItems.map(call => {
+      const cr = call.completionRequest;
+      const typeRaw = call.type||'other';
+      const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
+      return `<div style="background:rgba(255,255,255,.12);border:1px solid rgba(167,139,250,.3);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">`
+        +`<div style="flex:1;min-width:0;">`
+        +`<div style="font-size:13px;font-weight:700;color:#fff;">BC-${String(cr.by||'').replace(/^BC-?/i,'')} ${cr.name||''} reports <span style="background:rgba(167,139,250,.3);color:#c4b5fd;padding:1px 7px;border-radius:5px;">${cr.outcome}</span>${cr.note?' — '+cr.note:''}</div>`
+        +`<div style="font-size:11px;color:rgba(255,255,255,.65);">${typeLabel} #${call.callNum||''} · ${call.address}${call.town?', '+call.town:''}</div>`
+        +`</div>`
+        +`<button onclick="approveCallCompletion('${call.id}')" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✓ Approve</button>`
+        +`<button onclick="denyCallCompletion('${call.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✕</button>`
+        +`</div>`;
+    }).join('');
+    targetEl.innerHTML += `<div style="background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(10,4,30,.6));-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5);border:1px solid rgba(167,139,250,.5);border-radius:16px;padding:12px;margin-bottom:12px;box-shadow:0 10px 30px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.12);">`
+      +`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">`
+      +`<div style="background:#7c3aed;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;animation:pendingPulse 1.8s ease-in-out infinite;">${compItems.length}</div>`
+      +`<div style="font-size:13px;font-weight:800;color:#c4b5fd;text-transform:uppercase;letter-spacing:.5px;">📋 Completion Request${compItems.length>1?'s':''}</div>`
+      +`</div>${compHtml}</div>`;
+  }
 }
 
 // ── Home clock + weather widgets ──
@@ -6672,19 +6700,10 @@ async function submitRadioResponders() {
     // PUSH #6: radio responders added
     const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
-       setTimeout(()=>sendPush({target:'dispatchers',title:'Assigned to Call',body:`${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
+       setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
 
-  // Push to all with full current responder list
-  const allNow=(call.responders||[]).map(r=>'BC-'+String(r.unit||'').replace(/^BC-?/i,'')+' '+r.name).join(', ');
-  const radioNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')} ${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim()).join(', ');
-  setTimeout(()=>sendPush({
-    target:'all',
-    title:`📻 ${radioNames} responding by radio`,
-    body:`${typeLabel} — ${call.address}, ${call.town}${allNow?' · On call: '+allNow:''}`,
-    url:'/cobc-dispatch/', callId:id
-  }),300);
   // WA: group update for radio add
-  setTimeout(()=>sendWA({ target:'all', message: _waMsgRadioAdd(call, radioSelectedMembers) }),400);
+  setTimeout(()=>{ if(typeof sendWA==='function' && typeof _waMsgRadioAdd==='function') sendWA({ target:'all', message: _waMsgRadioAdd(call, radioSelectedMembers) }); },400);
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
@@ -6721,13 +6740,19 @@ function checkIdbPendingCall() {
 // ── Deep-link opener — called whenever Firestore data refreshes ──
 function tryOpenPendingDeepLink() {
   if (!window._pendingDeepLink) return;
-  if (!SESSION || !SESSION.role) return; // not logged in yet
+  if (!SESSION || !SESSION.role) return;
   const callId = window._pendingDeepLink;
   const call = (STATE.calls || []).find(c => c.id === callId);
-  if (!call) return; // data not loaded yet — will retry on next snapshot
+  if (!call) return;
   window._pendingDeepLink = null;
   try { sessionStorage.removeItem('cobc_pending_call'); } catch(e) {}
-  openCallDetail(callId);
+  // Dispatch/admin: go to dispatch tab and show banner (not a popup)
+  if (['admin','dispatch'].includes(SESSION.role)) {
+    showTab('dispatch');
+    renderCalls && renderCalls();
+  } else {
+    openCallDetail(callId);
+  }
 }
 
 // ── Call Detail ──
@@ -8884,7 +8909,7 @@ async function _loadTelzioRecent() {
   if(Date.now() < _telzioRecentSkipUntil) return; // honor backoff
   _telzioRecentInFlight = true;
   try {
-    const resp = await telzioFetch('/calls/log?MaxResults=5&Direction=inbound');
+    const resp = await telzioFetch('/calls/log?MaxResults=5');
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     const data = await resp.json();
     _telzioRecentFails = 0;
@@ -8984,7 +9009,7 @@ async function autofillFromLastCall(){
   if(btn){ btn.disabled=true; btn.innerHTML='⏳ Fetching…'; }
   try{
     // Option B: direct proxy call (bypasses Apps Script, no 403)
-    var resp = await telzioFetch('/calls/log?MaxResults=3&Direction=inbound');
+    var resp = await telzioFetch('/calls/log?MaxResults=3');
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     var data = await resp.json();
     var calls = Array.isArray(data) ? data : (data.Calls || data.calls || data.CallLog || []);
@@ -9018,7 +9043,7 @@ async function autoPullCallerOnOpen(){
   if(btn){ btn.innerHTML='⏳ Getting last caller…'; btn.disabled=true; }
   try{
     // Option B: direct proxy — silent, no 403
-    var resp2 = await telzioFetch('/calls/log?MaxResults=3&Direction=inbound');
+    var resp2 = await telzioFetch('/calls/log?MaxResults=3');
     if(resp2.ok){
       var data2 = await resp2.json();
       var calls2 = Array.isArray(data2) ? data2 : (data2.Calls||data2.calls||data2.CallLog||[]);
