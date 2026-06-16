@@ -3182,24 +3182,67 @@ function formatPhone(raw) {
   return raw; // fallback: return as-is
 }
 
-// ── §WA-CONFIG  Twilio WhatsApp ──────────────────────────────────────────────
-// Point WA_SEND_URL at the same Apps Script as PUSH_SEND_URL (or a new deploy).
-// After pasting twilio-apps-script-addon.js into your Apps Script and re-deploying,
-// paste the new /exec URL here. WA_SHARED_KEY must match WA_SHARED_KEY in the script.
+// ── §WA-CONFIG  Twilio WhatsApp (original) ───────────────────────────────────
 const WA_SEND_URL   = "https://us-east1-cobc-dispatch.cloudfunctions.net/sendWhatsApp"; // ✅ set
 const WA_SHARED_KEY = "cobc-2026-shared-secret";              // ← must match Apps Script
 
-// Sends a WhatsApp message via Twilio through the Apps Script proxy.
+// ── §WA-CONFIG2  Direct WhatsApp API (Bergen County bot) ─────────────────────
+const WA_API_URL   = 'https://mosheadest.com/bergen/sendApi.php';
+const WA_API_TOKEN = '153da9b01a89fbacf9417a3f9c5e5b94';
+// Test group — when ready for the real group, update this one line:
+const WA_GROUP_ID  = '120363429005503944@g.us';
+
+// Sends a WhatsApp message via BOTH the original Twilio proxy AND the new Bergen bot API.
 // payload: { target:'all'|'dispatchers'|'unit'|'phones', unit?:'24', phones?:['+1…'], message:'' }
 async function sendWA(payload) {
-  if (!WA_SEND_URL || WA_SEND_URL.startsWith("PASTE_")) return;
-  try {
-    await fetch(WA_SEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'sendWhatsApp', key: WA_SHARED_KEY, ...payload })
+  // ── Path 1: Original Twilio / Firebase Cloud Function ──
+  if (WA_SEND_URL && !WA_SEND_URL.startsWith("PASTE_")) {
+    try {
+      await fetch(WA_SEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'sendWhatsApp', key: WA_SHARED_KEY, ...payload })
+      });
+    } catch (e) { console.warn('WA (Twilio) send failed:', e); }
+  }
+
+  // ── Path 2: Bergen bot direct API ──
+  if (!WA_API_URL || !WA_API_TOKEN) return;
+  const { target, unit, phones, message } = payload;
+  if (!message) return;
+
+  const chats = [];
+  if (target === 'all' || target === 'dispatchers') {
+    chats.push(WA_GROUP_ID);
+  } else if (target === 'unit') {
+    const norm = String(unit || '').replace(/^BC-?/i, '').trim();
+    const member = (STATE.members || []).find(m => String(m.unit || '').replace(/^BC-?/i, '').trim() === norm);
+    const phone = member && member.phone;
+    if (phone) {
+      const digits = String(phone).replace(/\D+/g, '');
+      chats.push((digits.length === 10 ? '1' + digits : digits) + '@c.us');
+    } else {
+      console.warn('sendWA: no phone on file for unit', unit);
+    }
+  } else if (target === 'phones' && Array.isArray(phones)) {
+    phones.forEach(p => {
+      const digits = String(p).replace(/\D+/g, '');
+      if (digits) chats.push((digits.length === 10 ? '1' + digits : digits) + '@c.us');
     });
-  } catch (e) { console.warn('WA send failed:', e); }
+  }
+
+  for (const chat of chats) {
+    try {
+      await fetch(
+        `${WA_API_URL}?token=${encodeURIComponent(WA_API_TOKEN)}&chat=${encodeURIComponent(chat)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: message })
+        }
+      );
+    } catch (e) { console.warn('WA (Bergen bot) send failed to', chat, e); }
+  }
 }
 
 // Build the group dispatch message (reuses existing buildDispatchWhatsApp logic).
