@@ -4308,7 +4308,7 @@ function _sheetMemberToApp(sm){
 async function loadMembersFromSheet(){
   try{
     if(typeof sheetGET!=='function') return [];
-    const data=await sheetGET({action:'getMembers'});
+    const data=await sheetGET({action:'getMembers', key:'chav-mk-2026-Xp9Q2r7w'});
     if(data&&data.members&&data.members.length){
       const _rawApp=data.members.map(_sheetMemberToApp);
       if(_deletedMemberIds.size){
