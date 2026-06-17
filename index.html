@@ -5925,7 +5925,7 @@ function createCall() {
 setTimeout(() => {
       sendPush({
       target: 'all',
-      title: (priority === 'high' || priority === 'urgent') ? `🚨 New COBC Call #${call.callNum||''}` : `⚡ New COBC Call #${call.callNum||''}`,
+      title: (priority === 'high' || priority === 'urgent') ? `🚨 New COBC Call #${call.callNum||''}` : (call.type === 'jump_start' ? `⚡ New COBC Call #${call.callNum||''}` : `📢 New COBC Call #${call.callNum||''}`),
       body: `${_typeLabel} — ${call.address}, ${call.town}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
@@ -6787,7 +6787,7 @@ function publishCall(id) {
   // Push + WA piggybacked in one server-side request (most reliable path)
   setTimeout(()=>sendPush({
     target:'all',
-    title:`⚡ New COBC Call #${call.callNum||''}`,
+    title:`${call.type==='jump_start'?'⚡':'📢'} New COBC Call #${call.callNum||''}`,
     body:`${_typeLabel} — ${call.address}, ${call.town}`,
     url:'/cobc-dispatch/', callId:call.id,
     waChat: WA_GROUP_ID,
