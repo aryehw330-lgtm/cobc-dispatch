@@ -7041,12 +7041,8 @@ function submitMemberCompletion(){
   showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
   showToast('📋 Sent to dispatch for approval');
   const _tl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  // Notify dispatchers on duty (no callId → opens dispatch tab, not call card)
+  // Notify dispatchers + admins (target:'dispatchers' covers both — no need for separate admin loop)
   sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/',urgent:'true'});
-  // Also notify every admin
-  (STATE.members||[]).filter(m=>m.role==='admin'&&m.unit).forEach(m=>{
-    sendPush({target:'unit',unit:String(m.unit),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/',urgent:'true'});
-  });
 }
 function approveCallCompletion(id){
   const call=STATE.calls.find(c=>c.id===id);
