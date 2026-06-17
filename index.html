@@ -3005,6 +3005,9 @@ async function initPushModule() {
         try { sessionStorage.setItem('cobc_pending_call', event.data.callId); } catch(e) {}
         window._pendingDeepLink = event.data.callId;
         tryOpenPendingDeepLink();
+      } else if (event.data?.type === 'OPEN_PAGE' && event.data?.page) {
+        // e.g. completion request notification → Dispatch tab
+        try { if (typeof showTab === 'function') showTab(event.data.page); } catch(e) {}
       }
     });
   }
@@ -4510,6 +4513,9 @@ setTimeout(()=>{
       var carBtn = document.querySelector('[onclick*="setEqTab(\'car\'"]');
       setEqTab('car', carBtn);
     }, 200);
+  } else if (_goPage === 'dispatch') {
+    // Completion-request notification — land on Dispatch tab
+    showTab('dispatch');
   } else if (SESSION.role === 'dispatch') {
     // Dispatchers land on the Dispatch board first
     showTab('dispatch');
@@ -7042,7 +7048,7 @@ function submitMemberCompletion(){
   showToast('📋 Sent to dispatch for approval');
   const _tl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   // Notify dispatchers + admins (target:'dispatchers' covers both — no need for separate admin loop)
-  sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/',urgent:'true'});
+  sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
 }
 function approveCallCompletion(id){
   const call=STATE.calls.find(c=>c.id===id);
