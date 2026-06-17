@@ -2948,6 +2948,13 @@ async function initFirebaseApp() {
     try { _fcmApp = firebase.initializeApp(FCM_CONFIG); }
     catch(e) { _fcmApp = firebase.app(); } // already initialized
     _firebaseReady = true;
+    // Anonymous auth — gives every app instance a Firebase token so Firestore
+    // rules can require `request.auth != null` (blocks random public read/write).
+    try {
+      if (firebase.auth && !firebase.auth().currentUser) {
+        await firebase.auth().signInAnonymously();
+      }
+    } catch(e) { console.warn('Anonymous auth failed:', e); }
     initFirestore(); // start Firestore real-time sync
     subscribeScheduleFromFirestore(); // sync dispatch schedule from Firestore
     // subscribeTelzioFromFirestore(); // disabled — re-enable when Cloudflare worker is ready
