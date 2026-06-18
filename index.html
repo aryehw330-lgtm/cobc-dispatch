@@ -176,6 +176,9 @@ button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary
 .btn-amber{background:var(--amber);color:#fff;}
 .btn-ghost{background:var(--border2);color:var(--text2);}
 .btn-teal{background:var(--teal);color:#fff;}
+/* Uniform action-button grid for the call-detail popup */
+.detail-actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-top:12px;}
+.detail-actions .btn-sm{display:flex;align-items:center;justify-content:center;gap:5px;text-align:center;padding:10px 8px;font-size:12.5px;min-height:44px;line-height:1.15;white-space:normal;}
 .btn-full{width:100%;padding:14px;border-radius:var(--radius);border:none;font-size:15px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:opacity .15s,transform .1s;}
 .btn-full:active{opacity:.85;transform:scale(.98);}
 .card{background:var(--card);border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
@@ -4991,11 +4994,26 @@ function openPendingModal() {
   (STATE.calls||[]).forEach(call => {
     if(call.status==='done' || call.status==='draft') return;
     (call.pendingResponders||[]).forEach(r => pendingItems.push({call, responder:r}));
+    (call.pendingBackups||[]).forEach(b => pendingItems.push({call, backup:b}));
   });
   if(!pendingItems.length) {
     body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);">✅ No pending requests right now.</div>';
   } else {
-    body.innerHTML = pendingItems.map(({call,responder}) => {
+    body.innerHTML = pendingItems.map((item) => {
+      const call = item.call;
+      if(item.backup){
+        const b=item.backup;
+        return `<div style="background:#fef2f2;border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid var(--red);">
+          <div style="font-size:14px;font-weight:700;color:var(--text);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} — Backup</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px;">Call #${call.callNum||''} · ${call.address||''}${call.town?', '+call.town:''}</div>
+          ${(b.equipment||b.notes)?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">${b.equipment?'Equipment: '+b.equipment:''}${b.equipment&&b.notes?' · ':''}${b.notes||''}</div>`:''}
+          <div style="display:flex;gap:6px;margin-top:10px;">
+            <button onclick="approveBackup('${call.id}',${b.time});setTimeout(openPendingModal,200)" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✓ Approve &amp; Alert</button>
+            <button onclick="rejectBackup('${call.id}',${b.time});setTimeout(openPendingModal,200)" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✕ Deny</button>
+          </div>
+        </div>`;
+      }
+      const responder = item.responder;
       const typeRaw = call.type||'other';
       const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
       return `<div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid ${responder.observerOnly?'var(--purple)':'var(--amber)'};">
@@ -5020,6 +5038,7 @@ function renderPendingRespondersBanner(targetEl) {
     (STATE.calls||[]).forEach(call => {
       if(call.status==='done' || call.status==='draft') return;
       (call.pendingResponders||[]).forEach(r => pendingItems.push({call, responder:r}));
+      (call.pendingBackups||[]).forEach(b => pendingItems.push({call, backup:b}));
     });
   }
   // Global floating banner (visible on every tab for admin/dispatch)
@@ -5033,7 +5052,8 @@ function renderPendingRespondersBanner(targetEl) {
       if(titleEl) titleEl.textContent = `${pendingItems.length} pending approval${pendingItems.length>1?'s':''}`;
       if(subEl) {
         const first = pendingItems[0];
-        subEl.textContent = `BC-${String(first.responder.unit||'').replace(/^BC-?/i,'')} ${first.responder.name||''}${pendingItems.length>1?' + '+(pendingItems.length-1)+' more':''} · Tap to review`;
+        const _fw = first.responder||first.backup||{};
+        subEl.textContent = `${first.backup?'🆘 ':''}BC-${String(_fw.unit||'').replace(/^BC-?/i,'')} ${_fw.name||''}${pendingItems.length>1?' + '+(pendingItems.length-1)+' more':''} · Tap to review`;
       }
     } else {
       globalEl.style.display = 'none';
@@ -5049,7 +5069,20 @@ function renderPendingRespondersBanner(targetEl) {
         <div style="background:var(--gold-light,#e6c463);color:#1a1407;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;animation:pendingPulse 1.8s ease-in-out infinite;">${pendingItems.length}</div>
         <div style="font-size:13px;font-weight:800;color:var(--gold-light,#e6c463);text-transform:uppercase;letter-spacing:.5px;text-shadow:0 1px 3px rgba(0,0,0,.4);">⏳ Waiting for Your Approval</div>
       </div>
-      ${pendingItems.map(({call,responder}) => {
+      ${pendingItems.map((item) => {
+        const call = item.call;
+        if(item.backup){
+          const b=item.backup;
+          return `<div style="background:rgba(220,80,80,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,150,150,.32);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} needs backup</div>
+              <div style="font-size:11px;color:rgba(255,255,255,.7);">(#${call.callNum||''}) at ${call.address||''}${call.town?', '+call.town:''}</div>
+            </div>
+            <button onclick="approveBackup('${call.id}',${b.time})" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✓ Alert</button>
+            <button onclick="rejectBackup('${call.id}',${b.time})" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✕</button>
+          </div>`;
+        }
+        const responder = item.responder;
         const typeRaw = call.type||'other';
         const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
         return `<div style="background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
@@ -5139,7 +5172,7 @@ function renderHome() {
   const pendingCount = ['admin','dispatch'].includes(SESSION.role)
     ? (STATE.calls||[]).reduce((s,c)=>{
         if(c.status==='done'||c.status==='draft'||c.status==='cancelled') return s;
-        return s + ((c.pendingResponders||[]).length);
+        return s + ((c.pendingResponders||[]).length) + ((c.pendingBackups||[]).length);
       },0)
     : 0;
   const pendCard = document.getElementById('hs-pending-card');
@@ -5558,7 +5591,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Nav</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div>${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Map</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Navigation</button>`:''}${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div>${(iAmApproved && call.status!=='done' && call.status!=='cancelled')?`<div style="display:flex;"><button class="call-action" style="flex:1;background:#fff7ed;color:#d97706;font-weight:700;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Request Backup</button></div>`:''}${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
     </div>`;
   }
 
@@ -5744,7 +5777,7 @@ function renderCalls() {
   const _pcount = ['admin','dispatch'].includes(SESSION.role)
     ? (STATE.calls||[]).reduce((s,c)=>{
         if(c.status==='done'||c.status==='draft'||c.status==='cancelled') return s;
-        return s + ((c.pendingResponders||[]).length);
+        return s + ((c.pendingResponders||[]).length) + ((c.pendingBackups||[]).length);
       },0) : 0;
   if(dsPendNum) dsPendNum.textContent = _pcount;
   if(dsPendCard) dsPendCard.style.display = 'none'; // stub — kept for compat
@@ -5935,6 +5968,8 @@ function createCall() {
     pendingResponders: [],
     rejectedResponders: [],
     backupRequests: [],
+    pendingBackups: [],
+    rejectedBackups: [],
     assignedVehicles: [],
     assignedEquipment: [],
     createdBy: SESSION.unit,
@@ -6518,17 +6553,57 @@ function submitBackup() {
   const notes=document.getElementById('backupNotes').value.trim();
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  const _backupReq = {type,equipment,notes,unit:SESSION.unit,time:Date.now()};
-  call.backupRequests=call.backupRequests||[];
-  call.backupRequests.push(_backupReq);
-  save(); hideModal('backupModal');
+  // Backup now goes to dispatch for approval BEFORE any all-members broadcast (mirrors responder flow)
+  const _backupReq = {type,equipment,notes,unit:SESSION.unit,name:SESSION.name,time:Date.now(),status:'pending'};
+  call.pendingBackups=call.pendingBackups||[];
+  call.pendingBackups.push(_backupReq);
+  try{ logCallEvent(call,'backup_pending',{by:SESSION.unit}); }catch(e){}
+  save(); firestoreUpsertCall(call); hideModal('backupModal');
   renderCalls(); renderHome();
-  showToast('🆘 Backup request sent');
-    // PUSH #5: backup request → all
-    const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
-    setTimeout(()=>sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
-  // WA: backup alert → all members
-    setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgBackup(call, _backupReq) }); } catch(e){} }, 800);
+  try{ renderPendingRespondersBanner(document.getElementById('pendingRespondersBanner')); }catch(e){}
+  showToast('🆘 Backup request sent — awaiting dispatch approval');
+  // Notify dispatchers + every admin ONLY (the all-members alert fires after approval)
+  const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
+  const _bTitle='🆘 Backup Request — needs approval';
+  const _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} on ${_bLabel} — ${call.address}, ${call.town}`;
+  setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
+  (STATE.members||[]).forEach(function(m){ if((m.role||'').toLowerCase()==='admin'){ var au=String(m.unit||m.id||'').replace(/^BC-?/i,''); if(au){ try{ sendPush({target:'unit',unit:au,title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} } } });
+}
+
+// ── Dispatcher APPROVES a backup request → broadcasts to all (push + WhatsApp) ──
+function approveBackup(callId, time) {
+  const call=STATE.calls.find(c=>c.id===callId); if(!call) return;
+  const req=(call.pendingBackups||[]).find(b=>Number(b.time)===Number(time)); if(!req) return;
+  call.pendingBackups=call.pendingBackups.filter(b=>Number(b.time)!==Number(time));
+  call.backupRequests=call.backupRequests||[];
+  const _approved={...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
+  call.backupRequests.push(_approved);
+  try{ logCallEvent(call,'backup_approved',{by:req.unit,approvedBy:SESSION.unit}); }catch(e){}
+  save(); firestoreUpsertCall(call);
+  renderCalls(); renderHome();
+  try{ renderPendingRespondersBanner(document.getElementById('pendingRespondersBanner')); }catch(e){}
+  try{ renderCallDetail(callId); }catch(e){}
+  showToast('🆘 Backup approved — alert sent');
+  // NOW the gated broadcast goes out to everyone
+  const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
+  setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
+  setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
+}
+
+// ── Dispatcher DENIES a backup request → nothing broadcast, requester notified ──
+function rejectBackup(callId, time) {
+  const call=STATE.calls.find(c=>c.id===callId); if(!call) return;
+  const req=(call.pendingBackups||[]).find(b=>Number(b.time)===Number(time)); if(!req) return;
+  call.pendingBackups=call.pendingBackups.filter(b=>Number(b.time)!==Number(time));
+  call.rejectedBackups=call.rejectedBackups||[];
+  call.rejectedBackups.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:Date.now()});
+  try{ logCallEvent(call,'backup_rejected',{by:req.unit,rejectedBy:SESSION.unit}); }catch(e){}
+  save(); firestoreUpsertCall(call);
+  renderCalls(); renderHome();
+  try{ renderPendingRespondersBanner(document.getElementById('pendingRespondersBanner')); }catch(e){}
+  try{ renderCallDetail(callId); }catch(e){}
+  showToast('Backup request denied');
+  setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(req.unit||'').replace(/^BC-?/i,''),title:'Backup request denied',body:'Dispatch denied your backup request for this call.',url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
 }
 
 // ── Radio Responder ──
@@ -6728,6 +6803,28 @@ function openCallDetail(id) {
     });
   }
 
+  // ── Pending Backup Requests (dispatch approval queue) ──
+  const pendingBk=call.pendingBackups||[];
+  if(pendingBk.length) {
+    html+=`<div class="section-label" style="color:var(--red);">🆘 Backup — Pending Approval (${pendingBk.length})</div>`;
+    pendingBk.forEach(b=>{
+      const m=STATE.members.find(x=>String(x.unit)===String(b.unit));
+      html+=`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:11px 14px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div>
+            <div style="font-size:14px;font-weight:700;">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup</div>
+            <div style="font-size:11px;color:var(--text3);">${b.equipment?`Equipment: ${b.equipment} · `:''}${b.notes?`${b.notes} · `:''}${new Date(b.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>
+          </div>
+          ${m?.phone?`<button class="responder-call-btn" onclick="window.location='tel:${m.phone}'">📞</button>`:''}
+        </div>
+        ${isDispatch?`<div style="display:flex;gap:8px;">
+          <button style="flex:1;padding:11px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;" onclick="approveBackup('${id}',${b.time})">✅ Approve &amp; Alert</button>
+          <button style="flex:1;padding:11px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;" onclick="rejectBackup('${id}',${b.time})">❌ Deny</button>
+        </div>`:`<div style="font-size:12px;color:var(--red);font-weight:600;">⏳ Awaiting dispatch approval</div>`}
+      </div>`;
+    });
+  }
+
   // ── Approved Responders ──
   const resp=call.responders||[];
   html+=`<div class="section-label">✅ Approved Responders (${resp.length})</div>`;
@@ -6773,18 +6870,18 @@ function openCallDetail(id) {
   }
 
   // Actions
-  html+=`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">`;
+  html+=`<div class="detail-actions">`;
   if(['flat_tire_spare','flat_tire_no_spare'].includes(call.type)) html+=`<button class="btn-sm" style="background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#0f2540;border:none;font-weight:800;" onclick="openEzSpareFitment('${id}')">🛞 EZ Spare Fit</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
   if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Map</button>`;
-  if(call.phone) html+=`<button class="btn-sm btn-ghost" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
+  if(call.phone) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
   // Share my location — for approved responders who are on their way
   const _iAmApprovedDetail = (call.responders||[]).some(r=>String(r.unit)===String(SESSION.unit));
   if(_iAmApprovedDetail && call.status!=='done') html+=`<button class="btn-sm" style="background:#25d366;color:#fff;border:none;" onclick="shareMyLocationOnCall('${id}')">📍 Share Location</button>`;
 
   if(isDispatch) {
-    html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
+    if(typeof currentTab!=='undefined' && currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
     if(call.status==='draft') html+=`<button class="btn-sm btn-primary" onclick="publishCall('${id}')">📢 Publish</button>`;
     // ▶ Active button removed — calls go active automatically when a responder is approved/radio-assigned
     if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" onclick="reopenCall('${id}');renderCallDetail('${id}')">🔄 Re-open</button>`;
