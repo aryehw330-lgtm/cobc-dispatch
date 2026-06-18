@@ -2103,6 +2103,16 @@ textarea.input{min-height:80px;resize:vertical;}
           <input class="input" type="text" id="carModelOther" placeholder="Enter model..." autocomplete="off" style="display:none;margin-top:6px;"/>
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Year</label>
+          <input class="input" type="number" id="carYear" placeholder="2020" min="1990" max="2030"/>
+        </div>
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Color</label>
+          <input class="input" type="text" id="carColor" placeholder="Silver, Black..."/>
+        </div>
+      </div>
 
       <!-- NO-SPARE ACTION PICKER -->
       <div id="noSpareSection" style="display:none;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.3);border-radius:10px;padding:10px;margin-bottom:10px;">
@@ -2117,8 +2127,11 @@ textarea.input{min-height:80px;resize:vertical;}
         <!-- EZ-SPARE DETAIL -->
         <div id="ezSpareSection" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(217,119,6,.3);">
           <div style="background:rgba(15,37,64,.06);border:1px solid rgba(212,169,58,.4);border-radius:8px;padding:10px;margin-bottom:10px;">
-            <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">Look up the correct size for this vehicle and copy paste to notes below:</div>
-            <a href="https://www.ezsparewheel.com/pages/fitment-guide" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;padding:8px 12px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:700;">↗ EZ-Spare Fitment Guide</a>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">Look up the correct size for this vehicle:</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" onclick="openEzSpareFromForm()" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#0f2540;border:none;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">🛞 Auto-Find Size</button>
+              <a href="https://www.ezsparewheel.com/pages/fitment-guide" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;padding:8px 12px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:700;">↗ EZ-Spare Website</a>
+            </div>
           </div>
           <div id="ezSpareRefreshHint" style="font-size:11px;color:var(--text2);margin-bottom:8px;text-align:right;"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
@@ -2137,16 +2150,6 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
           <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;">Kit Checklist</div>
           <div id="ezSpareKitList" style="font-size:12px;color:var(--text);line-height:1.7;"></div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div class="input-group" style="margin-bottom:0;">
-          <label class="input-label">Year</label>
-          <input class="input" type="number" id="carYear" placeholder="2020" min="1990" max="2030"/>
-        </div>
-        <div class="input-group" style="margin-bottom:0;">
-          <label class="input-label">Color</label>
-          <input class="input" type="text" id="carColor" placeholder="Silver, Black..."/>
         </div>
       </div>
     </div>
@@ -2228,6 +2231,11 @@ textarea.input{min-height:80px;resize:vertical;}
 
 <div class="modal-overlay hidden" id="callDetailModal">
   <div class="modal"><div class="modal-handle"></div><div id="callDetailContent"></div></div>
+</div>
+
+<!-- EZ Spare Fitment Popup -->
+<div class="modal-overlay hidden" id="ezSpareModal">
+  <div class="modal"><div class="modal-handle"></div><div id="ezSpareContent"></div></div>
 </div>
 
 <!-- Respond Modal -->
@@ -3861,7 +3869,7 @@ const CAR_DATA = {
 const EZ_SPARE_SIZES = ['125/80R17','145/80D17','145/85R18','155/85R18','165/70R17','175/70R20','195/55R20','205/50ZR17'];
 function getAvailableEZSpares(size) {
   if(typeof STATE === 'undefined' || !STATE.equipment) return [];
-  return STATE.equipment.filter(e => {
+  const matches = STATE.equipment.filter(e => {
     const cat = (e.category||'').toLowerCase().replace(/[-_\s]/g,'');
     const isEz = cat === 'ezspare' || /ez[-\s]?spare/i.test(e.name||'');
     return isEz &&
@@ -3870,6 +3878,19 @@ function getAvailableEZSpares(size) {
       !['Missing','Damaged','Not Active'].includes(e.equipStatus) &&
       (!size || (e.name||'').includes(size));
   });
+  // De-duplicate by unit name — inventory can contain duplicate entries from merged
+  // data sources. Keep the RICHEST record (one carrying a sheet row / equipStatus) so the
+  // unit shows its true current location, not a stripped placeholder copy.
+  const byName = new Map();
+  const result = [];
+  const score = x => ((x && x.row!=null)?2:0) + ((x && x.equipStatus)?1:0);
+  matches.forEach(e => {
+    const key = (e.name||'').trim().toLowerCase();
+    if(!key){ result.push(e); return; }
+    if(!byName.has(key)){ byName.set(key, result.length); result.push(e); }
+    else { const i = byName.get(key); if(score(e) > score(result[i])) result[i] = e; }
+  });
+  return result;
 }
 const EZ_SPARE_KIT = ['Spare tire', 'Scissor jack', 'Lug wrench', 'Locking-nut key', 'Work gloves', 'Wheel chock'];
 // Eagerly populate the car-make dropdown as soon as DOM is ready
@@ -3957,11 +3978,14 @@ function load() {
       const savedUnits=new Set(saved.members.map(m=>String(m.unit)));
       const missing=SEED_MEMBERS.filter(m=>!savedUnits.has(String(m.unit)));
       if(missing.length) saved.members=[...saved.members,...missing];
-      // Migrate: ensure all default EZ-Spares exist (added in newer versions)
+      // Migrate: ensure all default EZ-Spares exist (added in newer versions).
+      // Match by NAME, not category: inventory loaded from the sheet has no `category`
+      // field, so a category-only check never saw the existing EZ-Spares and re-seeded
+      // duplicate "COBC" copies on every boot.
       saved.equipment = saved.equipment || [];
-      const existingEz = new Set(saved.equipment.filter(e=>e.category==='EZ-Spare').map(e=>e.name));
+      const existingNames = new Set(saved.equipment.map(e=>(e.name||'').trim()));
       const expectedEz = ['EZ-Spare 125/80R17 1','EZ-Spare 125/80R17 2','EZ-Spare 125/80R17 3','EZ-Spare 145/80D17 1','EZ-Spare 145/80D17 2','EZ-Spare 145/85R18 1','EZ-Spare 145/85R18 2','EZ-Spare 145/85R18 3','EZ-Spare 165/70R17 1','EZ-Spare 175/70R20 1','EZ-Spare 175/70R20 2','EZ-Spare 175/70R20 3','EZ-Spare 195/55R20 1','EZ-Spare 205/50ZR17 1','EZ-Spare 155/85R18 1'];
-      const missingEz = expectedEz.filter(n=>!existingEz.has(n));
+      const missingEz = expectedEz.filter(n=>!existingNames.has(n.trim()));
       if(missingEz.length) {
         // Find a free EQ-#### id
         let maxIdx = 0;
@@ -3971,6 +3995,19 @@ function load() {
           saved.equipment.push({id:`EQ-${String(maxIdx).padStart(4,'0')}`, name:n, category:'EZ-Spare', location:'COBC', status:'in', condition:'ok', history:[], notes:''});
         });
       }
+      // Clean up duplicates seeded by older builds: collapse equipment that share a name,
+      // keeping the richest record (the one carrying a sheet row / equipStatus).
+      (function dedupeEquipment(){
+        const byName = new Map(); const result = [];
+        const score = x => ((x && x.row!=null)?2:0) + ((x && x.equipStatus)?1:0);
+        saved.equipment.forEach(e=>{
+          const key=(e.name||'').trim().toLowerCase();
+          if(!key){ result.push(e); return; }
+          if(!byName.has(key)){ byName.set(key, result.length); result.push(e); }
+          else { const i=byName.get(key); if(score(e)>score(result[i])) result[i]=e; }
+        });
+        saved.equipment = result;
+      })();
       try{localStorage.setItem('cobc_v21',JSON.stringify(saved));}catch(e){}
       return saved;
     }
@@ -5438,6 +5475,14 @@ function tickOpenTimers(){
 // §DISPATCH  Call cards, renderCalls, re-request logic
 // ═══════════════════════════════════════════════════════════════════════════
 function callCardHTML(call, mini=false) {
+  if(!call) return '';
+  if(!call.status) call = Object.assign({}, call, {status:'open'}); // guard against transient/malformed call objects
+  // EZ Spare fitment badge — shown on the card whenever a fitment/size has been saved to the call
+  const _ezFit = call.ezSpareFitment;
+  const _ezSize = (_ezFit && _ezFit.size_1) || call.ezSpareSize || '';
+  const ezFitBadge = _ezSize
+    ? `<div style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#0f2540;padding:4px 11px;border-radius:8px;font-size:13px;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.25);">🛞 EZ Spare ${_ezSize}${(_ezFit&&_ezFit.hub_ring)?` · Hub ${_ezFit.hub_ring}`:''}</div>`
+    : '';
   const typeRaw = call.type||'other';
   const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
   // Date + time so dispatch can see at-a-glance when each call came in
@@ -5518,6 +5563,7 @@ function callCardHTML(call, mini=false) {
             <div class="call-num">#${callNumStr}</div>
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
             <div class="call-card-addr" onclick="event.stopPropagation();openMaps('${(call.address+', '+call.town+', NJ').replace(/'/g,"\\'")}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${call.address}, ${call.town}</div>
+            ${ezFitBadge}
             ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
             <div class="call-card-meta">${timeStr}</div>
@@ -5526,7 +5572,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Nav</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div></div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Nav</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Map</button>`:''}${(iAmApproved && call.phone)?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div>${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
     </div>`;
   }
 
@@ -5566,6 +5612,7 @@ function callCardHTML(call, mini=false) {
         <div class="call-card-addr">${call.address}${call.town?', '+call.town:''}</div>
         ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
+        ${ezFitBadge}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
         ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
@@ -5594,6 +5641,7 @@ function callCardHTML(call, mini=false) {
         ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}
         ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}
       </div>
+      ${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;padding:9px 6px;font-size:12px;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}
     </div>
     </div>
   `;
@@ -6665,6 +6713,7 @@ function openCallDetail(id) {
     ${call.noSpareAction==='plug'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--orange);font-weight:700;">🔧 Plug Kit</span></div>`:''}
     ${call.noSpareAction==='tow'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--red);font-weight:700;">🚛 Tow Needed</span></div>`:''}
     ${call.noSpareAction==='ezspare'?`<div class="detail-row"><span class="detail-key">EZ-Spare</span><span class="detail-val" style="color:var(--gold-light,#d4a93a);font-weight:700;">${call.ezSpareSize||'—'}${call.ezSpareUnit?` · ${(()=>{const u=(STATE.equipment||[]).find(e=>e.id===call.ezSpareUnit);return u?u.name+(u.location?` (${u.location})`:''):call.ezSpareUnit;})()}`:''}</span></div><div class="detail-row"><span class="detail-key">Kit</span><span class="detail-val" style="font-size:11px;line-height:1.5;">${EZ_SPARE_KIT.join(' · ')}</span></div>`:''}
+    ${(call.ezSpareFitment && call.noSpareAction!=='ezspare')?`<div class="detail-row"><span class="detail-key">EZ Spare Fit</span><span class="detail-val" style="color:var(--gold-light,#d4a93a);font-weight:700;">${call.ezSpareFitment.size_1||call.ezSpareSize||'—'}${call.ezSpareFitment.hub_ring?` · Hub ${call.ezSpareFitment.hub_ring}`:''}</span></div>`:''}
     ${(call.assignedVehicles||[]).length?`<div class="detail-row"><span class="detail-key">Fleet</span><span class="detail-val">${call.assignedVehicles.join(', ')}</span></div>`:''}
     ${(call.assignedEquipment||[]).length?`<div class="detail-row"><span class="detail-key">Equipment</span><span class="detail-val">${call.assignedEquipment.join(', ')}</span></div>`:''}
     ${call.notes?`<div class="detail-row"><span class="detail-key">Notes</span><span class="detail-val">${call.notes}</span></div>`:''}
@@ -6738,6 +6787,7 @@ function openCallDetail(id) {
 
   // Actions
   html+=`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">`;
+  if(['flat_tire_spare','flat_tire_no_spare'].includes(call.type)) html+=`<button class="btn-sm" style="background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#0f2540;border:none;font-weight:800;" onclick="openEzSpareFitment('${id}')">🛞 EZ Spare Fit</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
   if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Map</button>`;
@@ -12865,5 +12915,263 @@ function fmtMemberBadgeD(memberStr) {
 </div>
 
 
+<style id="ezfStyles">
+#ezSpareModal .modal{background:linear-gradient(180deg,#102a49 0%,#0a1d33 100%);color:#e8eef5;border-top:2px solid rgba(212,169,58,.5);max-width:520px;}
+#ezSpareModal .modal-handle{background:rgba(255,255,255,.22);}
+#ezSpareModal,#ezSpareModal *{-webkit-user-select:text;user-select:text;}
+.ezf-head{margin-bottom:4px;}
+.ezf-kicker{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold-light);}
+.ezf-veh-title{font-size:23px;font-weight:800;color:#fff;line-height:1.2;margin-top:3px;}
+.ezf-resolved{font-size:12px;color:#9fb3c8;margin:3px 0 14px;font-weight:600;}
+.ezf-loading{text-align:center;padding:30px 10px;color:var(--gold-light);font-weight:700;font-style:italic;}
+.ezf-err{text-align:center;padding:22px 12px;color:#ffc0c0;font-weight:700;line-height:1.6;}
+.ezf-err-sub{font-size:12px;color:#c89aa0;font-weight:500;}
+.ezf-note{font-size:12.5px;color:#cdd8e4;margin-bottom:14px;line-height:1.5;background:rgba(212,169,58,.1);border:1px solid rgba(212,169,58,.25);padding:10px 12px;border-radius:10px;}
+.ezf-card{background:rgba(255,255,255,.05);border:1px solid rgba(212,169,58,.22);border-radius:14px;padding:15px 16px;margin-bottom:12px;}
+.ezf-sec{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--gold-light);margin-bottom:11px;}
+.ezf-line{display:flex;justify-content:space-between;gap:14px;align-items:baseline;font-size:15px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);}
+.ezf-line:last-child{border-bottom:none;padding-bottom:0;}
+.ezf-line .k{color:#9fb3c8;font-weight:600;flex-shrink:0;}
+.ezf-line .v{color:#fff;font-weight:700;text-align:right;}
+.ezf-pn{display:block;font-size:11px;color:#7e93a8;font-weight:500;margin-top:1px;}
+.ezf-dot{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:middle;margin-right:6px;border:1px solid rgba(255,255,255,.35);}
+.ezf-fields{display:flex;flex-direction:column;gap:12px;margin-bottom:8px;}
+.ezf-fg label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#9fb3c8;margin-bottom:6px;}
+.ezf-select{width:100%;padding:13px;font-size:16px;border-radius:11px;border:1px solid rgba(255,255,255,.18);background:#0a1d33;color:#fff;-webkit-appearance:none;appearance:none;font-family:inherit;}
+.ezf-select:disabled{opacity:.45;}
+.ezf-save{width:100%;margin-top:4px;padding:14px;border:none;border-radius:12px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#0f2540;}
+.ezf-saved{text-align:center;color:var(--green-light);font-weight:700;font-size:14px;margin-top:10px;}
+.ezf-retry{margin-top:12px;padding:9px 18px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;font-weight:700;font-family:inherit;cursor:pointer;}
+.ezf-foot{display:flex;gap:10px;margin-top:16px;}
+.ezf-link{flex:1;text-align:center;padding:13px;border-radius:11px;text-decoration:none;font-weight:700;font-size:14px;background:rgba(255,255,255,.08);color:var(--gold-light);border:1px solid rgba(212,169,58,.3);}
+.ezf-close{flex:1;padding:13px;border-radius:11px;border:none;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer;background:rgba(255,255,255,.12);color:#fff;}
+.ezf-card-btn{background:linear-gradient(135deg,var(--gold-light,#e6c463),var(--gold-deep,#b8902a))!important;color:#0f2540!important;font-weight:800!important;}
+</style>
+<script id="ezfScript">
+(function(){
+  const EZF_PROXY = "https://ezspare.shmueleidelman-work.workers.dev";
+  const EZF_LINK  = "https://www.ezsparewheel.com/pages/fitment-guide";
+
+  const norm  = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const iVal  = it => (it && typeof it==='object') ? (it.value||it.name||it.id||it.text||'') : String(it);
+  const iText = it => (it && typeof it==='object') ? (it.name||it.text||it.value||'') : String(it);
+
+  function extract(raw){
+    if(!raw) return [];
+    if(Array.isArray(raw)) return raw;
+    if(typeof raw==='object'){
+      for(const k of ['makes','models','trims','options','data','result','values']) if(Array.isArray(raw[k])) return raw[k];
+      return Object.keys(raw);
+    }
+    return [];
+  }
+  function matchVal(list, target){
+    const t = norm(target); if(!t) return null;
+    for(const it of list){ if(norm(iVal(it))===t || norm(iText(it))===t) return iVal(it); }
+    for(const it of list){ const v=norm(iVal(it)); if(v && (v.startsWith(t)||t.startsWith(v))) return iVal(it); }
+    for(const it of list){ const v=norm(iVal(it)); if(v && (v.includes(t)||t.includes(v))) return iVal(it); }
+    return null;
+  }
+  async function api(path, year='', make='', model='', option=''){
+    const p = new URLSearchParams({year, make, model, option, undefined:''});
+    const r = await fetch(`${EZF_PROXY}${path}?${p.toString()}`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return await r.json();
+  }
+  function hubColor(hub, pn){
+    const t = ((hub||'')+' '+(pn||'')).toUpperCase();
+    if(t.includes('DIRECT')||t.includes('NO RING')) return 'transparent';
+    const map = [['54.1','#424242'],['56.1','#1d4e89'],['56.6','#383838'],['57.1','#f3a1a6'],['58.1','#d75431'],['60.1','#22558a'],['63.4','#5c4013'],['64.1','#163882'],['Z15D','#163882'],['65.1','#000000'],['66.1','#9d85be'],['66.6','#856128'],['67.1','#c3412f'],['70.1','#b2b5b9']];
+    for(const [k,c] of map) if(t.includes(k)) return c;
+    return '#b2b5b9';
+  }
+
+  let st = {};
+  const call = ()=> STATE.calls.find(c=>c.id===st.callId);
+  const body = ()=> document.getElementById('ezfBody');
+  const setBody = h => { const b=body(); if(b) b.innerHTML=h; };
+  const vehLabel = c => [c.carYear,(c.carMake||'').replace(/_/g,' '),c.carModel].filter(Boolean).join(' ');
+
+  window.openEzSpareFitment = function(arg){
+    let c, callId=null;
+    if(typeof arg==='string'){ c = STATE.calls.find(x=>x.id===arg); if(!c) return; callId=arg; }
+    else if(arg && typeof arg==='object'){ c = arg; callId = arg.id||null; }
+    else return;
+    st = { callId, year: c.carYear?String(c.carYear):'', make:'', model:'', option:'', spec:null };
+    shell(c);
+    showModal('ezSpareModal');
+    autoResolve(c).catch(e=>showErr(e));
+  };
+
+  // Open the lookup from the New-Call / Edit form fields (no saved call yet — reference-only)
+  window.openEzSpareFromForm = function(){
+    const mkSel = document.getElementById('carMake');
+    const mdSel = document.getElementById('carModel');
+    let make = mkSel ? mkSel.value : '';
+    if(make==='Other') make = (document.getElementById('carMakeOther')||{}).value || '';
+    let model = mdSel ? mdSel.value : '';
+    if(model==='Other') model = (document.getElementById('carModelOther')||{}).value || '';
+    const year = (document.getElementById('carYear')||{}).value || '';
+    openEzSpareFitment({ carYear:year, carMake:make, carModel:model });
+  };
+
+  function shell(c){
+    document.getElementById('ezSpareContent').innerHTML = `
+      <div class="ezf-head">
+        <div class="ezf-kicker">\ud83d\udede EZ Spare Fitment</div>
+        <div class="ezf-veh-title">${vehLabel(c)||'Select Vehicle'}</div>
+      </div>
+      <div id="ezfBody"><div class="ezf-loading">Looking up fitment\u2026</div></div>
+      <div class="ezf-foot">
+        <a class="ezf-link" href="${EZF_LINK}" target="_blank" rel="noopener">Full guide \u2197</a>
+        <button class="ezf-close" onclick="hideModal('ezSpareModal')">Close</button>
+      </div>`;
+  }
+
+  async function autoResolve(c){
+    if(!st.year) return showPicker(c, {});
+    setBody('<div class="ezf-loading">Looking up fitment\u2026</div>');
+    const makes = extract(await api('/api/get-makes', st.year));
+    const mk = c.carMake ? matchVal(makes, c.carMake.replace(/_/g,' ')) : null;
+    if(!mk) return showPicker(c, {makes});
+    st.make = mk;
+    const models = extract(await api('/api/get-models', st.year, mk));
+    const md = c.carModel ? matchVal(models, c.carModel) : null;
+    if(!md) return showPicker(c, {makes, models});
+    st.model = md;
+    const opts = extract(await api('/api/get-options', st.year, mk, md));
+    if(opts.length>1) return showPicker(c, {makes, models, opts});
+    st.option = opts.length===1 ? iVal(opts[0]) : '';
+    await showInfo();
+  }
+
+  async function showInfo(){
+    setBody('<div class="ezf-loading">Loading kit specs\u2026</div>');
+    try{
+      const data = await api('/api/get-info', st.year, st.make, st.model, st.option);
+      st.spec = Array.isArray(data) ? data[0] : data;
+      setBody(renderSpec(st.spec));
+    }catch(e){ showErr(e); }
+  }
+
+  function renderSpec(s){
+    if(!s) return '<div class="ezf-err">No fitment data found for this vehicle.</div>';
+    const c = call() || {};
+    const pn  = x => x ? `<span class="ezf-pn">${x}</span>` : '';
+    const dot = hubColor(s.hub_ring, s.hub_ring_pn||s.hub_ring);
+    const saveBtn = s.size_1
+      ? `<button class="ezf-save" onclick="${st.callId?'ezfSaveToCall()':'ezfApplyToForm()'}">💾 Save to call</button>`
+      : '';
+    const resolved = [st.year,(st.make||c.carMake||'').replace(/_/g,' '),st.model||c.carModel,st.option].filter(Boolean).join(' ');
+    return `
+      ${resolved?`<div class="ezf-resolved">${resolved}</div>`:''}
+      <div class="ezf-card">
+        <div class="ezf-sec">EZ Spare Options</div>
+        <div class="ezf-line"><span class="k">Preferred</span><span class="v">${s.size_1||'N/A'}${pn(s.kit)}</span></div>
+        <div class="ezf-line"><span class="k">Secondary</span><span class="v">${s.size_2||'N/A'}${pn(s.size_2_pn)}</span></div>
+      </div>
+      <div class="ezf-card">
+        <div class="ezf-sec">Hardware</div>
+        <div class="ezf-line"><span class="k">EFS Adapter</span><span class="v">${s.efs_adapter||'Direct Fit'}${s.pattern?' \u00b7 '+s.pattern:''}${pn(s.efs_pn)}</span></div>
+        <div class="ezf-line"><span class="k">${s.lug_type||'Lug'}</span><span class="v">${s.lug_thread||'N/A'}${pn(s.lug_pn)}</span></div>
+        <div class="ezf-line"><span class="k">Hub Ring</span><span class="v"><span class="ezf-dot" style="background:${dot};"></span>${s.hub_ring||'Direct Fit'}${pn(s.hub_ring_pn)}</span></div>
+      </div>
+      ${saveBtn}
+      <div id="ezfMsg"></div>`;
+  }
+
+  function optionsHtml(label, list, sel){
+    let h = `<option value="">Select ${label}</option>`;
+    (list||[]).forEach(it=>{ const v=iVal(it), t=iText(it); if(v) h+=`<option value="${String(v).replace(/"/g,'&quot;')}"${v===sel?' selected':''}>${t}</option>`; });
+    return h;
+  }
+  function resetSel(el,label){ if(!el) return; el.innerHTML=`<option value="">Select ${label}</option>`; el.disabled=true; }
+  function clearResult(){ const r=document.getElementById('ezfResult'); if(r) r.innerHTML=''; }
+
+  async function loadInto(el, label, path, ...args){
+    el.innerHTML='<option value="">Loading\u2026</option>'; el.disabled=true;
+    let list=[];
+    try{ list = extract(await api(path, ...args)); }
+    catch(e){ el.innerHTML='<option value="">Error loading</option>'; clearResult(); return []; }
+    el.innerHTML = optionsHtml(label, list, '');
+    el.disabled=false;
+    return list;
+  }
+
+  function showPicker(c, lists){
+    lists = lists||{};
+    const years=[]; const cy=new Date().getFullYear()+1; for(let y=cy;y>=1995;y--) years.push(String(y));
+    const note = (st.make && st.model) ? 'Multiple trims for this vehicle — pick the trim to get the exact kit.' : 'Confirm this vehicle’s details to pull the exact kit.';
+    setBody(`
+      <div class="ezf-note">${note}</div>
+      <div class="ezf-fields">
+        <div class="ezf-fg"><label>Year</label><select id="ezfYear" class="ezf-select">${optionsHtml('Year', years, st.year)}</select></div>
+        <div class="ezf-fg"><label>Make</label><select id="ezfMake" class="ezf-select"${st.year?'':' disabled'}>${optionsHtml('Make', lists.makes, st.make)}</select></div>
+        <div class="ezf-fg"><label>Model</label><select id="ezfModel" class="ezf-select"${st.make?'':' disabled'}>${optionsHtml('Model', lists.models, st.model)}</select></div>
+        <div class="ezf-fg"><label>Trim / Option</label><select id="ezfTrim" class="ezf-select"${st.model?'':' disabled'}>${optionsHtml('Trim / Option', lists.opts, st.option)}</select></div>
+      </div>
+      <div id="ezfResult"></div>`);
+    const yEl=document.getElementById('ezfYear'), mEl=document.getElementById('ezfMake'), dEl=document.getElementById('ezfModel'), tEl=document.getElementById('ezfTrim');
+    yEl.onchange = async ()=>{ st.year=yEl.value; st.make=st.model=st.option=''; resetSel(mEl,'Make'); resetSel(dEl,'Model'); resetSel(tEl,'Trim / Option'); clearResult(); if(st.year) await loadInto(mEl,'Make','/api/get-makes',st.year); };
+    mEl.onchange = async ()=>{ st.make=mEl.value; st.model=st.option=''; resetSel(dEl,'Model'); resetSel(tEl,'Trim / Option'); clearResult(); if(st.make) await loadInto(dEl,'Model','/api/get-models',st.year,st.make); };
+    dEl.onchange = async ()=>{ st.model=dEl.value; st.option=''; resetSel(tEl,'Trim / Option'); clearResult(); if(!st.model) return; const opts=await loadInto(tEl,'Trim / Option','/api/get-options',st.year,st.make,st.model); if(opts.length===1){ tEl.value=iVal(opts[0]); st.option=tEl.value; await showInfoInResult(); } };
+    tEl.onchange = async ()=>{ st.option=tEl.value; if(!st.option){ clearResult(); return; } await showInfoInResult(); };
+  }
+
+  async function showInfoInResult(){
+    const r=document.getElementById('ezfResult'); if(!r) return;
+    r.innerHTML='<div class="ezf-loading">Loading kit specs\u2026</div>';
+    try{
+      const data=await api('/api/get-info', st.year, st.make, st.model, st.option);
+      st.spec = Array.isArray(data)?data[0]:data;
+      r.innerHTML = renderSpec(st.spec);
+    }catch(e){ r.innerHTML='<div class="ezf-err">Couldn\u2019t reach the fitment server. <button class="ezf-retry" onclick="ezfRetryResult()">\u21bb Retry</button></div>'; }
+  }
+
+  function showErr(e){
+    console.warn('[EZ Spare]', e);
+    setBody('<div class="ezf-err">Couldn\u2019t reach the fitment server.<br><span class="ezf-err-sub">Check your connection and retry, or use the full guide below.</span><br><button class="ezf-retry" onclick="ezfRetry()">\u21bb Retry</button></div>');
+  }
+  window.ezfRetry = function(){ const c=call(); if(!c) return; st.make=st.model=st.option=''; shell(c); autoResolve(c).catch(showErr); };
+  window.ezfRetryResult = function(){ showInfoInResult(); };
+
+  window.ezfSaveToCall = function(){
+    const c=call(); if(!c || !st.spec) return;
+    const s=st.spec;
+    c.ezSpareSize = s.size_1 || c.ezSpareSize || null;
+    c.ezSpareFitment = {
+      size_1:s.size_1||null, size_2:s.size_2||null, kit:s.kit||null,
+      efs_adapter:s.efs_adapter||null, pattern:s.pattern||null,
+      lug_type:s.lug_type||null, lug_thread:s.lug_thread||null,
+      hub_ring:s.hub_ring||null, hub_ring_pn:s.hub_ring_pn||null,
+      year:st.year||null, make:(st.make||c.carMake||null), model:(st.model||c.carModel||null), option:st.option||null,
+      at: Date.now()
+    };
+    try{ save(); }catch(e){}
+    try{ firestoreUpsertCall(c); }catch(e){}
+    try{ renderCalls(); }catch(e){}
+    try{ if(typeof renderHome==='function') renderHome(); }catch(e){}
+    const msg=document.getElementById('ezfMsg'); if(msg) msg.innerHTML=`<div class="ezf-saved">\u2713 Saved to call #${c.callNum||c.id.slice(-5)}</div>`;
+    try{ if(typeof showToast==='function') showToast('EZ Spare fitment saved to call'); }catch(e){}
+  };
+
+  window.ezfApplyToForm = function(){
+    const size = st.spec && st.spec.size_1; if(!size) return;
+    let applied=false;
+    ['ezSpareSize','editEzSpareSize'].forEach(function(id){
+      const sel=document.getElementById(id);
+      if(sel && sel.offsetParent!==null){
+        if(![...sel.options].some(function(o){return o.value===size;})) sel.add(new Option(size, size));
+        sel.value=size;
+        try{ sel.dispatchEvent(new Event('change')); }catch(e){}
+        applied=true;
+      }
+    });
+    const msg=document.getElementById('ezfMsg');
+    if(msg) msg.innerHTML='<div class="ezf-saved">✓ Size '+size+' '+(applied?'added to the call':'ready')+'</div>';
+    try{ if(typeof showToast==='function') showToast('EZ Spare size '+size+' applied'); }catch(e){}
+  };
+})();
+</script>
 </body>
 </html>
