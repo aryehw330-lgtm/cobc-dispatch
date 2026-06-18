@@ -2948,21 +2948,17 @@ async function initFirebaseApp() {
     try { _fcmApp = firebase.initializeApp(FCM_CONFIG); }
     catch(e) { _fcmApp = firebase.app(); } // already initialized
     _firebaseReady = true;
-    // Anonymous auth — gives every app instance a Firebase token so Firestore
-    // rules can require `request.auth != null` (blocks random public read/write).
-    // Wait for any persisted session to restore first, so we don't mint a new
-    // anonymous user on every launch.
+    // Anonymous auth — non-blocking. Fires sign-in in the background so the app
+    // NEVER hangs on it. Firestore SDK writes pick up the token once it resolves.
     try {
       if (firebase.auth) {
-        await new Promise((resolve) => {
-          const unsub = firebase.auth().onAuthStateChanged((user) => {
-            unsub();
-            if (user) { resolve(); }
-            else { firebase.auth().signInAnonymously().then(resolve).catch((e)=>{ console.warn('Anon auth:', e); resolve(); }); }
-          });
+        firebase.auth().onAuthStateChanged((user) => {
+          if (!user) {
+            firebase.auth().signInAnonymously().catch((e)=>console.warn('Anon auth:', e));
+          }
         });
       }
-    } catch(e) { console.warn('Anonymous auth failed:', e); }
+    } catch(e) { console.warn('Anonymous auth setup failed:', e); }
     initFirestore(); // start Firestore real-time sync
     subscribeScheduleFromFirestore(); // sync dispatch schedule from Firestore
     // subscribeTelzioFromFirestore(); // disabled — re-enable when Cloudflare worker is ready
