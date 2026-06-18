@@ -2950,9 +2950,17 @@ async function initFirebaseApp() {
     _firebaseReady = true;
     // Anonymous auth — gives every app instance a Firebase token so Firestore
     // rules can require `request.auth != null` (blocks random public read/write).
+    // Wait for any persisted session to restore first, so we don't mint a new
+    // anonymous user on every launch.
     try {
-      if (firebase.auth && !firebase.auth().currentUser) {
-        await firebase.auth().signInAnonymously();
+      if (firebase.auth) {
+        await new Promise((resolve) => {
+          const unsub = firebase.auth().onAuthStateChanged((user) => {
+            unsub();
+            if (user) { resolve(); }
+            else { firebase.auth().signInAnonymously().then(resolve).catch((e)=>{ console.warn('Anon auth:', e); resolve(); }); }
+          });
+        });
       }
     } catch(e) { console.warn('Anonymous auth failed:', e); }
     initFirestore(); // start Firestore real-time sync
@@ -3974,9 +3982,25 @@ const _deletedCallIds = new Set();
 
 let _firestoreSettingsApplied=false;
 // Fetch a single Firestore document via REST API (no SDK, no ITP issues)
+// Get the current Firebase ID token (anonymous auth) for REST calls.
+// Returns null if not signed in yet — caller falls back to no-auth fetch.
+function _fsIdToken(){
+  try {
+    if(window.firebase && firebase.auth && firebase.auth().currentUser){
+      return firebase.auth().currentUser.getIdToken();
+    }
+  } catch(e){}
+  return Promise.resolve(null);
+}
+// Build fetch options for a Firestore REST call, attaching the auth token if present.
+function _fsRestOpts(token){
+  const headers={};
+  if(token) headers['Authorization']='Bearer '+token;
+  return {credentials:'omit', headers:headers};
+}
 function _fsRestGetDoc(collection,docId){
   const url=`https://firestore.googleapis.com/v1/projects/cobc-dispatch/databases/(default)/documents/${collection}/${encodeURIComponent(docId)}`;
-  return fetch(url,{credentials:'omit'}).then(r=>{
+  return _fsIdToken().then(tok=>fetch(url,_fsRestOpts(tok))).then(r=>{
     if(r.status===404)return null;
     if(!r.ok)throw new Error('HTTP '+r.status);
     return r.json().then(data=>{
@@ -4005,7 +4029,7 @@ function _fsRestFetch(collection){
   const base=`https://firestore.googleapis.com/v1/projects/cobc-dispatch/databases/(default)/documents/${collection}`;
   function page(token,acc){
     const url=token?base+'?pageSize=300&pageToken='+encodeURIComponent(token):base+'?pageSize=300';
-    return fetch(url,{credentials:'omit'}).then(r=>r.json()).then(data=>{
+    return _fsIdToken().then(tok=>fetch(url,_fsRestOpts(tok))).then(r=>r.json()).then(data=>{
       (data.documents||[]).forEach(doc=>{
         const id=doc.name.split('/').pop();
         const obj={id};
