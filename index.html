@@ -5591,7 +5591,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Map</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Navigation</button>`:''}${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div>${(iAmApproved && call.status!=='done' && call.status!=='cancelled')?`<div style="display:flex;"><button class="call-action" style="flex:1;background:#fff7ed;color:#d97706;font-weight:700;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Request Backup</button></div>`:''}${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;">${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Map</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Navigation</button>`:''}${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status!=='done' && call.status!=='cancelled')?`<button class="call-action" style="flex:0.5;background:#fff7ed;color:#d97706;font-weight:700;padding:5px 4px;font-size:11px;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Backup</button>`:''}</div>${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
     </div>`;
   }
 
@@ -5652,6 +5652,7 @@ function callCardHTML(call, mini=false) {
     <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
       <div style="display:flex;gap:5px;">
         ${isDispatch?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openRadioModal('${call.id}')">📻 Assign Unit</button>`:''}
+        ${(isDispatch && call.status!=='done' && call.status!=='cancelled')?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fff7ed;color:#d97706;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Backup</button>`:''}
         ${respondBtn}
       </div>
       <div style="display:flex;gap:5px;">
@@ -6553,6 +6554,21 @@ function submitBackup() {
   const notes=document.getElementById('backupNotes').value.trim();
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
+  // Dispatch/admin ARE the approving authority — their request broadcasts immediately.
+  // Members go to the pending queue for dispatch approval first (mirrors responder flow).
+  if(['admin','dispatch'].includes(SESSION.role)){
+    const _approved={type,equipment,notes,unit:SESSION.unit,name:SESSION.name,time:Date.now(),status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
+    call.backupRequests=call.backupRequests||[];
+    call.backupRequests.push(_approved);
+    try{ logCallEvent(call,'backup_approved',{by:SESSION.unit,approvedBy:SESSION.unit}); }catch(e){}
+    save(); firestoreUpsertCall(call); hideModal('backupModal');
+    renderCalls(); renderHome();
+    showToast('🆘 Backup alert sent');
+    const _bL=CALL_TYPE_LABELS[call.type]||call.type;
+    setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bL} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
+    return;
+  }
   // Backup now goes to dispatch for approval BEFORE any all-members broadcast (mirrors responder flow)
   const _backupReq = {type,equipment,notes,unit:SESSION.unit,name:SESSION.name,time:Date.now(),status:'pending'};
   call.pendingBackups=call.pendingBackups||[];
