@@ -2957,6 +2957,12 @@ async function initFirebaseApp() {
             firebase.auth().signInAnonymously().catch((e)=>console.warn('Anon auth:', e));
           }
         });
+        // Cache the Firebase ID token for attaching to Apps Script / REST calls.
+        // onIdTokenChanged fires on sign-in AND on hourly auto-refresh.
+        firebase.auth().onIdTokenChanged((user) => {
+          if (user) { user.getIdToken().then(t => { window._fbIdToken = t; }).catch(()=>{}); }
+          else { window._fbIdToken = null; }
+        });
       }
     } catch(e) { console.warn('Anonymous auth setup failed:', e); }
     initFirestore(); // start Firestore real-time sync
@@ -3123,7 +3129,7 @@ async function enablePushForThisDevice() {
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'register', key: PUSH_SHARED_KEY,
+      body: JSON.stringify({ action: 'register', key: PUSH_SHARED_KEY, authToken: window._fbIdToken||undefined,
         unit: SESSION.unit, name: SESSION.name, role: SESSION.role, token })
     });
 
@@ -3191,7 +3197,7 @@ async function sendPush(payload) {
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'send', key: PUSH_SHARED_KEY, ...payload })
+      body: JSON.stringify({ action: 'send', key: PUSH_SHARED_KEY, authToken: window._fbIdToken||undefined, ...payload })
     });
   } catch (e) { console.warn('Push send failed:', e); }
 }
@@ -3220,6 +3226,7 @@ function sendWA(payload) {
     const url = PUSH_SEND_URL
       + '?action=sendWA'
       + '&key=' + encodeURIComponent(PUSH_SHARED_KEY)
+      + (window._fbIdToken ? '&authToken='+encodeURIComponent(window._fbIdToken) : '')
       + '&chat=' + encodeURIComponent(WA_GROUP_ID)
       + '&text=' + encodeURIComponent(message);
     fetch(url, { keepalive: true }).catch(e => console.warn('WA fetch error:', e));
@@ -3304,7 +3311,9 @@ const EQ_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwjnEHbt8v1aVKUO736
 // ═══════════════════════════════════════════════════════════════════════════
 function sheetGET(params={}){
   const qs=Object.entries(params).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
-  const url=EQ_SCRIPT_URL+(qs?'?'+qs:'');
+  // Attach Firebase auth token (Step 1 of secure rollout — harmless if script ignores it)
+  const _tok = window._fbIdToken ? '&authToken='+encodeURIComponent(window._fbIdToken) : '';
+  const url=EQ_SCRIPT_URL+(qs?'?'+qs:'?')+_tok;
   // credentials:'omit' avoids iOS ITP blocking cross-origin requests
   // AbortController gives a 12-second timeout so it fails fast on mobile
   const ctrl=new AbortController();
@@ -3315,7 +3324,7 @@ function sheetGET(params={}){
 }
 // No Content-Type header on POST — keeps it a "simple request" and avoids CORS preflight
 // (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
-function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify(body)}).then(r=>r.json()).then(res=>{try{_mirrorMemberWrite(body,res);}catch(e){}return res;}).catch(err=>{
+function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...body, authToken: window._fbIdToken||undefined})}).then(r=>r.json()).then(res=>{try{_mirrorMemberWrite(body,res);}catch(e){}return res;}).catch(err=>{
   // Network failure — enqueue idempotent writes for retry, reject non-idempotent ones immediately
   try{_enqueueRetry(body);}catch(e){}
   return Promise.reject(err);
@@ -4405,39 +4414,20 @@ function doLogin(){
   if(loginBtn){loginBtn.textContent='Signing in…';loginBtn.disabled=true;}
   const reset=()=>{if(loginBtn){loginBtn.textContent='Sign In';loginBtn.disabled=false;}};
 
-  // Try sheet first (source of truth); fall back to Firestore if sheet
-  // doesn't have this member or PIN isn't set yet in col F
-  const trySheetLogin = () => {
-    const sm = findSheetMemberByUnit(unit);
-    if (!sm) {
-      // Unit not found in sheet at all
-      if(err)err.textContent='DEBUG: unit "'+unit+'" not found in sheet ('+SHEET_MEMBERS.length+' members loaded). Trying Firebase…';
-      return false;
+  // SERVER-SIDE PIN CHECK — the typed PIN is verified on the server (getMemberByPin).
+  // The member PIN list is never downloaded to the device, so PINs can't be
+  // harvested from the app code or the members endpoint.
+  sheetGET({action:'getMemberByPin', pin:pass}).then(resp=>{
+    if(resp && resp.id && _normUnit(resp.unit)===_normUnit(unit)){
+      reset(); finishLogin(_sheetMemberToApp(resp)); return;
     }
-    const sheetPin = String(sm.pin||'').trim();
-    if (!sheetPin) {
-      reset();
-      if(err)err.textContent='DEBUG: member found ('+sm.unit+') but pin field is empty. Raw pin='+JSON.stringify(sm.pin);
-      return true;
-    }
-    if (sheetPin !== String(pass).trim()) {
-      reset();
-      if(err)err.textContent='Incorrect PIN (sheet pin length='+sheetPin.length+', entered length='+String(pass).trim().length+')';
-      return true;
-    }
-    reset(); finishLogin(sm); return true;
-  };
-
-  const doFirestoreFallback = () => _doFirestoreLogin(unit, pass, err, reset);
-
-  if (_sheetMembersLoaded) {
-    if (!trySheetLogin()) doFirestoreFallback();
-  } else {
-    if(err)err.textContent='Loading member list…';
-    loadMembersFromSheet()
-      .then(() => { if(err)err.textContent='Sheet loaded ('+SHEET_MEMBERS.length+' members). Checking…'; if (!trySheetLogin()) doFirestoreFallback(); })
-      .catch(e => { if(err)err.textContent='Sheet load failed: '+(e&&e.message||e)+'. Trying Firebase…'; doFirestoreFallback(); });
-  }
+    // No clean match (wrong PIN, or PIN shared with another unit) — verify by unit
+    // against Firestore, which looks the member up by their unit number.
+    _doFirestoreLogin(unit, pass, err, reset);
+  }).catch(()=>{
+    // Couldn't reach the server — fall back to Firestore
+    _doFirestoreLogin(unit, pass, err, reset);
+  });
 }
 function _doFirestoreLogin(unit,pass,err,reset){
   const loginBtn=document.getElementById('loginBtn');
@@ -7614,7 +7604,7 @@ function openEditMemberRole(unit) {
   const pinEl=document.getElementById('editMbrCurrentPin');
   if(pinEl){
     const isAdmin=(SESSION.role||'').toLowerCase().includes('admin');
-    pinEl.textContent = isAdmin ? ('Current: '+(m.pin||'1234')) : '';
+    pinEl.textContent = isAdmin ? 'PIN is hidden for security — use "Set new PIN" to change it' : '';
   }
   // Render call type checkboxes — load from Firestore for freshness, fall back to local
   const ctEl=document.getElementById('editMbrCallTypes');
