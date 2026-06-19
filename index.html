@@ -1599,13 +1599,19 @@ textarea.input{min-height:80px;resize:vertical;}
           <div id="schedNextContent"></div>
         </div>
         <!-- Full weekly schedule -->
-        <div class="section-label">Weekly Schedule</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div class="section-label">Weekly Schedule</div>
+          <button type="button" class="btn-sm btn-ghost" style="font-size:11px;padding:4px 12px;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;" onclick="openSchedDatePicker()">📅 Jump to date</button>
+          <input type="date" id="schedJumpDate" onchange="schedPickDate(this.value)" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0;margin:0;right:24px;"/>
+        </div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
           <button class="btn-sm btn-ghost" style="font-size:13px;padding:6px 12px;" onclick="schedNavWeek(-1)">← Prev</button>
           <div id="schedWeekLabel" style="font-size:14px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);"></div>
           <button class="btn-sm btn-ghost" style="font-size:13px;padding:6px 12px;" onclick="schedNavWeek(1)">Next →</button>
         </div>
-        <div style="text-align:center;margin-bottom:10px;"><button id="schedThisWeekBtn" class="btn-sm btn-ghost" style="font-size:11px;padding:4px 12px;display:none;" onclick="schedNavWeek(0)">↺ This Week</button></div>
+        <div style="text-align:center;margin-bottom:10px;">
+          <button id="schedThisWeekBtn" class="btn-sm btn-ghost" style="font-size:11px;padding:4px 12px;display:none;" onclick="schedNavWeek(0)">↺ This Week</button>
+        </div>
         <div class="filter-chips" id="schedDayChips" style="margin-bottom:12px;"></div>
         <div id="schedDayContent"></div>
       </div>
@@ -4099,6 +4105,31 @@ function _fsRestFetch(collection){
   return page(null,[]);
 }
 
+// ── Year-windowed call cache helpers ────────────────────────────────────────
+// The live listeners below hold only the CURRENT YEAR + still-open calls so the
+// app stays light no matter how many years of history pile up. History & Stats
+// need the full archive, so we lazy-load every call once (via REST — works even
+// through iOS ITP) the first time those views open, then merge with the live set.
+function _yearStartMs(){ return new Date(new Date().getFullYear(),0,1).getTime(); }
+let _archiveCalls=[], _archiveLoaded=false, _archiveLoading=null;
+function ensureFullCallHistory(){
+  if(_archiveLoaded) return Promise.resolve();
+  if(_archiveLoading) return _archiveLoading;
+  _archiveLoading=_fsRestFetch('calls').then(all=>{
+    _archiveCalls=Array.isArray(all)?all:[];
+    _archiveLoaded=true; _archiveLoading=null;
+  }).catch(e=>{ _archiveLoading=null; console.warn('history archive load failed:',e); });
+  return _archiveLoading;
+}
+// Live calls ∪ archived calls, deduped (the live copy always wins — it's freshest).
+function _allCalls(){
+  if(!_archiveLoaded || !_archiveCalls.length) return STATE.calls||[];
+  const map=new Map();
+  _archiveCalls.forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+  (STATE.calls||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+  return [...map.values()];
+}
+
 function initFirestore(){
   // iOS Safari PWA: Firestore WebSocket (WebChannel) is silently blocked by ITP.
   // Force long-polling so Firestore data actually arrives on iPhone home-screen installs.
@@ -4148,29 +4179,68 @@ function initFirestore(){
       if(!_snapDelivered)_snapTimer=setTimeout(_pollFirestore,30000);
     });
   }
-  const db=firebase.firestore();db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
-  // Only mark as delivered when we get REAL server data (not Firestore local cache).
-  // If the device is offline/ITP-blocked, onSnapshot fires with cached (empty) data
-  // immediately — we must NOT cancel the get() fallback in that case.
-  if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
-  if(!snap.metadata.fromCache)clearSyncError();
-  const firestoreCalls=snap.docs.map(d=>({id:d.id,...d.data()}));
-  // Guard: don't let an empty cached snapshot wipe out data the REST poll already loaded.
-  // On iOS, onSnapshot fires immediately with fromCache=true and 0 docs, then may fire again
-  // later. If we already have real data (from REST poll), skip empty cache snapshots.
-  if(snap.metadata.fromCache && firestoreCalls.length===0 && STATE.calls.length>0)return;
-  const firestoreIds=new Set(firestoreCalls.map(c=>c.id));
-  // Find calls that exist locally but not yet in Firestore (created offline or before sync)
-  const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
-  // Upload any missing local calls to Firestore (one-time migration)
-  localOnly.forEach(call=>firestoreUpsertCall(call));
-  // Merge: Firestore is source of truth, but keep local-only calls visible until they upload
-  STATE.calls=[...firestoreCalls,...localOnly];
-  save();renderCalls&&renderCalls();renderHome&&renderHome();
-  try{syncLocationWatchers&&syncLocationWatchers();}catch(e){}
-  try{tryOpenPendingDeepLink&&tryOpenPendingDeepLink();}catch(e){}
-  try{refreshStatsIfVisible&&refreshStatsIfVisible();}catch(e){}
-  }catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
+  const db=firebase.firestore();
+  // ── Year-windowed live load ────────────────────────────────────────────────
+  // Rather than stream the ENTIRE (ever-growing) calls collection, we listen to
+  // just two bounded slices and merge them:
+  //   1. every call created in the current calendar year, and
+  //   2. every still-unfinished call (open/active/draft) regardless of age — so a
+  //      call opened Dec 31 that's still running Jan 1 is never dropped.
+  // Past years load on demand for History + Stats (ensureFullCallHistory()).
+  // If either scoped listener errors (e.g. a missing index), we automatically
+  // fall back to the original full-collection listener so the board never goes dark.
+  const _yearStart=_yearStartMs();
+  let _bufYear=null, _bufOpen=null, _unsubYear=null, _unsubOpen=null, _fellBack=false;
+  function _snapDocs(snap){
+    if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
+    if(!snap.metadata.fromCache)clearSyncError();
+    const docs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // Skip the empty cached snapshot iOS fires before real server data arrives
+    if(snap.metadata.fromCache && docs.length===0 && (STATE.calls||[]).length>0) return null;
+    return docs;
+  }
+  function _applyCallsMerge(){
+    if(_bufYear===null && _bufOpen===null) return;
+    const map=new Map();
+    (_bufOpen||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+    (_bufYear||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+    const firestoreCalls=[...map.values()];
+    const firestoreIds=new Set(map.keys());
+    // Keep (and upload) only genuinely-unsynced calls that belong IN the window —
+    // recent (this year) or still unfinished. Old finished calls outside the window
+    // are intentionally not re-kept here; they reload on demand for History/Stats.
+    const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>{
+      if(!c.id||firestoreIds.has(c.id)||_deletedCallIds.has(c.id))return false;
+      return (c.createdAt||0)>=_yearStart || ['open','active','draft'].includes(c.status);
+    });
+    localOnly.forEach(call=>firestoreUpsertCall(call));
+    STATE.calls=[...firestoreCalls,...localOnly];
+    save();renderCalls&&renderCalls();renderHome&&renderHome();
+    try{syncLocationWatchers&&syncLocationWatchers();}catch(e){}
+    try{tryOpenPendingDeepLink&&tryOpenPendingDeepLink();}catch(e){}
+    try{refreshStatsIfVisible&&refreshStatsIfVisible();}catch(e){}
+  }
+  function _attachFullListener(){
+    if(_fellBack)return; _fellBack=true;
+    try{ _unsubYear&&_unsubYear(); }catch(e){}
+    try{ _unsubOpen&&_unsubOpen(); }catch(e){}
+    console.warn('calls: falling back to full-collection listener');
+    db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
+      const docs=_snapDocs(snap); if(docs===null)return;
+      _bufYear=docs; _bufOpen=[]; _applyCallsMerge();
+    }catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},
+    e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
+  }
+  try{
+    _unsubYear=db.collection('calls').where('createdAt','>=',_yearStart).onSnapshot(snap=>{
+      try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufYear=d;} _applyCallsMerge(); }
+      catch(e){console.warn('calls year snap:',e);}
+    }, e=>{console.warn('calls year listener error:',e); _attachFullListener();});
+    _unsubOpen=db.collection('calls').where('status','in',['open','active','draft']).onSnapshot(snap=>{
+      try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufOpen=d;} _applyCallsMerge(); }
+      catch(e){console.warn('calls open snap:',e);}
+    }, e=>{console.warn('calls open listener error:',e); _attachFullListener();});
+  }catch(e){ console.warn('calls scoped listeners failed:',e); _attachFullListener(); }
   // Members loaded from Google Sheet (loadMembersFromSheet) — Sheet is source of truth.
   // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
   _snapTimer=setTimeout(()=>{if(!_snapDelivered){console.warn('Firestore onSnapshot silent — starting get() fallback');_pollFirestore();}},5000);
@@ -5336,6 +5406,8 @@ function renderHistoryDay() {
   const list = document.getElementById('historyList');
   const summary = document.getElementById('historySummary');
   if(!list) return;
+  // Lazy-load past years the first time History is browsed, then re-render
+  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{renderHistoryDay();}catch(e){} }); }
   const fromStr = document.getElementById('historyFrom')?.value;
   const toStr = document.getElementById('historyTo')?.value;
   let startMs, endMs, label;
@@ -5361,7 +5433,7 @@ function renderHistoryDay() {
     startMs=0; endMs=bMs+dayMs;
     label = 'All time through '+fmt(new Date(bMs));
   }
-  const calls = (STATE.calls||[])
+  const calls = (_allCalls())
     .filter(c => {
       const ts = c.completedAt || c.createdAt || 0;
       return ts >= startMs && ts < endMs;
@@ -5438,6 +5510,8 @@ function renderMoreHistory(){
   const list=document.getElementById('histListM');
   const summary=document.getElementById('histSummaryM');
   if(!list) return;
+  // Lazy-load past years the first time History is browsed, then re-render
+  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{renderMoreHistory();}catch(e){} }); }
   const fromEl=document.getElementById('histFromM'), toEl=document.getElementById('histToM');
   // Default to today on first open
   if(fromEl && toEl && !fromEl.value && !toEl.value){ const t=_localIso(new Date()); fromEl.value=t; toEl.value=t; }
@@ -5451,7 +5525,7 @@ function renderMoreHistory(){
   if(aMs!==null&&bMs!==null){ const lo=Math.min(aMs,bMs),hi=Math.max(aMs,bMs); startMs=lo;endMs=hi+dayMs; label=lo===hi?new Date(lo).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}):fmt(new Date(lo))+' – '+fmt(new Date(hi)); }
   else if(aMs!==null){ const t=_todayStartMs(),lo=Math.min(aMs,t),hi=Math.max(aMs,t); startMs=lo;endMs=hi+dayMs; label=lo===hi?fmt(new Date(lo)):fmt(new Date(lo))+' – '+fmt(new Date(hi)); }
   else { startMs=0;endMs=bMs+dayMs; label='All time through '+fmt(new Date(bMs)); }
-  const calls=(STATE.calls||[]).filter(c=>{ const ts=c.completedAt||c.createdAt||0; return ts>=startMs&&ts<endMs; }).sort((a,b)=>(b.completedAt||b.createdAt||0)-(a.completedAt||a.createdAt||0));
+  const calls=(_allCalls()).filter(c=>{ const ts=c.completedAt||c.createdAt||0; return ts>=startMs&&ts<endMs; }).sort((a,b)=>(b.completedAt||b.createdAt||0)-(a.completedAt||a.createdAt||0));
   const completed=calls.filter(c=>c.status==='done').length;
   const cancelled=calls.filter(c=>c.status==='cancelled').length;
   const parts=[`${calls.length} call${calls.length===1?'':'s'}`,`${completed} completed`];
@@ -9321,6 +9395,26 @@ function schedNavWeek(delta) {
   if(delta===0) schedWeekOffset=0; else schedWeekOffset+=delta;
   renderSchedule();
 }
+// Open the native calendar from the "Jump to date" button (iOS/Android/desktop)
+function openSchedDatePicker(){
+  const inp=document.getElementById('schedJumpDate');
+  if(!inp) return;
+  if(typeof inp.showPicker==='function'){ try{ inp.showPicker(); return; }catch(e){} }
+  inp.focus(); inp.click();
+}
+// Jump the weekly schedule to whatever date the user picked
+function schedPickDate(val){
+  if(!val) return;
+  const [y,m,d]=val.split('-').map(Number);
+  const target=new Date(y, m-1, d);
+  if(isNaN(target)) return;
+  const now=new Date();
+  const nowWeekStart=new Date(now.getFullYear(), now.getMonth(), now.getDate()-now.getDay());
+  const tgtWeekStart=new Date(target.getFullYear(), target.getMonth(), target.getDate()-target.getDay());
+  schedWeekOffset=Math.round((tgtWeekStart-nowWeekStart)/(7*24*3600*1000));
+  schedCurDay=target.getDay();
+  renderSchedule();
+}
 
 function getShiftIndexNow() {
   const h=new Date().getHours();
@@ -9405,6 +9499,14 @@ function renderSchedule() {
       <div style="font-size:10px;opacity:.7;margin-top:1px;">${dateStr}</div>
     </div>`;
   }).join('');
+
+  // Keep the date-picker in sync with the currently-selected day
+  const jumpInp=document.getElementById('schedJumpDate');
+  if(jumpInp){
+    const sel=new Date(weekStart); sel.setDate(sel.getDate()+schedCurDay);
+    const mm=String(sel.getMonth()+1).padStart(2,'0'), dd=String(sel.getDate()).padStart(2,'0');
+    jumpInp.value=`${sel.getFullYear()}-${mm}-${dd}`;
+  }
 
   renderScheduleDay();
 }
@@ -9586,12 +9688,12 @@ function getYearData(yr) {
 // mirrors the HIST structure, so it can be merged with historical data.
 function calcLiveStats(yr) {
   const yrStr = String(yr);
-  const done = (STATE.calls||[]).filter(c => {
+  const done = (_allCalls()).filter(c => {
     if(c.status!=='done') return false;
     const d = new Date(c.completedAt||c.createdAt||0);
     return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
   });
-  const cancelled = (STATE.calls||[]).filter(c => {
+  const cancelled = (_allCalls()).filter(c => {
     if(c.status!=='cancelled') return false;
     const d = new Date(c.completedAt||c.cancelledAt||c.createdAt||0);
     return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
@@ -9735,10 +9837,14 @@ function initStats() {
   document.getElementById('stYearStrip').style.display = 'flex';
   setStatsYear(curYr, document.querySelector('.yr-btn:not([data-yr="all"])'));
   setStatsSub(firstTab, document.querySelector('#statsSubNav .sub-tab'));
+  // Pull the full call archive so All-Time / past-year stats are complete
+  ensureFullCallHistory().then(()=>{ try{ refreshStatsIfVisible(); }catch(e){} });
 }
 
 function setStatsYear(yr,el) {
   stYear=yr; stMonth=null;
+  // Stats need the full archive (past years), not just the live window — load once, then re-render
+  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{ setStatsYear(stYear, document.querySelector('.yr-btn.active')); }catch(e){} }); }
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.remove('active'));
   if(el) el.classList.add('active');
   // Use ONLY live app data — no historical HIST merging
@@ -9806,7 +9912,7 @@ function renderMyStats() {
     const row=d.top25.find(r=>r[0]===bc);
     if(row){yearStats.push({yr,tot:row[1],mp:row[2],mb:row[3],mo:row[4]});totalAll+=row[1];totalP+=row[2];totalB+=row[3];totalO+=row[4];}
   });
-  const liveCalls=STATE.calls.filter(c=>c.status!=='draft'&&(c.responders||[]).some(r=>String(r.unit).replace(/^BC-?/i,'')===bc));
+  const liveCalls=_allCalls().filter(c=>c.status!=='draft'&&(c.responders||[]).some(r=>String(r.unit).replace(/^BC-?/i,'')===bc));
   const liveCount=liveCalls.length;
   const grandTotal=totalAll+liveCount;
 
@@ -11243,7 +11349,9 @@ function setAdminCallFilter(f,el){
 function renderAdminCalls(){
   const el=document.getElementById('adminCallsList');
   if(!el) return;
-  let list=[...STATE.calls];
+  // Admin call browser spans all history — lazy-load the archive, then re-render
+  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{renderAdminCalls();}catch(e){} }); }
+  let list=[..._allCalls()];
   if(adminCallFilter!=='all') list=list.filter(c=>c.status===adminCallFilter);
   list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if(!list.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No calls found</div></div>';return;}
