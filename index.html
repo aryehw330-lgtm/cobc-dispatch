@@ -87,6 +87,8 @@ function loadGoogleMapsAPI() {
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#0a0a0a;color:#1c1c1e;overscroll-behavior:none;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:fixed;width:100%;}
+/* Inputs must stay text-selectable/typeable — global user-select:none above otherwise blocks the caret & text entry on iOS Safari */
+input,textarea,select,[contenteditable]{-webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default;}
 /* iOS: eliminate 300ms tap delay and prevent ghost-click from hidden fixed elements */
 button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary,.btn-danger,.list-item,.alert{touch-action:manipulation;cursor:pointer;}
 :root{
@@ -3651,7 +3653,7 @@ function addrAutoLookup(inputEl, townSelId, townTextId) {
       svc.getPlacePredictions({
         input: q,
         sessionToken: _getSessionToken(),
-        locationBias: bounds,
+        bounds: bounds,
         componentRestrictions: { country: 'us' },
         types: ['address']
       }, (predictions, status) => {
