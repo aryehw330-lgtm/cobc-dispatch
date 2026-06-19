@@ -517,6 +517,8 @@ textarea.input{min-height:80px;resize:vertical;}
 .stats-year-strip::-webkit-scrollbar{display:none;}
 .yr-btn{padding:7px 16px;border-radius:20px;border:2px solid var(--border);background:#fff;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;color:var(--text2);transition:all .15s;}
 .yr-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+.yr-btn:active{transform:scale(.94);}
+.yr-btn{transition:transform .08s ease, background .12s ease, color .12s ease;}
 .stats-kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
 .kpi-card{background:var(--card);border-radius:var(--radius);padding:14px 12px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
 .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
@@ -9841,12 +9843,20 @@ function initStats() {
   ensureFullCallHistory().then(()=>{ try{ refreshStatsIfVisible(); }catch(e){} });
 }
 
+let _statsRenderRAF=null;
 function setStatsYear(yr,el) {
   stYear=yr; stMonth=null;
-  // Stats need the full archive (past years), not just the live window — load once, then re-render
-  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{ setStatsYear(stYear, document.querySelector('.yr-btn.active')); }catch(e){} }); }
+  // Instant visual feedback: paint the button selection BEFORE the heavy stats crunch
   document.querySelectorAll('.yr-btn').forEach(b=>b.classList.remove('active'));
   if(el) el.classList.add('active');
+  // Stats need the full archive (past years), not just the live window — load once, then re-render
+  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{ setStatsYear(stYear, document.querySelector('.yr-btn.active')); }catch(e){} }); }
+  // Defer the expensive computation/render one frame so the tap responds immediately
+  if(_statsRenderRAF) cancelAnimationFrame(_statsRenderRAF);
+  _statsRenderRAF = requestAnimationFrame(()=>{ _statsRenderRAF=null; try{ _renderStatsYear(yr); }catch(e){ console.warn('stats render:',e); } });
+}
+function _renderStatsYear(yr){
+  const el = document.querySelector('.yr-btn.active');
   // Use ONLY live app data — no historical HIST merging
   const d = calcLiveStats(yr);
   const noteEl = document.getElementById('st-year-note');
