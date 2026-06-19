@@ -2049,6 +2049,18 @@ textarea.input{min-height:80px;resize:vertical;}
       <button onclick="hideModal('newCallModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">x</button>
     </div>
 
+    <!-- URGENT toggle (replaces priority dropdown) -->
+    <div id="urgentToggleRow" onclick="toggleUrgent()" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;margin-bottom:14px;border-radius:12px;background:var(--border2);border:1.5px solid transparent;cursor:pointer;transition:background .15s,border-color .15s;">
+      <div style="display:flex;flex-direction:column;gap:1px;">
+        <span id="urgentToggleLabel" style="font-size:14px;font-weight:700;color:var(--text);">Normal Call</span>
+        <span style="font-size:11px;color:var(--text2);">Tap to mark this call URGENT</span>
+      </div>
+      <span id="urgentToggle" role="switch" aria-checked="false" style="flex-shrink:0;width:48px;height:28px;border-radius:999px;background:var(--border);position:relative;display:inline-block;transition:background .15s;">
+        <span id="urgentToggleKnob" style="position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s;"></span>
+      </span>
+    </div>
+    <input type="hidden" id="callPriority" value="normal"/>
+
     <!-- QUICK TYPE GRID -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;" id="callTypeGrid">
       <button class="qtype-btn" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
@@ -2152,28 +2164,16 @@ textarea.input{min-height:80px;resize:vertical;}
       <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>document.getElementById('callAddressSuggest').style.display='none',200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
       <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-      <div class="input-group" style="margin-bottom:0;">
-        <label class="input-label">Town</label>
-        <select class="input" id="callTown" onchange="document.getElementById('callTownOther').style.display=this.value==='Other'?'block':'none'">
-          <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option>
-          <option>Fort Lee</option><option>Hackensack</option><option>Paramus</option>
-          <option>Ridgefield Park</option><option>Palisades Park</option><option>Leonia</option>
-          <option>Bogota</option><option>Fairview</option><option>Edgewater</option><option>Other</option>
-        </select>
-      </div>
-      <div class="input-group" style="margin-bottom:0;">
-        <label class="input-label">Priority</label>
-        <select class="input" id="callPriority">
-          <option value="normal">Normal</option>
-          <option value="urgent">URGENT</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
-    </div>
-    <div id="callTownOther" style="display:none;" class="input-group">
-      <label class="input-label">Specify Town</label>
-      <input class="input" type="text" id="callTownText" placeholder="Enter town name..."/>
+    <!-- Town is auto-detected from the address; hidden from the UI but still stored for color-coding, maps & ETA -->
+    <div style="display:none;">
+      <select id="callTown">
+        <option value="">(auto)</option>
+        <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option>
+        <option>Fort Lee</option><option>Hackensack</option><option>Paramus</option>
+        <option>Ridgefield Park</option><option>Palisades Park</option><option>Leonia</option>
+        <option>Bogota</option><option>Fairview</option><option>Edgewater</option><option>Other</option>
+      </select>
+      <div id="callTownOther"><input type="text" id="callTownText"/></div>
     </div>
 
     <!-- CALLER INFO in one row -->
@@ -2370,22 +2370,21 @@ textarea.input{min-height:80px;resize:vertical;}
       <input class="input" type="text" id="editCallAddress" autocomplete="off" oninput="addrAutoLookup(this,'editCallTown','editCallTownText')" onblur="setTimeout(()=>document.getElementById('editCallAddressSuggest').style.display='none',200)" onfocus="if(this.value.length>=3)document.getElementById('editCallAddressSuggest').style.display='block'"/>
       <div id="editCallAddressSuggest" class="addr-suggest" style="display:none;"></div>
     </div>
-    <div class="input-group"><label class="input-label">Town</label>
-      <select class="input" id="editCallTown" onchange="document.getElementById('editCallTownOther').style.display=this.value==='Other'?'block':'none'">
+    <!-- Town auto-detected from address; hidden but stored -->
+    <div style="display:none;">
+      <select id="editCallTown">
+        <option value="">(auto)</option>
         <option>Teaneck</option><option>Englewood</option><option>Bergenfield</option><option>Fort Lee</option>
         <option>Hackensack</option><option>Paramus</option><option>Ridgefield Park</option><option>Palisades Park</option>
         <option>Leonia</option><option>Bogota</option><option>Fairview</option><option>Edgewater</option><option>Other</option>
       </select>
-    </div>
-    <div class="input-group" id="editCallTownOther" style="display:none;">
-      <label class="input-label">Specify Town</label>
-      <input class="input" type="text" id="editCallTownText" placeholder="Enter town name..."/>
+      <div id="editCallTownOther"><input type="text" id="editCallTownText"/></div>
     </div>
     <div class="input-group"><label class="input-label">Caller Name</label><input class="input" type="text" id="editCallCaller"/></div>
     <div class="input-group"><label class="input-label">Caller Phone</label><input class="input" type="tel" id="editCallPhone"/></div>
     <div class="input-group"><label class="input-label">Priority</label>
       <select class="input" id="editCallPriority">
-        <option value="normal">Normal</option><option value="urgent">Urgent</option><option value="low">Low</option>
+        <option value="normal">Normal</option><option value="urgent">Urgent</option>
       </select>
     </div>
     <div class="input-group"><label class="input-label">Notes</label><textarea class="input" id="editCallNotes"></textarea></div>
@@ -3232,7 +3231,7 @@ function _waMsgResponderUpdate(call, newResponder) {
   const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ');
   const callNum = call.callNum ? ` to call #${call.callNum}` : '';
   let msg = `*BC-${unitDisp} is responding${callNum}*\n`;
-  msg += `${typeLabel} · ${call.address}, ${call.town}`;
+  msg += `${typeLabel} · ${fmtLoc(call)}`;
   if (allResponders) msg += `\nOn call: ${allResponders}`;
   return msg;
 }
@@ -3241,7 +3240,7 @@ function _waMsgResponderUpdate(call, newResponder) {
 function _waMsgBackup(call, backupReq) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   let msg = `*BACKUP NEEDED — Call #${call.callNum||''}*\n`;
-  msg += `${typeLabel} · ${call.address}, ${call.town}`;
+  msg += `${typeLabel} · ${fmtLoc(call)}`;
   if (backupReq.equipment) msg += `\nEquipment: ${backupReq.equipment}`;
   if (backupReq.notes)     msg += `\nNotes: ${backupReq.notes}`;
   return msg;
@@ -3250,7 +3249,7 @@ function _waMsgBackup(call, backupReq) {
 // "✅ Call complete — thank you"
 function _waMsgComplete(call) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  let msg = `*Call #${call.callNum||''} Complete*\n${typeLabel} · ${call.address}, ${call.town}`;
+  let msg = `*Call #${call.callNum||''} Complete*\n${typeLabel} · ${fmtLoc(call)}`;
   const responders = (call.responders||[]);
   if (responders.length) {
     const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
@@ -3602,6 +3601,34 @@ function _getSessionToken() {
   return _sessionToken;
 }
 
+// Format "address, town" WITHOUT repeating the town when the (autocompleted)
+// address already contains it — keeps notifications/banners from showing it twice.
+function fmtLoc(call){
+  const addr=String((call&&call.address)||'').trim();
+  const town=String((call&&call.town)||'').trim();
+  if(!town) return addr;
+  if(!addr) return town;
+  if(addr.toLowerCase().includes(town.toLowerCase())) return addr;
+  return addr+', '+town;
+}
+// URGENT toggle on the New Call form (replaces the old priority dropdown)
+function toggleUrgent(){
+  const type=(document.getElementById('callType')||{}).value;
+  if(type==='child_lockout'){ setUrgentToggle(true); return; } // Child Locked in Car is always urgent — can't switch off
+  const inp=document.getElementById('callPriority'); setUrgentToggle(!inp || inp.value!=='urgent');
+}
+function setUrgentToggle(on){
+  const inp=document.getElementById('callPriority'); if(inp) inp.value=on?'urgent':'normal';
+  const row=document.getElementById('urgentToggleRow');
+  const sw=document.getElementById('urgentToggle');
+  const knob=document.getElementById('urgentToggleKnob');
+  const lbl=document.getElementById('urgentToggleLabel');
+  if(sw){ sw.setAttribute('aria-checked', on?'true':'false'); sw.style.background= on?'var(--red)':'var(--border)'; }
+  if(knob){ knob.style.transform= on?'translateX(20px)':'translateX(0)'; }
+  if(lbl){ lbl.textContent= on?'🚨 URGENT Call':'Normal Call'; }
+  if(row){ row.style.background= on?'rgba(220,38,38,.12)':'var(--border2)'; row.style.borderColor= on?'var(--red)':'transparent'; }
+}
+
 function addrAutoLookup(inputEl, townSelId, townTextId) {
   const q = (inputEl.value||'').trim();
   const suggestId = inputEl.id + 'Suggest';
@@ -3698,16 +3725,18 @@ function addrPickSuggestion(idx, boxId, inputId, townSelId, townTextId) {
       const townSel = document.getElementById(townSelId);
       const known = KNOWN_TOWNS_LC[town.toLowerCase()];
       if(townSel) {
-        if(known && known!=='Other') {
-          townSel.value = known;
-          const otherWrap = document.getElementById(townSelId+'Other');
-          if(otherWrap) otherWrap.style.display='none';
-        } else {
-          townSel.value = 'Other';
-          if(townTextId) { const t=document.getElementById(townTextId); if(t) t.value=town; }
-          const otherWrap = document.getElementById(townSelId+'Other');
-          if(otherWrap) otherWrap.style.display='block';
+        const otherWrap = document.getElementById(townSelId+'Other');
+        if(otherWrap) otherWrap.style.display='none';
+        const cleanTown = (known && known!=='Other') ? known : town;
+        // Ensure the detected town exists as an option (covers towns outside the preset list, e.g. Hawthorne)
+        let opt = Array.from(townSel.options).find(o => (o.value||o.text||'').toLowerCase() === cleanTown.toLowerCase());
+        if(!opt){
+          opt = new Option(cleanTown, cleanTown);
+          const otherOpt = Array.from(townSel.options).find(o => o.value==='Other');
+          if(otherOpt) townSel.insertBefore(opt, otherOpt); else townSel.add(opt);
         }
+        townSel.value = cleanTown;
+        if(townTextId){ const t=document.getElementById(townTextId); if(t) t.value=''; }
       }
     }
   });
@@ -4828,7 +4857,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();}if(id==='scanModal')_openScanner();}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -5005,7 +5034,7 @@ function openPendingModal() {
         const b=item.backup;
         return `<div style="background:#fef2f2;border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid var(--red);">
           <div style="font-size:14px;font-weight:700;color:var(--text);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} — Backup</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:3px;">Call #${call.callNum||''} · ${call.address||''}${call.town?', '+call.town:''}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px;">Call #${call.callNum||''} · ${fmtLoc(call)}</div>
           ${(b.equipment||b.notes)?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">${b.equipment?'Equipment: '+b.equipment:''}${b.equipment&&b.notes?' · ':''}${b.notes||''}</div>`:''}
           <div style="display:flex;gap:6px;margin-top:10px;">
             <button onclick="approveBackup('${call.id}',${b.time});setTimeout(openPendingModal,200)" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✓ Approve &amp; Alert</button>
@@ -5019,7 +5048,7 @@ function openPendingModal() {
       return `<div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid ${responder.observerOnly?'var(--purple)':'var(--amber)'};">
         <div style="font-size:14px;font-weight:700;color:var(--text);">BC-${String(responder.unit||'').replace(/^BC-?/i,'')} ${responder.name||''}${responder.isObserver?' <span style="background:#ede9fe;color:var(--purple);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">OBS</span>':''}${responder.observerOnly?' <span style="background:#fef3c7;color:var(--amber);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">OBSERVE ONLY</span>':''}</div>
         <div style="font-size:12px;color:var(--text2);margin-top:3px;">${responder.observerOnly?'👁️ Coming to observe':'Wants to respond to'} <b>${typeLabel}</b> · Call #${call.callNum||''}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px;">${call.address}${call.town?', '+call.town:''} · ETA ${responder.eta||'?'}m${responder.notes?' · '+responder.notes:''}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">${fmtLoc(call)} · ETA ${responder.eta||'?'}m${responder.notes?' · '+responder.notes:''}</div>
         <div style="display:flex;gap:6px;margin-top:10px;">
           <button onclick="approveResponder('${call.id}','${responder.unit}');setTimeout(openPendingModal,200)" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✓ Approve</button>
           <button onclick="rejectResponder('${call.id}','${responder.unit}');setTimeout(openPendingModal,200)" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✕ Reject</button>
@@ -5076,7 +5105,7 @@ function renderPendingRespondersBanner(targetEl) {
           return `<div style="background:rgba(220,80,80,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,150,150,.32);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
             <div style="flex:1;min-width:0;">
               <div style="font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} needs backup</div>
-              <div style="font-size:11px;color:rgba(255,255,255,.7);">(#${call.callNum||''}) at ${call.address||''}${call.town?', '+call.town:''}</div>
+              <div style="font-size:11px;color:rgba(255,255,255,.7);">(#${call.callNum||''}) at ${fmtLoc(call)}</div>
             </div>
             <button onclick="approveBackup('${call.id}',${b.time})" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✓ Alert</button>
             <button onclick="rejectBackup('${call.id}',${b.time})" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✕</button>
@@ -5088,7 +5117,7 @@ function renderPendingRespondersBanner(targetEl) {
         return `<div style="background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
           <div style="flex:1;min-width:0;">
             <div style="font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);">BC-${String(responder.unit||'').replace(/^BC-?/i,'')} ${responder.name||''}${responder.isObserver?' <span style="background:rgba(167,139,250,.3);color:#c4b5fd;font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">OBS</span>':''}${responder.observerOnly?' <span style="background:rgba(230,196,99,.3);color:#e6c463;font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">OBSERVE ONLY</span>':''}</div>
-            <div style="font-size:11px;color:rgba(255,255,255,.7);">${responder.observerOnly?'will observe':'wants to respond to'} <b style="color:rgba(255,255,255,.9);">${typeLabel}</b> (#${call.callNum||''}) at ${call.address}${call.town?', '+call.town:''} · ETA ${responder.eta||'?'}m</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.7);">${responder.observerOnly?'will observe':'wants to respond to'} <b style="color:rgba(255,255,255,.9);">${typeLabel}</b> (#${call.callNum||''}) at ${fmtLoc(call)} · ETA ${responder.eta||'?'}m</div>
           </div>
           <button onclick="approveResponder('${call.id}','${responder.unit}')" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✓ Approve</button>
           <button onclick="rejectResponder('${call.id}','${responder.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✕</button>
@@ -5361,7 +5390,7 @@ function renderHistoryDay() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:700;color:var(--text);">#${c.callNum||''} · ${typeLabel}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${c.address||'—'}${c.town?', '+c.town:''}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${fmtLoc(c)||'—'}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time} · Responders: ${responders}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;">
@@ -5440,7 +5469,7 @@ function renderMoreHistory(){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:700;color:var(--text);">#${c.callNum||''} · ${typeLabel}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${c.address||'—'}${c.town?', '+c.town:''}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;">${fmtLoc(c)||'—'}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;"><b>Responded:</b> ${responders}</div>
         </div>
@@ -5583,7 +5612,7 @@ function callCardHTML(call, mini=false) {
           <div style="flex:1;min-width:0;">
             <div class="call-num">#${callNumStr}</div>
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
-            <div class="call-card-addr" onclick="event.stopPropagation();openMaps('${(call.address+', '+call.town+', NJ').replace(/'/g,"\\'")}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${call.address}, ${call.town}</div>
+            <div class="call-card-addr" onclick="event.stopPropagation();openMaps('${(call.address+', '+call.town+', NJ').replace(/'/g,"\\'")}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLoc(call)}</div>
             ${ezFitBadge}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
             <div class="call-card-meta" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">${timeStr}${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}</div>
@@ -5629,7 +5658,7 @@ function callCardHTML(call, mini=false) {
           ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
           ${approved>0?`<span class="approved-badge">${approved} responding</span>`:''}
         </div>
-        <div class="call-card-addr">${call.address}${call.town?', '+call.town:''}</div>
+        <div class="call-card-addr">${fmtLoc(call)}</div>
         ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
         ${ezFitBadge}
@@ -5895,8 +5924,8 @@ function selectCallType(type, btn) {
   const pri=document.getElementById('callPriority');
   if(pri) {
     const URGENT_TYPES=['child_lockout'];
-    if(URGENT_TYPES.includes(type)) pri.value='urgent';
-    else if(URGENT_TYPES.includes(prevType) && pri.value==='urgent') pri.value='normal';
+    if(URGENT_TYPES.includes(type)) { if(typeof setUrgentToggle==='function') setUrgentToggle(true); else pri.value='urgent'; }
+    else if(URGENT_TYPES.includes(prevType) && pri.value==='urgent') { if(typeof setUrgentToggle==='function') setUrgentToggle(false); else pri.value='normal'; }
   }
 }
 
@@ -5988,7 +6017,7 @@ function createCall() {
   STATE.calls.push(call); save(); firestoreUpsertCall(call);
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
   hideModal('newCallModal');
-  ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther','callTown','callTownText'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const _cm=document.getElementById('carMake'); if(_cm){_cm.value='';}
   const _cmo=document.getElementById('carMakeOther'); if(_cmo)_cmo.style.display='none';
   const _md=document.getElementById('carModel'); if(_md){_md.innerHTML='<option value="">Select make first</option>';_md.disabled=true;}
@@ -6013,7 +6042,7 @@ function createCall() {
     const _typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const _waDispatch = (()=>{
       let m = `📢 *COBC Call #${call.callNum||''}*\n`;
-      m += `${_typeLabel} — ${call.address}, ${call.town}`;
+      m += `${_typeLabel} — ${fmtLoc(call)}`;
       if (call.caller) m += `\nCaller: ${call.caller}`;
       if (call.phone)  m += ` · ${call.phone}`;
       m += `\n\nWaiver: https://form.jotform.com/212776438913868`;
@@ -6024,7 +6053,7 @@ setTimeout(() => {
       sendPush({
       target: 'all',
       title: (priority === 'high' || priority === 'urgent') ? `🚨 New COBC Call #${call.callNum||''}` : (call.type === 'jump_start' ? `⚡ New COBC Call #${call.callNum||''}` : `📢 New COBC Call #${call.callNum||''}`),
-      body: `${_typeLabel} — ${call.address}, ${call.town}`,
+      body: `${_typeLabel} — ${fmtLoc(call)}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
       callId: call.id,
@@ -6073,7 +6102,7 @@ function buildDispatchWhatsApp(call) {
 
   let msg=`*COBC DISPATCH*\n`;
   msg+=`*${typeLabel}*\n`;
-  msg+=`Address: ${call.address}, ${call.town}\n`;
+  msg+=`Address: ${fmtLoc(call)}\n`;
   if(call.carMake) {
     const carStr=[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ');
     msg+=`Vehicle: ${carStr}\n`;
@@ -6294,7 +6323,7 @@ function confirmRespond() {
   // Push notification: on-duty dispatchers + every admin.
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const pushTitle = `📲 Response Request — BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')}`;
-  const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${call.address}, ${call.town} · ETA ${eta} min${notes?' · '+notes:''}`;
+  const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${fmtLoc(call)} · ETA ${eta} min${notes?' · '+notes:''}`;
 
   // 1) All on-duty dispatchers — no callId so tapping opens dispatch tab, not call detail
   setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/', urgent:'true' }),0);
@@ -6330,7 +6359,7 @@ function removeApprovedResponder(callId, unit) {
     target:'unit',
     unit:String(unit),
     title:'❌ Removed from Call',
-    body:`You have been removed from the ${_rmTypeLabel} at ${call.address}, ${call.town}. Do not respond.`,
+    body:`You have been removed from the ${_rmTypeLabel} at ${fmtLoc(call)}. Do not respond.`,
     url:'/cobc-dispatch/',
     callId:callId
   });
@@ -6370,7 +6399,7 @@ function _doCancelCall(id,call) {
   setTimeout(()=>sendPush({
     target:'all',
     title:`🚫 Call #${call.callNum||''} Cancelled`,
-    body:`${_cxTypeLabel} — ${call.address}, ${call.town}`,
+    body:`${_cxTypeLabel} — ${fmtLoc(call)}`,
     url:'/cobc-dispatch/'
   }),0);
   // Also send personal "do not respond" to each responder
@@ -6380,7 +6409,7 @@ function _doCancelCall(id,call) {
         target:'unit',
         unit:String(r.unit),
         title:`🚫 Call #${call.callNum||''} Cancelled — Do Not Respond`,
-        body:`${_cxTypeLabel} at ${call.address}, ${call.town} has been cancelled.`,
+        body:`${_cxTypeLabel} at ${fmtLoc(call)} has been cancelled.`,
         url:'/cobc-dispatch/'
       });
     });
@@ -6494,7 +6523,7 @@ function _doApproveResponder(callId, unit, call, req) {
   sendPush({
     target:'unit', unit:String(unit),
     title:`✅ Approved to respond to call #${call.callNum||''}`,
-    body:`${typeLabel} · ${call.address}, ${call.town} · ETA ${req.eta} min`,
+    body:`${typeLabel} · ${fmtLoc(call)} · ETA ${req.eta} min`,
     url:'/cobc-dispatch/', callId:call.id, urgent:'true'
   });
   // Push 2: tell everyone this member is responding — simple broadcast (same reliable path as radio adds)
@@ -6567,7 +6596,7 @@ function submitBackup() {
     renderCalls(); renderHome();
     showToast('🆘 Backup alert sent');
     const _bL=CALL_TYPE_LABELS[call.type]||call.type;
-    setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bL} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
     setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
     return;
   }
@@ -6583,7 +6612,7 @@ function submitBackup() {
   // Notify dispatchers + every admin ONLY (the all-members alert fires after approval)
   const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
   const _bTitle='🆘 Backup Request — needs approval';
-  const _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} on ${_bLabel} — ${call.address}, ${call.town}`;
+  const _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} on ${_bLabel} — ${fmtLoc(call)}`;
   setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
   (STATE.members||[]).forEach(function(m){ if((m.role||'').toLowerCase()==='admin'){ var au=String(m.unit||m.id||'').replace(/^BC-?/i,''); if(au){ try{ sendPush({target:'unit',unit:au,title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} } } });
 }
@@ -6604,7 +6633,7 @@ function approveBackup(callId, time) {
   showToast('🆘 Backup approved — alert sent');
   // NOW the gated broadcast goes out to everyone
   const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
-  setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
+  setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
   setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
 }
 
@@ -6946,7 +6975,7 @@ function publishCall(id) {
   const _typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const _waMsg = (()=>{
     let m = `📢 *COBC Call #${call.callNum||''}*\n`;
-    m += `${_typeLabel} — ${call.address}, ${call.town}`;
+    m += `${_typeLabel} — ${fmtLoc(call)}`;
     if (call.caller) m += `\nCaller: ${call.caller}`;
     if (call.phone)  m += ` · ${call.phone}`;
     m += `\n\nWaiver: https://form.jotform.com/212776438913868`;
@@ -6963,7 +6992,7 @@ function publishCall(id) {
   setTimeout(()=>sendPush({
     target:'all',
     title:`${call.type==='jump_start'?'⚡':'📢'} New COBC Call #${call.callNum||''}`,
-    body:`${_typeLabel} — ${call.address}, ${call.town}`,
+    body:`${_typeLabel} — ${fmtLoc(call)}`,
     url:'/cobc-dispatch/', callId:call.id,
     waChat: WA_GROUP_ID,
     waText: _waMsg
@@ -7060,13 +7089,15 @@ function openCallEdit(id) {
   document.getElementById('editCallId').value=id;
   document.getElementById('editCallType').value=call.type||'other';
   document.getElementById('editCallAddress').value=call.address||'';
-  const knownTowns=['Teaneck','Englewood','Bergenfield','Fort Lee','Hackensack','Paramus','Ridgefield Park','Palisades Park','Leonia','Bogota','Fairview','Edgewater'];
-  const isKnownTown=knownTowns.includes(call.town);
-  document.getElementById('editCallTown').value=isKnownTown?call.town:'Other';
-  const otherGrp=document.getElementById('editCallTownOther');
-  if(otherGrp) otherGrp.style.display=isKnownTown?'none':'block';
-  const otherTxt=document.getElementById('editCallTownText');
-  if(otherTxt) otherTxt.value=isKnownTown?'':call.town||'';
+  const editTownSel0=document.getElementById('editCallTown');
+  if(editTownSel0){
+    if(call.town){
+      let o=Array.from(editTownSel0.options).find(x=>(x.value||x.text||'').toLowerCase()===String(call.town).toLowerCase());
+      if(!o){ o=new Option(call.town,call.town); const ot=Array.from(editTownSel0.options).find(x=>x.value==='Other'); if(ot) editTownSel0.insertBefore(o,ot); else editTownSel0.add(o); }
+      editTownSel0.value=call.town;
+    } else editTownSel0.value='';
+  }
+  const otherTxt=document.getElementById('editCallTownText'); if(otherTxt) otherTxt.value='';
   document.getElementById('editCallCaller').value=call.caller||'';
   document.getElementById('editCallPhone').value=call.phone||'';
   document.getElementById('editCallPriority').value=call.priority||'normal';
@@ -7161,7 +7192,7 @@ function saveCallEdit() {
   }
   window._pendingEditEzFitment = null;
   save(); hideModal('callEditModal');
-  renderCalls(); renderHome(); showToast('Call updated'); firestoreUpsertCall(call);  // PUSH: notify all of edit  const _eLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);  setTimeout(()=>sendPush({target:'all',title:'✏️ Call Updated',body:`${_eLabel} — ${call.address}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);  // PUSH: notify all of edit
+  renderCalls(); renderHome(); showToast('Call updated'); firestoreUpsertCall(call);  // PUSH: notify all of edit  const _eLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);  setTimeout(()=>sendPush({target:'all',title:'✏️ Call Updated',body:`${_eLabel} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}),0);  // PUSH: notify all of edit
   openCallDetail(id);
 }
 
@@ -7276,7 +7307,7 @@ function shareMyLocationOnCall(callId) {
       const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
       // Store in globals so modal button onclicks can safely reference without any encoding issues
       window._shareLocLink = mapsLink;
-      window._shareLocMsg  = `📍 My live location — BC-${unitNum} ${firstName}\n${typeLabel} · ${call.address}, ${call.town}\n${mapsLink}`;
+      window._shareLocMsg  = `📍 My live location — BC-${unitNum} ${firstName}\n${typeLabel} · ${fmtLoc(call)}\n${mapsLink}`;
 
       const existing = document.getElementById('shareLocModal');
       if (existing) existing.remove();
@@ -7286,7 +7317,7 @@ function shareMyLocationOnCall(callId) {
       modal.innerHTML = `
         <div style="background:var(--card);border-radius:20px;padding:24px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
           <div style="font-size:17px;font-weight:700;color:var(--text1);margin-bottom:6px;">📍 Share Your Location</div>
-          <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">BC-${unitNum} · ${call.address}, ${call.town}</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">BC-${unitNum} · ${fmtLoc(call)}</div>
           <button onclick="openWA(window._shareLocMsg);document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Send via WhatsApp</button>
           <button onclick="window.open(window._shareLocLink,'_blank');document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#4285f4;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">🗺️ Open in Google Maps</button>
           <button onclick="navigator.clipboard&&navigator.clipboard.writeText(window._shareLocLink).then(()=>showToast('📋 Link copied'));document.getElementById('shareLocModal').remove()" style="width:100%;padding:14px;background:var(--border2);color:var(--text2);border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📋 Copy Link</button>
@@ -7310,7 +7341,7 @@ function openMyRouteMap(call) {
   if (!call) return;
   const dest = encodeURIComponent((call.address||'') + ' ' + (call.town||'') + ' NJ');
   const apiKey = typeof GOOGLE_MAPS_API_KEY !== 'undefined' ? GOOGLE_MAPS_API_KEY : '';
-  const title = `#${call.callNum||''} · ${call.address}${call.town?', '+call.town:''}`;
+  const title = `#${call.callNum||''} · ${fmtLoc(call)}`;
 
   // Create or reuse modal
   let overlay = document.getElementById('myRouteMapModal');
