@@ -8862,16 +8862,14 @@ function subscribeScheduleFromFirestore() {
     }, err => console.warn('schedule snapshot error:', err));
   } catch(e) { console.warn('subscribeScheduleFromFirestore failed:', e); }
 }
-// ── Telzio live caller ID: webhook writes config/telzioRecentCall, app reads it live ──
-// Option B direct proxy — used when Firestore has no fresh data
-var TELZIO_PROXY_URL = 'https://cobc-telzio.aryehw330.workers.dev';
-var TELZIO_TOKEN = 'cobc_7f3a9d2e8b1c4056af9e2d7b6c8a1f04';
+// ── Telzio live caller ID ──
+// Uses the shared Cloudflare worker on the same dev account as the EZ-Spare proxy
+// and the BC-Dispatch app (same Telzio phone account). The worker takes plain
+// requests at /proxy/calls/* — no token needed.
+var TELZIO_PROXY_URL = 'https://cobc.shmueleidelman-work.workers.dev/proxy';
 // Authenticated fetch helper — all Telzio proxy calls go through here
 function telzioFetch(path) {
-  // Send token both as URL param AND header so it works with old Worker (header) and new (URL param)
-  var sep = path.indexOf('?') >= 0 ? '&' : '?';
-  var url = TELZIO_PROXY_URL + path + sep + 'token=' + encodeURIComponent(TELZIO_TOKEN);
-  return fetch(url, { headers: { 'Authorization': 'Bearer ' + TELZIO_TOKEN }, cache: 'no-store' });
+  return fetch(TELZIO_PROXY_URL + path, { cache: 'no-store' });
 }
 let _lastTelzioCall = null;        // { name, phone, at }
 let _telzioFirstSnap = true;       // skip banner on the initial load
