@@ -5459,7 +5459,9 @@ function setDispatchFilter(f,el) {
 }
 
 function fmtOpenFor(since){
-  const mins=Math.max(0,Math.floor((Date.now()-since)/60000));
+  const sec=Math.max(0,Math.floor((Date.now()-since)/1000));
+  if(sec<60) return sec+'s';
+  const mins=Math.floor(sec/60);
   if(mins<60) return mins+'m';
   const h=Math.floor(mins/60), m=mins%60;
   return m?h+'h '+m+'m':h+'h';
@@ -5562,7 +5564,7 @@ function callCardHTML(call, mini=false) {
     const miniComplete = (iAmApproved && call.status!=='done' && !isDraft)
       ? (_cr
           ? `<div style="flex:1;text-align:center;padding:7px 10px;font-size:12px;font-weight:700;color:#7c3aed;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:8px;">⏳ ${_cr.outcome} sent — awaiting dispatch</div>`
-          : `<button class="call-action" style="background:#7c3aed;color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openMemberCompleteModal('${call.id}')">✓ Mark Complete</button>`)
+          : `<button class="call-action" style="background:#7c3aed;color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openMemberCompleteModal('${call.id}')">✓ Mark CC or CNC</button>`)
       : '';
     // Dispatch approval banner — shown to dispatch/admin when a member has requested completion
     const completionBanner = (_cr && isDispatch && call.status!=='done')
@@ -5583,15 +5585,14 @@ function callCardHTML(call, mini=false) {
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
             <div class="call-card-addr" onclick="event.stopPropagation();openMaps('${(call.address+', '+call.town+', NJ').replace(/'/g,"\\'")}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${call.address}, ${call.town}</div>
             ${ezFitBadge}
-            ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
-            <div class="call-card-meta">${timeStr}</div>
+            <div class="call-card-meta" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">${timeStr}${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}</div>
             ${responderBadges ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${responderBadges}</div>` : ''}
           </div>
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;">${call.address?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Map</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Navigation</button>`:''}${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status!=='done' && call.status!=='cancelled')?`<button class="call-action" style="flex:0.5;background:#fff7ed;color:#d97706;font-weight:700;padding:5px 4px;font-size:11px;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Backup</button>`:''}</div>${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;">${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status!=='done' && call.status!=='cancelled')?`<button class="call-action" style="flex:0.5;background:#fff7ed;color:#d97706;font-weight:700;padding:5px 4px;font-size:11px;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Backup</button>`:''}</div>${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
     </div>`;
   }
 
@@ -5652,7 +5653,8 @@ function callCardHTML(call, mini=false) {
     <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
       <div style="display:flex;gap:5px;">
         ${isDispatch?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openRadioModal('${call.id}')">📻 Assign Unit</button>`:''}
-        ${(isDispatch && call.status!=='done' && call.status!=='cancelled')?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fff7ed;color:#d97706;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Backup</button>`:''}
+        ${(isDispatch && call.status==='active')?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fff7ed;color:#d97706;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Backup</button>`:''}
+        ${(isDispatch && call.status==='active')?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#dcfce7;color:var(--green);" onclick="event.stopPropagation();openCompleteModal('${call.id}')">✅ Complete</button>`:''}
         ${respondBtn}
       </div>
       <div style="display:flex;gap:5px;">
@@ -5743,8 +5745,8 @@ async function fillCardETAs() {
       const color = mins<=5?'var(--green)':mins<=12?'var(--amber)':'#6b7280';
       const bg    = mins<=5?'#dcfce7':mins<=12?'#fef3c7':'#f3f4f6';
       span.style.display = 'inline-flex';
-      span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;margin-top:5px;cursor:pointer;`;
-      span.textContent = `📍 Your ETA: ~${mins} min → Map`;
+      span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:2px 9px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;`;
+      span.textContent = `📍 Your Estimated ETA: ${mins} min`;
       // Tap to open Google Maps directions
       span.onclick = function(e) {
         e.stopPropagation();
@@ -7658,39 +7660,51 @@ function startAppHeartbeat(){
   if (_appHeartbeatTimer) return;
   _appHeartbeatRun();
   _appHeartbeatTimer = setInterval(_appHeartbeatRun, 30000);
+  startSecondTicker();
 }
 function stopAppHeartbeat(){
   if (_appHeartbeatTimer){ clearInterval(_appHeartbeatTimer); _appHeartbeatTimer = null; }
+  stopSecondTicker();
 }
+// Live 1s tick for the on-screen open/active call timers so they stay accurate
+// to the second instead of lagging up to 30s. Cheap (a few textContent writes)
+// and auto-pauses when the app isn't visible to save battery.
+var _secTicker = null;
+function startSecondTicker(){
+  if (_secTicker) return;
+  _secTicker = setInterval(function(){
+    if (document.visibilityState === 'hidden') return;
+    try { tickOpenTimers(); } catch(e){}
+  }, 1000);
+}
+function stopSecondTicker(){
+  if (_secTicker){ clearInterval(_secTicker); _secTicker = null; }
+}
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') { try { tickOpenTimers(); } catch(e){} }
+});
 
 // ── Escalating "caller waiting" alert: every 10 min to WhatsApp + push until a
 // unit is assigned/approved (responders > 0) or the call leaves 'open'. Runs on
 // dispatch/admin devices only; milestone count is persisted to Firestore so
 // overlapping dispatchers don't double-send the same milestone.
-function checkWaitingEscalation() {
-  if(!['admin','dispatch'].includes(SESSION.role)) return;
-  const now = Date.now();
-  const STEP = 10 * 60 * 1000; // 10 minutes
-  (STATE.calls||[]).forEach(call => {
-    if(call.status !== 'open') return;                 // assigned/active, done, or cancelled -> stop
-    if((call.responders||[]).length > 0) return;       // someone approved/assigned -> stop
-    const elapsed = now - (call.createdAt || now);
-    const milestone = Math.floor(elapsed / STEP);      // 1 at 10min, 2 at 20min, ...
-    if(milestone < 1) return;
-    if(milestone <= (call.waitAlertCount||0)) return;  // already alerted for this milestone
-    call.waitAlertCount = milestone;
-    call.waitAlertAt = now;
-    try{ save(); }catch(e){}
-    try{ firestoreUpsertCall(call); }catch(e){}
-    const mins = milestone * 10;
-    const typeLabel = cleanLabel(call.type && call.type.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-    const ref = call.callNum ? ('#'+call.callNum) : ('#'+call.id.slice(-5));
-    const where = [call.address, call.town].filter(Boolean).join(', ');
-    setTimeout(()=>{ try{ sendPush({ target:'all', title:'Units needed — caller waiting '+mins+' min', body: typeLabel+(where?' · '+where:''), url:'/cobc-dispatch/', callId: call.id, urgent:'true' }); }catch(e){} }, 0);
-    setTimeout(()=>{ try{ sendWA({ target:'all', message:'*Units needed — Call '+ref+'*\n'+typeLabel+(where?' · '+where:'')+'\nCaller waiting '+mins+' minutes — any units available?' }); }catch(e){} }, 400);
-    try{ showToast('Caller waiting '+mins+' min — alert sent ('+ref+')'); }catch(e){}
-  });
-}
+function checkWaitingEscalation() { /* now SERVER-SIDE — see cobc-waiting-escalation-appscript.js. No-op on the client to avoid duplicate alerts. */ }
+
+// Foreground catch-up: phone OSes throttle/suspend setInterval while the app is
+// backgrounded or the screen is locked, so the 10-min heartbeat tick can be
+// missed. Whenever a dispatch/admin device returns to the foreground we re-run
+// the waiting-escalation + re-request checks immediately, so any milestone that
+// elapsed while the app was asleep fires right away (still deduped per-call).
+(function _wireEscalationCatchUp(){
+  function _catchUp(){
+    if(document.visibilityState==='hidden') return;
+    try{ checkWaitingEscalation(); }catch(e){}
+    try{ checkReRequests(); }catch(e){}
+  }
+  document.addEventListener('visibilitychange', _catchUp);
+  window.addEventListener('focus', _catchUp);
+  window.addEventListener('pageshow', _catchUp);
+})();
 
 // ── Re-request logic (Benzi spec: 3min x3, then 2min) ──
 function checkReRequests() {
