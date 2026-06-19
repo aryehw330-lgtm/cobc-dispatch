@@ -3651,7 +3651,7 @@ function addrAutoLookup(inputEl, townSelId, townTextId) {
       svc.getPlacePredictions({
         input: q,
         sessionToken: _getSessionToken(),
-        locationRestriction: bounds,
+        locationBias: bounds,
         componentRestrictions: { country: 'us' },
         types: ['address']
       }, (predictions, status) => {
