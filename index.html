@@ -5226,7 +5226,7 @@ function renderHome() {
   const el=document.getElementById('homeCallsList');
   const _hSort = c => {
     if(c.priority==='urgent' && c.status!=='done') return 0;
-    if((c.pendingResponders||[]).length>0 && c.status!=='done' && c.status!=='draft') return 1;
+    if(((c.pendingResponders||[]).length>0 || (c.pendingBackups||[]).length>0) && c.status!=='done' && c.status!=='draft') return 1;
     const has = (c.responders||[]).length>0;
     if(c.status==='open' && !has) return 2;
     return 3;
@@ -5665,6 +5665,7 @@ function callCardHTML(call, mini=false) {
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
         ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;}).join('')}</div>`:''}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
+        ${isDispatch&&(call.pendingBackups||[]).length>0?(call.pendingBackups||[]).map(b=>`<div style="margin-top:6px;background:#fef2f2;border:1px solid rgba(220,80,80,.4);border-radius:10px;padding:8px 10px;" onclick="event.stopPropagation();"><div style="font-size:12px;font-weight:700;color:var(--red);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup${b.equipment?' · '+b.equipment:''}${b.notes?' · '+b.notes:''}</div><div style="display:flex;gap:6px;margin-top:7px;"><button onclick="event.stopPropagation();approveBackup('${call.id}',${b.time})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve Backup</button><button onclick="event.stopPropagation();rejectBackup('${call.id}',${b.time})" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Deny</button></div></div>`).join(''):''}
         <div class="call-card-meta" style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${timeStr}</div>
         ${(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch')?(()=>{
           const locs=call.liveLocations||{};
@@ -5826,7 +5827,7 @@ function renderCalls() {
     if(c.status==='done') return 5;
     if(c.status==='draft') return 4;
     if(c.priority==='urgent') return 0;
-    if((c.pendingResponders||[]).length>0) return 1;
+    if((c.pendingResponders||[]).length>0 || (c.pendingBackups||[]).length>0) return 1;
     const hasResponders = (c.responders||[]).length>0;
     if(c.status==='open' && !hasResponders) return 2;
     return 3;
@@ -5844,7 +5845,8 @@ function renderCalls() {
       list = list.filter(c =>
         c.status==='active' || c.status==='open' ||
         ((c.responders||[]).length>0 && c.status!=='done') ||
-        ((c.pendingResponders||[]).length>0 && c.status!=='done' && c.status!=='draft')
+        ((c.pendingResponders||[]).length>0 && c.status!=='done' && c.status!=='draft') ||
+        ((c.pendingBackups||[]).length>0 && c.status!=='done' && c.status!=='draft')
       );
     } else if (dispatchFilter==='open') {
       // "Open" = status open AND no responders yet (truly waiting)
@@ -6585,22 +6587,8 @@ function submitBackup() {
   const notes=document.getElementById('backupNotes').value.trim();
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  // Dispatch/admin ARE the approving authority — their request broadcasts immediately.
-  // Members go to the pending queue for dispatch approval first (mirrors responder flow).
-  if(['admin','dispatch'].includes(SESSION.role)){
-    const _approved={type,equipment,notes,unit:SESSION.unit,name:SESSION.name,time:Date.now(),status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
-    call.backupRequests=call.backupRequests||[];
-    call.backupRequests.push(_approved);
-    try{ logCallEvent(call,'backup_approved',{by:SESSION.unit,approvedBy:SESSION.unit}); }catch(e){}
-    save(); firestoreUpsertCall(call); hideModal('backupModal');
-    renderCalls(); renderHome();
-    showToast('🆘 Backup alert sent');
-    const _bL=CALL_TYPE_LABELS[call.type]||call.type;
-    setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
-    setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
-    return;
-  }
-  // Backup now goes to dispatch for approval BEFORE any all-members broadcast (mirrors responder flow)
+  // Mirrors the responder flow exactly: EVERY backup request goes to dispatch for
+  // approval first (no role-based auto-broadcast), then dispatch approves to alert all.
   const _backupReq = {type,equipment,notes,unit:SESSION.unit,name:SESSION.name,time:Date.now(),status:'pending'};
   call.pendingBackups=call.pendingBackups||[];
   call.pendingBackups.push(_backupReq);
