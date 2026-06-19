@@ -3231,7 +3231,7 @@ function _waMsgResponderUpdate(call, newResponder) {
   const unitDisp  = String(newResponder.unit||'').replace(/^BC-?/i,'');
   const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ');
   const callNum = call.callNum ? ` to call #${call.callNum}` : '';
-  let msg = `🚗 *BC-${unitDisp} is responding${callNum}*\n`;
+  let msg = `*BC-${unitDisp} is responding${callNum}*\n`;
   msg += `${typeLabel} · ${call.address}, ${call.town}`;
   if (allResponders) msg += `\nOn call: ${allResponders}`;
   return msg;
@@ -3240,7 +3240,7 @@ function _waMsgResponderUpdate(call, newResponder) {
 // "🆘 BACKUP NEEDED"
 function _waMsgBackup(call, backupReq) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  let msg = `🆘 *BACKUP NEEDED — Call #${call.callNum||''}*\n`;
+  let msg = `*BACKUP NEEDED — Call #${call.callNum||''}*\n`;
   msg += `${typeLabel} · ${call.address}, ${call.town}`;
   if (backupReq.equipment) msg += `\nEquipment: ${backupReq.equipment}`;
   if (backupReq.notes)     msg += `\nNotes: ${backupReq.notes}`;
@@ -3250,7 +3250,7 @@ function _waMsgBackup(call, backupReq) {
 // "✅ Call complete — thank you"
 function _waMsgComplete(call) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  let msg = `✅ *Call #${call.callNum||''} Complete*\n${typeLabel} · ${call.address}, ${call.town}`;
+  let msg = `*Call #${call.callNum||''} Complete*\n${typeLabel} · ${call.address}, ${call.town}`;
   const responders = (call.responders||[]);
   if (responders.length) {
     const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
@@ -5591,7 +5591,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;">${call.address && iAmApproved?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Map</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Navigation</button>`:''}${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status!=='done' && call.status!=='cancelled')?`<button class="call-action" style="flex:0.5;background:#fff7ed;color:#d97706;font-weight:700;padding:5px 4px;font-size:11px;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Backup</button>`:''}</div>${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="flex-direction:column;gap:6px;align-items:stretch;"><div style="display:flex;gap:5px;">${miniRespond}${miniComplete}</div><div style="display:flex;gap:5px;">${call.address?`<button class="call-action" style="flex:1;background:#fef3c7;color:var(--amber);font-weight:700;" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Map</button>`:''}${call.address?`<button class="call-action" style="flex:1;background:#eff6ff;color:var(--blue);" onclick="event.stopPropagation();openMaps('${call.address} ${call.town} NJ')">Navigation</button>`:''}${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="flex:1;background:#f0fdf4;color:var(--green);font-weight:700;" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call</button>`:''}</div><div style="display:flex;gap:5px;"><button class="call-action" style="flex:1;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status!=='done' && call.status!=='cancelled')?`<button class="call-action" style="flex:0.5;background:#fff7ed;color:#d97706;font-weight:700;padding:5px 4px;font-size:11px;" onclick="event.stopPropagation();openBackupModal('${call.id}')">🆘 Backup</button>`:''}</div>${call.type==='flat_tire_no_spare'?`<div style="display:flex;"><button class="call-action ezf-card-btn" style="flex:1;" onclick="event.stopPropagation();openEzSpareFitment('${call.id}')">🛞 EZ Spare Fitment</button></div>`:''}</div>`:''}
     </div>`;
   }
 
@@ -6096,7 +6096,7 @@ function buildDispatchWhatsApp(call) {
   if(call.caller) msg+=`Caller: ${call.caller}\n`;
   if(call.phone)  msg+=`Phone: ${call.phone}\n`;
   if(call.notes)  msg+=`Notes: ${call.notes}\n`;
-  if(call.priority==='urgent') msg+=`*-- URGENT --*\n`;
+  if(call.priority==='urgent') msg+=`🚨 *URGENT* 🚨\n`;
   msg+=`\n`;
   msg+=`Map: ${mapLink}\n`;
   msg+=`App: ${appLink}\n`;
@@ -7646,6 +7646,7 @@ function _appHeartbeatRun(){
   _appTick++;
   try { tickOpenTimers(); } catch(e){}
   try { checkReRequests(); } catch(e){}
+  try { checkWaitingEscalation(); } catch(e){}
   try { updateGlobalShiftBanner(); } catch(e){}
   try { _drainRetryQueue(); } catch(e){}
   try { _updateOfflineBanner(); } catch(e){}
@@ -7660,6 +7661,35 @@ function startAppHeartbeat(){
 }
 function stopAppHeartbeat(){
   if (_appHeartbeatTimer){ clearInterval(_appHeartbeatTimer); _appHeartbeatTimer = null; }
+}
+
+// ── Escalating "caller waiting" alert: every 10 min to WhatsApp + push until a
+// unit is assigned/approved (responders > 0) or the call leaves 'open'. Runs on
+// dispatch/admin devices only; milestone count is persisted to Firestore so
+// overlapping dispatchers don't double-send the same milestone.
+function checkWaitingEscalation() {
+  if(!['admin','dispatch'].includes(SESSION.role)) return;
+  const now = Date.now();
+  const STEP = 10 * 60 * 1000; // 10 minutes
+  (STATE.calls||[]).forEach(call => {
+    if(call.status !== 'open') return;                 // assigned/active, done, or cancelled -> stop
+    if((call.responders||[]).length > 0) return;       // someone approved/assigned -> stop
+    const elapsed = now - (call.createdAt || now);
+    const milestone = Math.floor(elapsed / STEP);      // 1 at 10min, 2 at 20min, ...
+    if(milestone < 1) return;
+    if(milestone <= (call.waitAlertCount||0)) return;  // already alerted for this milestone
+    call.waitAlertCount = milestone;
+    call.waitAlertAt = now;
+    try{ save(); }catch(e){}
+    try{ firestoreUpsertCall(call); }catch(e){}
+    const mins = milestone * 10;
+    const typeLabel = cleanLabel(call.type && call.type.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
+    const ref = call.callNum ? ('#'+call.callNum) : ('#'+call.id.slice(-5));
+    const where = [call.address, call.town].filter(Boolean).join(', ');
+    setTimeout(()=>{ try{ sendPush({ target:'all', title:'Units needed — caller waiting '+mins+' min', body: typeLabel+(where?' · '+where:''), url:'/cobc-dispatch/', callId: call.id, urgent:'true' }); }catch(e){} }, 0);
+    setTimeout(()=>{ try{ sendWA({ target:'all', message:'*Units needed — Call '+ref+'*\n'+typeLabel+(where?' · '+where:'')+'\nCaller waiting '+mins+' minutes — any units available?' }); }catch(e){} }, 400);
+    try{ showToast('Caller waiting '+mins+' min — alert sent ('+ref+')'); }catch(e){}
+  });
 }
 
 // ── Re-request logic (Benzi spec: 3min x3, then 2min) ──
