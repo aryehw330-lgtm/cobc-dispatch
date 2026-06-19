@@ -6587,8 +6587,25 @@ function submitBackup() {
   const notes=document.getElementById('backupNotes').value.trim();
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  // Mirrors the responder flow exactly: EVERY backup request goes to dispatch for
-  // approval first (no role-based auto-broadcast), then dispatch approves to alert all.
+  // Dispatch tab is the approving authority itself: a dispatcher/admin requesting backup
+  // from the Dispatch tab broadcasts immediately (no self-approval needed).
+  // Everywhere else (members, or dispatch from other tabs) → approval queue, like responders.
+  const _fromDispatchTab = ['admin','dispatch'].includes(SESSION.role) && (typeof currentTab!=='undefined' && currentTab==='dispatch');
+  if(_fromDispatchTab){
+    const _approved={type,equipment,notes,unit:SESSION.unit,name:SESSION.name,time:Date.now(),status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
+    call.backupRequests=call.backupRequests||[];
+    call.backupRequests.push(_approved);
+    try{ logCallEvent(call,'backup_approved',{by:SESSION.unit,approvedBy:SESSION.unit}); }catch(e){}
+    save(); firestoreUpsertCall(call); hideModal('backupModal');
+    renderCalls(); renderHome();
+    showToast('🆘 Backup alert sent');
+    const _bL=CALL_TYPE_LABELS[call.type]||call.type;
+    setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
+    return;
+  }
+  // Mirrors the responder flow: backup request goes to dispatch for approval first,
+  // then dispatch approves to alert all.
   const _backupReq = {type,equipment,notes,unit:SESSION.unit,name:SESSION.name,time:Date.now(),status:'pending'};
   call.pendingBackups=call.pendingBackups||[];
   call.pendingBackups.push(_backupReq);
