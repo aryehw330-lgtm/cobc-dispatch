@@ -3428,16 +3428,12 @@ function _mirrorMemberWrite(body,res){
     if(!id) return;
     const col=firebase.firestore().collection('members');
     if(body.action==='deleteMember'){ col.doc(id).delete().catch(()=>{}); return; }
-    const data={unit:id};
-    if(body.firstName!=null){data.firstName=body.firstName;data.first=body.firstName;}
-    if(body.lastName!=null){data.lastName=body.lastName;data.last=body.lastName;}
-    if(body.phone!=null)data.phone=body.phone;
+    // PRIVACY: Only mirror non-PII app-state fields to Firestore.
+    // Names, phone, and email live ONLY in the private Google Sheet.
+    // Actively scrub any PII that older versions may have written.
+    const del=firebase.firestore.FieldValue.delete();
+    const data={unit:id, firstName:del, first:del, lastName:del, last:del, phone:del, email:del, pin:del};
     if(body.role!=null)data.role=body.role;
-    // SECURITY: never mirror PINs into Firestore (it is world-readable). PINs live
-    // ONLY in the private Google Sheet and are verified server-side via getMemberByPin.
-    // Actively delete any pin field that may exist on the doc from older versions.
-    try{ data.pin=firebase.firestore.FieldValue.delete(); }catch(e){}
-    if(body.email!=null)data.email=body.email;
     if(body.carAccess!=null)data.carAccess=body.carAccess;
     col.doc(id).set(data,{merge:true}).catch(()=>{});
   }catch(e){}
@@ -4182,7 +4178,9 @@ function initFirestore(){
       STATE.calls=[...fsCalls,...localOnly];
       // Members: Google Sheet is the brain. Firestore list is only an OFFLINE FALLBACK
       // when the sheet hasn't loaded — never let it override the sheet.
-      if(!_sheetMembersLoaded) STATE.members=fsMembers.filter(_memberIsReal);
+      // PRIVACY: Firestore member docs no longer store PII (names/phone/email),
+      // so we cannot use them as a member directory fallback. Sheet is sole source.
+      if(false){/* fallback removed */}
       else {
         // Sheet owns the directory, but "Responds to" call-type restrictions live
         // only in Firestore (no sheet column). Overlay them by unit so they persist
