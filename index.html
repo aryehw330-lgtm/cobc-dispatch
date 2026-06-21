@@ -3433,7 +3433,10 @@ function _mirrorMemberWrite(body,res){
     if(body.lastName!=null){data.lastName=body.lastName;data.last=body.lastName;}
     if(body.phone!=null)data.phone=body.phone;
     if(body.role!=null)data.role=body.role;
-    if(body.pin!=null)data.pin=String(body.pin);
+    // SECURITY: never mirror PINs into Firestore (it is world-readable). PINs live
+    // ONLY in the private Google Sheet and are verified server-side via getMemberByPin.
+    // Actively delete any pin field that may exist on the doc from older versions.
+    try{ data.pin=firebase.firestore.FieldValue.delete(); }catch(e){}
     if(body.email!=null)data.email=body.email;
     if(body.carAccess!=null)data.carAccess=body.carAccess;
     col.doc(id).set(data,{merge:true}).catch(()=>{});
@@ -3441,7 +3444,6 @@ function _mirrorMemberWrite(body,res){
 }
 function _memberIsReal(m){
   if(!m) return false;
-  // Only require a unit number — a member with no name yet is still valid.
   // An empty name is better than silently hiding a real member.
   return String(m.unit||m.id||'').replace(/\D+/g,'').length>0;
 }
@@ -3460,6 +3462,32 @@ async function _reconcileFirestoreMembers(sheetMembers){
     await Promise.all(orphans.map(o=>col.doc(o.id).delete().catch(()=>{})));
     console.log('Reconcile: purged '+orphans.length+' orphan member(s) from Firebase');
   }catch(e){console.warn('member reconcile:',e);}
+  _purgeFirestorePins();
+}
+// SECURITY one-time cleanup: strip the plaintext `pin` field from every Firestore
+// member doc. Older app versions mirrored PINs into Firestore (world-readable);
+// this removes the already-exposed copies. PINs remain only in the private Sheet.
+// Runs at most once per device (success is global — Firestore is shared).
+let _pinPurgeDone=false;
+async function _purgeFirestorePins(){
+  try{
+    if(_pinPurgeDone||localStorage.getItem('cobc_pins_purged')==='1') return;
+    if(!window.firebase||!_firebaseReady) return;
+    const all=await _fsRestFetch('members');
+    if(!Array.isArray(all)) return;
+    const withPin=all.filter(m=>m && m.pin!=null && (m.unit||m.id));
+    if(withPin.length){
+      const col=firebase.firestore().collection('members');
+      const del=firebase.firestore.FieldValue.delete();
+      await Promise.all(withPin.map(m=>{
+        const id=_fsMemberDocId(m.unit||m.id);
+        return id?col.doc(id).set({pin:del},{merge:true}).catch(()=>{}):null;
+      }));
+      console.log('Security: purged PINs from '+withPin.length+' Firestore member doc(s)');
+    }
+    _pinPurgeDone=true;
+    localStorage.setItem('cobc_pins_purged','1');
+  }catch(e){ console.warn('pin purge failed (will retry next load):',e); }
 }
 function postJ(action,data={}){return sheetPOST({action,...data});}
 const EQ_CACHE_KEY = 'cobc_eq_cache';
@@ -4457,7 +4485,9 @@ function _sheetMemberToApp(sm){
     name:(first+' '+last).trim(),
     first:first, last:last,
     phone:sm.phone||sm.Phone||sm.PHONE||'', role:role,
-    pin:String(sm.pin||sm.PIN||sm.Pin||sm.password||sm.Password||'').trim(),
+    // SECURITY: do NOT keep PINs in client state or localStorage. They're verified
+    // server-side at login and never needed on the device afterward.
+    pin:'',
     email:(sm.email||'').trim().toLowerCase(),
     carAccess:carAccess,
     cobc4Approval:carAccess, alertRecipient:sm.alertRecipient||'',
@@ -4538,66 +4568,34 @@ function doLogin(){
   if(loginBtn){loginBtn.textContent='Signing in…';loginBtn.disabled=true;}
   const reset=()=>{if(loginBtn){loginBtn.textContent='Sign In';loginBtn.disabled=false;}};
 
-  // SERVER-SIDE PIN CHECK — the typed PIN is verified on the server (getMemberByPin).
-  // The member PIN list is never downloaded to the device, so PINs can't be
-  // harvested from the app code or the members endpoint.
-  sheetGET({action:'getMemberByPin', pin:pass}).then(resp=>{
+  // SERVER-SIDE PIN CHECK — the typed PIN is verified on the server (getMemberByPin),
+  // which reads the PRIVATE Google Sheet. The PIN list is never downloaded to the
+  // device and is no longer mirrored into Firestore, so PINs can't be harvested from
+  // the app, the members endpoint, or the browser network tab.
+  sheetGET({action:'getMemberByPin', pin:pass, unit:unit}).then(resp=>{
+    reset();
     if(resp && resp.id && _normUnit(resp.unit)===_normUnit(unit)){
-      reset(); finishLogin(_sheetMemberToApp(resp)); return;
+      finishLogin(_sheetMemberToApp(resp)); return;
     }
-    // No clean match (wrong PIN, or PIN shared with another unit) — verify by unit
-    // against Firestore, which looks the member up by their unit number.
-    _doFirestoreLogin(unit, pass, err, reset);
+    if(resp && resp.id){
+      // PIN is valid but registered to a different unit than the one entered
+      if(err)err.textContent='That PIN doesn’t match unit '+unit;
+      return;
+    }
+    // Server was reached but found no match → genuinely wrong unit/PIN
+    if(err)err.textContent='Incorrect unit or PIN';
   }).catch(()=>{
-    // Couldn't reach the server — fall back to Firestore
-    _doFirestoreLogin(unit, pass, err, reset);
+    // Server unreachable. We deliberately do NOT fall back to an on-device PIN check —
+    // PINs are never stored on the device. Fail closed and ask the user to retry.
+    reset();
+    if(err)err.textContent='Can’t reach the server — check your connection and try again';
   });
 }
-function _doFirestoreLogin(unit,pass,err,reset){
-  const loginBtn=document.getElementById('loginBtn');
-  // Ensure Firebase is ready — on iOS PWA the SDK scripts may still be loading.
-  // Instead of asking the user to retry, wait up to 12 seconds then auto-login.
-  if(!_firebaseReady){
-    if(loginBtn){loginBtn.textContent='Connecting…';loginBtn.disabled=true;}
-    if(err)err.textContent='Connecting to Firebase…';
-    initFirebaseApp().catch(()=>{});
-    let _waited=0;
-    const _waitForReady=setInterval(()=>{
-      _waited+=500;
-      if(_firebaseReady){
-        clearInterval(_waitForReady);
-        if(err)err.textContent='';
-        if(loginBtn){loginBtn.textContent='Sign In';loginBtn.disabled=false;}
-        doLogin(); // auto-retry now that Firebase is ready
-      } else if(_waited>=12000){
-        clearInterval(_waitForReady);
-        reset();
-        if(err)err.textContent='Cannot connect — check your internet connection and try again';
-      }
-    },500);
-    return;
-  }
-
-  try {
-    // Use direct Firestore REST API — bypasses SDK WebChannel (which iOS ITP blocks).
-    _fsRestGetDoc('members',unit).then(m=>{
-      reset();
-      if(!m){if(err)err.textContent='Member not found ('+unit+')';return;}
-      if(String(m.pin)!==String(pass)){if(err)err.textContent='Incorrect PIN';return;}
-      finishLogin(m);
-    }).catch(e=>{
-      reset();
-      if(err)err.textContent='Login error — check your connection and try again';
-      console.error('doLogin error:',e);
-    });
-  } catch(e) {
-    reset();
-    if(err)err.textContent='App not ready — please wait a moment and try again';
-    console.error('doLogin sync error:',e);
-    // Try to re-initialize Firebase
-    _firebaseReady=false; initFirebaseApp();
-  }
-}
+// NOTE: the former _doFirestoreLogin() fallback was removed for security. It
+// downloaded the member doc and compared the PIN ON THE DEVICE, which required
+// PINs to live in (world-readable) Firestore. Login now verifies exclusively
+// through the server (getMemberByPin → private Sheet); there is no on-device
+// PIN check, so PINs never need to leave the server.
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -8002,7 +8000,7 @@ function saveEditMemberRole(){
   try{
     const _u=_normUnit(unit);
     const _m=(STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
-    if(_m){_m.role=role.toLowerCase();if(phone)_m.phone=phone;if(newPin&&newPin.length>=4)_m.pin=newPin;_m.callTypes=checkedTypes;}
+    if(_m){_m.role=role.toLowerCase();if(phone)_m.phone=phone;_m.callTypes=checkedTypes;}
   }catch(e){}
   hideModal('editMemberRoleModal');
   renderAdminMembers&&renderAdminMembers();
@@ -8059,9 +8057,9 @@ function saveEditMemberPin() {
   // Optimistic local update
   const _u = _normUnit(unit);
   const _m = (STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
-  if (_m) _m.pin = newPin;
+  // Do NOT cache the PIN on the device — it's sent to the server only.
   const pinEl = document.getElementById('editMbrCurrentPin');
-  if (pinEl) pinEl.textContent = 'Current: ' + newPin;
+  if (pinEl) pinEl.textContent = 'PIN updated ✓';
   document.getElementById('editMbrNewPin').value = '';
   sheetPOST({action:'updateMember', memberId:unit, pin:newPin})
     .then(r=>{
@@ -8069,7 +8067,6 @@ function saveEditMemberPin() {
         _showSuccessModal('🔑','PIN Updated','New PIN set for ' + unit);
       } else {
         showToast('Error: '+(r&&r.error||'Failed'));
-        if(_m) _m.pin = ''; // rollback unknown
       }
       unlock();
     }).catch(e=>{ showToast('Error saving PIN'); console.error(e); unlock(); });
