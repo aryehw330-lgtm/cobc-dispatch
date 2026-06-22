@@ -45,12 +45,11 @@ window.__loadQRLib=function(){
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-// Google Maps API key — replace with your actual key from Google Cloud Console
+// ─────────────────────────────────────────────────────────────
+// Google Maps API key
 window.MAPS_API_KEY = 'AIzaSyBYAz3ohsJGX_zo-Yq3faZ2m0uv4tfuSl8';
-</script>
-<script id="gmaps-script"></script>
-<script>
 // Load Google Maps JS API (Places + Geocoding) lazily after page loads
+// ─────────────────────────────────────────────────────────────
 function loadGoogleMapsAPI() {
   return new Promise((resolve, reject) => {
     if (window.google && window.google.maps && window.google.maps.places) { resolve(); return; }
@@ -61,7 +60,6 @@ function loadGoogleMapsAPI() {
       window._gmapsLoading = false;
       (window._gmapsResolvers||[]).forEach(fn=>fn());
     };
-    // Timeout after 8 s so callers don't hang forever if the key is wrong/blocked
     const timeout = setTimeout(() => {
       window._gmapsLoading = false;
       reject(new Error('Google Maps API load timeout'));
@@ -614,6 +612,8 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
 .call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
+.cc-foot-fill{display:flex;flex-wrap:wrap;gap:6px;}
+.cc-foot-fill>*{flex:1 1 calc(50% - 3px);}
 .call-action:active{opacity:.8;}
 .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;}
 .status-dot.open{background:var(--amber);}
@@ -2285,7 +2285,6 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="modal-handle"></div>
     <div class="modal-title">📻 Assigned Units</div>
     <input type="hidden" id="radioCallId"/>
-    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">Add everyone responding via radio at once. One group WhatsApp message will be sent — no private messages.</div>
     <!-- Search -->
     <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="radioSearch" placeholder="Search by name or BC#..." oninput="renderRadioSearch()"/></div>
     <div id="radioSearchResults" style="display:none;max-height:160px;overflow-y:auto;background:#fff;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;"></div>
@@ -5694,16 +5693,16 @@ function callCardHTML(call, mini=false) {
       ? (iAmApproved
           ? ``
           : iAmPending
-            ? `<div class="pending-badge" style="padding:7px 12px;font-size:12px;flex:1;text-align:center;">⏳ Pending approval…</div>`
-            : `<button class="call-action" style="background:${isUrgent?'var(--red)':'var(--green)'};color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${isUrgent?'⚠️ Respond Now':'✋ Request to Respond'}</button>`)
+            ? `<div class="pending-badge" style="padding:7px 12px;font-size:12px;flex:1 1 calc(50% - 3px);text-align:center;">⏳ Pending approval…</div>`
+            : `<button class="call-action" style="background:${isUrgent?'var(--red)':'var(--green)'};color:#fff;flex:1 1 calc(50% - 3px);font-weight:700;" onclick="event.stopPropagation();openRespondModal('${call.id}')">${isUrgent?'Respond Now':'Request to Respond'}</button>`)
       : '';
     // Completion-request state (member reports CC/CNC, dispatch must approve)
     const _cr = call.completionRequest;
     // Member's own "Mark Complete" button — only for approved responders on a live call
     const miniComplete = (iAmApproved && call.status!=='done' && !isDraft)
       ? (_cr
-          ? `<div style="flex:1;text-align:center;padding:7px 10px;font-size:12px;font-weight:700;color:#7c3aed;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:8px;">⏳ ${_cr.outcome} sent — awaiting dispatch</div>`
-          : `<button class="call-action" style="background:#7c3aed;color:#fff;flex:1;font-weight:700;" onclick="event.stopPropagation();openMemberCompleteModal('${call.id}')">✓ Mark CC or CNC</button>`)
+          ? `<div style="flex:1 1 calc(50% - 3px);text-align:center;padding:7px 10px;font-size:12px;font-weight:700;color:#7c3aed;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:8px;">⏳ ${_cr.outcome} sent — awaiting dispatch</div>`
+          : `<button class="call-action" style="background:#7c3aed;color:#fff;flex:1 1 calc(50% - 3px);font-weight:700;" onclick="event.stopPropagation();openMemberCompleteModal('${call.id}')">✓ Mark CC or CNC</button>`)
       : '';
     // Dispatch approval banner — shown to dispatch/admin when a member has requested completion
     const completionBanner = (_cr && isDispatch && call.status!=='done')
@@ -5722,7 +5721,7 @@ function callCardHTML(call, mini=false) {
           <div style="flex:1;min-width:0;">
             <div class="call-num">#${callNumStr}</div>
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
-            <div class="call-card-addr" onclick="event.stopPropagation();openMaps('${(call.address+', '+call.town+', NJ').replace(/'/g,"\\'")}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLoc(call)}</div>
+            <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLoc(call)}</div>
             ${ezFitBadge}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
             <div class="call-card-meta" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">${timeStr}${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}</div>
@@ -5731,7 +5730,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}${(iAmApproved && call.status!=='done' && !isDraft)?`<div class="approved-badge" style="padding:4px 9px;font-size:11px;white-space:nowrap;">✓ Approved to respond</div>`:''}</div>`:''}
       </div>
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && (iAmApproved || ['admin','dispatch'].includes(SESSION.role)))?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${((iAmApproved || ['admin','dispatch'].includes(SESSION.role)) && call.status!=='done' && call.status!=='cancelled')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
     </div>`;
   }
 
@@ -5792,13 +5791,13 @@ function callCardHTML(call, mini=false) {
     </div>
     <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
       <div style="display:flex;gap:5px;">
-        ${isDispatch?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openRadioModal('${call.id}')">Assign Unit</button>`:''}
+        ${isDispatch?`<button class="call-action metal-gold" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#e8c24e!important;box-shadow:none!important;text-shadow:none!important;" onclick="event.stopPropagation();openRadioModal('${call.id}')">Assign Unit</button>`:''}
         ${(isDispatch && call.status==='active')?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}
         ${(isDispatch && call.status==='active')?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#dcfce7;color:var(--green);" onclick="event.stopPropagation();openCompleteModal('${call.id}')">✅ Complete</button>`:''}
         ${respondBtn}
       </div>
       <div style="display:flex;gap:5px;">
-        <button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
+        <button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
         ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}
         ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}
       </div>
@@ -5824,6 +5823,31 @@ function _haversineMi(lat1,lng1,lat2,lng2) {
 
 // Estimate drive minutes: straight-line × 1.35 road factor at 28 mph avg
 function _etaMin(mi) { return Math.max(1, Math.round(mi*1.35/28*60)); }
+
+// Real driving ETA via Google DirectionsService (traffic-aware when the key allows).
+// Cached per origin+dest for 2 min so we don't hammer the API on every re-render.
+const _driveEtaCache = {};
+let _gDirSvc = null;
+async function _googleDriveMins(origin, dest) {
+  const key = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
+  const hit = _driveEtaCache[key];
+  if (hit && (Date.now()-hit.ts) < 120000) return hit.mins;
+  await loadGoogleMapsAPI();
+  if (!_gDirSvc) _gDirSvc = new google.maps.DirectionsService();
+  const res = await new Promise((resolve) => {
+    _gDirSvc.route({
+      origin, destination: dest,
+      travelMode: google.maps.TravelMode.DRIVING,
+      drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
+    }, (r, status) => resolve(status==='OK' ? r : null));
+  });
+  if (!res || !res.routes[0]) throw new Error('no route');
+  const leg = res.routes[0].legs[0];
+  const secs = (leg.duration_in_traffic && leg.duration_in_traffic.value) || leg.duration.value;
+  const mins = Math.max(1, Math.round(secs/60));
+  _driveEtaCache[key] = { mins, ts: Date.now() };
+  return mins;
+}
 
 // Geocode via Google first, Nominatim fallback
 async function _geocode(address, town) {
@@ -5907,6 +5931,15 @@ async function fillCardETAs() {
       span.style.display = 'inline-flex';
       span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:2px 9px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;`;
       span.textContent = `📍 Your Estimated ETA: ${mins} min`;
+      // Upgrade the straight-line estimate to a real traffic-aware Google driving ETA
+      const _origin = { lat:_myLoc.lat, lng:_myLoc.lng };
+      _googleDriveMins(_origin, pt).then(gm => {
+        if (!document.body.contains(span)) return;
+        const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
+        const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
+        span.style.cssText += `background:${gbg};color:${gc};`;
+        span.textContent = `📍 Your Estimated ETA: ${gm} min`;
+      }).catch(()=>{}); // keep the instant estimate if Google routing is unavailable
       // Tap to open Google Maps directions
       span.onclick = function(e) {
         e.stopPropagation();
@@ -6299,23 +6332,20 @@ function openRespondModal(id) {
   document.getElementById('respondCallId').value=id;
   document.getElementById('respondETA').value='10';
   document.getElementById('respondNotes').value='';
-  // Auto-fill ETA from member's live location via OSRM (route-based, same as live map)
+  // Auto-fill ETA from member's live location via Google (traffic-aware driving route)
   if (_myLoc && call && call.address) {
     (async () => {
       try {
         const dest = await geocodeCallAddress(call);
         if (dest) {
-          const url = `https://router.project-osrm.org/route/v1/driving/${_myLoc.lng},${_myLoc.lat};${dest.lng},${dest.lat}?overview=false`;
-          const res = await fetch(url);
-          const data = await res.json();
-          if (data.code === 'Ok' && data.routes?.[0]) {
-            const mins = Math.max(1, Math.round(data.routes[0].duration / 60));
-            document.getElementById('respondETA').value = String(mins);
+          const mins = await _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, dest);
+          document.getElementById('respondETA').value = String(mins);
+          {
             // Highlight the auto-filled ETA
             const etaInput = document.getElementById('respondETA');
             if (etaInput) {
               etaInput.style.background = '#dcfce7';
-              etaInput.title = 'Auto-calculated from your current location via route';
+              etaInput.title = 'Auto-calculated from your current location via Google route';
               setTimeout(() => { etaInput.style.background = ''; }, 2000);
             }
           }
@@ -6477,23 +6507,42 @@ function removeApprovedResponder(callId, unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
   const req=call.responders.find(r=>String(r.unit)===String(unit));
-  if(!confirm(`Remove BC-${String(unit||'').replace(/^BC-?/i,'')} ${req?.name||''} from this call?`)) return;
-  call.responders=call.responders.filter(r=>String(r.unit)!==String(unit));
-  if(!call.responders.length && !call.pendingResponders?.length) call.status='open';
-  logCallEvent(call,'responder_removed',{responder:unit,removedBy:SESSION.unit});
-  save(); firestoreUpsertCall(call); renderCalls(); renderHome();
-  hideModal('callDetailModal');
-  showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
-  showToast(`BC-${String(unit||'').replace(/^BC-?/i,'')} removed from call`);
-  // Notify the removed member — do not respond
-  const _rmTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  sendPush({
-    target:'unit',
-    unit:String(unit),
-    title:'❌ Removed from Call',
-    body:`You have been removed from the ${_rmTypeLabel} at ${fmtLoc(call)}. Do not respond.`,
-    url:'/cobc-dispatch/',
-    callId:callId
+  const unitLabel=String(unit||'').replace(/^BC-?/i,'');
+  // Custom confirm overlay — native confirm() can freeze the app in an iOS PWA
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:300px;width:88%;text-align:center;">'
+    +'<div style="font-size:32px;margin-bottom:10px">✕</div>'
+    +`<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:6px;">Remove BC-${unitLabel}${req?.name?(' '+req.name):''}?</div>`
+    +'<div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:18px;">They will be notified not to respond.</div>'
+    +'<div style="display:flex;gap:10px;">'
+    +'<button id="__rr_no" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Keep</button>'
+    +'<button id="__rr_yes" style="flex:1;padding:13px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Remove</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+  const close=()=>{ if(overlay.parentNode) document.body.removeChild(overlay); };
+  overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
+  overlay.querySelector('#__rr_no').addEventListener('click',close);
+  overlay.querySelector('#__rr_yes').addEventListener('click',()=>{
+    close();
+    call.responders=call.responders.filter(r=>String(r.unit)!==String(unit));
+    if(!call.responders.length && !call.pendingResponders?.length) call.status='open';
+    logCallEvent(call,'responder_removed',{responder:unit,removedBy:SESSION.unit});
+    save(); firestoreUpsertCall(call); renderCalls(); renderHome();
+    hideModal('callDetailModal');
+    showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
+    showToast(`BC-${unitLabel} removed from call`);
+    const _rmTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+    try {
+      sendPush({
+        target:'unit',
+        unit:String(unit),
+        title:'❌ Removed from Call',
+        body:`You have been removed from the ${_rmTypeLabel} at ${fmtLoc(call)}. Do not respond.`,
+        url:'/cobc-dispatch/',
+        callId:callId
+      });
+    } catch(e){ console.warn('removeApprovedResponder push failed:',e); }
   });
 }
 // ── Cancel a call (dispatch/admin) — notifies all responders ──
@@ -6963,8 +7012,8 @@ function openCallDetail(id) {
     ${call.notes?`<div class="detail-row"><span class="detail-key">Notes</span><span class="detail-val">${call.notes}</span></div>`:''}
   </div>`;
 
-  // Live Map (dispatch) — moved here from the call card footer
-  if(call.address && isDispatch){
+  // Live Map (dispatch) — only once the call is active AND has responders assigned
+  if(call.address && isDispatch && call.status==='active' && (call.responders||[]).length>0){
     html+=`<button class="call-action" style="width:100%;padding:12px;font-size:14px;font-weight:700;background:#fef3c7;color:var(--amber);margin-bottom:12px;" onclick="openLiveMap('${id}')">🗺️ Live Map</button>`;
   }
 
@@ -7482,6 +7531,103 @@ function openLiveDirections(callId) {
   openMyRouteMap(call);
 }
 
+// Look up a call by id then open the preview (for inline onclick handlers)
+function openAddressPreviewById(id) {
+  const call = (STATE.calls||[]).find(c => c.id === id);
+  if (call) openAddressPreview(call);
+}
+// WhatsApp / iOS-style address preview: satellite map + pin, ETA & distance,
+// and a "Choose application" picker (Apple Maps / Google Maps / Waze).
+async function openAddressPreview(call) {
+  if (!call || !call.address) return;
+  const addr = call.address || '';
+  const town = call.town || '';
+  const fullAddr = `${addr}, ${town}, NJ`;
+  const enc = encodeURIComponent(fullAddr);
+  const key = window.MAPS_API_KEY || '';
+
+  let ov = document.getElementById('addrPreviewModal');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'addrPreviewModal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:3000;background:#e9e9ea;display:flex;flex-direction:column;';
+    document.body.appendChild(ov);
+  }
+  ov.style.display = 'flex';
+  const close = () => { ov.style.display = 'none'; };
+
+  ov.innerHTML = `
+    <div style="flex-shrink:0;background:#d8d8db;padding:calc(env(safe-area-inset-top) + 10px) 16px 12px;display:flex;align-items:center;gap:12px;">
+      <button id="__ap_back" style="width:42px;height:42px;border-radius:50%;border:none;background:rgba(255,255,255,.7);font-size:22px;color:#111;cursor:pointer;flex-shrink:0;">‹</button>
+      <div style="flex:1;text-align:center;padding-right:42px;">
+        <div style="font-size:18px;font-weight:700;color:#111;">${addr}</div>
+        <div style="font-size:14px;color:#555;">${town} NJ</div>
+      </div>
+    </div>
+    <div style="flex:1;position:relative;overflow:hidden;">
+      <iframe id="__ap_frame" style="width:100%;height:100%;border:none;" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+        src="https://www.google.com/maps/embed/v1/place?key=${key}&q=${enc}&maptype=satellite&zoom=16"></iframe>
+      <div style="position:absolute;left:14px;right:14px;bottom:18px;background:rgba(255,255,255,.96);border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;overflow:hidden;">
+        <div style="background:var(--green,#1eb257);color:#fff;padding:12px 14px;text-align:center;min-width:74px;">
+          <div style="font-size:24px;line-height:1;">🚗</div>
+          <div id="__ap_eta_txt" style="font-size:15px;font-weight:800;margin-top:3px;">…</div>
+        </div>
+        <div style="flex:1;padding:10px 14px;min-width:0;">
+          <div style="font-size:16px;font-weight:700;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${addr}, ${town}</div>
+          <div id="__ap_dist" style="font-size:14px;color:#666;">Calculating…</div>
+        </div>
+      </div>
+    </div>
+    <div style="flex-shrink:0;background:#fff;border-radius:18px 18px 0 0;margin-top:-14px;padding:18px 16px calc(env(safe-area-inset-bottom) + 16px);position:relative;z-index:2;">
+      <div style="display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:14px;">
+        <div style="font-size:19px;font-weight:800;color:#111;">Choose application</div>
+        <button id="__ap_x" style="position:absolute;right:0;width:38px;height:38px;border-radius:50%;border:none;background:#eee;font-size:18px;color:#555;cursor:pointer;">✕</button>
+      </div>
+      <div style="background:#f7f7f8;border-radius:14px;overflow:hidden;">
+        <a href="https://maps.apple.com/?daddr=${enc}&dirflg=d" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;border-bottom:1px solid #e6e6e8;">Maps</a>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=driving" target="_blank" rel="noopener" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;border-bottom:1px solid #e6e6e8;">Google Maps</a>
+        <a id="__ap_waze" href="https://waze.com/ul?q=${enc}&navigate=yes" target="_blank" rel="noopener" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;">Waze</a>
+      </div>
+    </div>`;
+
+  ov.querySelector('#__ap_back').onclick = close;
+  ov.querySelector('#__ap_x').onclick = close;
+
+  try {
+    const pt = await _geocode(addr, town);
+    if (pt) {
+      const wz = ov.querySelector('#__ap_waze');
+      if (wz) wz.href = `https://waze.com/ul?ll=${pt.lat},${pt.lng}&navigate=yes`;
+      if (_myLoc) {
+        await loadGoogleMapsAPI();
+        if (!_gDirSvc) _gDirSvc = new google.maps.DirectionsService();
+        _gDirSvc.route({
+          origin: { lat:_myLoc.lat, lng:_myLoc.lng }, destination: pt,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
+        }, (r, status) => {
+          const etaEl = document.getElementById('__ap_eta_txt');
+          const distEl = document.getElementById('__ap_dist');
+          if (status==='OK' && r.routes[0]) {
+            const leg = r.routes[0].legs[0];
+            const secs = (leg.duration_in_traffic && leg.duration_in_traffic.value) || leg.duration.value;
+            if (etaEl) etaEl.textContent = `${Math.max(1, Math.round(secs/60))} min`;
+            if (distEl) distEl.textContent = `${leg.distance.text} away`;
+          } else {
+            if (etaEl) etaEl.textContent = '—';
+            if (distEl) distEl.textContent = `${addr}, ${town}`;
+          }
+        });
+      } else {
+        const etaEl = document.getElementById('__ap_eta_txt');
+        const distEl = document.getElementById('__ap_dist');
+        if (etaEl) etaEl.textContent = '—';
+        if (distEl) distEl.textContent = `${addr}, ${town}`;
+      }
+    }
+  } catch(e) {}
+}
+
 function openMyRouteMap(call) {
   if (!call) return;
   const dest = encodeURIComponent((call.address||'') + ' ' + (call.town||'') + ' NJ');
@@ -7690,17 +7836,23 @@ async function _refreshLiveMap() {
       bounds.extend(pos);
     }
 
-    // Route line via OSRM
+    // Route line via Google DirectionsService (traffic-aware, same engine as the ETAs)
     if (dest) {
       try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${v.lng},${v.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.code === 'Ok' && data.routes?.[0]) {
-          const coords = data.routes[0].geometry.coordinates.map(([lng,lat]) => ({lat, lng}));
+        await loadGoogleMapsAPI();
+        if (!_gDirSvc) _gDirSvc = new google.maps.DirectionsService();
+        const r = await new Promise((resolve) => {
+          _gDirSvc.route({
+            origin: { lat: v.lat, lng: v.lng }, destination: dest,
+            travelMode: google.maps.TravelMode.DRIVING,
+            drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
+          }, (res, status) => resolve(status==='OK' ? res : null));
+        });
+        if (r && r.routes[0]) {
+          const coords = r.routes[0].overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }));
           if (isLeaflet) {
             if (_responderRoutes[unit]) _responderRoutes[unit].remove();
-            _responderRoutes[unit] = L.geoJSON(data.routes[0].geometry, { style: { color, weight: 4, opacity: 0.7 } }).addTo(_liveMap);
+            _responderRoutes[unit] = L.polyline(coords.map(c=>[c.lat,c.lng]), { color, weight: 4, opacity: 0.75 }).addTo(_liveMap);
           } else {
             if (_responderRoutes[unit]) _responderRoutes[unit].setMap(null);
             _responderRoutes[unit] = new google.maps.Polyline({
