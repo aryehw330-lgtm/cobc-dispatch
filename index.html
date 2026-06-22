@@ -621,7 +621,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .status-dot.done{background:var(--text3);}
 .status-dot.draft{background:var(--purple);}
 .pending-badge{background:#fef3c7;color:#92400e;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;}
-.approved-badge{background:#dcfce7;color:#166534;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;}
+.approved-badge{background:#dcfce7;color:#166534;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;text-align:center;}
 
 /* Professional polish */
 .input{border-radius:10px;border:1.5px solid var(--border);padding:12px 14px;font-size:15px;font-family:'DM Sans',sans-serif;outline:none;width:100%;background:#fff;transition:border-color .15s,box-shadow .15s;}
@@ -4862,21 +4862,18 @@ function initApp() {
 
 function signOut() {
   if(!confirm('Sign out?')) return;
+  // Clear session + auth flags, then HARD RELOAD. A reload is the only reliable
+  // way to tear down all live Firestore listeners, the call-merge logic, and the
+  // background timers — leaving them running against a cleared session is what
+  // caused the occasional freeze on sign-out.
   try { sessionStorage.removeItem('cobcet_ok'); } catch(e){}
   try { localStorage.removeItem('cobc_session'); } catch(e){}
-  stopShiftBannerTimer&&stopShiftBannerTimer();
-  stopAppHeartbeat&&stopAppHeartbeat();
-  var b=document.getElementById('global-shift-banner'); if(b) b.style.display='none';
-  SESSION={role:null,unit:null,name:null};
-  // Hide the app and force-show the login screen (override any inline styles)
-  const app=document.getElementById('app');
-  if(app){app.classList.add('hidden');app.style.display='none';}
-  const ls=document.getElementById('login-screen');
-  if(ls){ls.style.display='flex';ls.style.pointerEvents='';ls.style.visibility='visible';ls.style.zIndex='';ls.style.transform='';ls.style.position='';ls.style.height='';ls.style.overflow='';ls.classList.remove('hidden');}
-  const u=document.getElementById('loginUnit'); if(u) u.value='';
-  const p=document.getElementById('loginPass'); if(p) p.value='';
-  const er=document.getElementById('loginError'); if(er) er.textContent='';
-  window.scrollTo(0,0);
+  try { stopShiftBannerTimer&&stopShiftBannerTimer(); } catch(e){}
+  try { stopAppHeartbeat&&stopAppHeartbeat(); } catch(e){}
+  try { SESSION={role:null,unit:null,name:null}; } catch(e){}
+  // Reload to a clean state. replace() avoids leaving the signed-in page in history.
+  try { location.replace(location.pathname + location.search); }
+  catch(e){ location.reload(); }
 }
 
 // ──────────────────────────────────────────────
@@ -5823,9 +5820,18 @@ async function _geocode(address, town) {
   return null;
 }
 
-// Start watching GPS after login — silently (no permission prompt, uses existing grant)
+// Start watching GPS after login. We seed an IMMEDIATE one-shot fix (watchPosition
+// on a stationary phone — esp. iOS PWA — can take a long time to fire its first
+// callback, which is why the ETA chip used to not show), then keep watching.
 function startAutoETA() {
-  if (_etaWatchId !== null || !navigator.geolocation) return;
+  if (!navigator.geolocation) return;
+  // Immediate seed so chips can appear right away
+  navigator.geolocation.getCurrentPosition(
+    pos => { _myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() }; fillCardETAs(); },
+    () => {},
+    { enableHighAccuracy: false, maximumAge: 60000, timeout: 12000 }
+  );
+  if (_etaWatchId !== null) return;
   _etaWatchId = navigator.geolocation.watchPosition(
     pos => {
       _myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() };
@@ -5837,8 +5843,21 @@ function startAutoETA() {
 }
 
 // Fill ETA chips on all visible call cards
+let _etaSeeding = false;
 async function fillCardETAs() {
-  if (!_myLoc) return;
+  if (!_myLoc) {
+    // No location yet — kick a one-shot request so the chip can appear without
+    // waiting on the (possibly slow) watcher. Silent if permission already granted.
+    if (!_etaSeeding && navigator.geolocation) {
+      _etaSeeding = true;
+      navigator.geolocation.getCurrentPosition(
+        pos => { _etaSeeding=false; _myLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() }; fillCardETAs(); },
+        () => { _etaSeeding=false; },
+        { enableHighAccuracy: false, maximumAge: 60000, timeout: 12000 }
+      );
+    }
+    return;
+  }
   const activeCalls = (STATE.calls||[]).filter(c=>c.status!=='done'&&c.status!=='cancelled'&&c.address);
   for (const call of activeCalls) {
     const span = document.getElementById('card-eta-'+call.id);
