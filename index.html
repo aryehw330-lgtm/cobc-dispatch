@@ -5093,12 +5093,25 @@ function openPendingModal() {
     if(call.status==='done' || call.status==='draft') return;
     (call.pendingResponders||[]).forEach(r => pendingItems.push({call, responder:r}));
     (call.pendingBackups||[]).forEach(b => pendingItems.push({call, backup:b}));
+    if(call.completionRequest) pendingItems.push({call, completion:call.completionRequest});
   });
   if(!pendingItems.length) {
     body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);">✅ No pending requests right now.</div>';
   } else {
     body.innerHTML = pendingItems.map((item) => {
       const call = item.call;
+      if(item.completion){
+        const cr=item.completion;
+        return `<div style="background:#f5f3ff;border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid var(--purple);">
+          <div style="font-size:14px;font-weight:700;color:var(--text);">📋 BC-${String(cr.by||'').replace(/^BC-?/i,'')} ${cr.name||''} reports <span style="background:#ede9fe;color:var(--purple);padding:1px 7px;border-radius:6px;">${cr.outcome}</span></div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px;">Call #${call.callNum||''} · ${fmtLoc(call)}</div>
+          ${cr.note?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">${cr.note}</div>`:''}
+          <div style="display:flex;gap:6px;margin-top:10px;">
+            <button onclick="approveCallCompletion('${call.id}');setTimeout(openPendingModal,200)" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✓ Approve &amp; Close</button>
+            <button onclick="denyCallCompletion('${call.id}');setTimeout(openPendingModal,200)" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">✕ Deny</button>
+          </div>
+        </div>`;
+      }
       if(item.backup){
         const b=item.backup;
         return `<div style="background:#fef2f2;border-radius:10px;padding:12px;margin-bottom:8px;border-left:4px solid var(--red);">
@@ -5137,6 +5150,7 @@ function renderPendingRespondersBanner(targetEl) {
       if(call.status==='done' || call.status==='draft') return;
       (call.pendingResponders||[]).forEach(r => pendingItems.push({call, responder:r}));
       (call.pendingBackups||[]).forEach(b => pendingItems.push({call, backup:b}));
+      if(call.completionRequest) pendingItems.push({call, completion:call.completionRequest});
     });
   }
   // Global floating banner (visible on every tab for admin/dispatch)
@@ -5150,8 +5164,9 @@ function renderPendingRespondersBanner(targetEl) {
       if(titleEl) titleEl.textContent = `${pendingItems.length} pending approval${pendingItems.length>1?'s':''}`;
       if(subEl) {
         const first = pendingItems[0];
-        const _fw = first.responder||first.backup||{};
-        subEl.textContent = `${first.backup?'🆘 ':''}BC-${String(_fw.unit||'').replace(/^BC-?/i,'')} ${_fw.name||''}${pendingItems.length>1?' + '+(pendingItems.length-1)+' more':''} · Tap to review`;
+        const _fw = first.responder||first.backup||first.completion||{};
+        const _fwUnit = _fw.unit||_fw.by||'';
+        subEl.textContent = `${first.backup?'🆘 ':''}${first.completion?'📋 ':''}BC-${String(_fwUnit).replace(/^BC-?/i,'')} ${_fw.name||''}${pendingItems.length>1?' + '+(pendingItems.length-1)+' more':''} · Tap to review`;
       }
     } else {
       globalEl.style.display = 'none';
@@ -5169,6 +5184,17 @@ function renderPendingRespondersBanner(targetEl) {
       </div>
       ${pendingItems.map((item) => {
         const call = item.call;
+        if(item.completion){
+          const cr=item.completion;
+          return `<div style="background:rgba(124,58,237,.22);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(167,139,250,.4);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);">📋 BC-${String(cr.by||'').replace(/^BC-?/i,'')} ${cr.name||''} reports <span style="background:rgba(255,255,255,.25);padding:1px 7px;border-radius:6px;">${cr.outcome}</span></div>
+              <div style="font-size:11px;color:rgba(255,255,255,.7);">(#${call.callNum||''}) at ${fmtLoc(call)}${cr.note?' · '+cr.note:''}</div>
+            </div>
+            <button onclick="approveCallCompletion('${call.id}')" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✓ Approve</button>
+            <button onclick="denyCallCompletion('${call.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✕</button>
+          </div>`;
+        }
         if(item.backup){
           const b=item.backup;
           return `<div style="background:rgba(220,80,80,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,150,150,.32);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
@@ -5270,7 +5296,7 @@ function renderHome() {
   const pendingCount = ['admin','dispatch'].includes(SESSION.role)
     ? (STATE.calls||[]).reduce((s,c)=>{
         if(c.status==='done'||c.status==='draft'||c.status==='cancelled') return s;
-        return s + ((c.pendingResponders||[]).length) + ((c.pendingBackups||[]).length);
+        return s + ((c.pendingResponders||[]).length) + ((c.pendingBackups||[]).length) + (c.completionRequest?1:0);
       },0)
     : 0;
   const pendCard = document.getElementById('hs-pending-card');
@@ -5905,7 +5931,7 @@ function renderCalls() {
   const _pcount = ['admin','dispatch'].includes(SESSION.role)
     ? (STATE.calls||[]).reduce((s,c)=>{
         if(c.status==='done'||c.status==='draft'||c.status==='cancelled') return s;
-        return s + ((c.pendingResponders||[]).length) + ((c.pendingBackups||[]).length);
+        return s + ((c.pendingResponders||[]).length) + ((c.pendingBackups||[]).length) + (c.completionRequest?1:0);
       },0) : 0;
   if(dsPendNum) dsPendNum.textContent = _pcount;
   if(dsPendCard) dsPendCard.style.display = 'none'; // stub — kept for compat
