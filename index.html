@@ -2600,10 +2600,11 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="editMbrCallTypes" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;"></div>
     </div>
     <div class="input-group" id="editMbrPinGroup">
-      <label class="input-label">Reset PIN <span id="editMbrCurrentPin" style="float:right;font-weight:700;color:var(--gold-light,#d4a93a);text-transform:none;letter-spacing:normal;"></span></label>
+      <label class="input-label">Reset PIN</label>
+      <div id="editMbrCurrentPin" style="font-size:12px;font-weight:600;color:var(--gold-light,#d4a93a);text-transform:none;letter-spacing:normal;margin:-4px 0 8px;line-height:1.35;"></div>
       <div style="display:flex;gap:8px;align-items:center;">
         <input class="input" type="text" id="editMbrNewPin" placeholder="New PIN (4+ digits)" inputmode="numeric" style="margin-bottom:0;"/>
-        <button onclick="saveEditMemberPin()" style="flex-shrink:0;padding:12px 16px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Set PIN</button>
+        <button onclick="saveEditMemberPin()" style="flex-shrink:0;padding:12px 16px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Set New PIN</button>
       </div>
     </div>
     <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Done</button>
@@ -4257,6 +4258,7 @@ function initFirestore(){
     STATE.calls=[...firestoreCalls,...localOnly];
     save();renderCalls&&renderCalls();renderHome&&renderHome();
     try{syncLocationWatchers&&syncLocationWatchers();}catch(e){}
+    try{maybePromptLiveShare&&maybePromptLiveShare();}catch(e){}
     try{tryOpenPendingDeepLink&&tryOpenPendingDeepLink();}catch(e){}
     try{refreshStatsIfVisible&&refreshStatsIfVisible();}catch(e){}
   }
@@ -5682,7 +5684,7 @@ function callCardHTML(call, mini=false) {
       ? respList.map(r=>{
           const unitNum = String(r.unit||'').replace(/^BC-?/i,'');
           const firstName = (r.name||'').split(' ')[0];
-          return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;
+          return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;cursor:pointer;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;
         }).join('')
       : '';
     const pendingBadge = pending
@@ -7082,7 +7084,7 @@ function openCallDetail(id) {
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
-          ${phone?`<button class="responder-call-btn" onclick="window.location='tel:${phone}'">📞</button>`:''}
+          ${phone?`<button class="responder-call-btn" onclick="openResponderContact('${id}','${unitKey}')">📞</button>`:''}
           ${isDispatch?`<button onclick="removeApprovedResponder('${id}','${r.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
         </div>
       </div>`;
@@ -7576,6 +7578,59 @@ async function _writeLiveLocation(callId, lat, lng){
   }
 }
 
+// Auto-prompt: when I become an approved responder on an ACTIVE call, ask once
+// (per call) whether to share my live location with dispatch. The OS permission
+// prompt is the real privacy gate. Replaces the buried Settings-only toggle.
+let _liveSharePromptOpen = false;
+function _promptedSet(){
+  try { return new Set(JSON.parse(localStorage.getItem('cobc_liveshare_prompted')||'[]')); }
+  catch(e){ return new Set(); }
+}
+function _markPrompted(callId){
+  const s=_promptedSet(); s.add(callId);
+  try { localStorage.setItem('cobc_liveshare_prompted', JSON.stringify([...s])); } catch(e){}
+}
+function maybePromptLiveShare(){
+  if (_liveSharePromptOpen) return;
+  if (!SESSION || !SESSION.unit) return;
+  if (_locationSharingEnabled()) return;           // already sharing — nothing to ask
+  if (!navigator.geolocation) return;
+  const myUnit = String(SESSION.unit).replace(/^BC-?/i,'');
+  const prompted = _promptedSet();
+  const call = (STATE.calls||[]).find(c =>
+    c.status==='active' &&
+    !prompted.has(c.id) &&
+    (c.responders||[]).some(r => String(r.unit||'').replace(/^BC-?/i,'')===myUnit)
+  );
+  if (!call) return;
+  _markPrompted(call.id);                          // ask only once per call
+  _liveSharePromptOpen = true;
+
+  const typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:22px;';
+  el.innerHTML=`<div style="background:#fff;border-radius:20px;padding:24px 20px;max-width:340px;width:100%;text-align:center;">
+    <div style="font-size:40px;margin-bottom:8px;">📍</div>
+    <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px;">Share live location?</div>
+    <div style="font-size:14px;color:var(--text3);line-height:1.4;margin-bottom:20px;">Let dispatch see you en route to <b>${typeLabel}</b> at ${fmtLoc(call)}. Sharing stays on only while you're responding to active calls.</div>
+    <div style="display:flex;flex-direction:column;gap:9px;">
+      <button id="__ls_yes" style="padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Share with dispatch</button>
+      <button id="__ls_no" style="padding:13px;background:var(--border2);color:var(--text2);border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Not now</button>
+    </div>
+  </div>`;
+  const close=()=>{ _liveSharePromptOpen=false; if(el.parentNode) document.body.removeChild(el); };
+  el.querySelector('#__ls_no').addEventListener('click', close);
+  el.querySelector('#__ls_yes').addEventListener('click', ()=>{
+    // Trigger the OS permission prompt; only enable sharing if granted
+    navigator.geolocation.getCurrentPosition(
+      ()=>{ saveSetting('locationSharing', true); syncLocationWatchers(); showToast('📍 Sharing live location with dispatch'); close(); },
+      ()=>{ showToast('Allow location access to share'); close(); },
+      { timeout: 10000 }
+    );
+  });
+  document.body.appendChild(el);
+}
+
 // Share responder's live location with other members via WhatsApp or Google Maps link
 function shareMyLocationOnCall(callId) {
   const call = STATE.calls.find(c => c.id === callId);
@@ -8015,6 +8070,7 @@ function openMaps(addr) {
   const enc=encodeURIComponent(addr);
   const wazeUrl='https://waze.com/ul?q='+enc+'&navigate=yes';
   const gmapsUrl='https://maps.google.com/?q='+enc;
+  const amapsUrl='https://maps.apple.com/?daddr='+enc+'&dirflg=d';
   // Show choice bottom sheet
   const el=document.createElement('div');
   const close=()=>{ if(el.parentNode) el.parentNode.removeChild(el); };
@@ -8026,6 +8082,9 @@ function openMaps(addr) {
     </a>
     <a href="${gmapsUrl}" target="_blank" data-mapclose style="display:flex;align-items:center;gap:14px;padding:14px;background:#eff6ff;border-radius:12px;margin-bottom:10px;text-decoration:none;color:var(--text);">
       <span style="font-size:28px;">🗺️</span><div><div style="font-weight:700;font-size:15px;">Google Maps</div><div style="font-size:12px;color:var(--text3);">Standard navigation</div></div>
+    </a>
+    <a href="${amapsUrl}" target="_blank" data-mapclose style="display:flex;align-items:center;gap:14px;padding:14px;background:#f5f5f7;border-radius:12px;margin-bottom:10px;text-decoration:none;color:var(--text);">
+      <span style="font-size:28px;">🍎</span><div><div style="font-weight:700;font-size:15px;">Apple Maps</div><div style="font-size:12px;color:var(--text3);">iPhone default navigation</div></div>
     </a>
     <button data-mapclose style="width:100%;padding:13px;background:var(--border2);border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
   </div>`;
