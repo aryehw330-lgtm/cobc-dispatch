@@ -5769,7 +5769,7 @@ function callCardHTML(call, mini=false) {
           ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
           ${approved>0?`<span class="approved-badge">${approved} responding</span>`:''}
         </div>
-        <div class="call-card-addr">${fmtLoc(call)}</div>
+        <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLoc(call)}</div>
         ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
         ${ezFitBadge}
