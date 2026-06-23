@@ -7533,8 +7533,11 @@ let _locWriteThrottle = {};   // callId → last Firestore write ts
 let _locDestCache = {};       // callId → {lat,lng} geocoded destination
 
 function _locationSharingEnabled(){
-  try { return JSON.parse(localStorage.getItem('cobc_settings')||'{}').locationSharing === true; }
-  catch(e){ return false; }
+  // Default ON — matches the Settings toggle (locationSharing !== false). This is the
+  // original/proven behavior: approved responders share automatically unless they
+  // explicitly turn it off. The OS location permission is still the real privacy gate.
+  try { return JSON.parse(localStorage.getItem('cobc_settings')||'{}').locationSharing !== false; }
+  catch(e){ return true; }
 }
 
 // Ensure a GPS watcher is running for every ACTIVE call I'm an approved responder
