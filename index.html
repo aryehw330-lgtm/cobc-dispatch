@@ -2803,7 +2803,7 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 // Build stamp — shown at the bottom of the Settings tab. Bump this whenever code
 // changes so the running version is identifiable on each device.
-const APP_BUILD = 'Build 2026-06-23a · live-tracking + You-dot';
+const APP_BUILD = 'Build 2026-06-23c · Send Live Location → on-duty dispatcher';
 
 // ── Haptic feedback ───────────────────────────────────
 function haptic(type) {
@@ -5805,7 +5805,7 @@ function callCardHTML(call, mini=false) {
           const chips=Object.entries(locs).filter(([unit,v])=>respUnits.has(unit)&&v.locationAt&&(Date.now()-v.locationAt)<LOC_STALE_MS&&v.liveEtaMin!=null).map(([unit,v])=>{
             const bg=v.liveEtaMin<=3?'#dcfce7':v.liveEtaMin<=7?'#fef3c7':'#f1f5f9';
             const col=v.liveEtaMin<=3?'var(--green)':v.liveEtaMin<=7?'var(--amber)':'var(--text3)';
-            return `<span onclick="event.stopPropagation();openLiveMap('${call.id}')" style="font-size:13px;font-weight:700;padding:5px 10px;border-radius:10px;background:${bg};color:${col};cursor:pointer;display:inline-block;">📍 BC-${unit} · ${v.liveEtaMin} min</span>`;
+            return `<span style="font-size:13px;font-weight:700;padding:5px 10px;border-radius:10px;background:${bg};color:${col};display:inline-block;">🚗 BC-${unit} · ETA ${v.liveEtaMin} min</span>`;
           }).join('');
           return chips?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${chips}</div>`:'';
         })():''}
@@ -7136,7 +7136,7 @@ function openCallDetail(id) {
         <div style="flex:1;">
           <div style="display:flex;align-items:center;gap:8px;">
             <div style="font-size:14px;font-weight:700;">BC-${unitKey}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
-            ${isDispatch&&liveEta!=null?`<span onclick="openLiveMap('${id}')" style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};cursor:pointer;">📍 ${liveEta} min — tap for map</span>`:''}
+            ${isDispatch&&liveEta!=null?`<span style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};">🚗 ETA ${liveEta} min</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
         </div>
@@ -7634,13 +7634,17 @@ async function _writeLiveLocation(callId, lat, lng){
   if (!call || call.status === 'done' || call.status === 'cancelled'){ stopLocationSharing(callId); return; }
   const myUnit = String(SESSION.unit).replace(/^BC-?/i,'');
 
-  // Driving ETA via OSRM (geocode is cached; only OSRM is called each 30s cycle)
+  // Driving ETA via Google (traffic-aware — the same tool as the "Your Estimated ETA"
+  // chip, which is accurate). Geocode is cached; Google result cached 2 min internally.
   let liveEtaMin = null;
   try {
     let dest = _locDestCache[callId];
     if (!dest){ dest = await geocodeCallAddress(call); if (dest) _locDestCache[callId] = dest; }
-    if (dest) liveEtaMin = await calcOsrmEtaMin(lat, lng, dest.lat, dest.lng);
-  } catch(e){}
+    if (dest) liveEtaMin = await _googleDriveMins({ lat, lng }, dest);
+  } catch(e){
+    // Fall back to OSRM if Google routing is unavailable
+    try { const d=_locDestCache[callId]; if(d) liveEtaMin = await calcOsrmEtaMin(lat, lng, d.lat, d.lng); } catch(e2){}
+  }
 
   const payload = { lat, lng, locationAt: now, name: SESSION.name };
   if (liveEtaMin != null){ payload.liveEtaMin = liveEtaMin; payload.liveEtaAt = now; }
@@ -7730,6 +7734,21 @@ function shareMyLocationOnCall(callId) {
       window._shareLocLink = mapsLink;
       window._shareLocMsg  = `📍 My live location — BC-${unitNum} ${firstName}\n${typeLabel} · ${fmtLoc(call)}\n${mapsLink}`;
 
+      // Who's on duty right now? Send straight to them; if nobody, fall back to the group.
+      let dutyName = '', dutyPhone = '';
+      try {
+        const d = (typeof getOnDutyDispatcher === 'function') ? getOnDutyDispatcher() : null;
+        if (d && d.phone && d.name && d.name !== 'OPEN' && d.name !== 'CHIEFS') { dutyName = d.name; dutyPhone = d.phone; }
+      } catch(e) {}
+      window._shareLocDutyPhone = dutyPhone || '';
+
+      const primaryBtn = dutyPhone
+        ? `<button onclick="openWA(window._shareLocMsg, window._shareLocDutyPhone);document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Send to ${dutyName} (on duty)</button>`
+        : `<button onclick="openWA(window._shareLocMsg);document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Send to WhatsApp group</button>`;
+      const dutySubtitle = dutyPhone
+        ? `Goes straight to <b>${dutyName}</b>, the dispatcher on duty.`
+        : `No dispatcher is on duty — this goes to the WhatsApp group so anyone can pick it up.`;
+
       const existing = document.getElementById('shareLocModal');
       if (existing) existing.remove();
       const modal = document.createElement('div');
@@ -7740,10 +7759,9 @@ function shareMyLocationOnCall(callId) {
           <div style="font-size:17px;font-weight:700;color:var(--text1);margin-bottom:6px;">📍 Send Live Location</div>
           <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">BC-${unitNum} · ${fmtLoc(call)}</div>
           <div style="background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.35);border-radius:12px;padding:12px 13px;margin-bottom:14px;">
-            <div style="font-size:13px;font-weight:800;color:#128c7e;margin-bottom:3px;">For long drives — keeps updating in the background</div>
-            <div style="font-size:12px;color:var(--text2);line-height:1.45;">In WhatsApp: tap <b>＋ / attach → Location → Share live location</b>. Dispatch sees you move even after you switch to Waze. This is the only free way to track in the background.</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.45;">${dutySubtitle} For a moving location, in WhatsApp tap <b>＋ → Location → Share live location</b>.</div>
           </div>
-          <button onclick="openWA(window._shareLocMsg);document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:14px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">📲 Open WhatsApp to share</button>
+          ${primaryBtn}
           <div style="font-size:11px;color:var(--text3);text-align:center;margin:4px 0 12px;">— or send a one-time pin —</div>
           <button onclick="window.open(window._shareLocLink,'_blank');document.getElementById('shareLocModal').remove()" style="width:100%;margin-bottom:10px;padding:13px;background:#4285f4;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">🗺️ Open my spot in Google Maps</button>
           <button onclick="navigator.clipboard&&navigator.clipboard.writeText(window._shareLocLink).then(()=>showToast('📋 Link copied'));document.getElementById('shareLocModal').remove()" style="width:100%;padding:13px;background:var(--border2);color:var(--text2);border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">📋 Copy my location link</button>
