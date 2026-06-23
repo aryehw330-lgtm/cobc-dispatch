@@ -5399,8 +5399,8 @@ const CALL_TYPE_LABELS = {
 };
 
 let dispatchFilter='active';
-// Live responder location is considered "fresh" for 2 minutes
-const LOC_STALE_MS = 120000;
+// Live responder location is considered "fresh" for 10 minutes
+const LOC_STALE_MS = 600000;
 function _todayStartMs() { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
 function _localIso(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
 function setHistoryRange(r, el) {
@@ -5954,6 +5954,39 @@ async function fillCardETAs() {
       };
     } catch(e) { span.style.display='none'; }
   }
+}
+
+// Fill the "Your Estimated ETA" chip inside the call detail modal (mirrors fillCardETAs)
+async function fillDetailETA(call) {
+  const box = document.getElementById('detail-eta-'+call.id);
+  if (!box || !call || !call.address) return;
+  if (call.status==='done' || call.status==='cancelled') return;
+  if (!_myLoc) {
+    if (!_etaSeeding && navigator.geolocation) {
+      _etaSeeding = true;
+      navigator.geolocation.getCurrentPosition(
+        pos => { _etaSeeding=false; _myLoc={lat:pos.coords.latitude,lng:pos.coords.longitude,ts:Date.now()}; fillDetailETA(call); },
+        () => { _etaSeeding=false; },
+        { enableHighAccuracy:false, maximumAge:60000, timeout:12000 }
+      );
+    }
+    return;
+  }
+  try {
+    const pt = await _geocode(call.address, call.town||'');
+    if (!pt) return;
+    const paint = (m) => {
+      if (!document.getElementById('detail-eta-'+call.id)) return;
+      const color = m<=5?'var(--green)':m<=12?'var(--amber)':'#6b7280';
+      const bg    = m<=5?'#dcfce7':m<=12?'#fef3c7':'#f3f4f6';
+      box.style.display = 'block';
+      box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:${color};padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📍 Your Estimated ETA: ${m} min</span>`;
+      box.firstChild.onclick = (e) => { e.stopPropagation(); openMyRouteMap(call); };
+    };
+    paint(_etaMin(_haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng)));
+    // Upgrade straight-line estimate to traffic-aware Google driving ETA
+    _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(gm => paint(gm)).catch(()=>{});
+  } catch(e) {}
 }
 
 function renderCalls() {
@@ -6999,6 +7032,9 @@ function openCallDetail(id) {
     ${call.priority==='urgent'?'<span class="badge badge-red">URGENT</span>':''}
   </div>`;
 
+  // Your Estimated ETA chip (filled async after render — same logic as the call cards)
+  html+=`<div id="detail-eta-${call.id}" style="display:none;margin-top:-4px;margin-bottom:14px;"></div>`;
+
   // Details block
   html+=`<div class="detail-section">
     <div class="detail-row"><span class="detail-key">Address</span><span class="detail-val"><a href="${mapLink}" target="_blank" style="color:var(--blue);text-decoration:none;">${call.address}</a></span></div>
@@ -7153,6 +7189,7 @@ function openCallDetail(id) {
 
   document.getElementById('callDetailContent').innerHTML=html;
   showModal('callDetailModal');
+  try { fillDetailETA(call); } catch(e){}
 }
 
 function renderCallDetail(id) { openCallDetail(id); } // alias for re-render after status change
@@ -7521,18 +7558,38 @@ function syncLocationWatchers(){
   Object.keys(_locationWatchers).forEach(id => { if (!activeForMe.has(id)) stopLocationSharing(id); });
 }
 
+// Driving ETA in minutes via OSRM (free, no API key) — the proven service for live tracking.
+async function calcOsrmEtaMin(fromLat, fromLng, toLat, toLng){
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.code === 'Ok' && data.routes && data.routes.length){
+      return Math.ceil(data.routes[0].duration / 60);
+    }
+  } catch(e){ console.warn('[ETA] OSRM failed:', e); }
+  return null;
+}
+
+// Poll GPS every 30s and write location + OSRM ETA to Firestore (known-good interval model).
 function startLocationSharing(callId){
   if (_locationWatchers[callId] || !navigator.geolocation) return;
-  _locationWatchers[callId] = navigator.geolocation.watchPosition(
-    pos => _writeLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
-    ()  => { /* permission/timeout — keep the watcher; it will retry */ },
-    { enableHighAccuracy:true, maximumAge:10000, timeout:20000 }
-  );
+  const doUpdate = () => {
+    navigator.geolocation.getCurrentPosition(
+      pos => _writeLiveLocation(callId, pos.coords.latitude, pos.coords.longitude),
+      err => console.warn('[ETA] position error:', err),
+      { enableHighAccuracy:true, maximumAge:25000, timeout:30000 }
+    );
+  };
+  doUpdate(); // fire immediately on start
+  const intervalId = setInterval(doUpdate, 30000);
+  _locationWatchers[callId] = { type:'interval', id:intervalId };
+  console.log('[ETA] Live location sharing started for call', callId);
 }
 
 function stopLocationSharing(callId){
-  const wid = _locationWatchers[callId];
-  if (wid != null && navigator.geolocation){ try { navigator.geolocation.clearWatch(wid); } catch(e){} }
+  const w = _locationWatchers[callId];
+  if (w && w.type==='interval'){ try { clearInterval(w.id); } catch(e){} }
   delete _locationWatchers[callId];
   delete _locWriteThrottle[callId];
   delete _locDestCache[callId];
@@ -7548,26 +7605,25 @@ function stopLocationSharing(callId){
 
 async function _writeLiveLocation(callId, lat, lng){
   const now = Date.now();
-  if (_locWriteThrottle[callId] && (now - _locWriteThrottle[callId]) < 15000) return; // throttle to 15s
-  _locWriteThrottle[callId] = now;
   const call = (STATE.calls||[]).find(c => c.id === callId);
   if (!call || call.status !== 'active'){ stopLocationSharing(callId); return; }
   const myUnit = String(SESSION.unit).replace(/^BC-?/i,'');
 
-  // Cheap straight-line ETA (don't burn Directions quota on a 15s loop per responder)
+  // Driving ETA via OSRM (geocode is cached; only OSRM is called each 30s cycle)
   let liveEtaMin = null;
   try {
     let dest = _locDestCache[callId];
     if (!dest){ dest = await geocodeCallAddress(call); if (dest) _locDestCache[callId] = dest; }
-    if (dest) liveEtaMin = _etaMin(_haversineMi(lat, lng, dest.lat, dest.lng));
+    if (dest) liveEtaMin = await calcOsrmEtaMin(lat, lng, dest.lat, dest.lng);
   } catch(e){}
 
-  const payload = { lat, lng, locationAt: now };
-  if (liveEtaMin != null) payload.liveEtaMin = liveEtaMin;
+  const payload = { lat, lng, locationAt: now, name: SESSION.name };
+  if (liveEtaMin != null){ payload.liveEtaMin = liveEtaMin; payload.liveEtaAt = now; }
 
   // Optimistic local update so my own UI reflects it immediately
   call.liveLocations = call.liveLocations || {};
-  call.liveLocations[myUnit] = payload;
+  call.liveLocations[myUnit] = { ...(call.liveLocations[myUnit]||{}), ...payload };
+  renderCalls && renderCalls();
 
   // Targeted nested-field write (minimal, won't clobber other call fields)
   try {
@@ -7984,28 +8040,21 @@ async function _refreshLiveMap() {
       bounds.extend(pos);
     }
 
-    // Route line via Google DirectionsService (traffic-aware, same engine as the ETAs)
+    // Route line via OSRM (free, no API key). Only re-fetch when the responder moved
+    // ≥50m and ≥30s passed — polite to the public OSRM server, and the markers above
+    // still move every 30s regardless.
     if (dest) {
-      // Cost guard: only re-fetch a Google route when the responder has actually
-      // MOVED (≥50m) AND it's been ≥2 min since their last route draw. Markers still
-      // update every 30s above (free) — this just throttles the paid Directions calls.
       const rc = _routeDrawCache[unit];
       const movedM = rc ? _haversineMi(rc.lat, rc.lng, v.lat, v.lng) * 1609.34 : Infinity;
-      const dueForRedraw = !rc || (movedM >= 50 && (now - rc.ts) >= 120000);
+      const dueForRedraw = !rc || (movedM >= 50 && (now - rc.ts) >= 30000);
       if (dueForRedraw) {
         try {
-          await loadGoogleMapsAPI();
-          if (!_gDirSvc) _gDirSvc = new google.maps.DirectionsService();
-          const r = await new Promise((resolve) => {
-            _gDirSvc.route({
-              origin: { lat: v.lat, lng: v.lng }, destination: dest,
-              travelMode: google.maps.TravelMode.DRIVING,
-              drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
-            }, (res, status) => resolve(status==='OK' ? res : null));
-          });
-          if (r && r.routes[0]) {
+          const url = `https://router.project-osrm.org/route/v1/driving/${v.lng},${v.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.code === 'Ok' && data.routes && data.routes[0]) {
             _routeDrawCache[unit] = { lat: v.lat, lng: v.lng, ts: now };
-            const coords = r.routes[0].overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }));
+            const coords = data.routes[0].geometry.coordinates.map(([lng,lat]) => ({ lat, lng }));
             if (isLeaflet) {
               if (_responderRoutes[unit]) _responderRoutes[unit].remove();
               _responderRoutes[unit] = L.polyline(coords.map(c=>[c.lat,c.lng]), { color, weight: 4, opacity: 0.75 }).addTo(_liveMap);
@@ -8025,7 +8074,7 @@ async function _refreshLiveMap() {
     legendItems.push(`<a href="${mapsUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;background:${color}20;color:${color};font-size:12px;font-weight:700;text-decoration:none;">🚗 BC-${unit} · ${etaLabel} <span style="font-size:10px;opacity:.7;">↗ Directions</span></a>`);
   }
 
-  if (legendEl) legendEl.innerHTML = legendItems.length ? legendItems.join('') : '<span style="font-size:12px;color:var(--text3);">No responders are sharing live location yet. A responder must turn on “Location Sharing” in Settings and be approved on this call.</span>';
+  if (legendEl) legendEl.innerHTML = legendItems.length ? legendItems.join('') : '<span style="font-size:12px;color:var(--text3);">No responders are sharing live location yet. When a responder is approved on this active call, they’re asked to share — once they accept, they appear here.</span>';
 
   // Fit map
   if (isLeaflet) {
