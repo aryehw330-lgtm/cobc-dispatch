@@ -4568,6 +4568,17 @@ function findSheetMemberByEmail(email){
 // Load members from the sheet as soon as we can
 window.addEventListener('load',()=>{ setTimeout(()=>{ loadMembersFromSheet(); }, 1200); });
 
+const _GET_AUTH_TOKEN_URL='https://us-east1-cobc-dispatch.cloudfunctions.net/getAuthToken';
+async function signInToFirebase(pin){
+  try{
+    const resp=await fetch(_GET_AUTH_TOKEN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
+    const data=await resp.json();
+    if(!data.ok||!data.token){console.warn('signInToFirebase: not authorized',data);return false;}
+    await firebase.auth().signInWithCustomToken(data.token);
+    await firebase.auth().currentUser.getIdToken(true);
+    return true;
+  }catch(err){console.error('signInToFirebase error:',err);return false;}
+}
 function doLogin(){
   const unitRaw=(document.getElementById('loginUnit')?.value||'').trim().toUpperCase();
   const pass=(document.getElementById('loginPass')?.value||'').trim();
@@ -4588,9 +4599,10 @@ function doLogin(){
   // which reads the PRIVATE Google Sheet. The PIN list is never downloaded to the
   // device and is no longer mirrored into Firestore, so PINs can't be harvested from
   // the app, the members endpoint, or the browser network tab.
-  sheetGET({action:'getMemberByPin', pin:pass, unit:unit}).then(resp=>{
+  sheetGET({action:'getMemberByPin', pin:pass, unit:unit}).then(async resp=>{
     reset();
     if(resp && resp.id && _normUnit(resp.unit)===_normUnit(unit)){
+      await signInToFirebase(pass);
       finishLogin(_sheetMemberToApp(resp)); return;
     }
     if(resp && resp.id){
