@@ -4176,6 +4176,8 @@ function _allCalls(){
 }
 
 function initFirestore(){
+  // Clean up any previous listeners before re-initializing (e.g. after login)
+  if(window._firestoreCleanup){ try{window._firestoreCleanup();}catch(e){} window._firestoreCleanup=null; }
   // iOS Safari PWA: Firestore WebSocket (WebChannel) is silently blocked by ITP.
   // Force long-polling so Firestore data actually arrives on iPhone home-screen installs.
   if(!_firestoreSettingsApplied){try{firebase.firestore().settings({experimentalForceLongPolling:true});_firestoreSettingsApplied=true;}catch(e){console.warn('Firestore settings:',e);}}
@@ -4290,6 +4292,12 @@ function initFirestore(){
   // Members loaded from Google Sheet (loadMembersFromSheet) — Sheet is source of truth.
   // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
   _snapTimer=setTimeout(()=>{if(!_snapDelivered){console.warn('Firestore onSnapshot silent — starting get() fallback');_pollFirestore();}},5000);
+  // Register cleanup so initFirestore() can safely be called again after login
+  window._firestoreCleanup=()=>{
+    if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}
+    try{_unsubYear&&_unsubYear();}catch(e){}
+    try{_unsubOpen&&_unsubOpen();}catch(e){}
+  };
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
@@ -4470,6 +4478,7 @@ async function _finishGISSignIn(email, errorEl) {
     }
     await firebase.auth().signInWithCustomToken(data.token);
     await firebase.auth().currentUser.getIdToken(true);
+    try{initFirestore();}catch(e){console.warn('initFirestore after google login:',e);}
     const md = data.member || {};
     const nameParts = (md.name||'').trim().split(' ');
     const member = {
@@ -4595,6 +4604,8 @@ async function signInToFirebase(pin,email){
     if(!data.ok||!data.token){console.warn('signInToFirebase: not authorized',data);return false;}
     await firebase.auth().signInWithCustomToken(data.token);
     await firebase.auth().currentUser.getIdToken(true);
+    // Re-start Firestore listeners now that we have an authorized token
+    try{initFirestore();}catch(e){console.warn('initFirestore after login:',e);}
     return true;
   }catch(err){console.error('signInToFirebase error:',err);return false;}
 }
