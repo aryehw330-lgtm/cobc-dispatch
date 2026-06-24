@@ -3652,6 +3652,14 @@ const KNOWN_TOWNS_LC = {
   'new milford':'Other','dumont':'Other','river edge':'Other'
 };
 let _addrTimer=null, _addrCache={}, _sessionToken=null;
+// Town for the card chip: use call.town, else parse a known town out of the address.
+function cardTown(call){
+  if(call&&call.town) return call.town;
+  const addr=String((call&&call.address)||'').toLowerCase();
+  if(!addr) return '';
+  for(const k in KNOWN_TOWNS_LC){ if(addr.includes(k)){ const v=KNOWN_TOWNS_LC[k]; return v==='Other'? k.replace(/\b\w/g,c=>c.toUpperCase()) : v; } }
+  return '';
+}
 
 // Each typing session gets one token — bundles autocomplete calls into a single
 // Places Details charge (~$0.017) instead of per-keystroke billing.
@@ -3673,7 +3681,7 @@ function fmtLoc(call){
 // Card-only address: drop the ZIP code to save space (notifications/maps keep it)
 function fmtLocCard(call){
   let s=String((call&&call.address)||'').trim();
-  const town=String((call&&call.town)||'').trim();
+  const town=String(cardTown(call)||'').trim();
   if(town){ s=s.replace(new RegExp('[,\\s]+'+town.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','i'),''); } // drop town (shown as chip)
   s=s.replace(/[,\s]+\d{5}(?:-\d{4})?\b/g,'');                               // drop ZIP
   s=s.replace(/[,\s]+(?:N\.?J\.?|N\.?Y\.?|New Jersey|New York)\b\.?/gi,''); // drop state
@@ -5766,8 +5774,9 @@ function callCardHTML(call, mini=false) {
           })());
   const approved = (call.responders||[]).length;
   const pending  = (call.pendingResponders||[]).length;
-  const townColor = TOWN_COLORS[call.town]||TOWN_COLORS.Other;
-  const townChipInline = call.town ? `<span style="display:inline-flex;align-items:center;background:${townColor};color:#fff;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.3px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.25);">${call.town}</span>` : '<span></span>';
+  const _town = cardTown(call);
+  const townColor = TOWN_COLORS[_town]||TOWN_COLORS.Other;
+  const townChipInline = _town ? `<span style="display:inline-flex;align-items:center;background:${townColor};color:#fff;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.3px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.25);">${_town}</span>` : '<span></span>';
   const isUrgent = call.priority==='urgent' && call.status!=='done';
   const isDraft  = call.status==='draft';
   const myUnit   = String(SESSION.unit);
