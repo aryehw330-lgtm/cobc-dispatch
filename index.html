@@ -5736,7 +5736,7 @@ function _respNumBadges(call){
     const metaLine=meta.length?`<span style="font-size:9.5px;font-weight:600;opacity:.85;line-height:1.1;white-space:nowrap;">${meta.join(' · ')}</span>`:'';
     return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;background:var(--green);color:#fff;padding:3px 8px;border-radius:7px;line-height:1.15;white-space:nowrap;cursor:pointer;flex:0 0 auto;"><span style="font-size:13px;font-weight:800;">BC-${unitNum}${r.via==='radio'?' 📻':''}</span>${metaLine}</span>`;
   }).join('');
-  return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin-top:4px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
+  return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin:14px 0 12px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
 }
 function callCardHTML(call, mini=false) {
   if(!call) return '';
