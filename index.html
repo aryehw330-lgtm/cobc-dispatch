@@ -615,7 +615,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card-type{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
 .call-card-addr{font-size:17px;font-weight:600;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
-.call-card-corner{font-size:12px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:1px 13px 7px;letter-spacing:.2px;}
+.call-card-corner{font-size:14px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:1px 13px 8px;letter-spacing:.2px;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
 .call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .cc-foot-fill{display:flex;flex-wrap:wrap;gap:6px;}
@@ -5736,7 +5736,7 @@ function _respNumBadges(call){
     const metaLine=meta.length?`<span style="font-size:9.5px;font-weight:600;opacity:.85;line-height:1.1;white-space:nowrap;">${meta.join(' · ')}</span>`:'';
     return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;background:var(--green);color:#fff;padding:3px 8px;border-radius:7px;line-height:1.15;white-space:nowrap;cursor:pointer;flex:0 0 auto;"><span style="font-size:13px;font-weight:800;">BC-${unitNum}${r.via==='radio'?' 📻':''}</span>${metaLine}</span>`;
   }).join('');
-  return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin-top:7px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
+  return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin-top:4px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
 }
 function callCardHTML(call, mini=false) {
   if(!call) return '';
@@ -5760,8 +5760,8 @@ function callCardHTML(call, mini=false) {
   const tsDay = new Date(ts); tsDay.setHours(0,0,0,0);
   const sameDay = ts.getTime() && today.getTime() === tsDay.getTime();
   // Always show a date label so cards never just show a bare time
-  const _dateLabel = sameDay ? 'Today' : ts.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  const timeStr = _dateLabel + ' · ' + ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  const _dateLabel = ts.getTime() ? ts.toLocaleDateString('en-US',{month:'numeric',day:'numeric'}) : '';
+  const timeStr = (_dateLabel?_dateLabel+' · ':'') + ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   // Sequential call number — drafts have none yet; otherwise stored callNum or chronological position
   const callNumStr = call.status==='draft'
     ? '—'
@@ -5776,7 +5776,7 @@ function callCardHTML(call, mini=false) {
   const pending  = (call.pendingResponders||[]).length;
   const _town = cardTown(call);
   const townColor = TOWN_COLORS[_town]||TOWN_COLORS.Other;
-  const townChipInline = _town ? `<span style="display:inline-flex;align-items:center;background:color-mix(in srgb, ${townColor} 24%, transparent);border:1px solid color-mix(in srgb, ${townColor} 55%, transparent);color:#fff;padding:2px 10px;border-radius:7px;font-size:12px;font-weight:700;letter-spacing:.3px;white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);text-shadow:0 1px 2px rgba(0,0,0,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);">${_town}</span>` : '<span></span>';
+  const townChipInline = _town ? `<span style="display:inline-flex;align-items:center;background:color-mix(in srgb, ${townColor} 24%, transparent);border:1px solid color-mix(in srgb, ${townColor} 55%, transparent);color:#fff;padding:2px 10px;border-radius:7px;font-size:12px;font-weight:700;letter-spacing:.3px;white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);text-shadow:0 1px 2px rgba(0,0,0,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);font-size:13px;">${_town}</span>` : '<span></span>';
   const isUrgent = call.priority==='urgent' && call.status!=='done';
   const isDraft  = call.status==='draft';
   const myUnit   = String(SESSION.unit);
