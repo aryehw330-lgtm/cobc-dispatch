@@ -2803,7 +2803,7 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 // Build stamp — shown at the bottom of the Settings tab. Bump this whenever code
 // changes so the running version is identifiable on each device.
-const APP_BUILD = 'Build 2026-06-23d · short app link in WhatsApp message';
+const APP_BUILD = 'Build 2026-06-23e · route line from your dot to destination';
 
 // ── Haptic feedback ───────────────────────────────────
 function haptic(type) {
@@ -5795,7 +5795,8 @@ function callCardHTML(call, mini=false) {
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
         ${ezFitBadge}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
-        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];const loc=(call.liveLocations||{})[unitNum];const fresh=loc&&loc.locationAt&&(Date.now()-loc.locationAt)<LOC_STALE_MS&&loc.liveEtaMin!=null;const etaTxt=(isDispatch&&fresh)?` <span style="background:rgba(255,255,255,.25);padding:1px 8px;border-radius:7px;font-size:13px;font-weight:800;white-space:nowrap;">ETA ${loc.liveEtaMin} min</span>`:'';return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;cursor:pointer;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}${etaTxt}</span>`;}).join('')}</div>`:''}
+        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];const loc=(call.liveLocations||{})[unitNum];const fresh=loc&&loc.locationAt&&(Date.now()-loc.locationAt)<LOC_STALE_MS&&loc.liveEtaMin!=null;const pill=(isDispatch&&fresh)?`<span style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;color:#15803d;padding:6px 11px;border-radius:9px;font-size:13px;font-weight:800;white-space:nowrap;">🟢 Live ETA ${loc.liveEtaMin} min</span>`:'';return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;cursor:pointer;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>${pill}`;}).join('')}</div>`:''}
+        
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         ${isDispatch&&(call.pendingBackups||[]).length>0?(call.pendingBackups||[]).map(b=>`<div style="margin-top:6px;background:#fef2f2;border:1px solid rgba(220,80,80,.4);border-radius:10px;padding:8px 10px;" onclick="event.stopPropagation();"><div style="font-size:12px;font-weight:700;color:var(--red);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup${b.equipment?' · '+b.equipment:''}${b.notes?' · '+b.notes:''}</div><div style="display:flex;gap:6px;margin-top:7px;"><button onclick="event.stopPropagation();approveBackup('${call.id}',${b.time})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve Backup</button><button onclick="event.stopPropagation();rejectBackup('${call.id}',${b.time})" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Deny</button></div></div>`).join(''):''}
         <div class="call-card-meta" style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${timeStr}</div>
@@ -7932,6 +7933,7 @@ let _liveMapCallId = null;
 let _liveMapRefresh = null;
 let _destMarker = null;
 let _youMarker = null;
+let _youRoute = null;
 function _setLiveMapNotice(msg){
   const el = document.getElementById('liveMapNotice');
   if (!el) return;
@@ -8026,6 +8028,12 @@ function _clearMapLayers() {
     else if (_youMarker.remove) _youMarker.remove();
     _youMarker = null;
   }
+  if (_youRoute) {
+    if (_youRoute.setMap) _youRoute.setMap(null);
+    else if (_youRoute.remove) _youRoute.remove();
+    _youRoute = null;
+  }
+  delete _routeDrawCache['__you'];
   Object.values(_responderMarkers).forEach(m => { if(m.setMap) m.setMap(null); else if(m.remove) m.remove(); });
   Object.values(_responderRoutes).forEach(r => { if(r.setMap) r.setMap(null); else if(r.remove) r.remove(); });
   Object.keys(_responderMarkers).forEach(k => delete _responderMarkers[k]);
@@ -8090,6 +8098,30 @@ async function _refreshLiveMap() {
       });
     }
     _youOnMap = true;
+    // Draw a route line from YOUR dot to the destination (OSRM, free). The responder
+    // loop below only routes shared liveLocations pins; this covers the viewer's own dot.
+    if (dest) {
+      const rc = _routeDrawCache['__you'];
+      const movedM = rc ? _haversineMi(rc.lat, rc.lng, _myLoc.lat, _myLoc.lng) * 1609.34 : Infinity;
+      if (!rc || (movedM >= 50 && (now - rc.ts) >= 30000)) {
+        try {
+          const url = `https://router.project-osrm.org/route/v1/driving/${_myLoc.lng},${_myLoc.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.code === 'Ok' && data.routes && data.routes[0]) {
+            _routeDrawCache['__you'] = { lat: _myLoc.lat, lng: _myLoc.lng, ts: now };
+            const coords = data.routes[0].geometry.coordinates.map(([lng,lat]) => ({ lat, lng }));
+            if (isLeaflet) {
+              if (_youRoute) _youRoute.remove();
+              _youRoute = L.polyline(coords.map(c=>[c.lat,c.lng]), { color: '#2563eb', weight: 5, opacity: 0.8 }).addTo(_liveMap);
+            } else {
+              if (_youRoute) _youRoute.setMap(null);
+              _youRoute = new google.maps.Polyline({ path: coords, map: _liveMap, strokeColor: '#2563eb', strokeWeight: 5, strokeOpacity: 0.8 });
+            }
+          }
+        } catch(e) {}
+      }
+    }
   }
   // Responder markers + routes
   const bounds = isLeaflet ? [] : new google.maps.LatLngBounds();
