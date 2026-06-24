@@ -612,10 +612,10 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.cancelled{background:#fff1f2;border-left:4px solid var(--red);opacity:.8;filter:grayscale(10%);}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
 .call-card-header{padding:11px 13px 7px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
-.call-card-type{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
-.call-card-addr{font-size:17px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.call-card-type{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
+.call-card-addr{font-size:17px;font-weight:600;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
-.call-card-corner{font-size:12px;font-weight:700;color:var(--text3);display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:1px 13px 7px;letter-spacing:.2px;}
+.call-card-corner{font-size:12px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:1px 13px 7px;letter-spacing:.2px;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
 .call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .cc-foot-fill{display:flex;flex-wrap:wrap;gap:6px;}
@@ -3672,11 +3672,13 @@ function fmtLoc(call){
 }
 // Card-only address: drop the ZIP code to save space (notifications/maps keep it)
 function fmtLocCard(call){
-  let s=fmtLoc(call);
-  s=s.replace(/[,\s]+\d{5}(?:-\d{4})?\b/g,'');                                  // drop ZIP
-  s=s.replace(/[,\s]+(?:N\.?J\.?|N\.?Y\.?|New Jersey|New York)\b\.?/gi,'');     // drop state
+  let s=String((call&&call.address)||'').trim();
+  const town=String((call&&call.town)||'').trim();
+  if(town){ s=s.replace(new RegExp('[,\\s]+'+town.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','i'),''); } // drop town (shown as chip)
+  s=s.replace(/[,\s]+\d{5}(?:-\d{4})?\b/g,'');                               // drop ZIP
+  s=s.replace(/[,\s]+(?:N\.?J\.?|N\.?Y\.?|New Jersey|New York)\b\.?/gi,''); // drop state
   s=s.replace(/\s*,\s*$/,'').replace(/\s{2,}/g,' ').trim();
-  return s;
+  return s || town;
 }
 // URGENT toggle on the New Call form (replaces the old priority dropdown)
 function toggleUrgent(){
@@ -5764,7 +5766,8 @@ function callCardHTML(call, mini=false) {
           })());
   const approved = (call.responders||[]).length;
   const pending  = (call.pendingResponders||[]).length;
-  const townColor = TOWN_COLORS[call.town]||'var(--blue)';
+  const townColor = TOWN_COLORS[call.town]||TOWN_COLORS.Other;
+  const townChipInline = call.town ? `<span style="display:inline-flex;align-items:center;background:${townColor};color:#fff;padding:2px 9px;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:.3px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.25);">${call.town}</span>` : '<span></span>';
   const isUrgent = call.priority==='urgent' && call.status!=='done';
   const isDraft  = call.status==='draft';
   const myUnit   = String(SESSION.unit);
@@ -5775,9 +5778,9 @@ function callCardHTML(call, mini=false) {
   // Status color
   const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
   const sc = statusColors[call.status]||'var(--text3)';
-  const cornerMeta = `<div class="call-card-corner"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span>${timeStr}</span></div>`;
+  const cornerMeta = `<div class="call-card-corner">${townChipInline}<span style="display:inline-flex;align-items:center;gap:6px;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span>${timeStr}</span></span></div>`;
   const etaWrap = call.status==='open'
-    ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;margin-top:6px;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
+    ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;justify-content:flex-end;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
     : '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
 
@@ -5826,13 +5829,12 @@ function callCardHTML(call, mini=false) {
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
             ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfo}</div>`:''}
             <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
-            ${etaWrap}
             ${ezFitBadge}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
             ${_respNumBadges(call)}
           </div>
         </div>
-        ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
+        ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}${etaWrap}</div>`:''}
       </div>
       ${cornerMeta}
       ${(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
@@ -5871,14 +5873,13 @@ function callCardHTML(call, mini=false) {
         </div>
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfo}</div>`:''}
         <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
-        ${etaWrap}
         ${ezFitBadge}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
         ${_respNumBadges(call)}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         ${isDispatch&&(call.pendingBackups||[]).length>0?(call.pendingBackups||[]).map(b=>`<div style="margin-top:6px;background:#fef2f2;border:1px solid rgba(220,80,80,.4);border-radius:10px;padding:8px 10px;" onclick="event.stopPropagation();"><div style="font-size:12px;font-weight:700;color:var(--red);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup${b.equipment?' · '+b.equipment:''}${b.notes?' · '+b.notes:''}</div><div style="display:flex;gap:6px;margin-top:7px;"><button onclick="event.stopPropagation();approveBackup('${call.id}',${b.time})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve Backup</button><button onclick="event.stopPropagation();rejectBackup('${call.id}',${b.time})" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Deny</button></div></div>`).join(''):''}
       </div>
-      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:''}</div>`:''}
+      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:''}${etaWrap}</div>`:''}
     </div>
     ${cornerMeta}
     <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
@@ -6022,8 +6023,8 @@ async function fillCardETAs() {
       const color = mins<=5?'var(--green)':mins<=12?'var(--amber)':'#6b7280';
       const bg    = mins<=5?'#dcfce7':mins<=12?'#fef3c7':'#f3f4f6';
       if(wrap) wrap.style.display='flex';
-      span.style.display = 'flex';
-      span.style.cssText += `display:flex;width:100%;box-sizing:border-box;align-items:center;justify-content:center;gap:6px;background:${bg};color:${color};padding:8px 12px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;`;
+      span.style.display = 'inline-flex';
+      span.style.cssText += `display:inline-flex;align-items:center;gap:5px;background:${bg};color:${color};padding:3px 8px;border-radius:7px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;`;
       span.textContent = `📍 Your Est. ETA: ${mins} min`;
       // Upgrade the straight-line estimate to a real traffic-aware Google driving ETA
       const _origin = { lat:_myLoc.lat, lng:_myLoc.lng };
