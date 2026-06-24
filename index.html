@@ -613,9 +613,9 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
 .call-card-header{padding:11px 13px 7px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
 .call-card-type{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
-.call-card-addr{font-size:17px;color:var(--text2);margin-top:2px;}
+.call-card-addr{font-size:17px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
-.call-card-corner{font-size:12px;font-weight:700;color:var(--text3);display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:2px 13px 9px;letter-spacing:.2px;}
+.call-card-corner{font-size:12px;font-weight:700;color:var(--text3);display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:1px 13px 7px;letter-spacing:.2px;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
 .call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .cc-foot-fill{display:flex;flex-wrap:wrap;gap:6px;}
@@ -3670,6 +3670,14 @@ function fmtLoc(call){
   if(addr.toLowerCase().includes(town.toLowerCase())) return addr;
   return addr+', '+town;
 }
+// Card-only address: drop the ZIP code to save space (notifications/maps keep it)
+function fmtLocCard(call){
+  let s=fmtLoc(call);
+  s=s.replace(/[,\s]+\d{5}(?:-\d{4})?\b/g,'');                                  // drop ZIP
+  s=s.replace(/[,\s]+(?:N\.?J\.?|N\.?Y\.?|New Jersey|New York)\b\.?/gi,'');     // drop state
+  s=s.replace(/\s*,\s*$/,'').replace(/\s{2,}/g,' ').trim();
+  return s;
+}
 // URGENT toggle on the New Call form (replaces the old priority dropdown)
 function toggleUrgent(){
   const type=(document.getElementById('callType')||{}).value;
@@ -5706,6 +5714,20 @@ function _respMeta(r){
   if(r.time) parts.push(new Date(r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));
   return parts.join(' · ');
 }
+function _respNumBadges(call){
+  const list=(call.responders||[]);
+  if(!list.length) return '';
+  const pills=list.map(r=>{
+    const unitNum=String(r.unit||'').replace(/^BC-?/i,'');
+    const t=r.approvedAt||r.time;
+    const meta=[];
+    if(r.eta!=null && r.eta!=='') meta.push('ETA '+r.eta+'m');
+    if(t) meta.push(new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));
+    const metaLine=meta.length?`<span style="font-size:9.5px;font-weight:600;opacity:.85;line-height:1.15;white-space:nowrap;">${meta.join(' · ')}</span>`:'';
+    return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;background:var(--green);color:#fff;padding:3px 9px;border-radius:7px;line-height:1.2;white-space:nowrap;cursor:pointer;"><span style="font-size:13px;font-weight:800;">BC-${unitNum}${r.via==='radio'?' 📻':''}</span>${metaLine}</span>`;
+  }).join('');
+  return `<div style="display:flex;flex-wrap:wrap;justify-content:flex-start;gap:5px;margin-top:7px;">${pills}</div>`;
+}
 function callCardHTML(call, mini=false) {
   if(!call) return '';
   if(!call.status) call = Object.assign({}, call, {status:'open'}); // guard against transient/malformed call objects
@@ -5757,6 +5779,7 @@ function callCardHTML(call, mini=false) {
   const etaWrap = call.status==='open'
     ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;margin-top:6px;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
     : '';
+  const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
 
   if(mini) {
     const respList = (call.responders||[]);
@@ -5801,11 +5824,12 @@ function callCardHTML(call, mini=false) {
         <div style="display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0;">
           <div style="flex:1;min-width:0;">
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
-            <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLoc(call)}</div>
+            ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfo}</div>`:''}
+            <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
             ${etaWrap}
             ${ezFitBadge}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
-            ${responderBadges ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${responderBadges}</div>` : ''}
+            ${_respNumBadges(call)}
           </div>
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
@@ -5816,7 +5840,6 @@ function callCardHTML(call, mini=false) {
   }
 
   // Full card
-  const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
 
   // Respond button
   let respondBtn = '';
@@ -5833,9 +5856,6 @@ function callCardHTML(call, mini=false) {
     }
   }
 
-  const respColBadges = (call.responders||[]).length>0
-    ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:2px;">` + (call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];const loc=(call.liveLocations||{})[unitNum];const fresh=loc&&loc.locationAt&&(Date.now()-loc.locationAt)<LOC_STALE_MS&&loc.liveEtaMin!=null;const pill=(isDispatch&&fresh)?`<span style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;color:#15803d;padding:5px 10px;border-radius:9px;font-size:12px;font-weight:800;white-space:nowrap;">📍 Live ETA ${loc.liveEtaMin} min</span>`:'';return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-end;gap:1px;background:var(--green);color:#fff;padding:5px 11px;border-radius:9px;cursor:pointer;"><span style="font-size:14px;font-weight:800;line-height:1.2;white-space:nowrap;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>${_respMeta(r)?`<span style="font-size:10px;font-weight:600;opacity:.85;line-height:1.2;white-space:nowrap;">${_respMeta(r)}</span>`:''}</span>${pill}`;}).join('') + `</div>`
-    : '';
   return `
   <div class="call-card ${isUrgent?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
     ${call.status==='done'?'<div style="background:#16a34a;color:#fff;font-size:14px;font-weight:800;padding:8px 16px;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">✅ CALL COMPLETED</div>':''}
@@ -5849,16 +5869,16 @@ function callCardHTML(call, mini=false) {
           ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
           ${approved>0?`<span class="approved-badge">${approved} responding</span>`:''}
         </div>
-        <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLoc(call)}</div>
+        ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfo}</div>`:''}
+        <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
         ${etaWrap}
-        ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
         ${ezFitBadge}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
+        ${_respNumBadges(call)}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         ${isDispatch&&(call.pendingBackups||[]).length>0?(call.pendingBackups||[]).map(b=>`<div style="margin-top:6px;background:#fef2f2;border:1px solid rgba(220,80,80,.4);border-radius:10px;padding:8px 10px;" onclick="event.stopPropagation();"><div style="font-size:12px;font-weight:700;color:var(--red);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup${b.equipment?' · '+b.equipment:''}${b.notes?' · '+b.notes:''}</div><div style="display:flex;gap:6px;margin-top:7px;"><button onclick="event.stopPropagation();approveBackup('${call.id}',${b.time})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve Backup</button><button onclick="event.stopPropagation();rejectBackup('${call.id}',${b.time})" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Deny</button></div></div>`).join(''):''}
-
       </div>
-      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:''}${respColBadges}</div>`:''}
+      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:''}</div>`:''}
     </div>
     ${cornerMeta}
     <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
@@ -7118,7 +7138,7 @@ function openCallDetail(id) {
 
   // Details block
   html+=`<div class="detail-section">
-    <div class="detail-row"><span class="detail-key">Address</span><span class="detail-val"><a href="${mapLink}" target="_blank" style="color:var(--blue);text-decoration:none;">${call.address}</a></span></div>
+    <div class="detail-row"><span class="detail-key">Address</span><span class="detail-val"><a onclick="event.preventDefault();event.stopPropagation();openAddressPreviewById('${call.id}')" style="color:var(--blue);text-decoration:none;cursor:pointer;">${call.address}</a></span></div>
     <div class="detail-row"><span class="detail-key">Time</span><span class="detail-val">${timeStr}</span></div>
     ${call.caller?`<div class="detail-row"><span class="detail-key">Caller</span><span class="detail-val">${call.caller}</span></div>`:''}
     ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="tel:${call.phone}" style="color:var(--blue);text-decoration:none;">${formatPhone(call.phone)}</a></span></div>`:''}
