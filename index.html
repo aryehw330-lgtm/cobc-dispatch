@@ -290,13 +290,14 @@ textarea.input{min-height:80px;resize:vertical;}
 #page-dispatch .call-card.urgent .call-card-header,#page-home .call-card.urgent .call-card-header{padding:6px 4px;}
 #page-dispatch .call-card.urgent .call-card-type,#page-home .call-card.urgent .call-card-type{font-size:21px!important;font-weight:900!important;letter-spacing:.3px;}
 #page-dispatch .call-card.urgent .call-num,#page-home .call-card.urgent .call-num{font-size:16px!important;}
-#page-dispatch .call-card.urgent .call-card-addr,#page-home .call-card.urgent .call-card-addr{font-size:16px!important;font-weight:600;}
+#page-dispatch .call-card.urgent .call-card-addr,#page-home .call-card.urgent .call-card-addr{font-size:21px!important;font-weight:600;}
 #page-dispatch .call-card.urgent .call-card-meta,#page-home .call-card.urgent .call-card-meta{font-size:14px!important;}
 #page-dispatch .call-card.urgent,#page-home .call-card.urgent{padding:6px 6px 10px!important;border-width:2px!important;border-radius:24px!important;margin-bottom:14px;}
 #page-dispatch .call-card-type,#page-home .call-card-type{color:#0f172a;font-weight:800;}
 #page-dispatch .call-card.open .call-card-type,#page-home .call-card.open .call-card-type{color:#f59e0b!important;font-weight:800;text-shadow:0 1px 3px rgba(0,0,0,.45);}
 #page-dispatch .call-card-addr,#page-home .call-card-addr{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 #page-dispatch .call-card-meta,#page-home .call-card-meta{color:rgba(255,255,255,.8);text-shadow:0 1px 2px rgba(0,0,0,.4);}
+#page-dispatch .call-card-corner,#page-home .call-card-corner{color:rgba(255,255,255,.82);text-shadow:0 1px 2px rgba(0,0,0,.45);}
 #page-dispatch .call-card-footer,#page-home .call-card-footer{background:rgba(255,255,255,.25);border-top-color:rgba(255,255,255,.4);}
 /* On green/red tinted (active+urgent) tiles use white text for contrast */
 #page-dispatch .call-card.active .call-card-type,#page-home .call-card.active .call-card-type,#page-dispatch .call-card.urgent .call-card-type,#page-home .call-card.urgent .call-card-type{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.4);}
@@ -597,6 +598,10 @@ textarea.input{min-height:80px;resize:vertical;}
 
 .eta-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
 .eta-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+.eta-btn.eta-custom{text-align:center;-webkit-appearance:none;appearance:none;-moz-appearance:textfield;min-width:0;}
+.eta-btn.eta-custom::placeholder{color:var(--text3);font-weight:600;}
+.eta-btn.eta-custom:focus{outline:none;border-color:var(--blue);}
+.eta-btn.eta-custom::-webkit-outer-spin-button,.eta-btn.eta-custom::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 
 .call-card{background:#fff;border-radius:14px;margin-bottom:10px;box-shadow:var(--shadow-md);overflow:hidden;cursor:pointer;transition:transform .1s,box-shadow .1s;}
 .call-card:active{transform:scale(.99);}
@@ -606,10 +611,11 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.done{background:#f4f4f5;opacity:.75;filter:grayscale(20%);}
 .call-card.cancelled{background:#fff1f2;border-left:4px solid var(--red);opacity:.8;filter:grayscale(10%);}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
-.call-card-header{padding:12px 14px 10px;display:flex;align-items:stretch;justify-content:space-between;gap:10px;}
+.call-card-header{padding:11px 13px 7px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
 .call-card-type{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
-.call-card-addr{font-size:14px;color:var(--text2);margin-top:2px;}
+.call-card-addr{font-size:17px;color:var(--text2);margin-top:2px;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
+.call-card-corner{font-size:12px;font-weight:700;color:var(--text3);display:flex;justify-content:flex-end;align-items:center;gap:6px;padding:2px 13px 9px;letter-spacing:.2px;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
 .call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .cc-foot-fill{display:flex;flex-wrap:wrap;gap:6px;}
@@ -2255,7 +2261,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="eta-btn active" onclick="setETA(5,this)">5 min</button>
       <button class="eta-btn" onclick="setETA(10,this)">10 min</button>
       <button class="eta-btn" onclick="setETA(15,this)">15 min</button>
-      <button class="eta-btn" onclick="setETA(20,this)">20 min</button>
+      <input class="eta-btn eta-custom" id="respondETACustom" type="number" min="1" inputmode="numeric" placeholder="Custom" oninput="setCustomETA(this)"/>
     </div>
     <input type="hidden" id="respondETA" value="5"/>
     <div class="input-group">
@@ -5378,6 +5384,7 @@ function renderHome() {
 
   const el=document.getElementById('homeCallsList');
   const _hSort = c => {
+    if(c.status==='active' && (c.responders||[]).some(r=>String(r.unit)===String(SESSION.unit))) return -1; // MY active call pops to top (just for me)
     if(c.priority==='urgent' && c.status!=='done') return 0;
     if(((c.pendingResponders||[]).length>0 || (c.pendingBackups||[]).length>0) && c.status!=='done' && c.status!=='draft') return 1;
     const has = (c.responders||[]).length>0;
@@ -5671,7 +5678,7 @@ function fmtOpenFor(since){
 }
 function openTimerHTML(call){
   if(call.status!=='open') return '';
-  return `<div class="open-timer" data-since="${call.createdAt}" style="font-size:12px;font-weight:700;color:var(--amber);text-shadow:0 1px 2px rgba(0,0,0,.4);white-space:nowrap;">⏱ open ${fmtOpenFor(call.createdAt)}</div>`;
+  return `<div class="open-timer" data-since="${call.createdAt}" style="font-size:12px;font-weight:700;color:var(--amber);text-shadow:0 1px 2px rgba(0,0,0,.4);white-space:nowrap;">⏱ ${fmtOpenFor(call.createdAt)}</div>`;
 }
 function activeTimerHTML(call){
   if(call.status!=='active') return '';
@@ -5681,7 +5688,7 @@ function activeTimerHTML(call){
 function tickOpenTimers(){
   document.querySelectorAll('.open-timer').forEach(el=>{
     const s=parseInt(el.getAttribute('data-since'),10);
-    if(s) el.textContent='⏱ open '+fmtOpenFor(s);
+    if(s) el.textContent='⏱ '+fmtOpenFor(s);
   });
   document.querySelectorAll('.active-timer').forEach(el=>{
     const s=parseInt(el.getAttribute('data-since'),10);
@@ -5693,6 +5700,12 @@ function tickOpenTimers(){
 // ═══════════════════════════════════════════════════════════════════════════
 // §DISPATCH  Call cards, renderCalls, re-request logic
 // ═══════════════════════════════════════════════════════════════════════════
+function _respMeta(r){
+  const parts=[];
+  if(r.eta!=null && r.eta!=='') parts.push('ETA '+r.eta+' min');
+  if(r.time) parts.push(new Date(r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));
+  return parts.join(' · ');
+}
 function callCardHTML(call, mini=false) {
   if(!call) return '';
   if(!call.status) call = Object.assign({}, call, {status:'open'}); // guard against transient/malformed call objects
@@ -5740,6 +5753,10 @@ function callCardHTML(call, mini=false) {
   // Status color
   const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
   const sc = statusColors[call.status]||'var(--text3)';
+  const cornerMeta = `<div class="call-card-corner"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span>${timeStr}</span></div>`;
+  const etaWrap = call.status==='open'
+    ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;margin-top:6px;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
+    : '';
 
   if(mini) {
     const respList = (call.responders||[]);
@@ -5747,7 +5764,7 @@ function callCardHTML(call, mini=false) {
       ? respList.map(r=>{
           const unitNum = String(r.unit||'').replace(/^BC-?/i,'');
           const firstName = (r.name||'').split(' ')[0];
-          return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;cursor:pointer;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>`;
+          return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;background:var(--green);color:#fff;padding:5px 11px;border-radius:9px;cursor:pointer;"><span style="font-size:15px;font-weight:800;line-height:1.2;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>${_respMeta(r)?`<span style="font-size:10.5px;font-weight:600;opacity:.85;line-height:1.2;">${_respMeta(r)}</span>`:''}</span>`;
         }).join('')
       : '';
     const pendingBadge = pending
@@ -5782,19 +5799,18 @@ function callCardHTML(call, mini=false) {
       ${call.status==='done'?'<div style="background:#16a34a;color:#fff;font-size:13px;font-weight:800;padding:7px 14px;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">✅ CALL COMPLETED</div>':''}
       <div class="call-card-header">
         <div style="display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0;">
-          <div class="status-dot ${call.status}"></div>
           <div style="flex:1;min-width:0;">
-            <div class="call-num">#${callNumStr}</div>
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
             <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLoc(call)}</div>
+            ${etaWrap}
             ${ezFitBadge}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
-            <div class="call-card-meta" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">${timeStr}${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}</div>
-            ${responderBadges ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;">${responderBadges}</div>` : ''}
+            ${responderBadges ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${responderBadges}</div>` : ''}
           </div>
         </div>
-        ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}${(iAmApproved && call.status!=='done' && !isDraft)?`<div class="approved-badge" style="padding:4px 9px;font-size:11px;white-space:nowrap;">✓ Approved to respond</div>`:''}</div>`:''}
+        ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
+      ${cornerMeta}
       ${(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
     </div>`;
   }
@@ -5817,6 +5833,9 @@ function callCardHTML(call, mini=false) {
     }
   }
 
+  const respColBadges = (call.responders||[]).length>0
+    ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:2px;">` + (call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];const loc=(call.liveLocations||{})[unitNum];const fresh=loc&&loc.locationAt&&(Date.now()-loc.locationAt)<LOC_STALE_MS&&loc.liveEtaMin!=null;const pill=(isDispatch&&fresh)?`<span style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;color:#15803d;padding:5px 10px;border-radius:9px;font-size:12px;font-weight:800;white-space:nowrap;">📍 Live ETA ${loc.liveEtaMin} min</span>`:'';return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-end;gap:1px;background:var(--green);color:#fff;padding:5px 11px;border-radius:9px;cursor:pointer;"><span style="font-size:14px;font-weight:800;line-height:1.2;white-space:nowrap;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>${_respMeta(r)?`<span style="font-size:10px;font-weight:600;opacity:.85;line-height:1.2;white-space:nowrap;">${_respMeta(r)}</span>`:''}</span>${pill}`;}).join('') + `</div>`
+    : '';
   return `
   <div class="call-card ${isUrgent?'urgent':call.status}" onclick="openCallDetail('${call.id}')">
     ${call.status==='done'?'<div style="background:#16a34a;color:#fff;font-size:14px;font-weight:800;padding:8px 16px;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">✅ CALL COMPLETED</div>':''}
@@ -5824,27 +5843,24 @@ function callCardHTML(call, mini=false) {
     ${isUrgent?'<div style="background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:5px 14px;letter-spacing:.5px;">URGENT</div>':''}
     <div class="call-card-header">
       <div style="flex:1;min-width:0;">
-        <div class="call-num" style="margin-bottom:2px;">#${callNumStr}</div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
-          <div class="status-dot ${call.status}" style="flex-shrink:0;"></div>
           <div class="call-card-type" style="color:${townColor};">${typeLabel}</div>
           ${isDraft?'<span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}
           ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
           ${approved>0?`<span class="approved-badge">${approved} responding</span>`:''}
         </div>
         <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLoc(call)}</div>
-        ${call.status!=='done'?`<span id="card-eta-${call.id}" style="display:none;"></span>`:''}
+        ${etaWrap}
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:5px;">${carInfo}</div>`:''}
         ${ezFitBadge}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
-        ${(call.responders||[]).length>0?`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:7px;">${(call.responders||[]).map(r=>{const unitNum=String(r.unit||'').replace(/^BC-?/i,'');const firstName=(r.name||'').split(' ')[0];const loc=(call.liveLocations||{})[unitNum];const fresh=loc&&loc.locationAt&&(Date.now()-loc.locationAt)<LOC_STALE_MS&&loc.liveEtaMin!=null;const pill=(isDispatch&&fresh)?`<span style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;color:#15803d;padding:6px 11px;border-radius:9px;font-size:13px;font-weight:800;white-space:nowrap;">📍 Live ETA ${loc.liveEtaMin} min</span>`:'';return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;padding:6px 12px;border-radius:9px;font-size:15px;font-weight:800;cursor:pointer;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>${pill}`;}).join('')}</div>`:''}
-        
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         ${isDispatch&&(call.pendingBackups||[]).length>0?(call.pendingBackups||[]).map(b=>`<div style="margin-top:6px;background:#fef2f2;border:1px solid rgba(220,80,80,.4);border-radius:10px;padding:8px 10px;" onclick="event.stopPropagation();"><div style="font-size:12px;font-weight:700;color:var(--red);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup${b.equipment?' · '+b.equipment:''}${b.notes?' · '+b.notes:''}</div><div style="display:flex;gap:6px;margin-top:7px;"><button onclick="event.stopPropagation();approveBackup('${call.id}',${b.time})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve Backup</button><button onclick="event.stopPropagation();rejectBackup('${call.id}',${b.time})" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Deny</button></div></div>`).join(''):''}
-        <div class="call-card-meta" style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${timeStr}</div>
+
       </div>
-      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:iAmApproved?`<div style="font-size:11px;font-weight:700;color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">✓ Responding</div>`:''}}</div>`:''}
+      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:''}${respColBadges}</div>`:''}
     </div>
+    ${cornerMeta}
     <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
       <div style="display:flex;gap:5px;">
         ${isDispatch?`<button class="call-action metal-gold" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#e8c24e!important;box-shadow:none!important;text-shadow:none!important;" onclick="event.stopPropagation();openRadioModal('${call.id}')">Assign Unit</button>`:''}
@@ -5977,16 +5993,18 @@ async function fillCardETAs() {
   for (const call of activeCalls) {
     const span = document.getElementById('card-eta-'+call.id);
     if (!span) continue;
+    const wrap = document.getElementById('card-etawrap-'+call.id);
     try {
       const pt = await _geocode(call.address, call.town||'');
-      if (!pt) { span.style.display='none'; continue; }
+      if (!pt) { span.style.display='none'; if(wrap) wrap.style.display='none'; continue; }
       const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
       const mins = _etaMin(mi);
       const color = mins<=5?'var(--green)':mins<=12?'var(--amber)':'#6b7280';
       const bg    = mins<=5?'#dcfce7':mins<=12?'#fef3c7':'#f3f4f6';
-      span.style.display = 'inline-flex';
-      span.style.cssText += `display:inline-flex;align-items:center;gap:4px;background:${bg};color:${color};padding:2px 9px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;`;
-      span.textContent = `📍 Your Estimated ETA: ${mins} min`;
+      if(wrap) wrap.style.display='flex';
+      span.style.display = 'flex';
+      span.style.cssText += `display:flex;width:100%;box-sizing:border-box;align-items:center;justify-content:center;gap:6px;background:${bg};color:${color};padding:8px 12px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;`;
+      span.textContent = `📍 Your Est. ETA: ${mins} min`;
       // Upgrade the straight-line estimate to a real traffic-aware Google driving ETA
       const _origin = { lat:_myLoc.lat, lng:_myLoc.lng };
       _googleDriveMins(_origin, pt).then(gm => {
@@ -5994,7 +6012,7 @@ async function fillCardETAs() {
         const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
         span.style.cssText += `background:${gbg};color:${gc};`;
-        span.textContent = `📍 Your Estimated ETA: ${gm} min`;
+        span.textContent = `📍 Your Est. ETA: ${gm} min`;
       }).catch(()=>{}); // keep the instant estimate if Google routing is unavailable
       // Tap to open Google Maps directions
       span.onclick = function(e) {
@@ -6006,7 +6024,7 @@ async function fillCardETAs() {
         if (!call) return;
         openMyRouteMap(call);
       };
-    } catch(e) { span.style.display='none'; }
+    } catch(e) { span.style.display='none'; if(wrap) wrap.style.display='none'; }
   }
 }
 
@@ -6034,7 +6052,7 @@ async function fillDetailETA(call) {
       const color = m<=5?'var(--green)':m<=12?'var(--amber)':'#6b7280';
       const bg    = m<=5?'#dcfce7':m<=12?'#fef3c7':'#f3f4f6';
       box.style.display = 'block';
-      box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:${color};padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📍 Your Estimated ETA: ${m} min</span>`;
+      box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:${color};padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📍 Your Est. ETA: ${m} min</span>`;
       box.firstChild.onclick = (e) => { e.stopPropagation(); openMyRouteMap(call); };
     };
     paint(_etaMin(_haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng)));
@@ -6075,14 +6093,14 @@ function renderCalls() {
   //   3. Draft
   //   4. Done
   const sortRank = c => {
-    if(c.status==='cancelled') return 6;
-    if(c.status==='done') return 5;
-    if(c.status==='draft') return 4;
+    if(c.status==='cancelled') return 7;
+    if(c.status==='done') return 6;
     if(c.priority==='urgent') return 0;
     if((c.pendingResponders||[]).length>0 || (c.pendingBackups||[]).length>0) return 1;
     const hasResponders = (c.responders||[]).length>0;
     if(c.status==='open' && !hasResponders) return 2;
-    return 3;
+    if(c.status==='draft') return 3;
+    return 4; // active / in-progress → bottom of live calls
   };
   const isDispatch = isDispatchRole && isDispatchRole();
   const todayStart = _todayStartMs();
@@ -6420,6 +6438,7 @@ function openRespondModal(id) {
   }
   document.getElementById('respondCallId').value=id;
   document.getElementById('respondETA').value='10';
+  {const _cc=document.getElementById('respondETACustom'); if(_cc) _cc.value='';}
   document.getElementById('respondNotes').value='';
   // Auto-fill ETA from member's live location via Google (traffic-aware driving route)
   if (_myLoc && call && call.address) {
@@ -6496,6 +6515,14 @@ function setETA(val, btn) {
   document.getElementById('respondETA').value = val;
   document.querySelectorAll('.eta-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
+  const ci=document.getElementById('respondETACustom'); if(ci && btn!==ci) ci.value='';
+}
+
+function setCustomETA(inp){
+  const v=parseInt(inp.value,10);
+  document.querySelectorAll('.eta-btn').forEach(b=>b.classList.remove('active'));
+  if(v>0){ document.getElementById('respondETA').value=String(v); inp.classList.add('active'); }
+  else { inp.classList.remove('active'); }
 }
 function confirmRespond() {
   const id=document.getElementById('respondCallId').value;
