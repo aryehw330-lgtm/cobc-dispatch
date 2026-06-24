@@ -4458,17 +4458,34 @@ async function _finishGISSignIn(email, errorEl) {
   const e = (email||'').trim().toLowerCase();
   if(!e) { if(errorEl) errorEl.innerText = 'Could not read email from Google account.'; return; }
   if(errorEl) errorEl.innerText = 'Checking member list…';
-  if(!_sheetMembersLoaded) { try { await loadMembersFromSheet(); } catch(err) {} }
-  const member = findSheetMemberByEmail(e);
-  if(member) {
+  try {
+    const resp = await fetch(_GET_AUTH_TOKEN_URL, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email: e})
+    });
+    const data = await resp.json();
+    if(!data.ok || !data.token) {
+      if(errorEl) errorEl.innerText = 'Email ' + e + ' not found in member list. Ask your admin to add it to Column I of the Members sheet.';
+      return;
+    }
+    await firebase.auth().signInWithCustomToken(data.token);
+    await firebase.auth().currentUser.getIdToken(true);
+    const md = data.member || {};
+    const nameParts = (md.name||'').trim().split(' ');
+    const member = {
+      unit: 'BC-' + String(md.id||'').replace(/^BC-?/i,'').padStart(2,'0'),
+      firstName: nameParts[0]||'', lastName: nameParts.slice(1).join(' ')||'',
+      name: md.name||e, role: (md.status||'member').toLowerCase(),
+      phone:'', email:e, carAccess:false, fromSheet:true
+    };
     if(errorEl) errorEl.innerText = '';
-    await signInToFirebase(null, e);
     finishLogin(member);
-    showToast('Welcome back, ' + (member.firstName || member.name || e));
-    if(typeof showTab==='function') showTab(SESSION.role==='dispatch'?'dispatch':'home');
-    return;
+    showToast('Welcome back, ' + (member.firstName || e));
+    if(typeof showTab==='function') showTab(member.role==='dispatch'?'dispatch':'home');
+  } catch(err) {
+    console.error('_finishGISSignIn error:', err);
+    if(errorEl) errorEl.innerText = 'Google sign-in failed — try your PIN instead.';
   }
-  if(errorEl) errorEl.innerText = 'Email ' + e + ' not found in member list. Ask your admin to add it to Column I of the Members sheet.';
 }
 
 // ── Members from Google Sheet (Chaverim Member info tab) ──────────────
