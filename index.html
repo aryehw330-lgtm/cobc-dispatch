@@ -4462,6 +4462,7 @@ async function _finishGISSignIn(email, errorEl) {
   const member = findSheetMemberByEmail(e);
   if(member) {
     if(errorEl) errorEl.innerText = '';
+    await signInToFirebase(null, e);
     finishLogin(member);
     showToast('Welcome back, ' + (member.firstName || member.name || e));
     if(typeof showTab==='function') showTab(SESSION.role==='dispatch'?'dispatch':'home');
@@ -4569,9 +4570,10 @@ function findSheetMemberByEmail(email){
 window.addEventListener('load',()=>{ setTimeout(()=>{ loadMembersFromSheet(); }, 1200); });
 
 const _GET_AUTH_TOKEN_URL='https://us-east1-cobc-dispatch.cloudfunctions.net/getAuthToken';
-async function signInToFirebase(pin){
+async function signInToFirebase(pin,email){
   try{
-    const resp=await fetch(_GET_AUTH_TOKEN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
+    const body=pin?{pin}:{email};
+    const resp=await fetch(_GET_AUTH_TOKEN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const data=await resp.json();
     if(!data.ok||!data.token){console.warn('signInToFirebase: not authorized',data);return false;}
     await firebase.auth().signInWithCustomToken(data.token);
