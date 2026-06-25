@@ -1385,17 +1385,6 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="card" style="margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <div style="flex:1;min-width:0;">
-              <div class="card-title">🔄 Force Re-Sync Calls</div>
-              <div class="card-desc">Push every call on this device to the shared database. Use if calls aren't showing for others.</div>
-            </div>
-            <button class="btn-sm btn-ghost" onclick="forceResyncAllCalls(this)" style="flex-shrink:0;color:var(--green);">Re-sync</button>
-          </div>
-        </div>
-
-        <!-- Clear Cache -->
-        <div class="card" style="margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-            <div style="flex:1;min-width:0;">
               <div class="card-title">🗑️ Clear Cached Data</div>
               <div class="card-desc">Reset locally-stored equipment + calls. Re-syncs from Google Sheet.</div>
             </div>
@@ -4336,134 +4325,7 @@ function initFirestore(){
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
-// Manual recovery: push only calls that are MISSING from the shared DB (plus any
-// already flagged unsynced), so we never clobber another member's live updates on
-// a call that's already there. Recovers calls stranded before self-healing existed.
-async function forceResyncAllCalls(btn){
-  const orig = btn ? btn.innerHTML : '';
-  if(btn){ btn.disabled=true; btn.innerHTML='Syncing…'; }
-  let ok=0, fail=0;
-  try{
-    if(!(window.firebase&&_firebaseReady)){ showToast('⚠️ Not connected — try again in a moment'); return; }
-    // Pull the server's current call ids via REST (ITP-proof) to find what's missing.
-    let serverIds=new Set();
-    try{ (await _fsRestFetch('calls')||[]).forEach(c=>{ if(c&&c.id) serverIds.add(String(c.id)); }); }
-    catch(e){ showToast('⚠️ Couldn’t read server — try again'); return; }
-    const toPush=(STATE.calls||[]).filter(c=>c&&c.id && (!serverIds.has(String(c.id)) || _unsyncedCallIds.has(String(c.id))));
-    if(!toPush.length){ showToast('✅ Everything already synced'); return; }
-    for(const call of toPush){
-      const success = await _uploadCallOnce(call);
-      _markUnsynced(call.id, !success);
-      if(success) ok++; else fail++;
-    }
-    showToast(fail? `Synced ${ok}, ${fail} failed — check connection` : `✅ Synced ${ok} missing call${ok>1?'s':''}`);
-  } finally {
-    if(btn){ btn.disabled=false; btn.innerHTML=orig; }
-    try{ _updateUnsyncedBanner(); }catch(e){}
-  }
-}
-// ── Resilient, self-healing call upload ─────────────────────────────────────
-// Reject if a Firestore write hasn't settled in `ms` — on iOS (ITP + long-polling)
-// a .set() can hang indefinitely without throwing; the timeout lets the heartbeat
-// re-attempt instead of the call silently never uploading.
-function _withTimeout(promise, ms){
-  return Promise.race([
-    promise,
-    new Promise((_,rej)=>setTimeout(()=>rej(new Error('write timeout')), ms))
-  ]);
-}
-// ── Firestore REST WRITE (ITP-proof) ────────────────────────────────────────
-// iOS Safari ITP can hang the Firestore SDK's write channel indefinitely. Plain
-// HTTPS fetch is never blocked, so we mirror the REST reads with a REST write and
-// use it as an automatic fallback whenever the SDK write times out or errors.
-function _fsEncodeVal(v){
-  if(v===null||v===undefined) return {nullValue:null};
-  if(typeof v==='boolean') return {booleanValue:v};
-  if(typeof v==='number') return Number.isInteger(v) ? {integerValue:String(v)} : {doubleValue:v};
-  if(typeof v==='string') return {stringValue:v};
-  if(Array.isArray(v)) return {arrayValue:{values:v.map(_fsEncodeVal)}};
-  if(typeof v==='object'){ const fields={}; for(const k in v){ if(v[k]!==undefined) fields[k]=_fsEncodeVal(v[k]); } return {mapValue:{fields}}; }
-  return {stringValue:String(v)};
-}
-function _fsEncodeDoc(obj){ const fields={}; for(const k in obj){ if(obj[k]!==undefined) fields[k]=_fsEncodeVal(obj[k]); } return {fields}; }
-function _fsRestSetDoc(collection, docId, obj){
-  const url=`https://firestore.googleapis.com/v1/projects/cobc-dispatch/databases/(default)/documents/${collection}/${encodeURIComponent(docId)}`;
-  return _fsIdToken().then(tok=>fetch(url,{
-    method:'PATCH', credentials:'omit',
-    headers: Object.assign({'Content-Type':'application/json'}, tok?{'Authorization':'Bearer '+tok}:{}),
-    body: JSON.stringify(_fsEncodeDoc(obj))
-  })).then(r=>{ if(!r.ok) throw new Error('REST write HTTP '+r.status); return r.json(); });
-}
-// One upload attempt. Fires the SDK write AND the ITP-proof REST write IN PARALLEL
-// and resolves the instant EITHER succeeds — so a new call propagates immediately
-// even on iOS (where the SDK channel may stall), with no waiting on a timeout.
-// Both target the same doc id, so doing both is idempotent and safe.
-async function _uploadCallOnce(call){
-  if(!call||!call.id) return false;
-  const sdk = _withTimeout(firebase.firestore().collection('calls').doc(String(call.id)).set(call), 6000).then(()=>true,()=>false);
-  const rest = _fsRestSetDoc('calls', String(call.id), call).then(()=>true,()=>false);
-  return new Promise(resolve=>{
-    let remaining=2, settled=false;
-    const onResult=(success)=>{
-      if(settled) return;
-      if(success){ settled=true; resolve(true); }
-      else if(--remaining===0){ resolve(false); }
-    };
-    sdk.then(onResult); rest.then(onResult);
-  });
-}
-// Calls are keyed by id, so .set() is idempotent — re-pushing the same call can
-// never create a duplicate. Any upload that fails (brief connection drop, expired
-// auth, iOS ITP) is tracked and automatically re-pushed by the heartbeat until it
-// confirms, so a call can never be stranded on one device while others miss it.
-let _unsyncedCallIds = (()=>{ try{ return new Set(JSON.parse(localStorage.getItem('cobc_unsynced_calls')||'[]')); }catch(e){ return new Set(); } })();
-function _persistUnsynced(){ try{ localStorage.setItem('cobc_unsynced_calls', JSON.stringify([..._unsyncedCallIds])); }catch(e){} }
-function _markUnsynced(id, bad){
-  if(!id) return;
-  if(bad) _unsyncedCallIds.add(String(id)); else _unsyncedCallIds.delete(String(id));
-  _persistUnsynced();
-  try{ _updateUnsyncedBanner(); }catch(e){}
-}
-async function firestoreUpsertCall(call){
-  if(!call||!call.id) return;
-  if(!(window.firebase&&_firebaseReady)){ _markUnsynced(call.id, true); return; }
-  const ok = await _uploadCallOnce(call);
-  _markUnsynced(call.id, !ok);
-  if(!ok){ try{ showSyncError('call upload', new Error('SDK + REST write failed')); }catch(_){} }
-}
-// Re-push every call that hasn't confirmed upload. Safe to call anytime; runs on
-// the 30s heartbeat so a stuck write resolves on its own once the link is back.
-let _resyncInFlight=false;
-async function resyncUnsyncedCalls(){
-  if(_resyncInFlight || !_unsyncedCallIds.size) return;
-  if(!(window.firebase&&_firebaseReady)) return;
-  _resyncInFlight=true;
-  try{
-    const ids=[..._unsyncedCallIds];
-    for(const id of ids){
-      const call=(STATE.calls||[]).find(c=>String(c.id)===String(id));
-      if(!call){ _markUnsynced(id,false); continue; } // gone locally — stop tracking
-      const ok = await _uploadCallOnce(call);
-      if(ok) _markUnsynced(id,false); // else keep tracked, retry next heartbeat
-    }
-    if(!_unsyncedCallIds.size){ try{ clearSyncError(); }catch(e){} }
-  } finally { _resyncInFlight=false; }
-}
-// Small persistent banner so a stuck device is obvious instead of silent.
-function _updateUnsyncedBanner(){
-  const n=_unsyncedCallIds.size;
-  let el=document.getElementById('unsyncedCallsBanner');
-  if(n<=0){ if(el) el.style.display='none'; return; }
-  if(!el){
-    el=document.createElement('div');
-    el.id='unsyncedCallsBanner';
-    el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:9000;background:#d97706;color:#fff;font-weight:800;font-size:13px;padding:9px 16px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.35);display:flex;align-items:center;gap:9px;cursor:pointer;';
-    el.onclick=()=>{ showToast('Re-syncing…'); resyncUnsyncedCalls(); };
-    document.body.appendChild(el);
-  }
-  el.style.display='flex';
-  el.innerHTML='⚠️ '+n+' call'+(n>1?'s':'')+' not uploaded — tap to retry';
-}
+async function firestoreUpsertCall(call){try{await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
 
 var _savePending = false;
 function save() {
@@ -8585,9 +8447,7 @@ function _appHeartbeatRun(){
   try { checkWaitingEscalation(); } catch(e){}
   try { updateGlobalShiftBanner(); } catch(e){}
   try { _drainRetryQueue(); } catch(e){}
-  try { resyncUnsyncedCalls(); } catch(e){}
   try { _updateOfflineBanner(); } catch(e){}
-  try { _updateUnsyncedBanner(); } catch(e){}
   // Every other tick (~60s) refresh the car schedule so the shift banner
   // reflects bookings/sign-outs from other devices.
   if (_appTick % 2 === 0) { try { loadCarSchedule(); } catch(e){} }
