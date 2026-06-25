@@ -2280,8 +2280,8 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <input type="hidden" id="respondETA" value="5"/>
     <!-- Bringing a fleet vehicle? — multi-select checkmarks -->
-    <div class="input-label" style="margin-bottom:8px;">Bringing a vehicle? <span style="font-weight:500;color:var(--text3);">(check any going with you)</span></div>
-    <div id="respondVehicleBtns" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:nowrap;"></div>
+    <div class="input-label" style="margin-bottom:6px;font-size:11px;">Bringing a vehicle? <span style="font-weight:500;color:var(--text3);">(tap any)</span></div>
+    <div id="respondVehicleBtns" style="display:flex;gap:5px;margin-bottom:14px;flex-wrap:nowrap;"></div>
     <input type="hidden" id="respondVehicle" value=""/>
     <div class="input-group">
       <label class="input-label">Notes (optional)</label>
@@ -2317,6 +2317,11 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- Selected members -->
     <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;">Selected</div>
     <div id="radioSelectedList" style="margin-bottom:10px;min-height:36px;"></div>
+    <!-- Vehicles going with them — small, shown once a member is selected -->
+    <div id="radioVehicleWrap" style="display:none;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:5px;">Vehicles going <span style="font-weight:500;">(tap any)</span></div>
+      <div id="radioVehicleBtns" style="display:flex;gap:5px;flex-wrap:nowrap;"></div>
+    </div>
     <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="submitRadioResponders()">Add All + Post to Group</button>
     <button class="btn-full btn-ghost" onclick="hideModal('radioModal')">Cancel</button>
   </div>
@@ -5867,7 +5872,13 @@ function _respNumBadges(call){
     if(r.eta!=null && r.eta!=='') meta.push(r.eta+'m');
     if(t) meta.push(new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(/\s/,'').replace('AM','a').replace('PM','p'));
     const metaLine=meta.length?`<span style="font-size:9.5px;font-weight:600;opacity:.85;line-height:1.1;white-space:nowrap;">${meta.join(' · ')}</span>`:'';
-    return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;background:var(--green);color:#fff;padding:3px 8px;border-radius:7px;line-height:1.15;white-space:nowrap;cursor:pointer;flex:0 0 auto;"><span style="font-size:13px;font-weight:800;">BC-${unitNum}</span>${metaLine}</span>`;
+    const memberPill=`<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;background:var(--green);color:#fff;padding:3px 8px;border-radius:7px;line-height:1.15;white-space:nowrap;cursor:pointer;flex:0 0 auto;"><span style="font-size:13px;font-weight:800;">BC-${unitNum}</span>${metaLine}</span>`;
+    // Vehicle badge(s) on the same row, right next to the person taking it out
+    const vehBadges=(r.vehicles||[]).map(vn=>{
+      const isCar=/car|cobc\s*0?4/i.test(vn);
+      return `<span style="display:inline-flex;align-items:center;gap:3px;background:#1e3a8a;color:#fff;padding:3px 7px;border-radius:7px;font-size:12px;font-weight:800;line-height:1.15;white-space:nowrap;flex:0 0 auto;">${isCar?'🚗':'🚚'} ${vn}</span>`;
+    }).join('');
+    return memberPill+vehBadges;
   }).join('');
   return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin:5px 0 6px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
 }
@@ -6705,9 +6716,7 @@ function renderRespondVehicles(){
   wrap.innerHTML=fleet.map(v=>{
     const on=respondVehicles.includes(v.name);
     const icon=((v.type||'').toLowerCase()==='car')?'🚗':'🚚';
-    return `<button type="button" class="resp-veh-btn" onclick="toggleRespondVehicle('${v.name.replace(/'/g,"\\'")}')" style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:9px 4px;border-radius:10px;border:1px solid ${on?'var(--green)':'var(--border)'};background:${on?'rgba(34,197,94,.16)':'var(--border2)'};color:${on?'var(--green)':'var(--text)'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">`
-      + `<span style="width:19px;height:19px;border-radius:6px;border:2px solid ${on?'var(--green)':'var(--border)'};background:${on?'var(--green)':'transparent'};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">${on?'✓':''}</span>`
-      + `<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${icon} ${v.name}</span></button>`;
+    return `<button type="button" class="resp-veh-btn" onclick="toggleRespondVehicle('${v.name.replace(/'/g,"\\'")}')" style="flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 4px;border-radius:8px;border:1px solid ${on?'var(--green)':'var(--border)'};background:${on?'rgba(34,197,94,.16)':'var(--border2)'};color:${on?'var(--green)':'var(--text2)'};font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${on?'✓ ':''}${icon} ${v.name}</button>`;
   }).join('');
 }
 function toggleRespondVehicle(name){
@@ -7153,22 +7162,14 @@ function rejectBackup(callId, time) {
 }
 
 // ── Radio Responder ──
-function openRadioModal(id) {
-  document.getElementById('radioCallId').value=id;
-  document.getElementById('radioUnit').value='';
-  document.getElementById('radioETA').value='5';
-  hideModal('callDetailModal');
-  showModal('radioModal');
-}
-
 let radioSelectedMembers=[];
 
 function openRadioModal(callId) {
   radioSelectedMembers=[];
+  radioVehicles=[];
   document.getElementById('radioCallId').value=callId;
   document.getElementById('radioSearch').value='';
   document.getElementById('radioSearchResults').style.display='none';
-  document.getElementById('radioETA').value='5';
   renderRadioSelected();
   showModal('radioModal');
 }
@@ -7202,10 +7203,13 @@ function addRadioMember(unit) {
 
 function renderRadioSelected() {
   const el=document.getElementById('radioSelectedList');
+  const vWrap=document.getElementById('radioVehicleWrap');
   if(!radioSelectedMembers.length){
     el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 0;">Search and select members above</div>';
+    if(vWrap) vWrap.style.display='none';
     return;
   }
+  if(vWrap){ vWrap.style.display='block'; renderRadioVehicles(); }
   el.innerHTML=radioSelectedMembers.map((m,i)=>{const uDisp=String(m.unit).replace(/^BC-/i,'');const mName=`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim();return`
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;">
       <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
@@ -7219,6 +7223,24 @@ function renderRadioSelected() {
       </div>
     </div>`;}).join('');
 }
+// Small vehicle checkmarks for the Assign-Units modal (which trucks/car are going).
+let radioVehicles=[];
+function renderRadioVehicles(){
+  const wrap=document.getElementById('radioVehicleBtns');
+  if(!wrap) return;
+  const fleet=(STATE.vehicles||[]);
+  if(!fleet.length){ wrap.innerHTML='<div style="font-size:11px;color:var(--text3);">No fleet vehicles</div>'; return; }
+  wrap.innerHTML=fleet.map(v=>{
+    const on=radioVehicles.includes(v.name);
+    const icon=((v.type||'').toLowerCase()==='car')?'🚗':'🚚';
+    return `<button type="button" onclick="toggleRadioVehicle('${v.name.replace(/'/g,"\\'")}')" style="flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:4px;padding:6px 4px;border-radius:8px;border:1px solid ${on?'var(--green)':'var(--border)'};background:${on?'rgba(34,197,94,.16)':'var(--border2)'};color:${on?'var(--green)':'var(--text2)'};font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${on?'✓ ':''}${icon} ${v.name}</button>`;
+  }).join('');
+}
+function toggleRadioVehicle(name){
+  const i=radioVehicles.indexOf(name);
+  if(i>-1) radioVehicles.splice(i,1); else radioVehicles.push(name);
+  renderRadioVehicles();
+}
 
 async function submitRadioResponders() {
   const id=document.getElementById('radioCallId').value;
@@ -7231,7 +7253,7 @@ async function submitRadioResponders() {
     // Remove from pending if they were there
     call.pendingResponders=(call.pendingResponders||[]).filter(r=>String(r.unit)!==String(m.unit));
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
-      call.responders.push({unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),via:'radio',status:'approved',time:Date.now()});
+      call.responders.push({unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:'radio',status:'approved',time:Date.now()});
     }
   });
   if(!call.callNum) call.callNum = _nextCallNum();
