@@ -287,7 +287,7 @@ textarea.input{min-height:80px;resize:vertical;}
 #page-dispatch .call-card,#page-home .call-card{background:linear-gradient(135deg,rgba(212,169,58,.22),rgba(20,16,8,.6))!important;-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5);border:1px solid rgba(230,196,99,.4);border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.16);}
 #page-dispatch .call-card.active,#page-home .call-card.active{background:linear-gradient(135deg,rgba(34,197,94,.5),rgba(8,30,16,.66))!important;border-color:rgba(74,222,128,.5);}
 #page-dispatch .call-card.urgent,#page-home .call-card.urgent{background:linear-gradient(135deg,rgba(220,38,38,.72),rgba(120,10,10,.6) 55%,rgba(8,4,4,.78))!important;border-color:rgba(248,113,113,.7)!important;box-shadow:0 8px 26px rgba(180,20,20,.4),inset 0 1px 0 rgba(255,255,255,.18)!important;}
-#page-dispatch .call-card.urgent .call-card-header,#page-home .call-card.urgent .call-card-header{padding:6px 4px;}
+#page-dispatch .call-card.urgent .call-card-header,#page-home .call-card.urgent .call-card-header{padding:4px 4px 3px;}
 #page-dispatch .call-card.urgent .call-card-type,#page-home .call-card.urgent .call-card-type{font-size:21px!important;font-weight:900!important;letter-spacing:.3px;}
 #page-dispatch .call-card.urgent .call-num,#page-home .call-card.urgent .call-num{font-size:16px!important;}
 #page-dispatch .call-card.urgent .call-card-addr,#page-home .call-card.urgent .call-card-addr{font-size:21px!important;font-weight:600;}
@@ -612,11 +612,11 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.done{background:#f4f4f5;opacity:.75;filter:grayscale(20%);}
 .call-card.cancelled{background:#fff1f2;border-left:4px solid var(--red);opacity:.8;filter:grayscale(10%);}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
-.call-card-header{padding:11px 13px 7px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
-.call-card-type{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
-.call-card-addr{font-size:17px;font-weight:600;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.call-card-meta{font-size:12px;color:var(--text3);margin-top:4px;}
-.call-card-corner{font-size:14px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:1px 13px 8px;letter-spacing:.2px;}
+.call-card-header{padding:7px 13px 5px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.call-card-type{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.3px;line-height:1.15;}
+.call-card-addr{font-size:17px;font-weight:600;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
+.call-card-meta{font-size:12px;color:var(--text3);margin-top:2px;}
+.call-card-corner{font-size:14px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 13px 6px;letter-spacing:.2px;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
 .call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .cc-foot-fill{display:flex;flex-wrap:wrap;gap:6px;}
@@ -3740,12 +3740,23 @@ const KNOWN_TOWNS_LC = {
   'tenafly':'Other','dumont':'Other','elmwood park':'Other','ridgewood':'Other'
 };
 let _addrTimer=null, _addrCache={}, _sessionToken=null;
-// Town for the card chip: use call.town, else parse a known town out of the address.
+// Town for the card chip: use call.town, else parse a town out of the address.
 function cardTown(call){
   if(call&&call.town) return call.town;
-  const addr=String((call&&call.address)||'').toLowerCase();
-  if(!addr) return '';
-  for(const k in KNOWN_TOWNS_LC){ if(addr.includes(k)){ const v=KNOWN_TOWNS_LC[k]; return v==='Other'? k.replace(/\b\w/g,c=>c.toUpperCase()) : v; } }
+  const raw=String((call&&call.address)||'').trim();
+  if(!raw) return '';
+  const addrLC=raw.toLowerCase();
+  // 1) Known Bergen-area towns (mapped/cleaned)
+  for(const k in KNOWN_TOWNS_LC){ if(addrLC.includes(k)){ const v=KNOWN_TOWNS_LC[k]; return v==='Other'? k.replace(/\b\w/g,c=>c.toUpperCase()) : v; } }
+  // 2) Structured address "street, town, STATE zip" (e.g. NY/NJ towns outside the list)
+  const segs=raw.split(',').map(s=>s.trim()).filter(Boolean);
+  if(segs.length>=2){
+    const last=segs[segs.length-1];
+    // last segment is a state (+optional zip) → the town is the segment before it
+    if(/^(N\.?J\.?|N\.?Y\.?|New Jersey|New York|[A-Z]{2})\b/i.test(last) && segs.length>=3){
+      return segs[segs.length-2];
+    }
+  }
   return '';
 }
 
@@ -3884,7 +3895,8 @@ function addrPickSuggestion(idx, boxId, inputId, townSelId, townTextId) {
     const town = rawTown.replace(/\s+(township|borough|town|city|village)$/i,'')
                         .replace(/^(township|borough|town|city|village)\s+of\s+/i,'').trim();
     const zip = comp.postal_code || '';
-    inputEl.value = [street, town, zip ? 'NJ ' + zip : 'NJ'].filter(Boolean).join(', ');
+    const state = comp.administrative_area_level_1_short || comp.administrative_area_level_1 || 'NJ';
+    inputEl.value = [street, town, zip ? state + ' ' + zip : state].filter(Boolean).join(', ');
 
     if (place.geometry?.location) {
       const key = `${inputEl.value}|${town}`;
