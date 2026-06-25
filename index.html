@@ -2279,6 +2279,10 @@ textarea.input{min-height:80px;resize:vertical;}
       <input class="eta-btn eta-custom" id="respondETACustom" type="number" min="1" inputmode="numeric" placeholder="Custom" oninput="setCustomETA(this)"/>
     </div>
     <input type="hidden" id="respondETA" value="5"/>
+    <!-- Bringing a fleet vehicle? — multi-select checkmarks -->
+    <div class="input-label" style="margin-bottom:8px;">Bringing a vehicle? <span style="font-weight:500;color:var(--text3);">(check any going with you)</span></div>
+    <div id="respondVehicleBtns" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:nowrap;"></div>
+    <input type="hidden" id="respondVehicle" value=""/>
     <div class="input-group">
       <label class="input-label">Notes (optional)</label>
       <input class="input" type="text" id="respondNotes" placeholder="Coming from home, need 5 extra min..."/>
@@ -2313,7 +2317,6 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- Selected members -->
     <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;">Selected</div>
     <div id="radioSelectedList" style="margin-bottom:10px;min-height:36px;"></div>
-    <div class="input-group"><label class="input-label">ETA (minutes)</label><input class="input" type="number" id="radioETA" value="5" min="1"/></div>
     <button class="btn-full btn-primary" style="margin-bottom:8px;" onclick="submitRadioResponders()">Add All + Post to Group</button>
     <button class="btn-full btn-ghost" onclick="hideModal('radioModal')">Cancel</button>
   </div>
@@ -2362,16 +2365,42 @@ textarea.input{min-height:80px;resize:vertical;}
     <input type="hidden" id="editCallId"/>
     <div class="input-group"><label class="input-label">Call Type</label>
       <select class="input" id="editCallType" onchange="onEditCallTypeChange()">
-        <option value="flat_tire_spare">Flat Tire - Has Spare</option><option value="flat_tire_no_spare">Flat Tire - No Spare</option>
-        <option value="jump_start">Boost</option><option value="flood">Flood</option>
+        <option value="flat_tire_no_spare">Flat Tire - No Spare</option><option value="flat_tire_spare">Flat Tire - Has Spare</option>
+        <option value="jump_start">Boost</option>
         <option value="car_lockout">Car Lockout</option>
+        <option value="lockout">House Lockout</option>
         <option value="child_lockout">🚨 Child Locked in Car</option>
         <option value="missing_person">Missing Person</option>
-        <option value="lockout">House Lockout</option>
-        <option value="ac_heat">A/C or Heat</option><option value="generator">Generator</option>
+        <option value="flood">Flood</option>
+        <option value="needs_ac">❄️ Needs A/C</option>
+        <option value="needs_fan">💨 Needs Fans</option>
+        <option value="needs_heat">🔥 Needs Heater</option>
+        <option value="generator">Generator</option>
         <option value="transport">Transport</option><option value="welfare">Welfare Check</option>
         <option value="other">Other</option>
       </select>
+    </div>
+
+    <!-- EDIT: OTHER TYPE WRITE-IN -->
+    <div id="editOtherTypeGroup" style="display:none;" class="input-group">
+      <label class="input-label">Describe Call Type</label>
+      <input class="input" type="text" id="editOtherTypeText" placeholder="e.g. Welfare check, stuck in mud..."/>
+    </div>
+
+    <!-- EDIT: EQUIPMENT QTY (A/C, Fans, Heaters) -->
+    <div id="editEqQtySection" style="display:none;" class="input-group">
+      <label class="input-label" id="editEqQtyLabel">How many needed?</label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <select class="input" id="editEqQtySelect" style="flex:1;margin-bottom:0;">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6+">6+</option>
+        </select>
+        <div style="font-size:22px;" id="editEqQtyIcon">❄️</div>
+      </div>
     </div>
 
     <!-- EDIT: CAR INFO (shown for tire/lockout/jump) -->
@@ -6586,6 +6615,8 @@ function openRespondModal(id) {
   document.getElementById('respondETA').value='10';
   {const _cc=document.getElementById('respondETACustom'); if(_cc) _cc.value='';}
   document.getElementById('respondNotes').value='';
+  respondVehicles=[];
+  renderRespondVehicles();
   // Auto-fill ETA from member's live location via Google (traffic-aware driving route)
   if (_myLoc && call && call.address) {
     (async () => {
@@ -6663,6 +6694,27 @@ function setETA(val, btn) {
   if(btn) btn.classList.add('active');
   const ci=document.getElementById('respondETACustom'); if(ci && btn!==ci) ci.value='';
 }
+// Multi-select "Bringing a vehicle?" — checkmark toggles over the real fleet
+// (STATE.vehicles). Selected names are collected in respondVehicles[].
+let respondVehicles=[];
+function renderRespondVehicles(){
+  const wrap=document.getElementById('respondVehicleBtns');
+  if(!wrap) return;
+  const fleet=(STATE.vehicles||[]);
+  if(!fleet.length){ wrap.innerHTML='<div style="font-size:12px;color:var(--text3);padding:4px 0;">No fleet vehicles</div>'; return; }
+  wrap.innerHTML=fleet.map(v=>{
+    const on=respondVehicles.includes(v.name);
+    const icon=((v.type||'').toLowerCase()==='car')?'🚗':'🚚';
+    return `<button type="button" class="resp-veh-btn" onclick="toggleRespondVehicle('${v.name.replace(/'/g,"\\'")}')" style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:9px 4px;border-radius:10px;border:1px solid ${on?'var(--green)':'var(--border)'};background:${on?'rgba(34,197,94,.16)':'var(--border2)'};color:${on?'var(--green)':'var(--text)'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">`
+      + `<span style="width:19px;height:19px;border-radius:6px;border:2px solid ${on?'var(--green)':'var(--border)'};background:${on?'var(--green)':'transparent'};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">${on?'✓':''}</span>`
+      + `<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${icon} ${v.name}</span></button>`;
+  }).join('');
+}
+function toggleRespondVehicle(name){
+  const i=respondVehicles.indexOf(name);
+  if(i>-1) respondVehicles.splice(i,1); else respondVehicles.push(name);
+  renderRespondVehicles();
+}
 
 function setCustomETA(inp){
   const v=parseInt(inp.value,10);
@@ -6673,6 +6725,7 @@ function setCustomETA(inp){
 function confirmRespond() {
   const id=document.getElementById('respondCallId').value;
   const eta=document.getElementById('respondETA').value||'10';
+  const vehicles=respondVehicles.slice();
   const notes=document.getElementById('respondNotes').value.trim();
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
@@ -6683,7 +6736,7 @@ function confirmRespond() {
     call.responders=call.responders||[];
     if(!call.responders.find(r=>String(r.unit)===String(SESSION.unit))) {
       call.responders.push({
-        unit:SESSION.unit,name:SESSION.name,phone:SESSION.phone||'',eta,notes,
+        unit:SESSION.unit,name:SESSION.name,phone:SESSION.phone||'',eta,notes,vehicles,
         isObserver:false,time:Date.now(),status:'approved',
         approvedBy:'AUTO (urgent)',approvedAt:Date.now(),autoApproved:true
       });
@@ -6736,7 +6789,7 @@ function confirmRespond() {
     );
     if(!ok) { hideModal('respondModal'); return; }
   }
-  const _pendReq = {unit:SESSION.unit,name:SESSION.name,phone:SESSION.phone||'',eta,notes,isObserver,observerOnly:(isObserver && !isAllowedForObserver(call.type, SESSION.unit)),time:Date.now(),status:'pending'};
+  const _pendReq = {unit:SESSION.unit,name:SESSION.name,phone:SESSION.phone||'',eta,notes,vehicles,isObserver,observerOnly:(isObserver && !isAllowedForObserver(call.type, SESSION.unit)),time:Date.now(),status:'pending'};
   call.pendingResponders.push(_pendReq);
   logCallEvent(call, 'responder_pending', {responder:SESSION.unit, eta});
   save(); firestoreUpsertCall(call); hideModal('respondModal');
@@ -7141,7 +7194,7 @@ function renderRadioSearch() {
 function addRadioMember(unit) {
   const m=STATE.members.find(x=>String(x.unit)===String(unit));
   if(!m||radioSelectedMembers.find(x=>x.unit===unit)) return;
-  radioSelectedMembers.push(m);
+  radioSelectedMembers.push({...m, eta:5}); // copy so per-row ETA never mutates the member record
   document.getElementById('radioSearch').value='';
   document.getElementById('radioSearchResults').style.display='none';
   renderRadioSelected();
@@ -7154,29 +7207,31 @@ function renderRadioSelected() {
     return;
   }
   el.innerHTML=radioSelectedMembers.map((m,i)=>{const uDisp=String(m.unit).replace(/^BC-/i,'');const mName=`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim();return`
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">BC-${uDisp}</span>
-        <span style="font-size:13px;font-weight:600;">${mName||uDisp}</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#f8fafc;border-radius:8px;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
+        <span style="font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap;">BC-${uDisp}</span>
+        <span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${mName||uDisp}</span>
       </div>
-      <button onclick="radioSelectedMembers.splice(${i},1);renderRadioSelected()" style="background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;">×</button>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <input type="number" min="1" inputmode="numeric" value="${m.eta||5}" onchange="radioSelectedMembers[${i}].eta=this.value" oninput="radioSelectedMembers[${i}].eta=this.value" style="width:62px;padding:7px 8px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;text-align:center;font-family:inherit;" aria-label="ETA minutes"/>
+        <span style="font-size:11px;color:var(--text3);">min</span>
+        <button onclick="radioSelectedMembers.splice(${i},1);renderRadioSelected()" style="background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;line-height:1;">×</button>
+      </div>
     </div>`;}).join('');
 }
 
 async function submitRadioResponders() {
   const id=document.getElementById('radioCallId').value;
-  const eta=document.getElementById('radioETA').value||'5';
   if(!radioSelectedMembers.length){showToast('Select at least one member');return;}
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
 
   radioSelectedMembers.forEach(m=>{
     call.responders=call.responders||[];
     // Remove from pending if they were there
     call.pendingResponders=(call.pendingResponders||[]).filter(r=>String(r.unit)!==String(m.unit));
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
-      call.responders.push({unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta,via:'radio',status:'approved',time:Date.now()});
+      call.responders.push({unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),via:'radio',status:'approved',time:Date.now()});
     }
   });
   if(!call.callNum) call.callNum = _nextCallNum();
@@ -7292,7 +7347,7 @@ function openCallDetail(id) {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div>
             <div style="font-size:14px;font-weight:700;">BC-${String(r.unit||'').replace(/^BC-?/i,'')} ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
-            <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${r.notes?` · ${r.notes}`:''} · ${new Date(r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>
+            <div style="font-size:11px;color:var(--text3);">ETA: ${r.eta} min${(r.vehicles&&r.vehicles.length)?` · 🚚 ${r.vehicles.join(', ')}`:''}${r.notes?` · ${r.notes}`:''} · ${new Date(r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>
           </div>
           ${m?.phone?`<button class="responder-call-btn" onclick="window.location='tel:${m.phone}'">📞</button>`:''}
         </div>
@@ -7344,7 +7399,7 @@ function openCallDetail(id) {
             <div style="font-size:14px;font-weight:700;">BC-${unitKey} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
             ${isDispatch&&liveEta!=null?`<span style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};">🚗 ETA ${liveEta} min</span>`:''}
           </div>
-          <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
+          <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${(r.vehicles&&r.vehicles.length)?` · 🚚 ${r.vehicles.join(', ')}`:''}${r.notes?` · ${r.notes}`:''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
           ${phone?`<button class="responder-call-btn" onclick="openResponderContact('${id}','${unitKey}')">📞</button>`:''}
@@ -7542,7 +7597,25 @@ function openCallEdit(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   document.getElementById('editCallId').value=id;
-  document.getElementById('editCallType').value=call.type||'other';
+  // Parse stored type into the base dropdown value + qty/other write-in
+  (function(){
+    const raw=call.type||'other';
+    const sel=document.getElementById('editCallType');
+    const otherTxt=document.getElementById('editOtherTypeText');
+    const qtySel=document.getElementById('editEqQtySelect');
+    if(raw.startsWith('other:')){
+      sel.value='other';
+      if(otherTxt) otherTxt.value=raw.slice(6);
+    } else {
+      const m=raw.match(/^(needs_ac|needs_fan|needs_heat):qty(.+)$/);
+      if(m){ sel.value=m[1]; if(qtySel) qtySel.value=m[2]; }
+      else {
+        // Legacy ac_heat (option removed) → map to A/C
+        sel.value = raw==='ac_heat' ? 'needs_ac' : raw;
+        if(otherTxt) otherTxt.value='';
+      }
+    }
+  })();
   document.getElementById('editCallAddress').value=call.address||'';
   const editTownSel0=document.getElementById('editCallTown');
   if(editTownSel0){
@@ -7581,6 +7654,21 @@ function onEditCallTypeChange() {
   const t = document.getElementById('editCallType').value;
   const carSec = document.getElementById('editCarInfoSection');
   if(carSec) carSec.style.display = ['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'].includes(t) ? 'block' : 'none';
+  // Other → write-in
+  const otherGrp = document.getElementById('editOtherTypeGroup');
+  if(otherGrp) otherGrp.style.display = t==='other' ? 'block' : 'none';
+  // A/C, Fans, Heaters → ask how many
+  const eqTypes=['needs_ac','needs_fan','needs_heat'];
+  const eqSec=document.getElementById('editEqQtySection');
+  if(eqSec){
+    eqSec.style.display=eqTypes.includes(t)?'block':'none';
+    if(eqTypes.includes(t)){
+      const icons={needs_ac:'❄️',needs_fan:'💨',needs_heat:'🔥'};
+      const labels={needs_ac:'How many A/C units needed?',needs_fan:'How many fans needed?',needs_heat:'How many heaters needed?'};
+      const iconEl=document.getElementById('editEqQtyIcon'); if(iconEl) iconEl.textContent=icons[t]||'';
+      const lblEl=document.getElementById('editEqQtyLabel'); if(lblEl) lblEl.textContent=labels[t]||'How many needed?';
+    }
+  }
   const nsSec = document.getElementById('editNoSpareSection');
   if(!nsSec) return;
   if(t==='flat_tire_no_spare') {
@@ -7625,6 +7713,14 @@ function saveCallEdit() {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   call.type=document.getElementById('editCallType').value;
+  // Embed quantity / other write-in to match new-call storage format
+  if(call.type==='other'){
+    const ct=document.getElementById('editOtherTypeText')?.value?.trim();
+    if(ct) call.type='other:'+ct;
+  } else if(['needs_ac','needs_fan','needs_heat'].includes(call.type)){
+    const qty=document.getElementById('editEqQtySelect')?.value||'1';
+    call.type=call.type+':qty'+qty;
+  }
   call.address=document.getElementById('editCallAddress').value.trim();
   const editTownSel=document.getElementById('editCallTown').value;
   call.town=editTownSel==='Other'?(document.getElementById('editCallTownText')?.value?.trim()||'Other'):editTownSel;
