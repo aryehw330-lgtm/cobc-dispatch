@@ -5745,7 +5745,7 @@ function _respNumBadges(call){
     if(r.eta!=null && r.eta!=='') meta.push(r.eta+'m');
     if(t) meta.push(new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(/\s/,'').replace('AM','a').replace('PM','p'));
     const metaLine=meta.length?`<span style="font-size:9.5px;font-weight:600;opacity:.85;line-height:1.1;white-space:nowrap;">${meta.join(' · ')}</span>`:'';
-    return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;background:var(--green);color:#fff;padding:3px 8px;border-radius:7px;line-height:1.15;white-space:nowrap;cursor:pointer;flex:0 0 auto;"><span style="font-size:13px;font-weight:800;">BC-${unitNum}${r.via==='radio'?' 📻':''}</span>${metaLine}</span>`;
+    return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;background:var(--green);color:#fff;padding:3px 8px;border-radius:7px;line-height:1.15;white-space:nowrap;cursor:pointer;flex:0 0 auto;"><span style="font-size:13px;font-weight:800;">BC-${unitNum}</span>${metaLine}</span>`;
   }).join('');
   return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin:5px 0 6px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
 }
@@ -5810,7 +5810,7 @@ function callCardHTML(call, mini=false) {
       ? respList.map(r=>{
           const unitNum = String(r.unit||'').replace(/^BC-?/i,'');
           const firstName = (r.name||'').split(' ')[0];
-          return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;background:var(--green);color:#fff;padding:5px 11px;border-radius:9px;cursor:pointer;"><span style="font-size:15px;font-weight:800;line-height:1.2;">✓ BC-${unitNum} ${firstName}${r.via==='radio'?' 📻':''}</span>${_respMeta(r)?`<span style="font-size:10.5px;font-weight:600;opacity:.85;line-height:1.2;">${_respMeta(r)}</span>`:''}</span>`;
+          return `<span onclick="event.stopPropagation();openResponderContact('${call.id}','${unitNum}')" style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;background:var(--green);color:#fff;padding:5px 11px;border-radius:9px;cursor:pointer;"><span style="font-size:15px;font-weight:800;line-height:1.2;">✓ BC-${unitNum} ${firstName}</span>${_respMeta(r)?`<span style="font-size:10.5px;font-weight:600;opacity:.85;line-height:1.2;">${_respMeta(r)}</span>`:''}</span>`;
         }).join('')
       : '';
     const pendingBadge = pending
@@ -7236,7 +7236,7 @@ function openCallDetail(id) {
       html+=`<div class="responder-row">
         <div style="flex:1;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <div style="font-size:14px;font-weight:700;">BC-${unitKey}${r.via==='radio'?' 📻':''} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
+            <div style="font-size:14px;font-weight:700;">BC-${unitKey} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
             ${isDispatch&&liveEta!=null?`<span style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};">🚗 ETA ${liveEta} min</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${r.notes?` · ${r.notes}`:''}</div>
@@ -10020,6 +10020,98 @@ function pushScheduleToFirestore() {
   } catch(e) { console.warn('pushScheduleToFirestore failed:', e); }
 }
 
+// Build the schedule label for the current user, matching the member-dropdown format
+// ("BC503 Eidelman") so claimed slots stay consistent with manually-edited ones.
+function _myScheduleLabel(){
+  const myNum = String(SESSION.unit||'').replace(/^BC-?/i,'');
+  const m = (STATE.members||[]).find(x => String(x.unit).replace(/^BC-?/i,'') === myNum);
+  if(m){
+    const u = String(m.unit).replace(/^BC-?/i,'');
+    const name = (m.first || m.firstName || '') + (m.last||m.lastName ? ' ' + (m.last||m.lastName) : '');
+    return `BC${u} ${name.trim()}`.trim();
+  }
+  const name = (SESSION.firstName||'') + (SESSION.lastName ? ' ' + SESSION.lastName : '');
+  return `BC${myNum} ${name.trim()}`.trim();
+}
+// ── Date helpers for schedule overrides (temporary fill-ins) ──
+function _dateStrOf(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
+function _schedDateFor(dayIdx){
+  const now=new Date(); const todayDow=now.getDay();
+  const weekStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()-todayDow+((typeof schedWeekOffset!=='undefined'?schedWeekOffset:0)*7));
+  const d=new Date(weekStart); d.setDate(d.getDate()+dayIdx);
+  return _dateStrOf(d);
+}
+function _schedDateLabel(dayIdx){
+  const now=new Date(); const todayDow=now.getDay();
+  const weekStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()-todayDow+((typeof schedWeekOffset!=='undefined'?schedWeekOffset:0)*7));
+  const d=new Date(weekStart); d.setDate(d.getDate()+dayIdx);
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'});
+}
+// Drop past-date fill-ins so they never linger.
+function _pruneSchedOverrides(){
+  if(!STATE.schedOverrides) return;
+  const today=_dateStrOf(new Date()); let changed=false;
+  for(const k of Object.keys(STATE.schedOverrides)){ if(k<today){ delete STATE.schedOverrides[k]; changed=true; } }
+  if(changed) save();
+}
+
+// "Take" a slot: ask whether it's a temporary fill-in (this date only) or a
+// long-term recurring claim (every week until someone else takes it).
+function takeScheduleSlot(shiftIdx, dayIdx){
+  if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Admin or Dispatch only'); return; }
+  const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return;
+  const existing=document.getElementById('takeSlotChoice'); if(existing) existing.remove();
+  const dateLabel=_schedDateLabel(dayIdx);
+  const ov=document.createElement('div');
+  ov.id='takeSlotChoice';
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:#16140d;border:1px solid rgba(230,196,99,.4);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.5);">
+    <div style="font-size:17px;font-weight:800;color:#e6c463;margin-bottom:4px;">Take ${row.shift}</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.65);margin-bottom:16px;">How long are you covering this slot?</div>
+    <button onclick="document.getElementById('takeSlotChoice').remove();_assignSlot(${shiftIdx},${dayIdx},'temp')" style="width:100%;text-align:left;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;">
+      <div style="font-size:15px;font-weight:800;">Just ${dateLabel}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Temporary fill-in — covers this date only, doesn't change the weekly schedule.</div>
+    </button>
+    <button onclick="document.getElementById('takeSlotChoice').remove();_assignSlot(${shiftIdx},${dayIdx},'longterm')" style="width:100%;text-align:left;background:linear-gradient(180deg,rgba(230,196,99,.22),rgba(230,196,99,.1));border:1px solid rgba(230,196,99,.45);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;">
+      <div style="font-size:15px;font-weight:800;color:#e6c463;">Every week (long-term)</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Makes this your recurring slot — yours every week until someone else takes it.</div>
+    </button>
+    <button onclick="document.getElementById('takeSlotChoice').remove()" style="width:100%;background:transparent;border:none;color:rgba(255,255,255,.6);font-size:14px;font-weight:700;padding:10px;cursor:pointer;font-family:inherit;">Cancel</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+// Apply the chosen assignment.
+function _assignSlot(shiftIdx, dayIdx, mode){
+  const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return;
+  const recur=row.slots[dayIdx]; if(!recur) return;
+  const myLabel=_myScheduleLabel();
+  if(mode==='longterm'){
+    DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx]={ p:myLabel, s:recur.s||'OPEN' };
+    STATE.dispatchSchedule=DISPATCH_SCHEDULE.map(r=>({shift:r.shift, slots:[...r.slots]}));
+    save(); pushScheduleToFirestore(); renderSchedule();
+    showToast('✅ Slot is yours — every week');
+  } else {
+    const dateStr=_schedDateFor(dayIdx);
+    STATE.schedOverrides=STATE.schedOverrides||{};
+    STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
+    const curS=(STATE.schedOverrides[dateStr][shiftIdx]&&STATE.schedOverrides[dateStr][shiftIdx].s)||recur.s||'OPEN';
+    STATE.schedOverrides[dateStr][shiftIdx]={ p:myLabel, s:curS, by:SESSION.unit, at:Date.now() };
+    save(); pushScheduleToFirestore(); renderSchedule();
+    showToast('✅ Covering '+_schedDateLabel(dayIdx)+' only');
+  }
+}
+// Remove a temporary fill-in (revert that date back to the recurring schedule).
+function clearSlotOverride(shiftIdx, dayIdx){
+  const dateStr=_schedDateFor(dayIdx);
+  if(STATE.schedOverrides && STATE.schedOverrides[dateStr]){
+    delete STATE.schedOverrides[dateStr][shiftIdx];
+    if(Object.keys(STATE.schedOverrides[dateStr]).length===0) delete STATE.schedOverrides[dateStr];
+    save(); pushScheduleToFirestore(); renderSchedule();
+    showToast('Fill-in removed');
+  }
+}
+
 function openScheduleEdit(shiftIdx, dayIdx) {
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Admin or Dispatch only'); return; }
   const row = DISPATCH_SCHEDULE[shiftIdx];
@@ -10141,7 +10233,10 @@ function renderSchedule() {
   const dow=now.getDay();
   const shiftIdx=getShiftIndexNow();
   const curShift=DISPATCH_SCHEDULE[shiftIdx];
-  const curSlot=curShift?.slots[dow];
+  _pruneSchedOverrides();
+  const _todayStr=_dateStrOf(now);
+  const _ovNow=(STATE.schedOverrides&&STATE.schedOverrides[_todayStr]&&STATE.schedOverrides[_todayStr][shiftIdx])||null;
+  const curSlot=_ovNow?{p:_ovNow.p,s:_ovNow.s}:curShift?.slots[dow];
 
   // On Duty Now banner
   const nowEl=document.getElementById('schedNowContent');
@@ -10211,7 +10306,10 @@ function renderScheduleDay() {
   const isToday=schedWeekOffset===0 && schedCurDay===now.getDay();
   const el=document.getElementById('schedDayContent');
   el.innerHTML=DISPATCH_SCHEDULE.map((row,si)=>{
-    const slot=row.slots[schedCurDay];
+    const _dateStr=_schedDateFor(schedCurDay);
+    const _ov=(STATE.schedOverrides&&STATE.schedOverrides[_dateStr]&&STATE.schedOverrides[_dateStr][si])||null;
+    const slot=_ov?{p:_ov.p,s:_ov.s}:row.slots[schedCurDay];
+    const isTemp=!!_ov;
     const isNow=isToday&&si===curHourShift;
     const isOpen=slot.p==='OPEN';
     const isChiefs=slot.p==='CHIEFS';
@@ -10228,8 +10326,10 @@ function renderScheduleDay() {
             ${row.shift}${isNow?' <span style="background:var(--gold-light,#e6c463);color:#1a1407;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:800;">NOW</span>':''}
           </div>
           <div style="font-size:18px;font-weight:800;color:${nameColor};text-shadow:0 1px 2px rgba(0,0,0,.4);">${isOpen?'OPEN':isChiefs?'Chiefs':slot.p}</div>
+          ${isTemp?`<div style="font-size:11px;font-weight:700;color:#fbbf24;margin-top:3px;">● Fill-in for ${_schedDateLabel(schedCurDay)}${['admin','dispatch'].includes(SESSION.role)?` · <span onclick="event.stopPropagation();clearSlotOverride(${si},${schedCurDay})" style="text-decoration:underline;cursor:pointer;">remove</span>`:''}</div>`:''}
           ${slot.s&&slot.s!=='OPEN'&&slot.s!==slot.p?`<div style="font-size:13px;color:rgba(255,255,255,.7);margin-top:3px;">2nd: ${slot.s}</div>`:''}
         </div>
+        ${['admin','dispatch'].includes(SESSION.role)?`<button onclick="takeScheduleSlot(${si},${schedCurDay})" style="background:linear-gradient(180deg,#5fe09a,#16a34a);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.3);">Take</button>`:''}
         ${['admin','dispatch'].includes(SESSION.role)?`<button onclick="openScheduleEdit(${si},${schedCurDay})" style="background:rgba(230,196,99,.18);border:1px solid rgba(230,196,99,.4);color:var(--gold-light,#e6c463);border-radius:8px;padding:8px 12px;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0;">✏️</button>`:''}
         ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:linear-gradient(180deg,#5fe09a,#16a34a);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:14px;font-weight:700;text-decoration:none;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.3);">📞</a>`:''}
       </div>
