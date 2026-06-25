@@ -2958,28 +2958,39 @@ async function initFirebaseApp() {
     try { _fcmApp = firebase.initializeApp(FCM_CONFIG); }
     catch(e) { _fcmApp = firebase.app(); } // already initialized
     _firebaseReady = true;
-    // Anonymous auth — non-blocking. Fires sign-in in the background so the app
-    // NEVER hangs on it. Firestore SDK writes pick up the token once it resolves.
+    // ── NO anonymous auth ──────────────────────────────────────────────────
+    // The security rules require an authorized MEMBER token. An anonymous session
+    // has no such claim, so every Firestore listener it opens is rejected — and a
+    // late-resolving anonymous sign-in could even race the real login and knock the
+    // listeners back out. So we DON'T sign in anonymously and we DON'T start the
+    // listeners at boot. Instead, real-time sync starts only once an authorized
+    // token is present. Firebase persists the signed-in member across PWA reloads,
+    // so onIdTokenChanged fires with that authorized user on every launch.
+    let _syncStarted = false;
+    function _startRealtimeSync(){
+      if(_syncStarted) return;
+      _syncStarted = true;
+      try { initFirestore(); } catch(e){ console.warn('initFirestore:', e); }
+      try { subscribeScheduleFromFirestore(); } catch(e){ console.warn('subscribeSchedule:', e); }
+    }
+    window._startRealtimeSync = _startRealtimeSync;
     try {
       if (firebase.auth) {
-        firebase.auth().onAuthStateChanged((user) => {
-          if (!user) {
-            firebase.auth().signInAnonymously().catch((e)=>console.warn('Anon auth:', e));
+        // Fires on sign-in (PIN/Google), on persisted-session restore after a PWA
+        // reload, and on hourly token refresh. A user here is always authorized
+        // (anonymous auth is gone), so it's safe to start sync.
+        firebase.auth().onIdTokenChanged((user) => {
+          if (user) {
+            user.getIdToken().then(t => { window._fbIdToken = t; }).catch(()=>{});
+            _startRealtimeSync();
+          } else {
+            window._fbIdToken = null;
           }
         });
-        // Cache the Firebase ID token for attaching to Apps Script / REST calls.
-        // onIdTokenChanged fires on sign-in AND on hourly auto-refresh.
-        firebase.auth().onIdTokenChanged((user) => {
-          if (user) { user.getIdToken().then(t => { window._fbIdToken = t; }).catch(()=>{}); }
-          else { window._fbIdToken = null; }
-        });
       }
-    } catch(e) { console.warn('Anonymous auth setup failed:', e); }
-    initFirestore(); // start Firestore real-time sync
-    subscribeScheduleFromFirestore(); // sync dispatch schedule from Firestore
-    // subscribeTelzioFromFirestore(); // disabled — re-enable when Cloudflare worker is ready
-    // subscribeTelzioRecentList();    // disabled — re-enable when Cloudflare worker is ready
-    // startTelzioLivePolling();       // disabled — re-enable when Cloudflare worker is ready
+    } catch(e) { console.warn('Auth setup failed:', e); }
+    // Firestore sync intentionally NOT started here — it waits for an authorized
+    // token (see onIdTokenChanged above).
     // Attempt messaging (non-critical — silently fails on iOS non-standalone)
     initPushModule().catch(()=>{});
     // Restore saved session after Firebase is ready
