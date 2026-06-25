@@ -2374,7 +2374,35 @@ textarea.input{min-height:80px;resize:vertical;}
       </select>
     </div>
 
-    <!-- Edit: No-Spare action -->
+    <!-- EDIT: CAR INFO (shown for tire/lockout/jump) -->
+    <div id="editCarInfoSection" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Make</label>
+          <select class="input" id="editCarMake" onchange="onCarMakeChange('editCarMake','editCarModel','editCarMakeOther','editCarModelOther')">
+            <option value="">Select make...</option>
+          </select>
+          <input class="input" type="text" id="editCarMakeOther" placeholder="Enter make..." autocomplete="off" style="display:none;margin-top:6px;"/>
+        </div>
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Model</label>
+          <select class="input" id="editCarModel" onchange="onCarModelChange('editCarModel','editCarModelOther')" disabled>
+            <option value="">Select make first</option>
+          </select>
+          <input class="input" type="text" id="editCarModelOther" placeholder="Enter model..." autocomplete="off" style="display:none;margin-top:6px;"/>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Year</label>
+          <input class="input" type="number" id="editCarYear" placeholder="2020" min="1990" max="2030"/>
+        </div>
+        <div class="input-group" style="margin-bottom:0;">
+          <label class="input-label">Color</label>
+          <input class="input" type="text" id="editCarColor" placeholder="Silver, Black..."/>
+        </div>
+      </div>
+    </div>
     <div id="editNoSpareSection" style="display:none;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.3);border-radius:10px;padding:10px;margin-bottom:10px;">
       <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Recommended Action</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
@@ -3856,8 +3884,8 @@ function escapeHTML(s) {
 }
 
 // ── Car Makes & Models ──
-function populateCarMakeSelect() {
-  const makeSelect = document.getElementById('carMake');
+function populateCarMakeSelect(makeId) {
+  const makeSelect = document.getElementById(makeId||'carMake');
   if(!makeSelect || makeSelect.tagName !== 'SELECT') return;
   if(makeSelect.dataset.populated === '1') return;
   if(typeof CAR_DATA === 'undefined') return;
@@ -3872,11 +3900,11 @@ function populateCarMakeSelect() {
   makeSelect.appendChild(other);
   makeSelect.dataset.populated='1';
 }
-function onCarMakeChange() {
-  const makeSel = document.getElementById('carMake');
-  const makeOther = document.getElementById('carMakeOther');
-  const modelSel = document.getElementById('carModel');
-  const modelOther = document.getElementById('carModelOther');
+function onCarMakeChange(makeId, modelId, makeOtherId, modelOtherId) {
+  const makeSel = document.getElementById(makeId||'carMake');
+  const makeOther = document.getElementById(makeOtherId||'carMakeOther');
+  const modelSel = document.getElementById(modelId||'carModel');
+  const modelOther = document.getElementById(modelOtherId||'carModelOther');
   const val = makeSel.value;
   if(val==='Other'){ makeOther.style.display='block'; setTimeout(()=>makeOther.focus(),50); }
   else { makeOther.style.display='none'; makeOther.value=''; }
@@ -3890,11 +3918,55 @@ function onCarMakeChange() {
   models.forEach(m => modelSel.appendChild(new Option(m, m)));
   modelSel.appendChild(new Option('Other...','Other'));
 }
-function onCarModelChange() {
-  const modelSel = document.getElementById('carModel');
-  const modelOther = document.getElementById('carModelOther');
+function onCarModelChange(modelId, modelOtherId) {
+  const modelSel = document.getElementById(modelId||'carModel');
+  const modelOther = document.getElementById(modelOtherId||'carModelOther');
   if(modelSel.value==='Other'){ modelOther.style.display='block'; setTimeout(()=>modelOther.focus(),50); }
   else { modelOther.style.display='none'; modelOther.value=''; }
+}
+// Hydrate an edit-modal make/model pair from a saved call's stored strings.
+function hydrateEditCar(call){
+  populateCarMakeSelect('editCarMake');
+  const makeSel=document.getElementById('editCarMake');
+  const makeOther=document.getElementById('editCarMakeOther');
+  const modelOther=document.getElementById('editCarModelOther');
+  if(!makeSel) return;
+  const make=(call.carMake||'').replace(/_/g,' ').trim();
+  document.getElementById('editCarYear').value = call.carYear||'';
+  document.getElementById('editCarColor').value = call.carColor||'';
+  if(!make){ makeSel.value=''; onCarMakeChange('editCarMake','editCarModel','editCarMakeOther','editCarModelOther'); return; }
+  const known=Array.from(makeSel.options).some(o=>o.value===make);
+  if(known){
+    makeSel.value=make;
+    onCarMakeChange('editCarMake','editCarModel','editCarMakeOther','editCarModelOther');
+    const model=(call.carModel||'').trim();
+    const modelSel=document.getElementById('editCarModel');
+    if(model){
+      if(Array.from(modelSel.options).some(o=>o.value===model)){ modelSel.value=model; }
+      else { modelSel.value='Other'; onCarModelChange('editCarModel','editCarModelOther'); modelOther.value=model; }
+    }
+  } else {
+    makeSel.value='Other';
+    onCarMakeChange('editCarMake','editCarModel','editCarMakeOther','editCarModelOther');
+    makeOther.value=make;
+    const model=(call.carModel||'').trim();
+    const modelSel=document.getElementById('editCarModel');
+    if(model){ modelSel.value='Other'; onCarModelChange('editCarModel','editCarModelOther'); modelOther.value=model; }
+  }
+}
+// Read the edit-modal car fields back into plain strings.
+function readEditCar(){
+  let make=(document.getElementById('editCarMake')?.value||'').trim();
+  if(make==='Other') make=(document.getElementById('editCarMakeOther')?.value||'').trim();
+  let model=(document.getElementById('editCarModel')?.value||'').trim();
+  if(model==='Other'||model==='') model=(document.getElementById('editCarModelOther')?.value||model||'').trim();
+  if(model==='Select model...'||model==='Select make first') model='';
+  return {
+    carMake: make||null,
+    carModel: model||null,
+    carYear: (document.getElementById('editCarYear')?.value||'').trim()||null,
+    carColor: (document.getElementById('editCarColor')?.value||'').trim()||null
+  };
 }
 
 // ── No-Spare action + EZ-Spare flow ──
@@ -5788,7 +5860,7 @@ function callCardHTML(call, mini=false) {
     if(_av.count){
       _availLine = `📍 ${_av.count} available · ${_av.locs.join(', ')}`;
     } else if(_av2.count){
-      _availLine = `⚠️ ${_ezSize} out — use 2nd ${_size2}: 📍 ${_av2.count} · ${_av2.locs.join(', ')}`;
+      _availLine = `⚠️ ${_ezSize} out — use secondary ${_size2}: 📍 ${_av2.count} · ${_av2.locs.join(', ')}`;
       _availColor = 'color:#7a4a00;';
     } else {
       _availLine = '⚠️ None in stock — check inventory';
@@ -7498,6 +7570,7 @@ function openCallEdit(id) {
     else { editBox.style.display='none'; editBox.innerHTML=''; }
   }
   onEditCallTypeChange();
+  hydrateEditCar(call);
   if(call.noSpareAction==='ezspare') {
     document.getElementById('editEzSpareSection').style.display='block';
   }
@@ -7506,6 +7579,8 @@ function openCallEdit(id) {
 }
 function onEditCallTypeChange() {
   const t = document.getElementById('editCallType').value;
+  const carSec = document.getElementById('editCarInfoSection');
+  if(carSec) carSec.style.display = ['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'].includes(t) ? 'block' : 'none';
   const nsSec = document.getElementById('editNoSpareSection');
   if(!nsSec) return;
   if(t==='flat_tire_no_spare') {
@@ -7557,6 +7632,11 @@ function saveCallEdit() {
   call.phone=document.getElementById('editCallPhone').value.trim();
   call.priority=document.getElementById('editCallPriority').value;
   call.notes=document.getElementById('editCallNotes').value.trim();
+  // Save editable vehicle fields (for vehicle-related call types)
+  if(['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'].includes(call.type)){
+    const car=readEditCar();
+    call.carMake=car.carMake; call.carModel=car.carModel; call.carYear=car.carYear; call.carColor=car.carColor;
+  }
   // Save no-spare action (only if type is flat_tire_no_spare)
   if(call.type==='flat_tire_no_spare') {
     call.noSpareAction = document.getElementById('editNoSpareAction').value || null;
@@ -14082,6 +14162,8 @@ function fmtMemberBadgeD(memberStr) {
 .ezf-card-btn{background:linear-gradient(135deg,var(--gold-light,#e6c463),var(--gold-deep,#b8902a))!important;color:#0f2540!important;font-weight:800!important;}
 .ezf-avail{background:rgba(34,170,90,.13);border:1px solid rgba(120,200,150,.4);border-radius:11px;padding:11px 13px;margin-bottom:13px;}
 .ezf-avail-none{background:rgba(220,80,80,.14);border-color:rgba(255,150,150,.4);color:#ffd4d4;font-weight:700;font-size:13px;}
+.ezf-avail-alt{background:rgba(217,160,40,.16);border-color:rgba(240,200,110,.5);}
+.ezf-avail-alt .ezf-avail-h{color:#f3d98a;}
 .ezf-avail-h{font-size:12px;font-weight:800;color:#bfe9cf;margin-bottom:7px;letter-spacing:.3px;}
 .ezf-loc-row{display:flex;flex-wrap:wrap;gap:6px;}
 .ezf-loc{display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-weight:700;font-size:12.5px;padding:3px 10px;border-radius:7px;}
@@ -14218,7 +14300,15 @@ function fmtMemberBadgeD(memberStr) {
         const chips=Object.keys(byLoc).map(l=>`<span class="ezf-loc">${l}${byLoc[l]>1?` ×${byLoc[l]}`:''}</span>`).join('');
         availBlock=`<div class="ezf-avail"><div class="ezf-avail-h">📍 ${u.length} × ${s.size_1} available — pick up at:</div><div class="ezf-loc-row">${chips}</div></div>`;
       } else {
-        availBlock=`<div class="ezf-avail ezf-avail-none">⚠️ No ${s.size_1} EZ-Spares in stock right now</div>`;
+        // Preferred out — fall back to the secondary size if THAT's in stock.
+        let u2=[]; try{ u2 = s.size_2 ? (getAvailableEZSpares(s.size_2)||[]) : []; }catch(e){}
+        if(u2.length){
+          const byLoc2={}; u2.forEach(x=>{ const l=((x.location||'').trim())||'Unknown'; byLoc2[l]=(byLoc2[l]||0)+1; });
+          const chips2=Object.keys(byLoc2).map(l=>`<span class="ezf-loc">${l}${byLoc2[l]>1?` ×${byLoc2[l]}`:''}</span>`).join('');
+          availBlock=`<div class="ezf-avail ezf-avail-alt"><div class="ezf-avail-h">⚠️ No ${s.size_1} in stock — use secondary ${s.size_2}: 📍 ${u2.length} available at:</div><div class="ezf-loc-row">${chips2}</div></div>`;
+        } else {
+          availBlock=`<div class="ezf-avail ezf-avail-none">⚠️ No ${s.size_1}${s.size_2?' or '+s.size_2:''} EZ-Spares in stock right now</div>`;
+        }
       }
     }
     let buttons='';
