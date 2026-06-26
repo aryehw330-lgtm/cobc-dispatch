@@ -6040,7 +6040,7 @@ function callCardHTML(call, mini=false) {
   const sc = statusColors[call.status]||'var(--text3)';
   const cornerMeta = `<div class="call-card-corner">${townChipInline}<span style="display:inline-flex;align-items:center;gap:6px;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span>${timeStr}</span></span></div>`;
   const etaWrap = call.status==='open'
-    ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;justify-content:flex-end;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
+    ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;justify-content:flex-start;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
     : '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
 
