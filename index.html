@@ -387,6 +387,19 @@ textarea.input{min-height:80px;resize:vertical;}
 .detail-row:last-child{border-bottom:none;}
 .detail-key{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;}
 .detail-val{font-size:14px;color:var(--text);font-weight:600;text-align:right;max-width:62%;}
+/* Glassy status-tinted call detail modal */
+#callDetailModal .modal.cd-open{background:linear-gradient(165deg,rgba(245,158,11,.26),rgba(255,251,238,.98) 55%);}
+#callDetailModal .modal.cd-active{background:linear-gradient(165deg,rgba(34,197,94,.24),rgba(240,253,244,.98) 55%);}
+#callDetailModal .modal.cd-open .detail-section,#callDetailModal .modal.cd-active .detail-section{background:rgba(255,255,255,.72);}
+/* On the tinted glass: title, call number, and town all bold black for clarity */
+#callDetailModal .modal.cd-open .modal-title,#callDetailModal .modal.cd-active .modal-title,
+#callDetailModal .modal.cd-open .call-num,#callDetailModal .modal.cd-active .call-num,
+#callDetailModal .modal.cd-open .cd-town,#callDetailModal .modal.cd-active .cd-town{color:#fff!important;font-weight:800!important;text-shadow:0 1px 3px rgba(0,0,0,.45);}
+/* Make ghost buttons (e.g. Navigation) clearly visible on the tinted glass */
+#callDetailModal .modal.cd-open .btn-ghost,#callDetailModal .modal.cd-active .btn-ghost{background:#fff!important;color:#0f172a!important;font-weight:700!important;box-shadow:0 1px 3px rgba(0,0,0,.18);}
+#callDetailModal .btn-ghost[onclick*="openCallEdit"]{background:#e2e8f0!important;color:#0f172a!important;}
+#callDetailModal .btn-ghost[onclick*="shareDispatchWA"]{background:#dcfce7!important;color:#15803d!important;}
+#callDetailModal .btn-ghost[onclick*="openMaps"]{background:#dbeafe!important;color:#1e40af!important;}
 
 /* ── EQ ── */
 .eq-row{display:flex;align-items:center;gap:10px;padding:11px 14px;background:#fff;border-radius:var(--radius-sm);margin-bottom:6px;box-shadow:0 1px 2px rgba(0,0,0,.05);cursor:pointer;transition:transform .1s;}
@@ -2002,6 +2015,7 @@ textarea.input{min-height:80px;resize:vertical;}
   function initModalSwipe(){
     document.querySelectorAll('.modal-overlay').forEach(function(overlay){
       if(overlay.dataset.swipeClose) return;
+      if(overlay.id==='liveMapModal') { overlay.dataset.swipeClose='1'; return; } // map: pinch-zoom shouldn't trigger close — use the X
       overlay.dataset.swipeClose='1';
       var modal = overlay.querySelector('.modal');
       if(!modal) return;
@@ -6259,6 +6273,16 @@ function fitCardAddresses(){
 let _fitAddrT=null;
 window.addEventListener('resize', ()=>{ clearTimeout(_fitAddrT); _fitAddrT=setTimeout(()=>{ fitCardAddresses(); fitDetailAddress(); }, 120); });
 // Auto-fit the call-detail address onto one line (grow short, shrink long).
+// Auto-fit the call-detail address onto one line (grow short, shrink long).
+function fitDetailTitle(){
+  document.querySelectorAll('.detail-title-fit').forEach(el=>{
+    if(!el || !el.textContent.trim()) return;
+    el.style.fontSize='';
+    let size=parseFloat(getComputedStyle(el).fontSize)||19;
+    let guard=0;
+    while(el.scrollWidth>el.clientWidth && size>11 && guard<40){ size-=1; el.style.fontSize=size+'px'; guard++; }
+  });
+}
 function fitDetailAddress(){
   document.querySelectorAll('.detail-addr-fit').forEach(el=>{
     if(!el || !el.textContent.trim()) return;
@@ -6352,7 +6376,7 @@ async function fillDetailETA(call) {
       const color = m<=5?'var(--green)':m<=12?'var(--amber)':'#6b7280';
       const bg    = m<=5?'#dcfce7':m<=12?'#fef3c7':'#f3f4f6';
       box.style.display = 'block';
-      box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:${color};padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📍 Your Est. ETA: ${m} min</span>`;
+      box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:#0f172a;padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📍 Your Est. ETA: ${m} min</span>`;
       box.firstChild.onclick = (e) => { e.stopPropagation(); openMyRouteMap(call); };
     };
     paint(_etaMin(_haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng)));
@@ -7442,19 +7466,20 @@ function openCallDetail(id) {
   const townColor=TOWN_COLORS[call.town]||'var(--text3)';
   const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
 
-  let html=`<div class="modal-title" style="margin-bottom:10px;">${typeLabel}</div>`;
-
-  // Call number + ETA (left) · town + status (right)
-  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
-    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
-      <span class="call-num" style="flex-shrink:0;">#${call.callNum||call.id.slice(-5)}</span>
-      <div id="detail-eta-${call.id}" style="display:none;flex-shrink:0;"></div>
-    </div>
+  let html=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;">
+    <div class="modal-title detail-title-fit" style="margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;">${typeLabel}</div>
     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-      <div style="width:10px;height:10px;border-radius:50%;background:${townColor};"></div>
-      <span style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap;">${call.town}</span>
       ${call.priority==='urgent'?'<span class="badge badge-red">URGENT</span>':''}
       <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':call.status==='cancelled'?'badge-red':'badge-gray'}">${call.status.toUpperCase()}</span>
+    </div>
+  </div>`;
+
+  // Call number (left) · town (right)
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
+    <span class="call-num" style="flex-shrink:0;">#${call.callNum||call.id.slice(-5)}</span>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <div style="width:10px;height:10px;border-radius:50%;background:${townColor};"></div>
+      <span class="cd-town" style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap;">${call.town||''}</span>
     </div>
   </div>`;
 
@@ -7524,7 +7549,7 @@ function openCallDetail(id) {
 
   // ── Approved Responders ──
   const resp=call.responders||[];
-  html+=`<div class="section-label" style="margin-top:8px;">✅ Approved Responders (${resp.length})</div>`;
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;"><div class="section-label" style="margin:0;">✅ Approved Responders (${resp.length})</div><div id="detail-eta-${call.id}" style="display:none;flex-shrink:0;"></div></div>`;
   if(resp.length) {
     resp.forEach(r=>{
       const m=STATE.members.find(x=>_normUnit(x.unit)===_normUnit(r.unit));
@@ -7601,18 +7626,20 @@ function openCallDetail(id) {
     {
       const _esc=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       const assignedEq=call.assignedEquipment||[];
-      html+=`</div><div class="section-label">Assign Equipment</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">`;
+      html+=`</div><div class="section-label">Check Out Equipment</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">`;
       assignedEq.forEach(name=>{
         html+=`<button class="btn-sm btn-primary" onclick="toggleEquipmentOnCall('${id}','${_esc(name)}')" title="Remove">✓ ${name} <span style="opacity:.7;">✕</span></button>`;
       });
-      html+=`<button class="btn-sm btn-ghost" onclick="hideModal('callDetailModal');showTab('equipment');setTimeout(()=>setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)')),60)">📦 ${assignedEq.length?'Add / Manage':'Assign Equipment'}</button>`;
+      html+=`<button class="btn-sm btn-ghost" onclick="hideModal('callDetailModal');showTab('equipment');setTimeout(()=>setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)')),60)">📦 ${assignedEq.length?'Add / Manage':'Check Out Equipment'}</button>`;
     }
   }
   html+=`</div><div style="margin-top:12px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
 
   document.getElementById('callDetailContent').innerHTML=html;
+  // Glassy status tint: orange when open, green when active
+  try{ const _m=document.querySelector('#callDetailModal .modal'); if(_m){ _m.classList.remove('cd-open','cd-active'); if(call.status==='open') _m.classList.add('cd-open'); else if(call.status==='active') _m.classList.add('cd-active'); } }catch(e){}
   showModal('callDetailModal');
-  setTimeout(()=>{ try{ fitDetailAddress(); }catch(e){} }, 0);
+  setTimeout(()=>{ try{ fitDetailAddress(); }catch(e){} try{ fitDetailTitle(); }catch(e){} }, 0);
   try { fillDetailETA(call); } catch(e){}
 }
 
