@@ -4272,6 +4272,26 @@ let STATE = load();
 let _db = null;
 let _unsubscribeCalls = null;
 const _deletedCallIds = new Set();
+// ── Synced reset marker ──────────────────────────────────────────────────────
+// A device that resets writes config/appReset = {resetAt}. Every device obeys it:
+// purge calls predating the reset, refuse to re-upload them, and reset the call-
+// number counter to #1. This stops other devices from resurrecting a deleted call
+// (the #194 glitch) and keeps numbering from continuing where it left off.
+let _appResetAt = parseInt(localStorage.getItem('cobc_appResetAt')||'0',10) || 0;
+function _isResetPurged(c){ return _appResetAt && ((c&&c.createdAt||0) <= _appResetAt); }
+function _applyAppReset(resetAt){
+  resetAt = parseInt(resetAt,10)||0;
+  if(!resetAt || resetAt<=_appResetAt) return;
+  _appResetAt = resetAt;
+  try{ localStorage.setItem('cobc_appResetAt', String(resetAt)); }catch(e){}
+  // Drop local calls from before the reset so they can't be re-uploaded.
+  if(Array.isArray(STATE.calls)) STATE.calls = STATE.calls.filter(c=>(c.createdAt||0) > resetAt);
+  // Restart per-year call numbering at #1.
+  try{ Object.keys(localStorage).filter(k=>k.indexOf('cobc_callnum_')===0).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+  try{ save(); }catch(e){}
+  try{ renderCalls&&renderCalls(); }catch(e){}
+  try{ renderHome&&renderHome(); }catch(e){}
+}
 
 let _firestoreSettingsApplied=false;
 // Fetch a single Firestore document via REST API (no SDK, no ITP issues)
@@ -4379,7 +4399,7 @@ function initFirestore(){
       clearSyncError();
       if(typeof SESSION==='undefined')return;
       const firestoreIds=new Set(fsCalls.map(c=>c.id));
-      const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id));
+      const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id)&&!_isResetPurged(c));
       localOnly.forEach(call=>firestoreUpsertCall(call));
       STATE.calls=[...fsCalls,...localOnly];
       // Members: Google Sheet is the brain. Firestore list is only an OFFLINE FALLBACK
@@ -4442,7 +4462,7 @@ function initFirestore(){
     // recent (this year) or still unfinished. Old finished calls outside the window
     // are intentionally not re-kept here; they reload on demand for History/Stats.
     const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>{
-      if(!c.id||firestoreIds.has(c.id)||_deletedCallIds.has(c.id))return false;
+      if(!c.id||firestoreIds.has(c.id)||_deletedCallIds.has(c.id)||_isResetPurged(c))return false;
       return (c.createdAt||0)>=_yearStart || ['open','active','draft'].includes(c.status);
     });
     localOnly.forEach(call=>firestoreUpsertCall(call));
@@ -4477,11 +4497,19 @@ function initFirestore(){
   // Members loaded from Google Sheet (loadMembersFromSheet) — Sheet is source of truth.
   // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
   _snapTimer=setTimeout(()=>{if(!_snapDelivered){console.warn('Firestore onSnapshot silent — starting get() fallback');_pollFirestore();}},5000);
+  // Listen for a global reset marker so a wipe on one device propagates to all.
+  let _unsubReset=null;
+  try{
+    _unsubReset=db.collection('config').doc('appReset').onSnapshot(snap=>{
+      try{ const d=snap.data(); if(d&&d.resetAt) _applyAppReset(d.resetAt); }catch(e){}
+    }, e=>{console.warn('reset listener:',e);});
+  }catch(e){}
   // Register cleanup so initFirestore() can safely be called again after login
   window._firestoreCleanup=()=>{
     if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}
     try{_unsubYear&&_unsubYear();}catch(e){}
     try{_unsubOpen&&_unsubOpen();}catch(e){}
+    try{_unsubReset&&_unsubReset();}catch(e){}
   };
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
@@ -12548,12 +12576,13 @@ async function resetAllCallsQuick(){
       docs.slice(i,i+450).forEach(d=>batch.delete(d.ref));
       await batch.commit();
     }
+    // Synced reset marker — tells every device to purge pre-reset calls, stop
+    // re-uploading them, and restart call numbering at #1.
+    const _resetAt = Date.now();
+    try{ await db.collection('config').doc('appReset').set({resetAt:_resetAt, by:SESSION.unit||'', at:_resetAt}); }catch(e){ console.warn('reset marker:',e); }
     STATE.calls = [];
-    _deletedCallIds && _deletedCallIds.clear && _deletedCallIds.clear();
-    save();
-    renderCalls && renderCalls();
-    renderHome && renderHome();
-    showToast(`✅ Cleared ${docs.length} call${docs.length===1?'':'s'} — clean slate`);
+    _applyAppReset(_resetAt);
+    showToast(`✅ Cleared ${docs.length} call${docs.length===1?'':'s'} — clean slate, numbering reset to #1`);
   }catch(e){
     console.error('Quick reset failed:', e);
     showToast('Error: ' + (e.message||'Reset failed'));
@@ -12568,15 +12597,17 @@ async function resetAllAppData() {
   try {
     const db = firebase.firestore();
     const snap = await db.collection('calls').get();
-    const batch = db.batch();
-    snap.docs.forEach(doc => batch.delete(doc.ref));
-    await batch.commit();
-    // Clear local state
+    const docs = snap.docs;
+    for(let i=0;i<docs.length;i+=450){
+      const batch = db.batch();
+      docs.slice(i,i+450).forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+    }
+    // Synced reset marker (purge + renumber across all devices)
+    const _resetAt2 = Date.now();
+    try{ await db.collection('config').doc('appReset').set({resetAt:_resetAt2, by:SESSION.unit||'', at:_resetAt2}); }catch(e){ console.warn('reset marker:',e); }
     STATE.calls = [];
-    _deletedCallIds && _deletedCallIds.clear && _deletedCallIds.clear();
-    save();
-    renderCalls && renderCalls();
-    renderHome && renderHome();
+    _applyAppReset(_resetAt2);
     if (RESET_REUSABLE) {
       // Testing mode: leave the tab in place so it can be reused.
       const inp = document.getElementById('resetConfirmInput'); if (inp) inp.value = '';
