@@ -382,11 +382,11 @@ textarea.input{min-height:80px;resize:vertical;}
 .backup-tag{display:inline-block;background:#fee2e2;color:#991b1b;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px;}
 
 /* ── CALL DETAIL SECTION ── */
-.detail-section{background:#f8fafc;border-radius:10px;padding:12px 14px;margin-bottom:12px;}
-.detail-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);}
+.detail-section{background:#f8fafc;border:1px solid var(--border2);border-radius:var(--radius);padding:4px 16px;margin-bottom:12px;}
+.detail-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border2);}
 .detail-row:last-child{border-bottom:none;}
-.detail-key{font-size:13px;color:var(--text3);font-weight:500;}
-.detail-val{font-size:13px;color:var(--text);font-weight:600;text-align:right;max-width:60%;}
+.detail-key{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;}
+.detail-val{font-size:14px;color:var(--text);font-weight:600;text-align:right;max-width:62%;}
 
 /* ── EQ ── */
 .eq-row{display:flex;align-items:center;gap:10px;padding:11px 14px;background:#fff;border-radius:var(--radius-sm);margin-bottom:6px;box-shadow:0 1px 2px rgba(0,0,0,.05);cursor:pointer;transition:transform .1s;}
@@ -691,8 +691,8 @@ textarea.input{min-height:80px;resize:vertical;}
 #page-members #memberDir .list-sub{color:rgba(255,255,255,.7)!important;}
 #page-members #memberDir .list-icon{color:#fff!important;background:linear-gradient(160deg,rgba(212,169,58,.4),rgba(18,15,9,.6))!important;border:1px solid rgba(230,196,99,.4);}
 /* Responder row */
-.responder-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border-radius:10px;margin-bottom:6px;}
-.responder-call-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:13px;cursor:pointer;font-family:inherit;}
+.responder-row{display:flex;align-items:center;gap:10px;padding:11px 14px;background:#f8fafc;border:1px solid var(--border2);border-radius:var(--radius);margin-bottom:7px;}
+.responder-call-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;min-height:36px;}
 /* Alert banners */
 .alert{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:10px;margin-bottom:8px;}
 .alert-blue{background:#eff6ff;border-left:3px solid var(--blue);}
@@ -7442,19 +7442,21 @@ function openCallDetail(id) {
   const townColor=TOWN_COLORS[call.town]||'var(--text3)';
   const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
 
-  let html=`<div class="modal-title">${typeLabel}</div>`;
+  let html=`<div class="modal-title" style="margin-bottom:10px;">${typeLabel}</div>`;
 
-  // Status + town color bar
-  html+=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
-    <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':call.status==='cancelled'?'badge-red':'badge-gray'}">${call.status.toUpperCase()}</span>
-    <div style="width:12px;height:12px;border-radius:50%;background:${townColor}"></div>
-    <span style="font-size:13px;font-weight:600;color:var(--text2);">${call.town}</span>
-    <span class="call-num">#${call.callNum||call.id.slice(-5)}</span>
-    ${call.priority==='urgent'?'<span class="badge badge-red">URGENT</span>':''}
+  // Call number + ETA (left) · town + status (right)
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+      <span class="call-num" style="flex-shrink:0;">#${call.callNum||call.id.slice(-5)}</span>
+      <div id="detail-eta-${call.id}" style="display:none;flex-shrink:0;"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <div style="width:10px;height:10px;border-radius:50%;background:${townColor};"></div>
+      <span style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap;">${call.town}</span>
+      ${call.priority==='urgent'?'<span class="badge badge-red">URGENT</span>':''}
+      <span class="badge ${call.status==='open'?'badge-amber':call.status==='active'?'badge-green':call.status==='draft'?'badge-purple':call.status==='cancelled'?'badge-red':'badge-gray'}">${call.status.toUpperCase()}</span>
+    </div>
   </div>`;
-
-  // Your Estimated ETA chip (filled async after render — same logic as the call cards)
-  html+=`<div id="detail-eta-${call.id}" style="display:none;margin-top:-4px;margin-bottom:14px;"></div>`;
 
   // Details block
   html+=`<div class="detail-section">
@@ -7473,7 +7475,7 @@ function openCallDetail(id) {
 
   // Live Map (dispatch) — only once the call is active AND has responders assigned
   if(call.address && isDispatch && call.status==='active' && (call.responders||[]).length>0){
-    html+=`<button class="call-action" style="width:100%;padding:12px;font-size:14px;font-weight:700;background:#fef3c7;color:var(--amber);margin-bottom:12px;" onclick="openLiveMap('${id}')">🗺️ Live Map</button>`;
+    html+=`<button class="call-action" style="width:100%;padding:12px;font-size:14px;font-weight:700;background:#fef3c7;color:var(--amber);margin-bottom:6px;" onclick="openLiveMap('${id}')">🗺️ Live Map</button>`;
   }
 
   // ── Pending Responders (dispatch approval queue) ──
@@ -7522,7 +7524,7 @@ function openCallDetail(id) {
 
   // ── Approved Responders ──
   const resp=call.responders||[];
-  html+=`<div class="section-label">✅ Approved Responders (${resp.length})</div>`;
+  html+=`<div class="section-label" style="margin-top:8px;">✅ Approved Responders (${resp.length})</div>`;
   if(resp.length) {
     resp.forEach(r=>{
       const m=STATE.members.find(x=>_normUnit(x.unit)===_normUnit(r.unit));
@@ -7542,7 +7544,7 @@ function openCallDetail(id) {
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
           ${phone?`<button class="responder-call-btn" onclick="openResponderContact('${id}','${unitKey}')">📞</button>`:''}
-          ${isDispatch?`<button onclick="removeApprovedResponder('${id}','${r.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
+          ${isDispatch?`<button onclick="removeApprovedResponder('${id}','${r.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;min-height:36px;">✕</button>`:''}
         </div>
       </div>`;
     });
