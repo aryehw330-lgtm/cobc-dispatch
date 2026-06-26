@@ -1307,6 +1307,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="sub-tab member-allowed" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
         <button class="sub-tab member-allowed" onclick="setMoreTab('history',this)">📅 Call History</button>
         <button class="sub-tab member-allowed" onclick="setMoreTab('stats',this)">📊 My Stats</button>
+        <button class="sub-tab admin-strict-sub" onclick="setMoreTab('adminstats',this)">📈 Admin Stats</button>
         <button class="sub-tab active member-allowed" onclick="setMoreTab('settings',this)">⚙️ Settings</button>
         <button class="sub-tab admin-only-sub" onclick="setMoreTab('schedule',this)">📅 Dispatch Schedule</button>
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('equipment',this)">📦 Equipment</button>
@@ -1489,15 +1490,6 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
       </div>
       <div id="more-stats" style="display:none;">
-        <!-- External stats link (live stats site) -->
-        <a href="https://aryehw330-lgtm.github.io/Chaverim-Statistics/" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%);color:#fff;text-decoration:none;border-radius:14px;padding:18px 20px;margin-bottom:14px;font-weight:700;box-shadow:0 6px 18px rgba(15,37,64,.25);">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;font-weight:700;color:var(--gold-light,#d4a93a);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Live Statistics</div>
-            <div style="font-size:17px;font-weight:700;letter-spacing:-.3px;">Chaverim Dispatch Statistics</div>
-            <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:4px;font-weight:500;">Tap to view full reports →</div>
-          </div>
-          <div style="font-size:24px;flex-shrink:0;">📊</div>
-        </a>
         <div id="more-stats-legacy">
         <!-- App calls banner -->
         <div class="alltime-banner" id="alltimeBanner">
@@ -1606,6 +1598,19 @@ textarea.input{min-height:80px;resize:vertical;}
           <div id="st-compare-result"></div>
         </div>
         </div><!-- /more-stats-legacy -->
+      </div>
+      <!-- ADMIN STATS (admin-only): live stats site + detailed per-call log -->
+      <div id="more-adminstats" style="display:none;">
+        <a href="https://aryehw330-lgtm.github.io/Chaverim-Statistics/" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%);color:#fff;text-decoration:none;border-radius:14px;padding:18px 20px;margin-bottom:16px;font-weight:700;box-shadow:0 6px 18px rgba(15,37,64,.25);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:700;color:var(--gold-light,#d4a93a);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Live Statistics</div>
+            <div style="font-size:17px;font-weight:700;letter-spacing:-.3px;">Chaverim Dispatch Statistics</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:4px;font-weight:500;">Tap to view full reports →</div>
+          </div>
+          <div style="font-size:24px;flex-shrink:0;">📊</div>
+        </a>
+        <div class="section-label">Detailed Call Log</div>
+        <div id="adminStatsList"></div>
       </div>
       <div id="more-schedule" style="display:none;">
         <!-- On-Duty Now banner -->
@@ -6495,6 +6500,8 @@ function _nextCallNum() {
   const key = 'cobc_callnum_' + year;
   // Max from STATE (covers calls loaded from Firestore this session)
   const stateMax = (STATE.calls||[]).reduce((m,c) => {
+    // Ignore any call predating the last reset (a stale re-sync must not bump #)
+    if (_appResetAt && (c.createdAt||0) <= _appResetAt) return m;
     // Only count calls from this calendar year
     const y = c.createdAt ? new Date(c.createdAt).getFullYear() : 0;
     return y === year ? Math.max(m, c.callNum||0) : m;
@@ -9329,18 +9336,54 @@ function goAdmin(subtab) {
   else if(typeof setAdminTab==='function') setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
 }
 function setMoreTab(tab,el) {
-  ['numbers','stats','settings','schedule','equipment','vehicles','history'].forEach(t=>{
+  ['numbers','stats','adminstats','settings','schedule','equipment','vehicles','history'].forEach(t=>{
     const e=document.getElementById(`more-${t}`); if(e) e.style.display=t===tab?'':'none';
   });
   document.querySelectorAll('#page-more .sub-tab').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   if(tab==='stats')    initStats();
+  if(tab==='adminstats') renderAdminStats();
   if(tab==='schedule') renderSchedule();
   if(tab==='vehicles') renderVehicles();
   if(tab==='numbers')  renderNumbers();
   if(tab==='history')  renderMoreHistory();
   if(tab==='equipment') renderMoreEquipment();
   if(tab==='settings')  renderSettingsTab();
+}
+
+// Admin-only detailed call log — every call the app records (newest first).
+function renderAdminStats() {
+  const el = document.getElementById('adminStatsList');
+  if(!el) return;
+  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{ renderAdminStats(); }catch(e){} }); }
+  const calls = (_allCalls()||[]).filter(c=>c && c.callNum);
+  if(!calls.length){
+    el.innerHTML = `<div style="font-size:13px;color:rgba(255,255,255,.7);padding:18px;text-align:center;background:linear-gradient(160deg,rgba(212,169,58,.16),rgba(18,15,9,.62));border:1px solid rgba(230,196,99,.25);border-radius:12px;">No calls yet. Every call the app records will appear here.</div>`;
+    return;
+  }
+  const sorted = [...calls].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const statusColor = s => s==='done'?'var(--green)':s==='cancelled'?'var(--text3)':s==='active'?'var(--blue)':'var(--amber)';
+  const rows = sorted.map(c=>{
+    const typeRaw=c.type||'other';
+    const tLabel=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw));
+    const dt=new Date(c.createdAt||0);
+    const dStr=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})+' · '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    const town=c.town?` · ${c.town}`:'';
+    const rCount=(c.responders||[]).length;
+    const rTxt=rCount?`${rCount} responder${rCount>1?'s':''}`:'no responders';
+    const st=(c.status||'').toUpperCase();
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;background:linear-gradient(160deg,rgba(212,169,58,.14),rgba(18,15,9,.6));border:1px solid rgba(230,196,99,.22);border-radius:11px;margin-bottom:7px;">
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:14px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tLabel}${town}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.62);margin-top:2px;">${dStr} · ${rTxt}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:15px;font-weight:800;color:var(--gold-light,#e6c463);">#${c.callNum}</div>
+        <div style="font-size:9px;font-weight:800;letter-spacing:.4px;color:${statusColor(c.status)};margin-top:2px;">${st}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:10px;">${sorted.length} call${sorted.length>1?'s':''} total</div>${rows}`;
 }
 
 // ── Settings tab ──
