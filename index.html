@@ -292,7 +292,7 @@ textarea.input{min-height:80px;resize:vertical;}
 #page-dispatch .call-card.urgent .call-num,#page-home .call-card.urgent .call-num{font-size:16px!important;}
 #page-dispatch .call-card.urgent .call-card-addr,#page-home .call-card.urgent .call-card-addr{font-size:21px!important;font-weight:600;}
 #page-dispatch .call-card.urgent .call-card-meta,#page-home .call-card.urgent .call-card-meta{font-size:14px!important;}
-#page-dispatch .call-card.urgent,#page-home .call-card.urgent{padding:6px 6px 10px!important;border-width:2px!important;border-radius:24px!important;margin-bottom:14px;}
+#page-dispatch .call-card.urgent,#page-home .call-card.urgent{padding:3px 6px 9px!important;border-width:2px!important;border-radius:24px!important;margin-bottom:14px;}
 #page-dispatch .call-card-type,#page-home .call-card-type{color:#0f172a;font-weight:800;}
 #page-dispatch .call-card.open .call-card-type,#page-home .call-card.open .call-card-type{color:#f59e0b!important;font-weight:800;text-shadow:0 1px 3px rgba(0,0,0,.45);}
 #page-dispatch .call-card-addr,#page-home .call-card-addr{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);}
@@ -347,7 +347,7 @@ textarea.input{min-height:80px;resize:vertical;}
 
 /* Modals: GPU layer so sheet animations run on compositor thread */
 .modal-overlay{will-change:transform;}
-.call-card{padding:14px;margin-bottom:10px;box-shadow:var(--shadow);border-left:4px solid var(--border);position:relative;}
+.call-card{padding:2px 4px 5px;margin-bottom:10px;box-shadow:var(--shadow);border-left:4px solid var(--border);position:relative;}
 .call-card.open{border-left-color:var(--amber);}
 .call-card.active{border-left-color:var(--green);}
 .call-card.urgent{border-left-color:var(--red);}
@@ -515,7 +515,7 @@ textarea.input{min-height:80px;resize:vertical;}
 /* ── STATISTICS ── */
 .stats-year-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;scrollbar-width:none;}
 .stats-year-strip::-webkit-scrollbar{display:none;}
-.yr-btn{padding:7px 16px;border-radius:20px;border:2px solid var(--border);background:#fff;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;color:var(--text2);transition:all .15s;}
+.yr-btn{padding:7px 16px;border-radius:20px;border:2px solid var(--border);background:#fff;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;color:var(--text2);touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:all .15s;}
 .yr-btn.active{background:var(--navy);border-color:var(--navy);color:#fff;}
 .yr-btn:active{transform:scale(.94);}
 .yr-btn{transition:transform .08s ease, background .12s ease, color .12s ease;}
@@ -1217,8 +1217,8 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- ADMIN (accordion-style, equipment-focused) -->
       <div id="eq-admin" style="display:none;">
         <div class="adm-acc">
-          <button class="adm-acc-head open" onclick="toggleAdmAcc(this)"><span>➕ Add New Item</span><span class="adm-acc-arrow">▾</span></button>
-          <div class="adm-acc-body open">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>➕ Add New Item</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
             <div class="input-group"><label class="input-label">Item Name</label><input class="input" type="text" id="newEqName" placeholder="e.g. Fan 31"/></div>
             <div class="input-group"><label class="input-label">Category</label>
               <select class="input" id="newEqCat">
@@ -1390,6 +1390,17 @@ textarea.input{min-height:80px;resize:vertical;}
               <div class="card-desc">Reset locally-stored equipment + calls. Re-syncs from Google Sheet.</div>
             </div>
             <button class="btn-sm btn-ghost" onclick="clearAppCache()" style="flex-shrink:0;color:var(--red);">Clear</button>
+          </div>
+        </div>
+
+        <!-- Reset all calls (admin-only, testing) -->
+        <div class="card" id="settingsResetCard" style="margin-bottom:10px;display:none;border:1.5px solid #fca5a5;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">🗑️ Reset All Calls</div>
+              <div class="card-desc">Wipes every call from the shared database — see the clean day-one state. Testing mode: reusable.</div>
+            </div>
+            <button class="btn-sm btn-ghost" onclick="resetAllCallsQuick()" style="flex-shrink:0;color:var(--red);font-weight:800;">Reset</button>
           </div>
         </div>
 
@@ -1628,8 +1639,8 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- EQUIPMENT (admin accordion, mirrors equipment-tab admin) -->
       <div id="more-equipment" style="display:none;">
         <div class="adm-acc">
-          <button class="adm-acc-head open" onclick="toggleAdmAcc(this)"><span>➕ Add New Item</span><span class="adm-acc-arrow">▾</span></button>
-          <div class="adm-acc-body open">
+          <button class="adm-acc-head" onclick="toggleAdmAcc(this)"><span>➕ Add New Item</span><span class="adm-acc-arrow">▾</span></button>
+          <div class="adm-acc-body">
             <div class="input-group"><label class="input-label">Item Name</label><input class="input" type="text" id="newEqName2" placeholder="e.g. Fan 31"/></div>
             <div class="input-group"><label class="input-label">Home Location</label><select class="input" id="newEqLoc2"></select></div>
             <button class="btn-full btn-primary" onclick="addEquipmentFromMore()">Add Item + Generate QR</button>
@@ -4561,6 +4572,8 @@ function _applyRoleUI(role) {
   });
   const chkSubmitBtn = document.getElementById('chkSubmitBtn');
   if (chkSubmitBtn) chkSubmitBtn.style.display = (role==='admin'||role==='equipment') ? 'block' : 'none';
+  const settingsResetCard = document.getElementById('settingsResetCard');
+  if (settingsResetCard) settingsResetCard.style.display = (role==='admin') ? '' : 'none';
   const chkTab = document.getElementById('eqChecklistTab');
   const eqAdmTab = document.getElementById('eqAdminTab');
   const priv = ['admin','equipment'].includes(role);
@@ -5024,7 +5037,7 @@ function initApp() {
   // Initialize new call modal
   document.getElementById('carInfoSection').style.display='block'; // flat tire is default
 
-  document.getElementById('roleLabel').textContent = ROLES[SESSION.role]?.label||'MEMBER';
+  document.getElementById('roleLabel').textContent = ({admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'}[(SESSION.role||'member')]||(SESSION.role||'Member')).toUpperCase();
   document.getElementById('topbarSub').textContent = SESSION.name;
 
   const isDispatch = ['admin','dispatch'].includes(SESSION.role);
@@ -5563,6 +5576,7 @@ function renderHome() {
     .filter(c=>c.status!=='done' && c.status!=='draft' && c.status!=='cancelled')
     .sort((a,b)=>_hSort(a)-_hSort(b) || (b.createdAt-a.createdAt));
   el.innerHTML=recent.length?recent.map(c=>callCardHTML(c,true)).join(''):homeEmptyCallsHTML();
+  setTimeout(fitCardAddresses, 0);
   setTimeout(fillCardETAs, 50); // async fill ETAs after cards render
 
   const ae=document.getElementById('homeEqAlerts');
@@ -5892,7 +5906,7 @@ function _respNumBadges(call){
     }).join('');
     return memberPill+vehBadges;
   }).join('');
-  return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin:5px 0 6px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
+  return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin:1px 0 5px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
 }
 function callCardHTML(call, mini=false) {
   if(!call) return '';
@@ -6171,6 +6185,40 @@ function startAutoETA() {
   );
 }
 
+// Auto-fit the address to its card width: grow short addresses, shrink long ones
+// to a single line so the box is filled instead of truncated with an ellipsis.
+function fitCardAddresses(){
+  document.querySelectorAll('.call-card-addr').forEach(el=>{
+    if(!el || !el.textContent.trim()) return;
+    const isUrgent = !!el.closest('.call-card.urgent');
+    const max = isUrgent ? 22 : 20;
+    const min = 11.5;
+    let size = max;
+    el.style.setProperty('font-size', size+'px', 'important');
+    let guard = 40;
+    while(el.scrollWidth > el.clientWidth + 0.5 && size > min && guard-- > 0){
+      size -= 0.5;
+      el.style.setProperty('font-size', size+'px', 'important');
+    }
+  });
+}
+let _fitAddrT=null;
+window.addEventListener('resize', ()=>{ clearTimeout(_fitAddrT); _fitAddrT=setTimeout(()=>{ fitCardAddresses(); fitDetailAddress(); }, 120); });
+// Auto-fit the call-detail address onto one line (grow short, shrink long).
+function fitDetailAddress(){
+  document.querySelectorAll('.detail-addr-fit').forEach(el=>{
+    if(!el || !el.textContent.trim()) return;
+    const max=14, min=10;
+    let size=max;
+    el.style.setProperty('font-size', size+'px', 'important');
+    let guard=40;
+    while(el.scrollWidth > el.clientWidth + 0.5 && size > min && guard-- > 0){
+      size-=0.5;
+      el.style.setProperty('font-size', size+'px', 'important');
+    }
+  });
+}
+
 // Fill ETA chips on all visible call cards
 let _etaSeeding = false;
 async function fillCardETAs() {
@@ -6334,6 +6382,7 @@ function renderCalls() {
     return;
   }
   el.innerHTML=list.map(c=>callCardHTML(c)).join('');
+  setTimeout(fitCardAddresses, 0);
   document.getElementById('dispatchSubtitle').textContent=`${list.filter(c=>c.status==='active').length} active · ${list.filter(c=>c.status==='open').length} open`;
   setTimeout(fillCardETAs, 50); // async fill ETAs after cards render
 }
@@ -7353,7 +7402,7 @@ function openCallDetail(id) {
 
   // Details block
   html+=`<div class="detail-section">
-    <div class="detail-row"><span class="detail-key">Address</span><span class="detail-val"><a onclick="event.preventDefault();event.stopPropagation();openAddressPreviewById('${call.id}')" style="color:var(--blue);text-decoration:none;cursor:pointer;">${call.address}</a></span></div>
+    <div class="detail-row" style="align-items:center;gap:10px;"><span class="detail-key">Address</span><a class="detail-addr-fit" onclick="event.preventDefault();event.stopPropagation();openAddressPreviewById('${call.id}')" style="color:var(--blue);text-decoration:none;cursor:pointer;display:block;white-space:nowrap;overflow:hidden;text-align:right;font-weight:700;flex:1;min-width:0;">${call.address}</a></div>
     <div class="detail-row"><span class="detail-key">Time</span><span class="detail-val">${timeStr}</span></div>
     ${call.caller?`<div class="detail-row"><span class="detail-key">Caller</span><span class="detail-val">${call.caller}</span></div>`:''}
     ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="tel:${call.phone}" style="color:var(--blue);text-decoration:none;">${formatPhone(call.phone)}</a></span></div>`:''}
@@ -7505,6 +7554,7 @@ function openCallDetail(id) {
 
   document.getElementById('callDetailContent').innerHTML=html;
   showModal('callDetailModal');
+  setTimeout(()=>{ try{ fitDetailAddress(); }catch(e){} }, 0);
   try { fillDetailETA(call); } catch(e){}
 }
 
@@ -10878,7 +10928,7 @@ function initStats() {
   ensureFullCallHistory().then(()=>{ try{ refreshStatsIfVisible(); }catch(e){} });
 }
 
-let _statsRenderRAF=null;
+let _statsRenderRAF=null, _statsRenderT=null;
 function setStatsYear(yr,el) {
   stYear=yr; stMonth=null;
   // Instant visual feedback: paint the button selection BEFORE the heavy stats crunch
@@ -10886,9 +10936,14 @@ function setStatsYear(yr,el) {
   if(el) el.classList.add('active');
   // Stats need the full archive (past years), not just the live window — load once, then re-render
   if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{ setStatsYear(stYear, document.querySelector('.yr-btn.active')); }catch(e){} }); }
-  // Defer the expensive computation/render one frame so the tap responds immediately
+  // Defer the expensive computation/render so the tap's active state paints FIRST.
+  // rAF alone runs before paint (still feels frozen); rAF + setTimeout(0) yields a
+  // real paint of the button selection, then runs the heavy crunch as a macrotask.
   if(_statsRenderRAF) cancelAnimationFrame(_statsRenderRAF);
-  _statsRenderRAF = requestAnimationFrame(()=>{ _statsRenderRAF=null; try{ _renderStatsYear(yr); }catch(e){ console.warn('stats render:',e); } });
+  clearTimeout(_statsRenderT);
+  _statsRenderRAF = requestAnimationFrame(()=>{ _statsRenderRAF=null;
+    _statsRenderT = setTimeout(()=>{ try{ _renderStatsYear(yr); }catch(e){ console.warn('stats render:',e); } }, 0);
+  });
 }
 function _renderStatsYear(yr){
   const el = document.querySelector('.yr-btn.active');
@@ -10934,8 +10989,11 @@ function setStatsSub(sub,el) {
   });
   document.querySelectorAll('#statsSubNav .sub-tab').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
-  renderStatsSub();
+  // Paint the tab selection first, then run the heavy chart rebuild as a macrotask.
+  clearTimeout(_statsSubT);
+  requestAnimationFrame(()=>{ _statsSubT=setTimeout(()=>{ try{ renderStatsSub(); }catch(e){ console.warn('stats sub:',e); } }, 0); });
 }
+let _statsSubT=null;
 
 function renderStatsSub() {
   const map={mine:renderMyStats,overview:renderStatsOverview,dispatch:renderStatsDispatch,monthly:renderStatsMonthly,members:renderStatsMembers,search:renderStatsSearch,compare:renderStatsCompare};
@@ -10982,7 +11040,7 @@ function renderMyStats() {
       </div>
       <div>
         <div style="font-size:17px;font-weight:700;letter-spacing:-.3px;">${SESSION.name}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:1px;">${ROLES[SESSION.role]?.label||'MEMBER'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px;">${({admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'}[(SESSION.role||'member')]||(SESSION.role||'Member')).toUpperCase()}</div>
         ${rank&&rank>0?`<div style="font-size:12px;font-weight:700;color:${rank<=3?'#f59e0b':rank<=10?'var(--blue)':'var(--text3)'};margin-top:2px;">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'🏅'} All-Time Rank #${rank}</div>`:''}
       </div>
     </div>
@@ -11060,6 +11118,35 @@ function renderMyStats() {
       </table>
       </div>
     </div>`;
+
+    // Detailed list — call # + type + date (app-recorded calls only; HIST is aggregate)
+    // Recent activity only: last 30 days.
+    const _30dAgo = Date.now() - 30*24*60*60*1000;
+    const recentCalls = liveCalls.filter(c=>(c.completedAt||c.createdAt||0) >= _30dAgo);
+    if(recentCalls.length){
+      const rows=[...recentCalls]
+        .sort((a,b)=>(b.completedAt||b.createdAt||0)-(a.completedAt||a.createdAt||0))
+        .slice(0,25).map(c=>{
+          const typeRaw=c.type||'other';
+          const tLabel=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw));
+          const dt=new Date(c.completedAt||c.createdAt||0);
+          const dStr=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
+          const myR=(c.responders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===bc);
+          const rTag=myR&&myR.role==='backup'?'<span style="font-size:9px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.12);border-radius:5px;padding:1px 5px;margin-left:6px;">BACKUP</span>':'';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2);">
+            <div style="min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tLabel}${rTag}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:1px;">${dStr}</div>
+            </div>
+            <div style="font-size:13px;font-weight:800;color:var(--blue);flex-shrink:0;">#${c.callNum||'—'}</div>
+          </div>`;
+        }).join('');
+      html+=`<div class="chart-card" style="margin-bottom:12px;">
+        <div class="chart-title">🚗 My Calls · Last 30 Days (${recentCalls.length})</div>
+        <div>${rows}</div>
+        ${recentCalls.length>25?`<div style="font-size:11px;color:var(--text3);text-align:center;padding-top:8px;">Showing latest 25 of ${recentCalls.length}</div>`:''}
+      </div>`;
+    }
   }
 
   // Dispatcher block for dispatch role
@@ -12424,16 +12511,52 @@ function renderAdminCalls(){
   }).join('');
 }
 
-// ── ADMIN: RESET ALL APP DATA (one-time, self-destructs) ──
+// ── ADMIN: RESET ALL APP DATA ──
+// PRE-LAUNCH TESTING MODE: while RESET_REUSABLE is true, the reset can be run as
+// many times as you like (to preview the clean day-one state). When you go truly
+// official, set RESET_REUSABLE = false — then the button reverts to one-time and
+// self-destructs after a single use so live calls can't be wiped by accident.
 const RESET_USED_KEY = 'cobc_reset_used';
+const RESET_REUSABLE = true;
 
 function initResetTab() {
-  // If already used, permanently hide the tab
-  if (localStorage.getItem(RESET_USED_KEY)) {
+  // One-time mode only: if already used, permanently hide the tab.
+  if (!RESET_REUSABLE && localStorage.getItem(RESET_USED_KEY)) {
     const tab = document.getElementById('adminResetTab');
     if (tab) tab.style.display = 'none';
     const panel = document.getElementById('admin-reset');
     if (panel) panel.remove();
+  }
+}
+
+// Settings-panel reset (admin-only). Self-contained — prompts for confirmation,
+// then wipes every call from the shared DB and clears the local copy. Reusable in
+// testing mode; same effect as the Admin-panel reset button.
+async function resetAllCallsQuick(){
+  if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Admin only'); return; }
+  const ans = prompt('This deletes EVERY call from the shared database for all devices.\n\nType RESET to confirm:');
+  if(ans===null) return;
+  if(ans.trim()!=='RESET'){ showToast('Type RESET to confirm'); return; }
+  if(!(window.firebase && _firebaseReady)){ showToast('⚠️ Not connected — try again'); return; }
+  showToast('⏳ Clearing all calls…');
+  try{
+    const db = firebase.firestore();
+    const snap = await db.collection('calls').get();
+    const docs = snap.docs;
+    for(let i=0;i<docs.length;i+=450){
+      const batch = db.batch();
+      docs.slice(i,i+450).forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+    }
+    STATE.calls = [];
+    _deletedCallIds && _deletedCallIds.clear && _deletedCallIds.clear();
+    save();
+    renderCalls && renderCalls();
+    renderHome && renderHome();
+    showToast(`✅ Cleared ${docs.length} call${docs.length===1?'':'s'} — clean slate`);
+  }catch(e){
+    console.error('Quick reset failed:', e);
+    showToast('Error: ' + (e.message||'Reset failed'));
   }
 }
 
@@ -12454,7 +12577,14 @@ async function resetAllAppData() {
     save();
     renderCalls && renderCalls();
     renderHome && renderHome();
-    // Mark used — tab self-destructs
+    if (RESET_REUSABLE) {
+      // Testing mode: leave the tab in place so it can be reused.
+      const inp = document.getElementById('resetConfirmInput'); if (inp) inp.value = '';
+      if (btn) { btn.textContent = '🗑️ Delete All Test Data & Go Live'; btn.disabled = false; }
+      showToast('✅ All calls cleared — clean slate (reset still available)');
+      return;
+    }
+    // Live mode: mark used — tab self-destructs
     localStorage.setItem(RESET_USED_KEY, '1');
     document.getElementById('adminResetTab')?.remove();
     document.getElementById('admin-reset')?.remove();
