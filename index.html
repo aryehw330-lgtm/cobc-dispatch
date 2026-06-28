@@ -2295,7 +2295,6 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <button onclick="closeLiveMap()" style="background:rgba(255,255,255,.7);border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
       </div>
-    </div>">✕</button>
     </div>
     <div id="liveMapDiv" style="height:60vh;width:100%;"></div>
     <div id="liveMapNotice" style="display:none;padding:9px 16px;font-size:12px;font-weight:600;color:#b45309;background:#fffbeb;border-top:1px solid #fde68a;"></div>
@@ -8472,6 +8471,30 @@ async function openLiveMap(callId) {
   if (!call) return;
 
   showModal('liveMapModal');
+  // Swipe-down on the header to close (map area keeps pinch-zoom). Bind once.
+  (function(){
+    const head=document.getElementById('liveMapHead');
+    const ov=document.getElementById('liveMapModal');
+    if(!head||!ov||head.dataset.swipeBound) return;
+    head.dataset.swipeBound='1';
+    let startY=null;
+    head.addEventListener('touchstart',e=>{ startY=e.touches[0].clientY; },{passive:true});
+    head.addEventListener('touchmove',e=>{
+      if(startY==null) return;
+      const dy=e.touches[0].clientY-startY;
+      if(dy>0){ ov.style.transform='translateY('+Math.min(dy,160)+'px)'; ov.style.opacity=String(Math.max(1-dy/400,.4)); }
+    },{passive:true});
+    const end=e=>{
+      if(startY==null) return;
+      const dy=(e.changedTouches?e.changedTouches[0].clientY:0)-startY;
+      ov.style.transition='transform .2s, opacity .2s';
+      if(dy>80){ ov.style.transform='translateY(100%)'; ov.style.opacity='0'; setTimeout(()=>{ closeLiveMap(); ov.style.transition=''; ov.style.transform=''; ov.style.opacity=''; },200); }
+      else { ov.style.transform=''; ov.style.opacity=''; setTimeout(()=>{ ov.style.transition=''; },200); }
+      startY=null;
+    };
+    head.addEventListener('touchend',end,{passive:true});
+    head.addEventListener('touchcancel',end,{passive:true});
+  })();
   document.getElementById('liveMapTitle').textContent =
     `#${call.callNum||''} · ${call.address}${call.town ? ', ' + call.town : ''}`;
 
