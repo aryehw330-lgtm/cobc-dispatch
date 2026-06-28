@@ -2286,12 +2286,16 @@ textarea.input{min-height:80px;resize:vertical;}
 <!-- Live Tracking Map Modal -->
 <div class="modal-overlay hidden" id="liveMapModal">
   <div class="modal" style="padding:0;overflow:hidden;border-radius:20px;">
-    <div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+    <div id="liveMapHead" style="padding:8px 16px 12px;border-bottom:1px solid rgba(255,255,255,.4);background:linear-gradient(165deg,rgba(37,99,235,.34),rgba(219,234,254,.55));-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);">
+      <div style="width:42px;height:5px;border-radius:3px;background:rgba(255,255,255,.85);margin:0 auto 10px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <div style="font-size:16px;font-weight:700;">🗺️ Live Tracking</div>
-        <div id="liveMapTitle" style="font-size:12px;color:var(--text3);margin-top:1px;"></div>
+        <div style="font-size:16px;font-weight:800;color:#0f172a;">🗺️ Live Tracking</div>
+        <div id="liveMapTitle" style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:1px;"></div>
       </div>
-      <button onclick="closeLiveMap()" style="background:var(--border2);border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <button onclick="closeLiveMap()" style="background:rgba(255,255,255,.7);border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+      </div>
+    </div>">✕</button>
     </div>
     <div id="liveMapDiv" style="height:60vh;width:100%;"></div>
     <div id="liveMapNotice" style="display:none;padding:9px 16px;font-size:12px;font-weight:600;color:#b45309;background:#fffbeb;border-top:1px solid #fde68a;"></div>
@@ -8306,7 +8310,8 @@ async function openAddressPreview(call) {
         </div>
       </div>
     </div>
-    <div style="flex-shrink:0;background:linear-gradient(180deg,rgba(219,234,254,.5),rgba(191,219,254,.6));-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-radius:18px 18px 0 0;margin-top:-14px;padding:18px 16px calc(env(safe-area-inset-bottom) + 16px);position:relative;z-index:2;">
+    <div id="__ap_sheet" style="flex-shrink:0;background:linear-gradient(180deg,rgba(219,234,254,.5),rgba(191,219,254,.6));-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-radius:18px 18px 0 0;margin-top:-14px;padding:8px 16px calc(env(safe-area-inset-bottom) + 16px);position:relative;z-index:2;">
+      <div style="width:42px;height:5px;border-radius:3px;background:rgba(255,255,255,.85);margin:0 auto 12px;"></div>
       <div style="display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:14px;">
         <div style="font-size:19px;font-weight:800;color:#111;">Choose application</div>
         <button id="__ap_x" style="position:absolute;right:0;width:38px;height:38px;border-radius:50%;border:none;background:#eee;font-size:18px;color:#555;cursor:pointer;">✕</button>
@@ -8319,17 +8324,17 @@ async function openAddressPreview(call) {
     </div>`;
 
   ov.querySelector('#__ap_x').onclick = close;
-  // Swipe-down on the header to exit (replaces the back arrow)
+  // Swipe-down on the header OR the bottom sheet to exit
   (function(){
-    const head = ov.querySelector('#__ap_head');
-    if(!head) return;
+    const heads = [ov.querySelector('#__ap_head'), ov.querySelector('#__ap_sheet')].filter(Boolean);
+    if(!heads.length) return;
     let startY=null;
-    head.addEventListener('touchstart', e=>{ startY=e.touches[0].clientY; }, {passive:true});
-    head.addEventListener('touchmove', e=>{
+    const onStart = e=>{ startY=e.touches[0].clientY; };
+    const onMove = e=>{
       if(startY==null) return;
       const dy=e.touches[0].clientY-startY;
       if(dy>0){ ov.style.transform='translateY('+Math.min(dy,140)+'px)'; ov.style.opacity=String(Math.max(1-dy/400,.4)); }
-    }, {passive:true});
+    };
     const end = e=>{
       if(startY==null) return;
       const dy=(e.changedTouches?e.changedTouches[0].clientY:0)-startY;
@@ -8338,8 +8343,12 @@ async function openAddressPreview(call) {
       else { ov.style.transform=''; ov.style.opacity=''; setTimeout(()=>{ ov.style.transition=''; },200); }
       startY=null;
     };
-    head.addEventListener('touchend', end, {passive:true});
-    head.addEventListener('touchcancel', end, {passive:true});
+    heads.forEach(h=>{
+      h.addEventListener('touchstart', onStart, {passive:true});
+      h.addEventListener('touchmove', onMove, {passive:true});
+      h.addEventListener('touchend', end, {passive:true});
+      h.addEventListener('touchcancel', end, {passive:true});
+    });
   })();
 
   try {
