@@ -6040,7 +6040,7 @@ function callCardHTML(call, mini=false) {
   const sc = statusColors[call.status]||'var(--text3)';
   const cornerMeta = `<div class="call-card-corner">${townChipInline}<span style="display:inline-flex;align-items:center;gap:6px;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span>${timeStr}</span></span></div>`;
   const etaWrap = call.status==='open'
-    ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;justify-content:flex-start;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
+    ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;justify-content:center;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
     : '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
 
@@ -7560,14 +7560,12 @@ function openCallDetail(id) {
       const liveEta=locFresh&&loc.liveEtaMin!=null?loc.liveEtaMin:null;
       const etaColor=liveEta!=null?(liveEta<=3?'var(--green)':liveEta<=7?'var(--amber)':'var(--text2)'):'';
       html+=`<div class="responder-row">
-        <div style="flex:1;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="font-size:14px;font-weight:700;">BC-${unitKey} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
-            ${isDispatch&&liveEta!=null?`<span style="font-size:14px;font-weight:800;padding:4px 12px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};">🚗 ETA ${liveEta} min</span>`:''}
-          </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;">BC-${unitKey} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${(r.vehicles&&r.vehicles.length)?` · 🚚 ${r.vehicles.join(', ')}`:''}${r.notes?` · ${r.notes}`:''}</div>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;">
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+          ${isDispatch&&liveEta!=null?`<span style="font-size:13px;font-weight:800;padding:6px 10px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};white-space:nowrap;">🚗 ${liveEta}m</span>`:''}
           ${phone?`<button class="responder-call-btn" onclick="openResponderContact('${id}','${unitKey}')">📞</button>`:''}
           ${isDispatch?`<button onclick="removeApprovedResponder('${id}','${r.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;min-height:36px;">✕</button>`:''}
         </div>
@@ -8279,18 +8277,18 @@ async function openAddressPreview(call) {
   if (!ov) {
     ov = document.createElement('div');
     ov.id = 'addrPreviewModal';
-    ov.style.cssText = 'position:fixed;inset:0;z-index:3000;background:#e9e9ea;display:flex;flex-direction:column;';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:3000;background:#e9e9ea;display:flex;flex-direction:column;touch-action:pan-y;';
     document.body.appendChild(ov);
   }
   ov.style.display = 'flex';
   const close = () => { ov.style.display = 'none'; };
 
   ov.innerHTML = `
-    <div style="flex-shrink:0;background:#d8d8db;padding:calc(env(safe-area-inset-top) + 10px) 16px 12px;display:flex;align-items:center;gap:12px;">
-      <button id="__ap_back" style="width:42px;height:42px;border-radius:50%;border:none;background:rgba(255,255,255,.7);font-size:22px;color:#111;cursor:pointer;flex-shrink:0;">‹</button>
-      <div style="flex:1;text-align:center;padding-right:42px;">
-        <div style="font-size:18px;font-weight:700;color:#111;">${addr}</div>
-        <div style="font-size:14px;color:#555;">${town} NJ</div>
+    <div id="__ap_head" style="flex-shrink:0;background:linear-gradient(165deg,rgba(37,99,235,.42),rgba(219,234,254,.92));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);padding:calc(env(safe-area-inset-top) + 8px) 16px 14px;">
+      <div style="width:42px;height:5px;border-radius:3px;background:rgba(255,255,255,.85);margin:0 auto 10px;"></div>
+      <div style="text-align:center;">
+        <div style="font-size:18px;font-weight:800;color:#0f172a;">${addr}</div>
+        <div style="font-size:14px;color:#1e3a8a;font-weight:600;">${town} NJ</div>
       </div>
     </div>
     <div style="flex:1;position:relative;overflow:hidden;">
@@ -8307,20 +8305,41 @@ async function openAddressPreview(call) {
         </div>
       </div>
     </div>
-    <div style="flex-shrink:0;background:#fff;border-radius:18px 18px 0 0;margin-top:-14px;padding:18px 16px calc(env(safe-area-inset-bottom) + 16px);position:relative;z-index:2;">
+    <div style="flex-shrink:0;background:linear-gradient(180deg,rgba(219,234,254,.92),rgba(191,219,254,.96));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:18px 18px 0 0;margin-top:-14px;padding:18px 16px calc(env(safe-area-inset-bottom) + 16px);position:relative;z-index:2;">
       <div style="display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:14px;">
         <div style="font-size:19px;font-weight:800;color:#111;">Choose application</div>
         <button id="__ap_x" style="position:absolute;right:0;width:38px;height:38px;border-radius:50%;border:none;background:#eee;font-size:18px;color:#555;cursor:pointer;">✕</button>
       </div>
-      <div style="background:#f7f7f8;border-radius:14px;overflow:hidden;">
+      <div style="background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.6);border-radius:14px;overflow:hidden;">
         <a href="https://maps.apple.com/?daddr=${enc}&dirflg=d" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;border-bottom:1px solid #e6e6e8;">Maps</a>
         <a href="https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=driving" target="_blank" rel="noopener" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;border-bottom:1px solid #e6e6e8;">Google Maps</a>
         <a id="__ap_waze" href="https://waze.com/ul?q=${enc}&navigate=yes" target="_blank" rel="noopener" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;">Waze</a>
       </div>
     </div>`;
 
-  ov.querySelector('#__ap_back').onclick = close;
   ov.querySelector('#__ap_x').onclick = close;
+  // Swipe-down on the header to exit (replaces the back arrow)
+  (function(){
+    const head = ov.querySelector('#__ap_head');
+    if(!head) return;
+    let startY=null;
+    head.addEventListener('touchstart', e=>{ startY=e.touches[0].clientY; }, {passive:true});
+    head.addEventListener('touchmove', e=>{
+      if(startY==null) return;
+      const dy=e.touches[0].clientY-startY;
+      if(dy>0){ ov.style.transform='translateY('+Math.min(dy,140)+'px)'; ov.style.opacity=String(Math.max(1-dy/400,.4)); }
+    }, {passive:true});
+    const end = e=>{
+      if(startY==null) return;
+      const dy=(e.changedTouches?e.changedTouches[0].clientY:0)-startY;
+      ov.style.transition='transform .2s, opacity .2s';
+      if(dy>80){ ov.style.transform='translateY(100%)'; ov.style.opacity='0'; setTimeout(()=>{ close(); ov.style.transition=''; ov.style.transform=''; ov.style.opacity=''; },200); }
+      else { ov.style.transform=''; ov.style.opacity=''; setTimeout(()=>{ ov.style.transition=''; },200); }
+      startY=null;
+    };
+    head.addEventListener('touchend', end, {passive:true});
+    head.addEventListener('touchcancel', end, {passive:true});
+  })();
 
   try {
     const pt = await _geocode(addr, town);
