@@ -6042,7 +6042,7 @@ function callCardHTML(call, mini=false) {
   const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
   const sc = statusColors[call.status]||'var(--text3)';
   const cornerMeta = `<div class="call-card-corner">${townChipInline}<span style="display:inline-flex;align-items:center;gap:6px;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span>${timeStr}</span></span></div>`;
-  const etaWrap = call.status==='open'
+  const etaWrap = (call.status==='open'||call.status==='active')
     ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;justify-content:center;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
     : '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
@@ -7553,7 +7553,7 @@ function openCallDetail(id) {
 
   // ── Approved Responders ──
   const resp=call.responders||[];
-  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;"><div class="section-label" style="margin:0;">✅ Approved Responders (${resp.length})</div>${_onDispatchTab?`<div id="detail-eta-${call.id}" style="display:none;flex-shrink:0;"></div>`:''}</div>`;
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;"><div class="section-label" style="margin:0;">✅ Approved Responders (${resp.length})</div><div id="detail-eta-${call.id}" style="display:none;flex-shrink:0;"></div></div>`;
   if(resp.length) {
     resp.forEach(r=>{
       const m=STATE.members.find(x=>_normUnit(x.unit)===_normUnit(r.unit));
