@@ -7461,6 +7461,7 @@ function openCallDetail(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   const isDispatch=['admin','dispatch'].includes(SESSION.role);
+  const _onDispatchTab = isDispatch && (typeof currentTab!=='undefined' && currentTab==='dispatch');
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const timeStr=new Date(call.createdAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   const townColor=TOWN_COLORS[call.town]||'var(--text3)';
@@ -7549,7 +7550,7 @@ function openCallDetail(id) {
 
   // ── Approved Responders ──
   const resp=call.responders||[];
-  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;"><div class="section-label" style="margin:0;">✅ Approved Responders (${resp.length})</div><div id="detail-eta-${call.id}" style="display:none;flex-shrink:0;"></div></div>`;
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;"><div class="section-label" style="margin:0;">✅ Approved Responders (${resp.length})</div>${_onDispatchTab?`<div id="detail-eta-${call.id}" style="display:none;flex-shrink:0;"></div>`:''}</div>`;
   if(resp.length) {
     resp.forEach(r=>{
       const m=STATE.members.find(x=>_normUnit(x.unit)===_normUnit(r.unit));
@@ -7565,7 +7566,7 @@ function openCallDetail(id) {
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${(r.vehicles&&r.vehicles.length)?` · 🚚 ${r.vehicles.join(', ')}`:''}${r.notes?` · ${r.notes}`:''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-          ${isDispatch&&liveEta!=null?`<span style="font-size:13px;font-weight:800;padding:6px 10px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};white-space:nowrap;">🚗 ${liveEta}m</span>`:''}
+          ${_onDispatchTab&&liveEta!=null?`<span style="font-size:13px;font-weight:800;padding:6px 10px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};white-space:nowrap;">🚗 ${liveEta}m</span>`:''}
           ${phone?`<button class="responder-call-btn" onclick="openResponderContact('${id}','${unitKey}')">📞</button>`:''}
           ${isDispatch?`<button onclick="removeApprovedResponder('${id}','${r.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;min-height:36px;">✕</button>`:''}
         </div>
