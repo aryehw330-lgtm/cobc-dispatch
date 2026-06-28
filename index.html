@@ -7595,8 +7595,13 @@ function openCallDetail(id) {
 
   // Actions
   html+=`<div class="detail-actions">`;
-  if(call.phone) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
-  if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
+  // Members only see Caller/Backup once the call is ACTIVE and they're assigned to it.
+  // Dispatch/admin keep them available as before.
+  const _myU=String(SESSION.unit||'').replace(/^BC-?/i,'').trim();
+  const _iAmOnCall=(call.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
+  const _canActOnCall = isDispatch || (call.status==='active' && _iAmOnCall);
+  if(call.phone && _canActOnCall) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
+  if(_canActOnCall && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
@@ -7632,7 +7637,7 @@ function openCallDetail(id) {
       assignedEq.forEach(name=>{
         html+=`<button class="btn-sm btn-primary" onclick="toggleEquipmentOnCall('${id}','${_esc(name)}')" title="Remove">✓ ${name} <span style="opacity:.7;">✕</span></button>`;
       });
-      html+=`<button class="btn-sm btn-ghost" onclick="hideModal('callDetailModal');showTab('equipment');setTimeout(()=>setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)')),60)">📦 ${assignedEq.length?'Add / Manage':'Check Out Equipment'}</button>`;
+      html+=`<button class="btn-sm btn-ghost" onclick="hideModal('callDetailModal');showTab('equipment');setTimeout(()=>setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)')),60)">📦 ${assignedEq.length?'Add / Manage':'Check In/Out Equipment'}</button>`;</button>`;
     }
   }
   html+=`</div><div style="margin-top:12px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
@@ -12490,6 +12495,18 @@ function showEqConflictWarning(it, intendedAction) {
   showModal('eqConflictModal');
 }
 
+// Auto-fill helper: the call number a given unit is CURRENTLY assigned to (open/active),
+// so equipment checkout pre-fills it. Returns '' if the unit isn't on a live call.
+function _currentCallNumForUnit(unit){
+  const u=String(unit||'').replace(/^BC-?/i,'').trim();
+  if(!u) return '';
+  const live=(STATE.calls||[]).filter(c=>(c.status==='open'||c.status==='active')
+    && (c.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===u));
+  if(!live.length) return '';
+  // Assigned to more than one live call → ambiguous, leave blank for manual entry.
+  if(live.length>1) return '';
+  return live[0].callNum!=null ? String(live[0].callNum) : '';
+}
 function coMemberName(unit){
   const u=String(unit||'').replace(/^BC-?/i,'').trim();
   if(!u) return '';
@@ -12503,6 +12520,9 @@ function updateCoModalForNote(){
   if(!note) return;
   const myUnit = (SESSION && SESSION.unit ? String(SESSION.unit) : '').replace(/^BC-?/i,'').trim();
   const val=(sel?.value||'').trim();
+  // Re-fill the call number from whichever unit is actually taking the item out.
+  const _callField=document.getElementById('coModalCall');
+  if(_callField){ _callField.value=_currentCallNumForUnit(val||myUnit); }
   if(val && val!==myUnit){
     note.style.display='block';
     note.innerHTML='📝 This will log as BC-'+val+', recorded by BC-'+myUnit;
@@ -12566,7 +12586,9 @@ function openCheckout(row, defaultAction) {
     return;
   }
   coModalItems=it?[it]:[];
-  document.getElementById('coModalCall').value='';
+  // Auto-fill the call number from the call this member is currently assigned to (open/active).
+  // Blank if they're not on a live call. Based on the logged-in unit (the person taking it out).
+  document.getElementById('coModalCall').value = _currentCallNumForUnit(SESSION && SESSION.unit);
   // Hide Call Number for COBC 4 — shifts replace call numbers for the car
   var hasCarItem = it && isCarItem(it.name);
   var callGroup = document.getElementById('coModalCallGroup');
