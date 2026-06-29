@@ -466,6 +466,17 @@ textarea.input{min-height:80px;resize:vertical;}
 .number-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#fff;border-radius:var(--radius-sm);margin-bottom:6px;box-shadow:var(--shadow);}
 .number-call-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
 
+/* ── MORE PAGE ACCORDION (glassy, per-category color) ── */
+.more-acc{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.more-acc-item{border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);box-shadow:0 4px 14px rgba(0,0,0,.18);}
+.more-acc-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 16px;border:none;background:transparent;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;text-align:left;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+.more-acc-head .mah-left{display:flex;align-items:center;gap:11px;min-width:0;}
+.more-acc-head .mah-ico{font-size:19px;}
+.more-acc-arrow{transition:transform .25s;opacity:.85;font-size:13px;flex-shrink:0;}
+.more-acc-item.open .more-acc-arrow{transform:rotate(180deg);}
+.more-acc-panel{display:none;background:rgba(255,255,255,.04);}
+.more-acc-item.open .more-acc-panel{display:block;}
+.more-acc-panel-inner{padding:12px 14px 14px;}
 /* ── DISPATCH ON-DUTY BANNER ── */
 .on-duty-banner{background:linear-gradient(135deg,rgba(212,169,58,.2),rgba(18,15,9,.7));-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(230,196,99,.4);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;color:#fff;display:flex;justify-content:flex-start;align-items:center;gap:14px;width:fit-content;max-width:100%;}
 .home-top-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
@@ -1316,7 +1327,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="page hidden" id="page-more">
       <div class="section-header"><div class="section-title" id="page-more-title">Admin</div></div>
       <div id="adminMgmtBtnWrap" style="display:none;margin-bottom:12px;"></div>
-      <div class="sub-tabs" id="more-sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;">
+      <div class="sub-tabs" id="more-sub-tabs" style="display:none;">
         <button class="sub-tab member-allowed" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
         <button class="sub-tab member-allowed" onclick="setMoreTab('history',this)">📅 Call History</button>
         <button class="sub-tab member-allowed" onclick="setMoreTab('stats',this)">📊 My Stats</button>
@@ -1326,6 +1337,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('equipment',this)">📦 Equipment</button>
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('vehicles',this)">🚐 Vehicles</button>
       </div>
+      <div id="moreAccordion" class="more-acc"></div>
       <!-- SETTINGS (notifications, location, app prefs) -->
       <div id="more-settings" style="display:none;">
         <div class="section-label">App Settings</div>
@@ -1487,7 +1499,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="numPhone" placeholder="201-555-0000"/></div>
             <div class="input-group"><label class="input-label">Category</label>
               <select class="input" id="numCat">
-                <option>Police</option><option>Dispatch</option><option>Roadside</option><option>Hospital</option><option>Internal</option><option>Other</option>
+                <option>Police</option><option>Dispatch</option><option>Ambulance</option><option>Roadside</option><option>Hospital</option><option>Internal</option><option>Other</option>
               </select>
             </div>
             <div style="display:flex;gap:8px;">
@@ -5319,7 +5331,14 @@ function updateOnDutyBanner() {
   try {
     if (typeof DISPATCH_SCHEDULE !== 'undefined' && typeof getShiftIndexNow === 'function') {
       const now2 = new Date();
-      const slot2 = DISPATCH_SCHEDULE[getShiftIndexNow()]?.slots?.[now2.getDay()] || null;
+      const shiftIdx2 = getShiftIndexNow();
+      let slot2 = DISPATCH_SCHEDULE[shiftIdx2]?.slots?.[now2.getDay()] || null;
+      // Apply today's short-term fill-in override if present
+      try{
+        const ds2=(typeof _dateStrOf==='function')?_dateStrOf(now2):null;
+        const ov2=ds2 && STATE.schedOverrides && STATE.schedOverrides[ds2] && STATE.schedOverrides[ds2][shiftIdx2];
+        if(ov2) slot2 = { p: ov2.p, s: ov2.s };
+      }catch(e){}
       const slotSec = slot2?.s || '';
       if (slotSec && slotSec !== 'OPEN' && slotSec !== 'CHIEFS') {
         name2 = slotSec;
@@ -6817,6 +6836,12 @@ function getOnDutyDispatcher() {
       const dow = now.getDay();
       const shiftIdx = getShiftIndexNow();
       slot = DISPATCH_SCHEDULE[shiftIdx]?.slots?.[dow] || null;
+      // Apply today's short-term fill-in override if present
+      try{
+        const ds=(typeof _dateStrOf==='function')?_dateStrOf(now):null;
+        const ov=ds && STATE.schedOverrides && STATE.schedOverrides[ds] && STATE.schedOverrides[ds][shiftIdx];
+        if(ov) slot = { p: ov.p, s: ov.s };
+      }catch(e){}
       slotPrimary = slot?.p || '';
     }
   } catch(e) { console.warn('getOnDutyDispatcher schedule error:', e); }
@@ -7595,8 +7620,13 @@ function openCallDetail(id) {
 
   // Actions
   html+=`<div class="detail-actions">`;
-  if(call.phone) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
-  if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
+  // Members only see Caller/Backup once the call is ACTIVE and they're assigned to it.
+  // Dispatch/admin keep them available as before.
+  const _myU=String(SESSION.unit||'').replace(/^BC-?/i,'').trim();
+  const _iAmOnCall=(call.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
+  const _canActOnCall = isDispatch || (call.status==='active' && _iAmOnCall);
+  if(call.phone && _canActOnCall) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
+  if(_canActOnCall && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
@@ -7632,7 +7662,7 @@ function openCallDetail(id) {
       assignedEq.forEach(name=>{
         html+=`<button class="btn-sm btn-primary" onclick="toggleEquipmentOnCall('${id}','${_esc(name)}')" title="Remove">✓ ${name} <span style="opacity:.7;">✕</span></button>`;
       });
-      html+=`<button class="btn-sm btn-ghost" onclick="hideModal('callDetailModal');showTab('equipment');setTimeout(()=>setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)')),60)">📦 ${assignedEq.length?'Add / Manage':'Check Out Equipment'}</button>`;
+      html+=`<button class="btn-sm btn-ghost" onclick="hideModal('callDetailModal');showTab('equipment');setTimeout(()=>setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)')),60)">📦 ${assignedEq.length?'Add / Manage':'Check In/Out Equipment'}</button>`;
     }
   }
   html+=`</div><div style="margin-top:12px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
@@ -9371,7 +9401,7 @@ function editNumber(id) {
   // Build inline edit modal
   const existing = document.getElementById('editNumberModal');
   if(existing) existing.remove();
-  const cats = ['Police','Dispatch','Roadside','Hospital','Internal','Other'];
+  const cats = ['Police','Dispatch','Ambulance','Roadside','Hospital','Internal','Other'];
   const catOpts = cats.map(c=>`<option${c===n.category?' selected':''}>${c}</option>`).join('');
   const modal = document.createElement('div');
   modal.id = 'editNumberModal';
@@ -9438,11 +9468,71 @@ function goAdmin(subtab) {
   else if(typeof setAdminTab==='function') setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
 }
 function setMoreTab(tab,el) {
-  ['numbers','stats','adminstats','settings','schedule','equipment','vehicles','history'].forEach(t=>{
-    const e=document.getElementById(`more-${t}`); if(e) e.style.display=t===tab?'':'none';
+  buildMoreAccordion();
+  const item=document.getElementById('moreacc-'+tab);
+  if(item){
+    document.querySelectorAll('#moreAccordion .more-acc-item.open').forEach(x=>x.classList.remove('open'));
+    item.classList.add('open');
+  }
+  _renderMoreSection(tab);
+}
+// Per-category glassy accordion config (color = "r,g,b")
+const MORE_ACC_CATS = [
+  {id:'numbers',   icon:'☎️', label:'Important Numbers',  c:'37,99,235',  gate:'member'},
+  {id:'history',   icon:'📅', label:'Call History',       c:'13,148,136', gate:'member'},
+  {id:'stats',     icon:'📊', label:'My Stats',           c:'124,58,237', gate:'member'},
+  {id:'adminstats',icon:'📈', label:'Admin Stats',        c:'212,169,58', gate:'strict'},
+  {id:'settings',  icon:'⚙️', label:'Settings',           c:'100,116,139',gate:'member'},
+  {id:'schedule',  icon:'📅', label:'Dispatch Schedule',  c:'22,163,74',  gate:'adminonly'},
+  {id:'equipment', icon:'📦', label:'Equipment',          c:'234,88,12',  gate:'strict'},
+  {id:'vehicles',  icon:'🚐', label:'Vehicles',           c:'8,145,178',  gate:'strict'},
+];
+let _moreAccBuilt=false;
+function buildMoreAccordion(){
+  const host=document.getElementById('moreAccordion');
+  if(!host){ return; }
+  if(_moreAccBuilt){ applyMoreAccGating(); return; }
+  MORE_ACC_CATS.forEach(cat=>{
+    const content=document.getElementById('more-'+cat.id);
+    if(!content) return;
+    const item=document.createElement('div');
+    item.className='more-acc-item'; item.id='moreacc-'+cat.id;
+    item.style.background='linear-gradient(160deg,rgba('+cat.c+',.22),rgba(18,18,22,.55))';
+    item.style.borderColor='rgba('+cat.c+',.42)';
+    const head=document.createElement('button');
+    head.className='more-acc-head'; head.type='button';
+    head.onclick=()=>toggleMoreAcc(cat.id);
+    head.innerHTML='<span class="mah-left"><span class="mah-ico">'+cat.icon+'</span><span>'+cat.label+'</span></span><span class="more-acc-arrow">▾</span>';
+    const panel=document.createElement('div'); panel.className='more-acc-panel';
+    const inner=document.createElement('div'); inner.className='more-acc-panel-inner';
+    content.style.display='';           // clear inline display:none now that the panel controls visibility
+    inner.appendChild(content);         // relocate existing section into the panel (preserves its id + handlers)
+    panel.appendChild(inner);
+    item.appendChild(head); item.appendChild(panel);
+    host.appendChild(item);
   });
-  document.querySelectorAll('#page-more .sub-tab').forEach(x=>x.classList.remove('active'));
-  if(el) el.classList.add('active');
+  _moreAccBuilt=true;
+  applyMoreAccGating();
+}
+function applyMoreAccGating(){
+  const role=(typeof SESSION!=='undefined' && SESSION && SESSION.role)||'member';
+  MORE_ACC_CATS.forEach(cat=>{
+    const item=document.getElementById('moreacc-'+cat.id);
+    if(!item) return;
+    let show=true;
+    if(cat.gate==='strict')        show=(role==='admin');
+    else if(cat.gate==='adminonly')show=(role!=='member'&&role!=='observer');
+    item.style.display=show?'':'none';
+  });
+}
+function toggleMoreAcc(id){
+  const item=document.getElementById('moreacc-'+id);
+  if(!item) return;
+  const wasOpen=item.classList.contains('open');
+  document.querySelectorAll('#moreAccordion .more-acc-item.open').forEach(x=>x.classList.remove('open'));
+  if(!wasOpen){ item.classList.add('open'); _renderMoreSection(id); }
+}
+function _renderMoreSection(tab){
   if(tab==='stats')    initStats();
   if(tab==='adminstats') renderAdminStats();
   if(tab==='schedule') renderSchedule();
@@ -10628,38 +10718,39 @@ function takeScheduleSlot(shiftIdx, dayIdx){
   ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML=`<div style="background:#16140d;border:1px solid rgba(230,196,99,.4);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.5);">
     <div style="font-size:17px;font-weight:800;color:#e6c463;margin-bottom:4px;">Take ${row.shift}</div>
-    <div style="font-size:13px;color:rgba(255,255,255,.65);margin-bottom:16px;">How long are you covering this slot?</div>
-    <button onclick="document.getElementById('takeSlotChoice').remove();_assignSlot(${shiftIdx},${dayIdx},'temp')" style="width:100%;text-align:left;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;">
-      <div style="font-size:15px;font-weight:800;">Just ${dateLabel}</div>
-      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Temporary fill-in — covers this date only, doesn't change the weekly schedule.</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.65);margin-bottom:16px;">Fill in for ${dateLabel} — choose your role for this date.</div>
+    <button onclick="document.getElementById('takeSlotChoice').remove();_assignSlot(${shiftIdx},${dayIdx},'primary')" style="width:100%;text-align:left;background:linear-gradient(180deg,rgba(230,196,99,.22),rgba(230,196,99,.1));border:1px solid rgba(230,196,99,.45);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;">
+      <div style="font-size:15px;font-weight:800;color:#e6c463;">Take as Primary</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Covers ${dateLabel} only as the primary dispatcher.</div>
     </button>
-    <button onclick="document.getElementById('takeSlotChoice').remove();_assignSlot(${shiftIdx},${dayIdx},'longterm')" style="width:100%;text-align:left;background:linear-gradient(180deg,rgba(230,196,99,.22),rgba(230,196,99,.1));border:1px solid rgba(230,196,99,.45);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;">
-      <div style="font-size:15px;font-weight:800;color:#e6c463;">Every week (long-term)</div>
-      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Makes this your recurring slot — yours every week until someone else takes it.</div>
+    <button onclick="document.getElementById('takeSlotChoice').remove();_assignSlot(${shiftIdx},${dayIdx},'secondary')" style="width:100%;text-align:left;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;">
+      <div style="font-size:15px;font-weight:800;">Take as Secondary</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Covers ${dateLabel} only as the secondary dispatcher.</div>
     </button>
     <button onclick="document.getElementById('takeSlotChoice').remove()" style="width:100%;background:transparent;border:none;color:rgba(255,255,255,.6);font-size:14px;font-weight:700;padding:10px;cursor:pointer;font-family:inherit;">Cancel</button>
   </div>`;
   document.body.appendChild(ov);
 }
-// Apply the chosen assignment.
+// Apply the chosen assignment — both Primary and Secondary are date-only fill-ins
+// (long-term recurring changes are done via the pencil edit).
 function _assignSlot(shiftIdx, dayIdx, mode){
   const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return;
   const recur=row.slots[dayIdx]; if(!recur) return;
   const myLabel=_myScheduleLabel();
-  if(mode==='longterm'){
-    DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx]={ p:myLabel, s:recur.s||'OPEN' };
-    STATE.dispatchSchedule=DISPATCH_SCHEDULE.map(r=>({shift:r.shift, slots:[...r.slots]}));
-    save(); pushScheduleToFirestore(); renderSchedule();
-    showToast('✅ Slot is yours — every week');
+  const dateStr=_schedDateFor(dayIdx);
+  STATE.schedOverrides=STATE.schedOverrides||{};
+  STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
+  const cur=STATE.schedOverrides[dateStr][shiftIdx]||{};
+  const curP=(cur.p)||recur.p||'OPEN';
+  const curS=(cur.s)||recur.s||'OPEN';
+  if(mode==='secondary'){
+    STATE.schedOverrides[dateStr][shiftIdx]={ p:curP, s:myLabel, by:SESSION.unit, at:Date.now() };
+    showToast('✅ Secondary for '+_schedDateLabel(dayIdx));
   } else {
-    const dateStr=_schedDateFor(dayIdx);
-    STATE.schedOverrides=STATE.schedOverrides||{};
-    STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
-    const curS=(STATE.schedOverrides[dateStr][shiftIdx]&&STATE.schedOverrides[dateStr][shiftIdx].s)||recur.s||'OPEN';
     STATE.schedOverrides[dateStr][shiftIdx]={ p:myLabel, s:curS, by:SESSION.unit, at:Date.now() };
-    save(); pushScheduleToFirestore(); renderSchedule();
-    showToast('✅ Covering '+_schedDateLabel(dayIdx)+' only');
+    showToast('✅ Primary for '+_schedDateLabel(dayIdx));
   }
+  save(); pushScheduleToFirestore(); renderSchedule();
 }
 // Remove a temporary fill-in (revert that date back to the recurring schedule).
 function clearSlotOverride(shiftIdx, dayIdx){
@@ -12490,6 +12581,18 @@ function showEqConflictWarning(it, intendedAction) {
   showModal('eqConflictModal');
 }
 
+// Auto-fill helper: the call number a given unit is CURRENTLY assigned to (open/active),
+// so equipment checkout pre-fills it. Returns '' if the unit isn't on a live call.
+function _currentCallNumForUnit(unit){
+  const u=String(unit||'').replace(/^BC-?/i,'').trim();
+  if(!u) return '';
+  const live=(STATE.calls||[]).filter(c=>(c.status==='open'||c.status==='active')
+    && (c.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===u));
+  if(!live.length) return '';
+  // Assigned to more than one live call → ambiguous, leave blank for manual entry.
+  if(live.length>1) return '';
+  return live[0].callNum!=null ? String(live[0].callNum) : '';
+}
 function coMemberName(unit){
   const u=String(unit||'').replace(/^BC-?/i,'').trim();
   if(!u) return '';
@@ -12503,6 +12606,9 @@ function updateCoModalForNote(){
   if(!note) return;
   const myUnit = (SESSION && SESSION.unit ? String(SESSION.unit) : '').replace(/^BC-?/i,'').trim();
   const val=(sel?.value||'').trim();
+  // Re-fill the call number from whichever unit is actually taking the item out.
+  const _callField=document.getElementById('coModalCall');
+  if(_callField){ _callField.value=_currentCallNumForUnit(val||myUnit); }
   if(val && val!==myUnit){
     note.style.display='block';
     note.innerHTML='📝 This will log as BC-'+val+', recorded by BC-'+myUnit;
@@ -12566,7 +12672,9 @@ function openCheckout(row, defaultAction) {
     return;
   }
   coModalItems=it?[it]:[];
-  document.getElementById('coModalCall').value='';
+  // Auto-fill the call number from the call this member is currently assigned to (open/active).
+  // Blank if they're not on a live call. Based on the logged-in unit (the person taking it out).
+  document.getElementById('coModalCall').value = _currentCallNumForUnit(SESSION && SESSION.unit);
   // Hide Call Number for COBC 4 — shifts replace call numbers for the car
   var hasCarItem = it && isCarItem(it.name);
   var callGroup = document.getElementById('coModalCallGroup');
