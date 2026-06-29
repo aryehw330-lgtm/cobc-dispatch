@@ -466,17 +466,18 @@ textarea.input{min-height:80px;resize:vertical;}
 .number-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#fff;border-radius:var(--radius-sm);margin-bottom:6px;box-shadow:var(--shadow);}
 .number-call-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
 
-/* ── MORE PAGE ACCORDION (glassy, per-category color) ── */
-.more-acc{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
-.more-acc-item{border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);box-shadow:0 4px 14px rgba(0,0,0,.18);}
-.more-acc-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 16px;border:none;background:transparent;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;text-align:left;text-shadow:0 1px 2px rgba(0,0,0,.4);}
-.more-acc-head .mah-left{display:flex;align-items:center;gap:11px;min-width:0;}
-.more-acc-head .mah-ico{font-size:19px;}
-.more-acc-arrow{transition:transform .25s;opacity:.85;font-size:13px;flex-shrink:0;}
-.more-acc-item.open .more-acc-arrow{transform:rotate(180deg);}
-.more-acc-panel{display:none;background:rgba(255,255,255,.04);}
-.more-acc-item.open .more-acc-panel{display:block;}
-.more-acc-panel-inner{padding:12px 14px 14px;}
+/* ── MORE PAGE SUB-TABS (glassy, per-category color) ── */
+#more-sub-tabs{gap:7px;padding-bottom:4px;}
+#more-sub-tabs .sub-tab{border-radius:11px;border:1px solid rgba(255,255,255,.16);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);color:#fff;font-weight:700;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.35);box-shadow:0 3px 10px rgba(0,0,0,.16);}
+#more-sub-tabs .sub-tab:nth-child(1){background:linear-gradient(160deg,rgba(37,99,235,.30),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab:nth-child(2){background:linear-gradient(160deg,rgba(13,148,136,.30),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab:nth-child(3){background:linear-gradient(160deg,rgba(124,58,237,.30),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab:nth-child(4){background:linear-gradient(160deg,rgba(212,169,58,.30),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab:nth-child(5){background:linear-gradient(160deg,rgba(100,116,139,.34),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab:nth-child(6){background:linear-gradient(160deg,rgba(22,163,74,.30),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab:nth-child(7){background:linear-gradient(160deg,rgba(234,88,12,.30),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab:nth-child(8){background:linear-gradient(160deg,rgba(8,145,178,.30),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab.active{border-color:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(255,255,255,.4),inset 0 1px 0 rgba(255,255,255,.25);}
 /* ── DISPATCH ON-DUTY BANNER ── */
 .on-duty-banner{background:linear-gradient(135deg,rgba(212,169,58,.2),rgba(18,15,9,.7));-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(230,196,99,.4);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;color:#fff;display:flex;justify-content:flex-start;align-items:center;gap:14px;width:fit-content;max-width:100%;}
 .home-top-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
@@ -1327,7 +1328,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="page hidden" id="page-more">
       <div class="section-header"><div class="section-title" id="page-more-title">Admin</div></div>
       <div id="adminMgmtBtnWrap" style="display:none;margin-bottom:12px;"></div>
-      <div class="sub-tabs" id="more-sub-tabs" style="display:none;">
+      <div class="sub-tabs" id="more-sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;">
         <button class="sub-tab member-allowed" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
         <button class="sub-tab member-allowed" onclick="setMoreTab('history',this)">📅 Call History</button>
         <button class="sub-tab member-allowed" onclick="setMoreTab('stats',this)">📊 My Stats</button>
@@ -1337,7 +1338,6 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('equipment',this)">📦 Equipment</button>
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('vehicles',this)">🚐 Vehicles</button>
       </div>
-      <div id="moreAccordion" class="more-acc"></div>
       <!-- SETTINGS (notifications, location, app prefs) -->
       <div id="more-settings" style="display:none;">
         <div class="section-label">App Settings</div>
@@ -6996,6 +6996,35 @@ function confirmRespond() {
 
 // ── Dispatcher approves a pending responder ──
 
+// Member requests to come OFF a call (needs dispatch approval).
+function requestWithdraw(id){
+  const call=STATE.calls.find(c=>c.id===id); if(!call) return;
+  const myU=String(SESSION.unit||'').replace(/^BC-?/i,'').trim();
+  const r=(call.responders||[]).find(x=>String(x.unit||'').replace(/^BC-?/i,'').trim()===myU);
+  if(!r){ showToast('You are not on this call'); return; }
+  if(r.withdrawRequested){ showToast('Already requested'); return; }
+  r.withdrawRequested=true; r.withdrawAt=Date.now();
+  save(); firestoreUpsertCall(call);
+  try{ renderCallDetail(id); }catch(e){}
+  renderCalls(); renderHome();
+  showToast('Request sent to dispatch');
+  const _lbl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:`✕ BC-${myU} wants OFF Call #${call.callNum||''}`,body:`${_lbl} — ${fmtLoc(call)} · approve to remove them`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+}
+// Dispatch approves the withdrawal — removes the responder from the call.
+function approveWithdraw(callId, unit){
+  if(!['admin','dispatch'].includes(SESSION.role)){ showToast('Dispatch/Admin only'); return; }
+  const call=STATE.calls.find(c=>c.id===callId); if(!call) return;
+  const u=String(unit||'').replace(/^BC-?/i,'').trim();
+  call.responders=(call.responders||[]).filter(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()!==u);
+  if(!call.responders.length && !(call.pendingResponders||[]).length) call.status='open';
+  logCallEvent(call,'responder_removed',{responder:unit,removedBy:SESSION.unit,viaWithdrawal:true});
+  save(); firestoreUpsertCall(call);
+  try{ renderCallDetail(callId); }catch(e){}
+  renderCalls(); renderHome();
+  showToast('✅ BC-'+u+' removed from call');
+  setTimeout(()=>{ try{ sendPush({target:'unit',unit:u,title:'✓ Off the call',body:`Dispatch confirmed — you're no longer on Call #${call.callNum||''}.`,url:'/cobc-dispatch/'}); }catch(e){} },0);
+}
 function removeApprovedResponder(callId, unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
@@ -7590,11 +7619,12 @@ function openCallDetail(id) {
       const etaColor=liveEta!=null?(liveEta<=3?'var(--green)':liveEta<=7?'var(--amber)':'var(--text2)'):'';
       html+=`<div class="responder-row">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:14px;font-weight:700;">BC-${unitKey} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}</div>
+          <div style="font-size:14px;font-weight:700;">BC-${unitKey} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}${r.withdrawRequested?' <span style="font-size:10px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.14);border-radius:5px;padding:1px 6px;">WANTS OFF</span>':''}</div>
           <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${(r.vehicles&&r.vehicles.length)?` · 🚚 ${r.vehicles.join(', ')}`:''}${r.notes?` · ${r.notes}`:''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
           ${_onDispatchTab&&liveEta!=null?`<span style="font-size:13px;font-weight:800;padding:6px 10px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};white-space:nowrap;">🚗 ${liveEta}m</span>`:''}
+          ${(isDispatch&&r.withdrawRequested)?`<button onclick="approveWithdraw('${id}','${r.unit}')" style="background:var(--amber);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer;min-height:36px;white-space:nowrap;">✓ Approve off</button>`:''}
           ${phone?`<button class="responder-call-btn" onclick="openResponderContact('${id}','${unitKey}')">📞</button>`:''}
           ${isDispatch?`<button onclick="removeApprovedResponder('${id}','${r.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;min-height:36px;">✕</button>`:''}
         </div>
@@ -7626,10 +7656,22 @@ function openCallDetail(id) {
   const _iAmOnCall=(call.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
   const _canActOnCall = isDispatch || (call.status==='active' && _iAmOnCall);
   if(call.phone && _canActOnCall) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
-  if(_canActOnCall && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
+  if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
+  if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Re-alert Group</button>`;
   if(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
-  if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
+  if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled'){
+    const _myResp=(call.responders||[]).find(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
+    if(_myResp){
+      if(_myResp.withdrawRequested){
+        html+=`<button class="btn-sm" style="background:rgba(217,119,6,.15);color:var(--amber);font-weight:700;" disabled>⏳ Withdrawal pending</button>`;
+      } else {
+        html+=`<button class="btn-sm btn-danger" onclick="requestWithdraw('${id}')">✕ Not Responding</button>`;
+      }
+    } else {
+      html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
+    }
+  }
   if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Navigation</button>`;
   // Share my location — for approved responders who are on their way
   const _iAmApprovedDetail = (call.responders||[]).some(r=>String(r.unit)===String(SESSION.unit));
@@ -7963,12 +8005,83 @@ function saveCallEdit() {
 
 // ── CALL COMPLETE WITH CC/CNC ──
 function openCompleteModal(id) {
+  const _c=STATE.calls.find(c=>c.id===id);
+  // Completing an OPEN call → ask who responded first (multi-select), since an open
+  // call may have no one formally assigned yet. Active calls skip this (responders known).
+  if(_c && _c.status==='open'){
+    hideModal('callDetailModal');
+    openWhoResponded(id);
+    return;
+  }
   document.getElementById('completeCallId').value=id;
   document.getElementById('completeOutcome').value='CC';
   document.getElementById('completeNote').value='';
   document.getElementById('completeNotes').value='';
   document.getElementById('completeNoteGroup').style.display='none';
   hideModal('callDetailModal');
+  showModal('callCompleteModal');
+}
+// "Who responded?" multi-select popup, shown when completing an open call.
+let _whoRespondedSel=[];
+function openWhoResponded(id){
+  const call=STATE.calls.find(c=>c.id===id); if(!call) return;
+  // Pre-select anyone already on the call
+  _whoRespondedSel=(call.responders||[]).map(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()).filter(Boolean);
+  const existing=document.getElementById('whoRespondedModal'); if(existing) existing.remove();
+  const ov=document.createElement('div');
+  ov.id='whoRespondedModal';
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:#16140d;border:1px solid rgba(255,255,255,.15);border-radius:18px 18px 0 0;width:100%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;padding:18px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.5);">
+    <div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:3px;">Who responded?</div>
+    <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:12px;">Select everyone who handled this call — you can pick more than one.</div>
+    <input id="whoRespSearch" type="text" placeholder="Search members…" oninput="renderWhoResponded()" style="width:100%;padding:11px 13px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(255,255,255,.06);color:#fff;font-size:14px;font-family:inherit;margin-bottom:10px;box-sizing:border-box;"/>
+    <div id="whoRespList" style="flex:1;overflow-y:auto;margin-bottom:12px;-webkit-overflow-scrolling:touch;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="document.getElementById('whoRespondedModal').remove();showModal('callDetailModal')" style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:11px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button onclick="confirmWhoResponded('${id}')" style="flex:2;background:var(--green);border:none;color:#fff;border-radius:11px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Continue →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  renderWhoResponded();
+}
+function renderWhoResponded(){
+  const q=(document.getElementById('whoRespSearch')?.value||'').trim().toLowerCase();
+  const list=document.getElementById('whoRespList'); if(!list) return;
+  let mems=(STATE.members||[]).slice();
+  mems.sort((a,b)=>(parseInt(String(a.unit).replace(/\D/g,''),10)||0)-(parseInt(String(b.unit).replace(/\D/g,''),10)||0));
+  if(q) mems=mems.filter(m=>{ const u=String(m.unit||'').toLowerCase(); const nm=((m.first||m.firstName||'')+' '+(m.last||m.lastName||'')).toLowerCase(); return u.includes(q)||nm.includes(q); });
+  list.innerHTML=mems.slice(0,300).map(m=>{
+    const u=String(m.unit||'').replace(/^BC-?/i,'').trim();
+    const nm=((m.first||m.firstName||'')+' '+(m.last||m.lastName||'')).trim();
+    const on=_whoRespondedSel.includes(u);
+    return `<div onclick="toggleWhoResp('${u}')" style="display:flex;align-items:center;gap:11px;padding:11px 12px;margin-bottom:6px;border-radius:10px;cursor:pointer;background:${on?'rgba(34,197,94,.18)':'rgba(255,255,255,.05)'};border:1px solid ${on?'var(--green)':'rgba(255,255,255,.12)'};">
+      <div style="width:22px;height:22px;border-radius:6px;border:2px solid ${on?'var(--green)':'rgba(255,255,255,.3)'};background:${on?'var(--green)':'transparent'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;">${on?'✓':''}</div>
+      <div style="color:#fff;font-size:14px;font-weight:700;">BC-${u}${nm?' · '+nm:''}</div>
+    </div>`;
+  }).join('')||'<div style="color:rgba(255,255,255,.5);font-size:13px;padding:10px;">No members found.</div>';
+}
+function toggleWhoResp(u){
+  const i=_whoRespondedSel.indexOf(u);
+  if(i>-1) _whoRespondedSel.splice(i,1); else _whoRespondedSel.push(u);
+  renderWhoResponded();
+}
+function confirmWhoResponded(id){
+  const call=STATE.calls.find(c=>c.id===id); if(!call) return;
+  call.responders=call.responders||[];
+  _whoRespondedSel.forEach(u=>{
+    if(call.responders.some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===u)) return;
+    const m=(STATE.members||[]).find(x=>String(x.unit||'').replace(/^BC-?/i,'').trim()===u);
+    const nm=m?((m.first||m.firstName||'')+' '+(m.last||m.lastName||'')).trim():'';
+    call.responders.push({unit:u, name:nm, phone:(m&&m.phone)||'', eta:'', via:'retro', status:'approved', time:Date.now()});
+  });
+  const modal=document.getElementById('whoRespondedModal'); if(modal) modal.remove();
+  // Proceed to the normal complete modal
+  document.getElementById('completeCallId').value=id;
+  document.getElementById('completeOutcome').value='CC';
+  document.getElementById('completeNote').value='';
+  document.getElementById('completeNotes').value='';
+  document.getElementById('completeNoteGroup').style.display='none';
   showModal('callCompleteModal');
 }
 function confirmCompleteCall() {
@@ -8846,6 +8959,30 @@ function shareDispatchWA(id) {
   if(!call) return;
   openWA(buildDispatchWhatsApp(call));
 }
+// Manual re-alert (dispatch/admin only) — re-broadcasts an open/active call to the
+// WhatsApp group + push, the same payload as a new call. Use to nudge the group.
+function resendCallAlert(id, btn) {
+  if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Dispatch/Admin only'); return; }
+  const call=STATE.calls.find(c=>c.id===id);
+  if(!call) { showToast('Call not found'); return; }
+  if(!(call.status==='open')) { showToast('Only open calls'); return; }
+  const _typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  // How long the call has been waiting (since it was created)
+  const _waitMin = call.createdAt ? Math.max(0, Math.round((Date.now()-call.createdAt)/60000)) : null;
+  const _waitStr = _waitMin==null ? '' : (_waitMin>=60 ? Math.floor(_waitMin/60)+'h '+(_waitMin%60)+'m' : _waitMin+' min');
+  const _waitTag = _waitStr ? ` · waiting ${_waitStr}` : '';
+  const _waMsg = buildDispatchWhatsApp(call) + (_waitStr ? `\n\n⏳ Waiting ${_waitStr} — still needs a unit` : '');
+  if(btn){ btn.disabled=true; const _o=btn.innerHTML; btn.innerHTML='📢 Sent'; setTimeout(()=>{ btn.disabled=false; btn.innerHTML=_o; }, 2500); }
+  setTimeout(()=>sendPush({
+    target:'all',
+    title:`📢 Still needs a unit — Call #${call.callNum||''}`,
+    body:`${_typeLabel} — ${fmtLoc(call)}${_waitTag}`,
+    url:'/cobc-dispatch/', callId:call.id,
+    waChat: WA_GROUP_ID,
+    waText: _waMsg
+  }), 50);
+  showToast(_waitStr ? `📢 Re-alerted — waiting ${_waitStr}` : '📢 Re-alerted the group');
+}
 
 // ── Lazy tab render ──────────────────────────────────────────────────────────
 // Marks a tab dirty so it re-renders ONLY when the user actually visits it,
@@ -9468,71 +9605,11 @@ function goAdmin(subtab) {
   else if(typeof setAdminTab==='function') setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
 }
 function setMoreTab(tab,el) {
-  buildMoreAccordion();
-  const item=document.getElementById('moreacc-'+tab);
-  if(item){
-    document.querySelectorAll('#moreAccordion .more-acc-item.open').forEach(x=>x.classList.remove('open'));
-    item.classList.add('open');
-  }
-  _renderMoreSection(tab);
-}
-// Per-category glassy accordion config (color = "r,g,b")
-const MORE_ACC_CATS = [
-  {id:'numbers',   icon:'☎️', label:'Important Numbers',  c:'37,99,235',  gate:'member'},
-  {id:'history',   icon:'📅', label:'Call History',       c:'13,148,136', gate:'member'},
-  {id:'stats',     icon:'📊', label:'My Stats',           c:'124,58,237', gate:'member'},
-  {id:'adminstats',icon:'📈', label:'Admin Stats',        c:'212,169,58', gate:'strict'},
-  {id:'settings',  icon:'⚙️', label:'Settings',           c:'100,116,139',gate:'member'},
-  {id:'schedule',  icon:'📅', label:'Dispatch Schedule',  c:'22,163,74',  gate:'adminonly'},
-  {id:'equipment', icon:'📦', label:'Equipment',          c:'234,88,12',  gate:'strict'},
-  {id:'vehicles',  icon:'🚐', label:'Vehicles',           c:'8,145,178',  gate:'strict'},
-];
-let _moreAccBuilt=false;
-function buildMoreAccordion(){
-  const host=document.getElementById('moreAccordion');
-  if(!host){ return; }
-  if(_moreAccBuilt){ applyMoreAccGating(); return; }
-  MORE_ACC_CATS.forEach(cat=>{
-    const content=document.getElementById('more-'+cat.id);
-    if(!content) return;
-    const item=document.createElement('div');
-    item.className='more-acc-item'; item.id='moreacc-'+cat.id;
-    item.style.background='linear-gradient(160deg,rgba('+cat.c+',.22),rgba(18,18,22,.55))';
-    item.style.borderColor='rgba('+cat.c+',.42)';
-    const head=document.createElement('button');
-    head.className='more-acc-head'; head.type='button';
-    head.onclick=()=>toggleMoreAcc(cat.id);
-    head.innerHTML='<span class="mah-left"><span class="mah-ico">'+cat.icon+'</span><span>'+cat.label+'</span></span><span class="more-acc-arrow">▾</span>';
-    const panel=document.createElement('div'); panel.className='more-acc-panel';
-    const inner=document.createElement('div'); inner.className='more-acc-panel-inner';
-    content.style.display='';           // clear inline display:none now that the panel controls visibility
-    inner.appendChild(content);         // relocate existing section into the panel (preserves its id + handlers)
-    panel.appendChild(inner);
-    item.appendChild(head); item.appendChild(panel);
-    host.appendChild(item);
+  ['numbers','stats','adminstats','settings','schedule','equipment','vehicles','history'].forEach(t=>{
+    const e=document.getElementById(`more-${t}`); if(e) e.style.display=t===tab?'':'none';
   });
-  _moreAccBuilt=true;
-  applyMoreAccGating();
-}
-function applyMoreAccGating(){
-  const role=(typeof SESSION!=='undefined' && SESSION && SESSION.role)||'member';
-  MORE_ACC_CATS.forEach(cat=>{
-    const item=document.getElementById('moreacc-'+cat.id);
-    if(!item) return;
-    let show=true;
-    if(cat.gate==='strict')        show=(role==='admin');
-    else if(cat.gate==='adminonly')show=(role!=='member'&&role!=='observer');
-    item.style.display=show?'':'none';
-  });
-}
-function toggleMoreAcc(id){
-  const item=document.getElementById('moreacc-'+id);
-  if(!item) return;
-  const wasOpen=item.classList.contains('open');
-  document.querySelectorAll('#moreAccordion .more-acc-item.open').forEach(x=>x.classList.remove('open'));
-  if(!wasOpen){ item.classList.add('open'); _renderMoreSection(id); }
-}
-function _renderMoreSection(tab){
+  document.querySelectorAll('#page-more .sub-tab').forEach(x=>x.classList.remove('active'));
+  if(el) el.classList.add('active');
   if(tab==='stats')    initStats();
   if(tab==='adminstats') renderAdminStats();
   if(tab==='schedule') renderSchedule();
