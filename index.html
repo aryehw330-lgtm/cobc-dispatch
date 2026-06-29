@@ -2149,13 +2149,13 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <!-- URGENT toggle (replaces priority dropdown) -->
-    <div id="urgentToggleRow" onclick="toggleUrgent()" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;margin-bottom:14px;border-radius:12px;background:var(--border2);border:1.5px solid transparent;cursor:pointer;transition:background .15s,border-color .15s;">
-      <div style="display:flex;flex-direction:column;gap:1px;">
-        <span id="urgentToggleLabel" style="font-size:14px;font-weight:700;color:var(--text);">Normal Call</span>
-        <span style="font-size:11px;color:var(--text2);">Tap to mark this call URGENT</span>
+    <div id="urgentToggleRow" onclick="toggleUrgent()" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px;margin-bottom:14px;border-radius:12px;background:var(--border2);border:1.5px solid transparent;cursor:pointer;transition:background .15s,border-color .15s;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;">
+        <span id="urgentToggleLabel" style="font-size:15px;font-weight:800;color:var(--text);">🚨 Mark as URGENT</span>
+        <span id="urgentToggleSub" style="font-size:11px;color:var(--text2);">tap switch →</span>
       </div>
-      <span id="urgentToggle" role="switch" aria-checked="false" style="flex-shrink:0;width:48px;height:28px;border-radius:999px;background:var(--border);position:relative;display:inline-block;transition:background .15s;">
-        <span id="urgentToggleKnob" style="position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s;"></span>
+      <span id="urgentToggle" role="switch" aria-checked="false" style="flex-shrink:0;width:54px;height:32px;border-radius:999px;background:var(--border);position:relative;display:inline-block;transition:background .15s;border:1.5px solid rgba(0,0,0,.12);">
+        <span id="urgentToggleKnob" style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s;"></span>
       </span>
     </div>
     <input type="hidden" id="callPriority" value="normal"/>
@@ -3120,6 +3120,7 @@ async function initFirebaseApp() {
       _syncStarted = true;
       try { initFirestore(); } catch(e){ console.warn('initFirestore:', e); }
       try { subscribeScheduleFromFirestore(); } catch(e){ console.warn('subscribeSchedule:', e); }
+      try { subscribeNumbersFromFirestore(); } catch(e){ console.warn('subscribeNumbers:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -3878,7 +3879,9 @@ function setUrgentToggle(on){
   const lbl=document.getElementById('urgentToggleLabel');
   if(sw){ sw.setAttribute('aria-checked', on?'true':'false'); sw.style.background= on?'var(--red)':'var(--border)'; }
   if(knob){ knob.style.transform= on?'translateX(20px)':'translateX(0)'; }
-  if(lbl){ lbl.textContent= on?'🚨 URGENT Call':'Normal Call'; }
+  if(lbl){ lbl.textContent= on?'🚨 URGENT Call':'🚨 Mark as URGENT'; }
+  const sub=document.getElementById('urgentToggleSub');
+  if(sub){ sub.textContent= on?'on — alerts as urgent':'tap switch →'; }
   if(row){ row.style.background= on?'rgba(220,38,38,.12)':'var(--border2)'; row.style.borderColor= on?'var(--red)':'transparent'; }
 }
 
@@ -5496,6 +5499,7 @@ function renderPendingRespondersBanner(targetEl) {
       if(call.status==='done' || call.status==='draft') return;
       (call.pendingResponders||[]).forEach(r => pendingItems.push({call, responder:r}));
       (call.pendingBackups||[]).forEach(b => pendingItems.push({call, backup:b}));
+      (call.responders||[]).forEach(r => { if(r.withdrawRequested) pendingItems.push({call, withdraw:r}); });
       if(call.completionRequest) pendingItems.push({call, completion:call.completionRequest});
     });
   }
@@ -5539,6 +5543,16 @@ function renderPendingRespondersBanner(targetEl) {
             </div>
             <button onclick="approveCallCompletion('${call.id}')" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✓ Approve</button>
             <button onclick="denyCallCompletion('${call.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">✕</button>
+          </div>`;
+        }
+        if(item.withdraw){
+          const w=item.withdraw;
+          return `<div style="background:rgba(217,119,6,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);">✕ BC-${String(w.unit||'').replace(/^BC-?/i,'')} ${w.name||''} wants OFF the call</div>
+              <div style="font-size:11px;color:rgba(255,255,255,.7);">(#${call.callNum||''}) at ${fmtLoc(call)}</div>
+            </div>
+            <button onclick="approveWithdraw('${call.id}','${w.unit}')" style="background:var(--amber);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;white-space:nowrap;">✓ Approve off</button>
           </div>`;
         }
         if(item.backup){
@@ -7994,6 +8008,9 @@ function saveCallEdit() {
   if(['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'].includes(call.type)){
     const car=readEditCar();
     call.carMake=car.carMake; call.carModel=car.carModel; call.carYear=car.carYear; call.carColor=car.carColor;
+  } else {
+    // Switched to a non-car type — clear stale car info so it doesn't linger on the card
+    delete call.carMake; delete call.carModel; delete call.carYear; delete call.carColor;
   }
   // Save no-spare action (only if type is flat_tire_no_spare)
   if(call.type==='flat_tire_no_spare') {
@@ -9566,7 +9583,7 @@ function renderNumbers() {
 function deleteNumber(id) {
   if(!confirm('Delete this number?')) return;
   STATE.numbers = (STATE.numbers||[]).filter(n => n.id !== id);
-  save(); renderNumbers(); showToast('Number deleted');
+  save(); pushNumbersToFirestore(); renderNumbers(); showToast('Number deleted');
 }
 function editNumber(id) {
   const n = (STATE.numbers||[]).find(x=>x.id===id);
@@ -9609,7 +9626,7 @@ function saveEditNumber(id) {
   const dispatchOnly = document.getElementById('editNumDispatchOnly').checked;
   if(!label||!phone){ showToast('Label and phone required'); return; }
   STATE.numbers = (STATE.numbers||[]).map(n=> n.id===id ? {...n,label,phone,category,memberVisible,dispatchOnly} : n);
-  save(); renderNumbers(); document.getElementById('editNumberModal').remove(); showToast('✅ Number updated');
+  save(); pushNumbersToFirestore(); renderNumbers(); document.getElementById('editNumberModal').remove(); showToast('✅ Number updated');
 }
 function addNumber() {
   const label=document.getElementById('numLabel').value.trim();
@@ -9620,7 +9637,7 @@ function addNumber() {
   if(!label||!phone) { showToast('Label and phone required'); return; }
   STATE.numbers=STATE.numbers||[];
   STATE.numbers.push({id:'N'+Date.now(),label,phone,category:cat,memberVisible,dispatchOnly});
-  save(); renderNumbers(); document.getElementById('numLabel').value=''; document.getElementById('numPhone').value=''; showToast('✅ Number added');
+  save(); pushNumbersToFirestore(); renderNumbers(); document.getElementById('numLabel').value=''; document.getElementById('numPhone').value=''; showToast('✅ Number added');
 }
 
 // ──────────────────────────────────────────────
@@ -10781,6 +10798,32 @@ function pushScheduleToFirestore() {
       updatedBy: (typeof SESSION!=='undefined' && SESSION) ? SESSION.unit : null
     });
   } catch(e) { console.warn('pushScheduleToFirestore failed:', e); }
+}
+// ── Important Numbers sync (shared across all devices) ──
+function pushNumbersToFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return Promise.resolve();
+    return firebase.firestore().collection('config').doc('numbers').set({
+      numbers: STATE.numbers || [],
+      updatedAt: Date.now(),
+      updatedBy: (typeof SESSION!=='undefined' && SESSION) ? SESSION.unit : null
+    });
+  } catch(e) { console.warn('pushNumbersToFirestore failed:', e); }
+}
+let _numbersRemoteApplied = false;
+function subscribeNumbersFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('config').doc('numbers').onSnapshot(doc => {
+      if(!doc.exists) return;
+      const data = doc.data();
+      if(!data || !Array.isArray(data.numbers)) return;
+      STATE.numbers = data.numbers;
+      _numbersRemoteApplied = true;
+      try { save&&save(); } catch(e){}
+      try { if(typeof renderNumbers==='function' && document.getElementById('numbersList')) renderNumbers(); } catch(e){}
+    }, err => console.warn('numbers snapshot error:', err));
+  } catch(e) { console.warn('subscribeNumbersFromFirestore failed:', e); }
 }
 
 // Build the schedule label for the current user, matching the member-dropdown format
