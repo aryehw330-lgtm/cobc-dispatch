@@ -1632,6 +1632,15 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
           <div id="st-compare-result"></div>
         </div>
+        <!-- LEADERBOARD (own tab) -->
+        <div id="st-leaderboard" style="display:none;">
+          <div class="stats-search-bar" style="margin-bottom:10px;">
+            <span style="color:var(--text3);">🔍</span>
+            <input type="text" id="lbSearch" placeholder="Search member by name or BC #…" oninput="renderAdminLeaderboard('lbYearSel','lbList','lbSearch')" style="flex:1;border:none;background:none;outline:none;font-size:14px;font-family:inherit;color:var(--text);"/>
+          </div>
+          <div id="lbYearSel" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+          <div id="lbList"></div>
+        </div>
         </div><!-- /more-stats-legacy -->
       </div>
       <!-- ADMIN STATS (admin-only): live stats site + detailed per-call log -->
@@ -1659,9 +1668,6 @@ textarea.input{min-height:80px;resize:vertical;}
         <input id="adminMemberSearch" type="text" placeholder="Search by BC # or name…" oninput="adminSearchMember(this.value)" style="width:100%;padding:11px 14px;border:1px solid rgba(230,196,99,.3);border-radius:10px;background:rgba(255,255,255,.06);color:#fff;font-size:14px;font-family:inherit;margin-bottom:8px;box-sizing:border-box;"/>
         <div id="adminMemberResults" style="margin-bottom:8px;"></div>
         <div id="adminMemberCard" style="margin-bottom:20px;"></div>
-        <div class="section-label">Member Leaderboard</div>
-        <div id="adminLbYearSel" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
-        <div id="adminLbList" style="margin-bottom:20px;"></div>
       </div>
       <div id="more-schedule" style="display:none;">
         <!-- On-Duty Now banner -->
@@ -4575,7 +4581,7 @@ function initFirestore(){
     try{_unsubReset&&_unsubReset();}catch(e){}
   };
   // Cloud-first stats: pull the historical snapshot from Firestore if it's been uploaded.
-  try{ loadStatsFromCloud(); }catch(e){}
+  try{ loadStatsFromCloud().then(()=>{ try{ _autoFreezePastYears(); }catch(e){} }); }catch(e){}
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
@@ -9716,9 +9722,9 @@ function _liveCountsByYear(year){
   });
   return out;
 }
-function renderAdminLeaderboard(){
-  const sel=document.getElementById('adminLbYearSel');
-  const list=document.getElementById('adminLbList');
+function renderAdminLeaderboard(selId, listId, searchId){
+  const sel=document.getElementById(selId||'adminLbYearSel');
+  const list=document.getElementById(listId||'adminLbList');
   if(!list) return;
   // Populate the freeze-year dropdown with years that have app calls
   const fySel=document.getElementById('adminFreezeYear');
@@ -9733,7 +9739,7 @@ function renderAdminLeaderboard(){
   if(sel){
     sel.innerHTML=['all',...years].map(y=>{
       const on=_adminLbYear===y; const lbl=y==='all'?'All-Time':y;
-      return `<button onclick="_adminLbYear='${y}';renderAdminLeaderboard()" style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;border:1px solid ${on?'var(--gold-light,#e6c463)':'rgba(230,196,99,.3)'};background:${on?'linear-gradient(180deg,rgba(230,196,99,.34),rgba(212,169,58,.24))':'rgba(255,255,255,.06)'};color:#fff;">${lbl}</button>`;
+      return `<button onclick="_adminLbYear='${y}';renderAdminLeaderboard('${selId||'adminLbYearSel'}','${listId||'adminLbList'}','${searchId||''}')" style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;border:1px solid ${on?'var(--gold-light,#e6c463)':'rgba(230,196,99,.3)'};background:${on?'linear-gradient(180deg,rgba(230,196,99,.34),rgba(212,169,58,.24))':'rgba(255,255,255,.06)'};color:#fff;">${lbl}</button>`;
     }).join('');
   }
   const tot={};
@@ -9747,10 +9753,15 @@ function renderAdminLeaderboard(){
   const live=_liveCountsByYear(_adminLbYear);
   Object.entries(live).forEach(([bc,v])=>{ const mh=_memberHist(bc); add(bc,(mh&&mh.name)||null,v.p,v.b,v.o); });
   const rows=Object.values(tot).map(r=>({...r,total:r.p+r.b+r.o})).filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
-  if(!rows.length){ list.innerHTML='<div style="color:rgba(255,255,255,.6);font-size:13px;padding:14px;">No data for this period.</div>'; return; }
+  // Optional search filter (keeps original rank numbers)
+  let ranked=rows.map((r,i)=>({...r,rank:i+1}));
+  const _q=(searchId&&document.getElementById(searchId)?document.getElementById(searchId).value:'').trim().toLowerCase();
+  if(_q){ ranked=ranked.filter(r=>String(r.bc).toLowerCase().includes(_q)||(r.name||'').toLowerCase().includes(_q)); }
+  if(!ranked.length){ list.innerHTML='<div style="color:rgba(255,255,255,.6);font-size:13px;padding:14px;">No members match.</div>'; return; }
   const mx=rows[0].total;
-  list.innerHTML=`<div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px;">${rows.length} members</div>`+rows.map((r,i)=>{
-    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`<span style="display:inline-block;width:22px;text-align:center;color:rgba(255,255,255,.5);font-weight:800;font-size:12px;">${i+1}</span>`;
+  list.innerHTML=`<div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:8px;">${ranked.length} member${ranked.length>1?'s':''}</div>`+ranked.map((r)=>{
+    const i=r.rank-1;
+    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`<span style="display:inline-block;width:22px;text-align:center;color:rgba(255,255,255,.5);font-weight:800;font-size:12px;">${r.rank}</span>`;
     const pct=(r.total/mx*100).toFixed(0);
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 11px;background:linear-gradient(160deg,rgba(212,169,58,.12),rgba(18,15,9,.5));border:1px solid rgba(230,196,99,.18);border-radius:10px;margin-bottom:6px;">
       <div style="font-size:15px;min-width:24px;text-align:center;">${medal}</div>
@@ -11242,6 +11253,54 @@ async function freezeYearToHistory(year, btn){
   }catch(e){ console.error(e); showToast("Error: "+(e.message||"freeze failed")); }
   finally{ if(btn){btn.disabled=false;btn.textContent=orig;} }
 }
+// Auto year-end freeze: admin-only, runs on load. Freezes any fully-ended year that
+// has app calls and isn't already frozen — so the year-end archival never needs a
+// manual tap. Silent (no confirm/toast); idempotent via _frozenYears.
+async function _autoFreezePastYears(){
+  try{
+    if((SESSION.role||'').toLowerCase()!=='admin') return;
+    if(!(window.firebase && _firebaseReady)) return;
+    const curY=new Date().getFullYear();
+    const yset=new Set();
+    (_allCalls()||[]).forEach(c=>{ if(c.createdAt && c.status!=='draft' && c.status!=='cancelled'){ const y=new Date(c.createdAt).getFullYear(); if(y<curY) yset.add(String(y)); } });
+    for(const y of yset){
+      if(_frozenYears.has(String(y))) continue;
+      await _freezeYearSilent(String(y));
+    }
+  }catch(e){ console.warn('autoFreeze:',e); }
+}
+// Core freeze used by both the manual button and the auto-freeze (no UI prompts).
+async function _freezeYearSilent(year){
+  const tally={};
+  (_allCalls()||[]).forEach(c=>{
+    if(c.status==='draft'||c.status==='cancelled'||!c.createdAt) return;
+    const dt=new Date(c.createdAt);
+    if(String(dt.getFullYear())!==year) return;
+    const mo=String(dt.getMonth()+1);
+    (c.responders||[]).forEach(r=>{
+      const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
+      tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
+      tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
+      const isB=r.role==='backup';
+      tally[bc].months[mo][isB?'b':'p']++;
+      tally[bc].total[isB?'b':'p']++;
+    });
+  });
+  const bcs=Object.keys(tally);
+  if(!bcs.length) return false;
+  bcs.forEach(bc=>{
+    const mh=_memberHist(bc);
+    MEMBER_STATS[bc]=MEMBER_STATS[bc]||{bc:Number(bc)||bc,name:(mh&&mh.name)||('BC-'+bc),years:{}};
+    MEMBER_STATS[bc].years=MEMBER_STATS[bc].years||{};
+    MEMBER_STATS[bc].years[year]={months:tally[bc].months,total:tally[bc].total};
+  });
+  _frozenYears.add(year);
+  const db=firebase.firestore();
+  await db.collection('statsHistory').doc('members').set({json:JSON.stringify(MEMBER_STATS),updatedAt:Date.now(),by:(SESSION.unit||'auto')});
+  await db.collection('statsHistory').doc('meta').set({frozen:[..._frozenYears],updatedAt:Date.now(),by:(SESSION.unit||'auto')});
+  console.log('Auto-froze year '+year+' ('+bcs.length+' members)');
+  return true;
+}
 // Per-member historical totals derived from MEMBER_STATS (ALL members, no top-25 limit).
 function _memberHist(bc){
   const k=String(bc).replace(/^BC-?/i,"");
@@ -11403,7 +11462,7 @@ function calcLiveStats(yr) {
   if(!done.length && !cancelled) return null;
 
   const call_types={}, monthly_total=Array(13).fill(0), dow=Array(7).fill(0), hours=Array(24).fill(0), townMap={};
-  const respMap={}, dispMap={};
+  const respMap={}, dispMap={}, dispMonth={};
 
   done.forEach(c=>{
     // type
@@ -11423,7 +11482,7 @@ function calcLiveStats(yr) {
       respMap[u].cnt++;
     });
     // dispatcher
-    if(c.dispatcher) dispMap[c.dispatcher]=(dispMap[c.dispatcher]||0)+1;
+    if(c.dispatcher){ dispMap[c.dispatcher]=(dispMap[c.dispatcher]||0)+1; (dispMonth[c.dispatcher]=dispMonth[c.dispatcher]||Array(12).fill(0))[d.getMonth()]++; }
   });
 
   const top_cities=Object.entries(townMap).sort((a,b)=>b[1]-a[1]);
@@ -11448,7 +11507,7 @@ function calcLiveStats(yr) {
     call_types, monthly_total, dow, hours, top_cities,
     top_type:topType?.[0]||'', top_type_cnt:topType?.[1]||0,
     top_r_bc:top25[0]?.[0]||'', top_r_name:top25[0]?.[5]||'', top_r_cnt:top25[0]?.[1]||0,
-    top25, top_disp, top8_disp:top_disp.slice(0,8).map(x=>x[0]), disp_by_month:[],
+    top25, top_disp, top8_disp:top_disp.slice(0,8).map(x=>x[0]), disp_by_month:top_disp.slice(0,8).map(([n])=>dispMonth[n]||Array(12).fill(0)),
     rt:{avg:rtAvg, median:0, under30, under60, count:times.length},
     _isLive:true
   };
@@ -11517,9 +11576,9 @@ const isMemberOnly = ()=>['member','observer','equipment'].includes(SESSION.role
 function buildStatsSubNav() {
   const nav=document.getElementById('statsSubNav');
   let tabs=[];
-  if (isMemberOnly())          tabs=[['mine','⭐ My Stats']];
-  else if (SESSION.role==='dispatch') tabs=[['mine','⭐ My Stats'],['dispatch','📡 My Dispatch']];
-  else                         tabs=[['mine','⭐ My Stats'],['overview','📊 Overview'],['dispatch','📡 Dispatch'],['monthly','📅 Monthly'],['members','🏆 Members'],['search','🔍 Search'],['compare','⚔️ Compare']];
+  if (isMemberOnly())          tabs=[['mine','⭐ My Stats'],['overview','📊 Overview']];
+  else if (SESSION.role==='dispatch') tabs=[['mine','⭐ My Stats'],['overview','📊 Overview'],['dispatch','📡 Dispatch']];
+  else                         tabs=[['mine','⭐ My Stats'],['overview','📊 Overview'],['dispatch','📡 Dispatch'],['monthly','📅 Monthly'],['members','🏆 Members'],['search','🔍 Search'],['compare','⚔️ Compare'],['leaderboard','🏆 Leaderboard']];
   nav.innerHTML=tabs.map(([sub,label],i)=>`<button class="sub-tab${i===0?' active':''}" onclick="setStatsSub('${sub}',this)" style="white-space:nowrap;font-size:12px;">${label}</button>`).join('');
   return tabs[0][0];
 }
@@ -11531,10 +11590,18 @@ function initStats() {
   document.getElementById('st-alltime-num').textContent = total.toLocaleString();
   document.getElementById('st-alltime-sub').textContent =
     total ? `${STATE.members.length} members · ${liveAll.cancelled||0} cancelled` : 'No app calls yet';
-  // Update "This Year" button label to current year
+  // Build the year strip dynamically from all available years (historical + live)
   const curYr = String(new Date().getFullYear());
-  const yrBtn = document.querySelector('.yr-btn[data-yr="2026"]');
-  if (yrBtn) { yrBtn.dataset.yr = curYr; yrBtn.textContent = curYr + ' YTD'; yrBtn.onclick = ()=>setStatsYear(curYr,yrBtn); }
+  const strip = document.getElementById('stYearStrip');
+  if(strip){
+    const yset=new Set();
+    try{ Object.keys(HIST).forEach(y=>yset.add(String(y))); }catch(e){}
+    try{ (_allCalls()||[]).forEach(c=>{ if(c.createdAt) yset.add(String(new Date(c.createdAt).getFullYear())); }); }catch(e){}
+    yset.add(curYr);
+    const years=[...yset].sort((a,b)=>b-a);
+    strip.innerHTML = years.map(y=>`<button class="yr-btn" data-yr="${y}" onclick="setStatsYear('${y}',this)">${y===curYr?y+' YTD':y}</button>`).join('')
+      + `<button class="yr-btn" data-yr="all" onclick="setStatsYear('all',this)">All Time</button>`;
+  }
   const firstTab = buildStatsSubNav();
   document.getElementById('stYearStrip').style.display = 'flex';
   setStatsYear(curYr, document.querySelector('.yr-btn:not([data-yr="all"])'));
@@ -11599,7 +11666,7 @@ function _renderStatsYear(yr){
 
 function setStatsSub(sub,el) {
   stSub=sub;
-  ['mine','overview','dispatch','monthly','members','search','compare'].forEach(s=>{
+  ['mine','overview','dispatch','monthly','members','search','compare','leaderboard'].forEach(s=>{
     const e=document.getElementById(`st-${s}`); if(e) e.style.display=s===sub?'':'none';
   });
   document.querySelectorAll('#statsSubNav .sub-tab').forEach(x=>x.classList.remove('active'));
@@ -11611,7 +11678,7 @@ function setStatsSub(sub,el) {
 let _statsSubT=null;
 
 function renderStatsSub() {
-  const map={mine:renderMyStats,overview:renderStatsOverview,dispatch:renderStatsDispatch,monthly:renderStatsMonthly,members:renderStatsMembers,search:renderStatsSearch,compare:renderStatsCompare};
+  const map={mine:renderMyStats,overview:renderStatsOverview,dispatch:renderStatsDispatch,monthly:renderStatsMonthly,members:renderStatsMembers,search:renderStatsSearch,compare:renderStatsCompare,leaderboard:()=>renderAdminLeaderboard('lbYearSel','lbList','lbSearch')};
   map[stSub]?.();
 }
 
@@ -11791,19 +11858,36 @@ function renderMyStats(bcArg, opts) {
         <div style="font-size:13px;font-weight:800;color:var(--blue);flex-shrink:0;">#${c.callNum||'—'}</div>
       </div>`;
     }).join('');
-    const _scopeLbl=(_yrSel==='all'?'All Years':_yrSel)+(_moSel==='all'?'':' · '+_MN[Number(_moSel)]);
+    const _scopeLbl=(_yrSel==='all'?'All Years':_yrSel);
+    // 12-month counts for the selected year (historical per-month + live calls)
+    const _mCounts=Array(12).fill(0);
+    if(_mhRaw && _mhRaw.years){
+      Object.entries(_mhRaw.years).forEach(([yr,d])=>{
+        if(_yrSel!=='all' && yr!==_yrSel) return;
+        Object.entries(d.months||{}).forEach(([mo,md])=>{ if(md){ _mCounts[Number(mo)-1]+=(md.p||0)+(md.b||0)+(md.o||0); } });
+      });
+    }
+    liveCalls.forEach(c=>{
+      const dt=new Date(c.completedAt||c.createdAt||0);
+      if(_yrSel!=='all' && String(dt.getFullYear())!==_yrSel) return;
+      _mCounts[dt.getMonth()]++;
+    });
     html+=`<div class="chart-card" style="margin-bottom:12px;">
       <div class="chart-title">🚗 My Calls</div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <select onchange="window['_'+'${_cid}'+'CallsYr']=this.value;${_reCall}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px;font-weight:600;">${_yrOpts}</select>
-        <select onchange="window['_'+'${_cid}'+'CallsMo']=this.value;${_reCall}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px;font-weight:600;">${_moOpts}</select>
+      <div style="margin-bottom:12px;">
+        <select onchange="window['_'+'${_cid}'+'CallsYr']=this.value;${_reCall}" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px;font-weight:600;">${_yrOpts}</select>
       </div>
-      <div style="text-align:center;padding:14px;background:var(--border2);border-radius:10px;margin-bottom:${_detRows?'12px':'0'};">
+      <div style="text-align:center;padding:14px;background:var(--border2);border-radius:10px;margin-bottom:12px;">
         <div style="font-size:32px;font-weight:800;color:var(--blue);line-height:1;">${_grand}</div>
         <div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-top:4px;">Calls · ${_scopeLbl}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">Primary ${_hP} · Backup ${_hB}${_hO?' · Other '+_hO:''}${_scopeCalls.length?' · +'+_scopeCalls.length+' live':''}</div>
       </div>
-      ${_detRows?`<div>${_detRows}</div>`:''}
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+        ${_MN.map((mn,i)=>`<div style="background:var(--border2);border-radius:9px;padding:10px 4px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:${_mCounts[i]?'var(--blue)':'var(--text3)'};line-height:1;">${_mCounts[i]}</div>
+          <div style="font-size:10px;color:var(--text3);font-weight:700;margin-top:4px;text-transform:uppercase;letter-spacing:.3px;">${mn}</div>
+        </div>`).join('')}
+      </div>
     </div>`;
   }
 
@@ -12149,6 +12233,7 @@ function showMemberStatsCard(bc) {
             <span class="perf-time ${s.tot>=200?'fast':s.tot<30?'slow':''}">${s.tot}</span>
           </div>
         </div>`).join('')}
+      ${_memberMonthlyHTML(bc)}
       ${_perfSectionHTML(bc)}
       <button class="btn-full btn-ghost" style="margin-top:14px;" onclick="document.getElementById('st-member-card').style.display='none'">Close</button>
     </div>`;
@@ -12161,7 +12246,44 @@ function showMemberStatsCard(bc) {
         {label:'Backup', data:ys.map(s=>s.mb),backgroundColor:'#93c5fd',borderRadius:3},
         {label:'Other',  data:ys.map(s=>s.mo),backgroundColor:'#dbeafe',borderRadius:3},
       ]},options:{...OPTS_HBAR,indexAxis:'x',scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#f8fafc'}}}}});
+    _renderMemberMonthChart(bc);
   },80);
+}
+// Monthly breakdown for a member (calls per month, from MEMBER_STATS per-month data).
+let _memberMonthYr = {};
+function _memberMonthlyHTML(bc){
+  const k=String(bc).replace(/^BC-?/i,'');
+  const m=(typeof MEMBER_STATS!=='undefined')?MEMBER_STATS[k]:null;
+  if(!m||!m.years) return '';
+  const yrs=Object.keys(m.years).filter(y=>m.years[y]&&m.years[y].months).sort((a,b)=>b-a);
+  if(!yrs.length) return '';
+  const sel = _memberMonthYr[k] || yrs[0];
+  _memberMonthYr[k]=sel;
+  const btns=yrs.map(y=>`<button onclick="_memberMonthYr['${k}']='${y}';_renderMemberMonthChart('${k}');document.querySelectorAll('.mm-yr-${k}').forEach(b=>b.classList.toggle('mm-on',b.dataset.y==='${y}'))" class="mm-yr-${k} ${y===sel?'mm-on':''}" data-y="${y}" style="padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;">${y}</button>`).join('');
+  return `<div class="chart-card" style="margin-top:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <div class="chart-title" style="margin:0;">📅 Calls by Month</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">${btns}</div>
+      </div>
+      <div class="chart-wrap"><canvas id="ch-member-month"></canvas></div>
+    </div>`;
+}
+function _renderMemberMonthChart(bc){
+  const k=String(bc).replace(/^BC-?/i,'');
+  const m=(typeof MEMBER_STATS!=='undefined')?MEMBER_STATS[k]:null;
+  if(!m||!m.years) return;
+  const yr=_memberMonthYr[k];
+  const mo=(m.years[yr]&&m.years[yr].months)||{};
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const P=[],B=[],O=[];
+  for(let i=1;i<=12;i++){ const d=mo[String(i)]||{}; P.push(d.p||0); B.push(d.b||0); O.push(d.o||0); }
+  mkChart('ch-member-month',{type:'bar',data:{
+    labels:MN,
+    datasets:[
+      {label:'Primary',data:P,backgroundColor:'#2563eb',borderRadius:3},
+      {label:'Backup', data:B,backgroundColor:'#93c5fd',borderRadius:3},
+      {label:'Other',  data:O,backgroundColor:'#dbeafe',borderRadius:3},
+    ]},options:{...OPTS_HBAR,indexAxis:'x',scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#f8fafc'},ticks:{precision:0}}}}});
 }
 
 // ══ COMPARE TWO MEMBERS ══
@@ -12248,6 +12370,9 @@ function renderVehicles() {
   const vehicles=STATE.vehicles||[];
   const isAdmin=['admin'].includes(SESSION.role);
   const isDispatch=['admin','dispatch'].includes(SESSION.role);
+  // Ensure the Add Vehicle form is visible for admin/dispatch whenever this tab opens
+  const _addBox=document.getElementById('adminVehiclesAdd');
+  if(_addBox) _addBox.style.display=(isAdmin||isDispatch)?'block':'none';
   if(!vehicles.length) {
     el.innerHTML='<div style="font-size:13px;color:var(--text3);">No vehicles added</div>';
     return;
