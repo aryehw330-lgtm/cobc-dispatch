@@ -463,9 +463,18 @@ textarea.input{min-height:80px;resize:vertical;}
 .role-chip.active{background:var(--blue);border-color:var(--blue);color:#fff;}
 
 /* ── IMPORTANT NUMBERS ── */
-.number-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#fff;border-radius:var(--radius-sm);margin-bottom:6px;box-shadow:var(--shadow);}
+.number-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-radius:var(--radius-sm);margin-bottom:6px;color:#fff;}
+.number-item>div>div:first-child{color:#fff;}
+.number-item .obs-badge{margin-left:6px;}
 .number-call-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
 
+/* ── IMPORTANT NUMBERS — glassy category accordions ── */
+.num-acc{border-radius:13px;overflow:hidden;border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);margin-bottom:9px;box-shadow:0 3px 12px rgba(0,0,0,.16);}
+.num-acc-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border:none;background:transparent;color:#fff;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;text-align:left;text-transform:uppercase;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+.num-acc-arrow{transition:transform .25s;opacity:.85;font-size:12px;flex-shrink:0;}
+.num-acc-arrow.open{transform:rotate(180deg);}
+.num-acc-body{display:none;padding:4px 12px 12px;}
+.num-acc-body.open{display:block;}
 /* ── MORE PAGE SUB-TABS (glassy, per-category color) ── */
 #more-sub-tabs{gap:7px;padding-bottom:4px;}
 #more-sub-tabs .sub-tab{border-radius:11px;border:1px solid rgba(255,255,255,.16);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);color:#fff;font-weight:700;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.35);box-shadow:0 3px 10px rgba(0,0,0,.16);}
@@ -1502,6 +1511,7 @@ textarea.input{min-height:80px;resize:vertical;}
                 <option>Police</option><option>Dispatch</option><option>Ambulance</option><option>Roadside</option><option>Hospital</option><option>Internal</option><option>Other</option>
               </select>
             </div>
+            <div class="input-group"><label class="input-label">Or new section</label><input class="input" id="numNewCat" placeholder="e.g. Chaverims, Tow Companies"/></div>
             <div style="display:flex;gap:8px;">
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;">
                 <input type="checkbox" id="numMemberVisible" checked/> Visible to Members
@@ -5256,7 +5266,7 @@ function showTab(tab) {
 //  MODALS
 // ──────────────────────────────────────────────
 function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
-function hideModal(id){document.getElementById(id).classList.add('hidden');}
+function hideModal(id){document.getElementById(id).classList.add('hidden');if(id==='callDetailModal')window._openDetailId=null;}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
 });
@@ -6408,6 +6418,14 @@ async function fillDetailETA(call) {
 }
 
 function renderCalls() {
+  // Live-refresh the open call-detail card so pending respond/backup requests appear
+  // immediately even when the card was left open (no need to swipe down + up).
+  try{
+    const _dm=document.getElementById('callDetailModal');
+    if(_dm && !_dm.classList.contains('hidden') && window._openDetailId && STATE.calls.find(c=>c.id===window._openDetailId)){
+      openCallDetail(window._openDetailId);
+    }
+  }catch(e){}
   const el=document.getElementById('callsList');
   // Always sync on-duty card (primary + secondary) whenever calls list renders
   try { updateOnDutyBanner(); } catch(e){}
@@ -7517,6 +7535,7 @@ function tryOpenPendingDeepLink() {
 function openCallDetail(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
+  window._openDetailId=id; // track for live re-render while the card is left open
   const isDispatch=['admin','dispatch'].includes(SESSION.role);
   const _onDispatchTab = isDispatch && (typeof currentTab!=='undefined' && currentTab==='dispatch');
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -9491,6 +9510,15 @@ function addMemberInline(){
 // ──────────────────────────────────────────────
 //  IMPORTANT NUMBERS
 // ──────────────────────────────────────────────
+let _openNumCats = new Set();
+function toggleNumCat(idSafe){
+  const body=document.getElementById(idSafe);
+  const arr=document.getElementById(idSafe+'-arr');
+  if(!body) return;
+  const open=body.classList.toggle('open');
+  if(arr) arr.classList.toggle('open', open);
+  if(open) _openNumCats.add(idSafe); else _openNumCats.delete(idSafe);
+}
 function renderNumbers() {
   const el=document.getElementById('numbersList');
   if(!el) return;
@@ -9510,10 +9538,14 @@ function renderNumbers() {
   list.forEach(n=>{ groups[n.category]=groups[n.category]||[]; groups[n.category].push(n); });
 
   let html='';
+  const _numCatColors={Police:'37,99,235',Dispatch:'124,58,237',Ambulance:'220,38,38',Roadside:'234,88,12',Hospital:'13,148,136',Internal:'100,116,139',Other:'8,145,178'};
   Object.keys(groups).sort().forEach(cat=>{
-    html+=`<div class="section-label">${cat}</div>`;
+    const c=_numCatColors[cat]||'100,116,139';
+    const safeId='numcat-'+cat.replace(/[^a-z0-9]/gi,'');
+    const isOpen=_openNumCats.has(safeId);
+    let items='';
     groups[cat].forEach(n=>{
-      html+=`<div class="number-item">
+      items+=`<div class="number-item">
         <div><div style="font-size:14px;font-weight:700;">${n.label}</div><div style="font-size:12px;color:var(--text3);">${formatPhone(n.phone)}${n.dispatchOnly?'<span class="obs-badge">DISP</span>':''}</div></div>
         <div style="display:flex;gap:6px;">
           <button class="number-call-btn" onclick="window.location='tel:${n.phone}'">Call</button>
@@ -9521,6 +9553,10 @@ function renderNumbers() {
         </div>
       </div>`;
     });
+    html+=`<div class="num-acc" style="background:linear-gradient(160deg,rgba(${c},.22),rgba(18,18,22,.5));border-color:rgba(${c},.4);">
+      <button class="num-acc-head" onclick="toggleNumCat('${safeId}')"><span>${cat} <span style="opacity:.6;font-weight:600;">(${groups[cat].length})</span></span><span class="num-acc-arrow${isOpen?' open':''}" id="${safeId}-arr">▾</span></button>
+      <div class="num-acc-body${isOpen?' open':''}" id="${safeId}">${items}</div>
+    </div>`;
   });
 
   el.innerHTML=html||'<div style="font-size:13px;color:var(--text3);padding:12px 0;">No numbers added yet</div>';
@@ -9578,7 +9614,7 @@ function saveEditNumber(id) {
 function addNumber() {
   const label=document.getElementById('numLabel').value.trim();
   const phone=document.getElementById('numPhone').value.trim();
-  const cat=document.getElementById('numCat').value;
+  const cat=(document.getElementById('numNewCat')?.value?.trim())||document.getElementById('numCat').value;
   const memberVisible=document.getElementById('numMemberVisible').checked;
   const dispatchOnly=document.getElementById('numDispatchOnly').checked;
   if(!label||!phone) { showToast('Label and phone required'); return; }
