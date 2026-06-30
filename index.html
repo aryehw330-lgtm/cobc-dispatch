@@ -487,6 +487,23 @@ textarea.input{min-height:80px;resize:vertical;}
 #more-sub-tabs .sub-tab:nth-child(7){background:linear-gradient(160deg,rgba(234,88,12,.30),rgba(18,18,22,.5));}
 #more-sub-tabs .sub-tab:nth-child(8){background:linear-gradient(160deg,rgba(8,145,178,.30),rgba(18,18,22,.5));}
 #more-sub-tabs .sub-tab.active{border-color:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(255,255,255,.4),inset 0 1px 0 rgba(255,255,255,.25);}
+/* ── EQUIPMENT — glassy accordion + dashboard ── */
+.eq-acc{border-radius:13px;overflow:hidden;border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);margin-bottom:10px;background:linear-gradient(160deg,rgba(234,88,12,.18),rgba(18,18,22,.5));box-shadow:0 3px 12px rgba(0,0,0,.16);}
+.eq-acc-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border:none;background:transparent;color:#fff;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;text-align:left;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+.eq-acc-arrow{transition:transform .25s;opacity:.85;font-size:12px;flex-shrink:0;}
+.eq-acc.open .eq-acc-arrow{transform:rotate(180deg);}
+.eq-acc-body{display:none;padding:4px 12px 12px;}
+.eq-acc-body.open{display:block;}
+/* ── EQUIPMENT — glassy stat cards + sub-tabs ── */
+#page-equipment .stat-card{-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(255,255,255,.16);box-shadow:0 3px 12px rgba(0,0,0,.18);}
+#page-equipment .stat-card.stat-blue{background:linear-gradient(160deg,rgba(37,99,235,.30),rgba(18,18,22,.5));}
+#page-equipment .stat-card.stat-red{background:linear-gradient(160deg,rgba(220,38,38,.30),rgba(18,18,22,.5));}
+#page-equipment .stat-card.stat-amber{background:linear-gradient(160deg,rgba(234,88,12,.30),rgba(18,18,22,.5));}
+#page-equipment .stat-card.stat-green{background:linear-gradient(160deg,rgba(22,163,74,.30),rgba(18,18,22,.5));}
+#page-equipment .stat-card .stat-num{color:#fff;}
+#page-equipment .stat-card .stat-label{color:rgba(255,255,255,.75);}
+#page-equipment #eqSubTabs .sub-tab{-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.14);background:linear-gradient(160deg,rgba(234,88,12,.20),rgba(18,18,22,.5));color:#fff;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.35);}
+#page-equipment #eqSubTabs .sub-tab.active{border-color:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(255,255,255,.4),inset 0 1px 0 rgba(255,255,255,.25);}
 /* ── DISPATCH ON-DUTY BANNER ── */
 .on-duty-banner{background:linear-gradient(135deg,rgba(212,169,58,.2),rgba(18,15,9,.7));-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(230,196,99,.4);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;color:#fff;display:flex;justify-content:flex-start;align-items:center;gap:14px;width:fit-content;max-width:100%;}
 .home-top-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
@@ -1071,32 +1088,52 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="eq-dashboard">
         <div id="eq-out-wrap" style="display:none;"><div class="section-label">Currently Out</div><div id="eq-out-list"></div></div>
         <div id="eq-alerts-wrap" style="display:none;"><div class="section-label">Active Alerts</div><div id="eq-alerts-list"></div></div>
-        <div class="section-label">Recent Activity</div>
-        <div id="eq-recent-list"></div>
-
-        <!-- Activity History accordion (Google Sheet) — admin only, shown/hidden by JS -->
-        <div id="eq-hist-wrap" style="margin-top:14px;display:none;">
-          <button id="eq-hist-btn" onclick="_toggleEqHistAccordion()" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:rgba(255,255,255,.11);border:1.5px solid rgba(255,255,255,.28);border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">
-            <span>📋 Activity History</span>
-            <span id="eq-hist-arrow" style="font-size:11px;opacity:.7;transition:transform .2s;">▾</span>
+        <div class="eq-acc" style="margin-top:4px;">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this)">
+            <span>🕒 Recent Activity</span>
+            <span class="eq-acc-arrow">▾</span>
           </button>
-          <div id="eq-hist-body" style="display:none;padding:12px 0 4px 0;">
-            <!-- Quick range buttons -->
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-              <button onclick="_eqHistQuick(7)"  style="padding:4px 10px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">7 days</button>
-              <button onclick="_eqHistQuick(30)" style="padding:4px 10px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">30 days</button>
-              <button onclick="_eqHistQuick(90)" style="padding:4px 10px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">90 days</button>
-              <button onclick="_eqHistQuick(365)" style="padding:4px 10px;background:rgba(212,169,58,.25);color:#f5d78e;border:1px solid rgba(212,169,58,.4);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">1 year</button>
+          <div class="eq-acc-body open">
+            <div id="eq-recent-list"></div>
+          </div>
+        </div>
+        <!-- Equipment Activity History — synced from Firestore (Apps Script writes events) -->
+        <div class="eq-acc" style="margin-top:4px;">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderEqActivityHistory()">
+            <span>📋 Activity History</span>
+            <span class="eq-acc-arrow">▾</span>
+          </button>
+          <div class="eq-acc-body">
+            <div id="eqHistList"></div>
+          </div>
+        </div>
+        <!-- Dispatch Call History — look up a call (and its caller phone) to chase overdue equipment -->
+        <div class="eq-acc" style="margin-top:4px;background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(18,18,22,.5));border-color:rgba(37,99,235,.4);">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderEqCallHistory()">
+            <span>📞 Dispatch Call History</span>
+            <span class="eq-acc-arrow">▾</span>
+          </button>
+          <div class="eq-acc-body">
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <div class="input-group" style="flex:1;margin-bottom:0;">
+                <label class="input-label">From</label>
+                <input class="input" type="date" id="eqHistFrom" onchange="renderEqCallHistory()"/>
+              </div>
+              <div class="input-group" style="flex:1;margin-bottom:0;">
+                <label class="input-label">To</label>
+                <input class="input" type="date" id="eqHistTo" onchange="renderEqCallHistory()"/>
+              </div>
             </div>
-            <!-- Custom date range -->
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-              <label style="font-size:12px;color:rgba(255,255,255,.7);white-space:nowrap;">From</label>
-              <input type="date" id="eq-hist-from" style="font-size:12px;padding:5px 8px;border:1.5px solid rgba(255,255,255,.3);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;-webkit-color-scheme:dark;"/>
-              <label style="font-size:12px;color:rgba(255,255,255,.7);white-space:nowrap;">To</label>
-              <input type="date" id="eq-hist-to" style="font-size:12px;padding:5px 8px;border:1.5px solid rgba(255,255,255,.3);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;-webkit-color-scheme:dark;"/>
-              <button onclick="loadEquipmentHistory()" style="padding:5px 14px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">Search</button>
+            <div class="filter-chips" id="eqHistChips" style="margin-bottom:10px;">
+              <div class="chip active" onclick="setEqHistRange('day',this)">Today</div>
+              <div class="chip" onclick="setEqHistRange('7',this)">7 Days</div>
+              <div class="chip" onclick="setEqHistRange('30',this)">30 Days</div>
+              <div class="chip" onclick="setEqHistRange('90',this)">90 Days</div>
+              <div class="chip" onclick="setEqHistRange('365',this)">1 Year</div>
+              <div class="chip" onclick="setEqHistRange('all',this)">All</div>
             </div>
-            <div id="eq-hist-list"><div style="color:rgba(255,255,255,.4);font-size:13px;">Select a range above to load history.</div></div>
+            <div id="eqHistSummary" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:rgba(255,255,255,.82);"></div>
+            <div id="eqHistList"></div>
           </div>
         </div>
       </div>
@@ -1490,6 +1527,8 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="chip active" onclick="setMoreHistRange('day',this)">Today</div>
           <div class="chip" onclick="setMoreHistRange('7',this)">Last 7 Days</div>
           <div class="chip" onclick="setMoreHistRange('30',this)">Last 30 Days</div>
+          <div class="chip" onclick="setMoreHistRange('90',this)">Last 90 Days</div>
+          <div class="chip" onclick="setMoreHistRange('365',this)">Last 1 Year</div>
           <div class="chip" onclick="setMoreHistRange('all',this)">All Time</div>
         </div>
         <div id="histSummaryM" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:rgba(255,255,255,.82);"></div>
@@ -3127,6 +3166,8 @@ async function initFirebaseApp() {
       try { initFirestore(); } catch(e){ console.warn('initFirestore:', e); }
       try { subscribeScheduleFromFirestore(); } catch(e){ console.warn('subscribeSchedule:', e); }
       try { subscribeNumbersFromFirestore(); } catch(e){ console.warn('subscribeNumbers:', e); }
+      try { subscribeEquipmentHistoryFromFirestore(); } catch(e){ console.warn('subscribeEqHist:', e); }
+      try { subscribeCobc4HistoryFromFirestore(); } catch(e){ console.warn('subscribeCobc4Hist:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -5898,6 +5939,108 @@ function reopenCall(id){
   try { renderMoreHistory(); } catch(e){}
   showToast('🔄 Call re-opened');
 }
+// ── Equipment-page Dispatch Call History (look up caller phone for overdue gear) ──
+function setEqHistRange(r, el){
+  document.querySelectorAll('#eqHistChips .chip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const fromEl=document.getElementById('eqHistFrom'), toEl=document.getElementById('eqHistTo');
+  const todayIso=_localIso(new Date());
+  if(r==='day'){ if(fromEl)fromEl.value=todayIso; if(toEl)toEl.value=todayIso; }
+  else if(r==='7'){ const f=new Date();f.setDate(f.getDate()-6); if(fromEl)fromEl.value=_localIso(f); if(toEl)toEl.value=todayIso; }
+  else if(r==='30'){ const f=new Date();f.setDate(f.getDate()-29); if(fromEl)fromEl.value=_localIso(f); if(toEl)toEl.value=todayIso; }
+  else if(r==='90'){ const f=new Date();f.setDate(f.getDate()-89); if(fromEl)fromEl.value=_localIso(f); if(toEl)toEl.value=todayIso; }
+  else if(r==='365'){ const f=new Date();f.setDate(f.getDate()-364); if(fromEl)fromEl.value=_localIso(f); if(toEl)toEl.value=todayIso; }
+  else if(r==='all'){ if(fromEl)fromEl.value=''; if(toEl)toEl.value=todayIso; }
+  renderEqCallHistory();
+}
+function renderEqCallHistory(){
+  const list=document.getElementById('eqHistList');
+  const summary=document.getElementById('eqHistSummary');
+  if(!list) return;
+  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{renderEqCallHistory();}catch(e){} }); }
+  const fromEl=document.getElementById('eqHistFrom'), toEl=document.getElementById('eqHistTo');
+  if(fromEl && toEl && !fromEl.value && !toEl.value){ const t=_localIso(new Date()); fromEl.value=t; toEl.value=t; }
+  const fromStr=fromEl?.value, toStr=toEl?.value;
+  const dayMs=864e5;
+  const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const aMs=fromStr?new Date(fromStr+'T00:00:00').getTime():null;
+  const bMs=toStr?new Date(toStr+'T00:00:00').getTime():null;
+  let startMs,endMs,label;
+  if(aMs===null&&bMs===null){ list.innerHTML='<div style="text-align:center;padding:1.2rem;color:rgba(255,255,255,.5);">Pick a date range above</div>'; if(summary)summary.textContent=''; return; }
+  if(aMs!==null&&bMs!==null){ const lo=Math.min(aMs,bMs),hi=Math.max(aMs,bMs); startMs=lo;endMs=hi+dayMs; label=lo===hi?new Date(lo).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}):fmt(new Date(lo))+' – '+fmt(new Date(hi)); }
+  else if(aMs!==null){ const t=_todayStartMs(),lo=Math.min(aMs,t),hi=Math.max(aMs,t); startMs=lo;endMs=hi+dayMs; label=lo===hi?fmt(new Date(lo)):fmt(new Date(lo))+' – '+fmt(new Date(hi)); }
+  else { startMs=0;endMs=bMs+dayMs; label='All time through '+fmt(new Date(bMs)); }
+  const calls=(_allCalls()).filter(c=>{ const ts=c.completedAt||c.createdAt||0; return ts>=startMs&&ts<endMs; }).sort((a,b)=>(b.completedAt||b.createdAt||0)-(a.completedAt||a.createdAt||0));
+  if(summary) summary.innerHTML=`<b>${label}</b> · ${calls.length} call${calls.length===1?'':'s'} — tap 📞 to reach the caller`;
+  if(!calls.length){ list.innerHTML='<div style="text-align:center;padding:1.5rem;color:rgba(255,255,255,.5);">No calls in this range.</div>'; return; }
+  list.innerHTML=calls.map(c=>{
+    const typeRaw=c.type||'other';
+    const typeLabel=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw));
+    const t=new Date(c.completedAt||c.createdAt);
+    const time=t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    const phone=c.phone||c.callerPhone||'';
+    const caller=c.caller||c.callerName||'';
+    const callBtn=phone?`<a href="tel:${phone}" onclick="event.stopPropagation();" style="flex-shrink:0;background:var(--green);color:#fff;text-decoration:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:800;white-space:nowrap;">📞 Caller</a>`:'';
+    return `<div onclick="openCallDetail('${c.id}')" style="background:rgba(255,255,255,.95);border-radius:10px;padding:11px 13px;margin-bottom:6px;cursor:pointer;border-left:3px solid var(--blue);display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">#${c.callNum||''} · ${typeLabel}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">${fmtLoc(c)||'—'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time}${caller?' · '+caller:''}${phone?' · '+formatPhone(phone):''}</div>
+      </div>
+      ${callBtn}
+    </div>`;
+  }).join('');
+}
+// ── Equipment Activity History (synced from Firestore via Apps Script) ──
+function renderEqActivityHistory(){
+  const list=document.getElementById('eqHistList');
+  if(!list) return;
+  const rows=(STATE.equipmentHistory||[]);
+  if(!rows.length){ list.innerHTML='<div style="text-align:center;padding:1.4rem;color:rgba(255,255,255,.5);font-size:13px;">No activity yet. Equipment check-ins/outs will appear here once syncing is enabled.</div>'; return; }
+  list.innerHTML=rows.slice(0,300).map(r=>{
+    const at=r.at?new Date(r.at):null;
+    const time=at?at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+    const act=(r.action||'').toUpperCase();
+    const actColor=act==='OUT'?'#dc2626':act==='IN'?'#16a34a':'#d97706';
+    const unit=r.byUnit?('BC-'+String(r.byUnit).replace(/^BC-?/i,'')):'';
+    const callTag=r.callNum?`<span onclick="event.stopPropagation();_eqOpenCall('${r.callNum}')" style="color:var(--blue);font-weight:800;cursor:pointer;">#${r.callNum}</span>`:'';
+    return `<div style="background:rgba(255,255,255,.95);border-radius:10px;padding:10px 12px;margin-bottom:6px;border-left:3px solid ${actColor};">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div style="min-width:0;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);">${r.item||'Item'} ${callTag?'· '+callTag:''}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time}${unit?' · '+unit:''}${r.status&&r.status!==r.action?' · '+r.status:''}</div>
+        </div>
+        <div style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;background:${actColor}22;color:${actColor};flex-shrink:0;">${act}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+// Jump from an equipment row's call # to that call's detail (to phone the caller)
+function _eqOpenCall(callNum){
+  const c=(_allCalls()||[]).find(x=>String(x.callNum)===String(callNum));
+  if(c) openCallDetail(c.id); else showToast('Call #'+callNum+' not found');
+}
+function renderCobc4History(){
+  const list=document.getElementById('cobc4HistList');
+  if(!list) return;
+  const rows=(STATE.cobc4History||[]);
+  if(!rows.length){ list.innerHTML='<div style="text-align:center;padding:1.4rem;color:rgba(255,255,255,.5);font-size:13px;">No COBC 4 history yet.</div>'; return; }
+  list.innerHTML=rows.slice(0,300).map(r=>{
+    const at=r.at?new Date(r.at):null;
+    const time=at?at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+    const act=(r.action||'').toUpperCase();
+    const actColor=act==='OUT'?'#dc2626':'#16a34a';
+    const driver=r.driver||r.byUnit?('BC-'+String(r.driver||r.byUnit).replace(/^BC-?/i,'')):'';
+    const callTag=r.callNum?` · <span style="color:var(--blue);font-weight:800;">#${r.callNum}</span>`:'';
+    return `<div style="background:rgba(255,255,255,.95);border-radius:10px;padding:10px 12px;margin-bottom:6px;border-left:3px solid ${actColor};">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div><div style="font-size:13px;font-weight:700;color:var(--text);">${driver||'COBC 4'}${callTag}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time}</div></div>
+        <div style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;background:${actColor}22;color:${actColor};">${act}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
 // ── Member-facing Call History panel (More page) ──
 function setMoreHistRange(r, el){
   document.querySelectorAll('#moreHistChips .chip').forEach(c=>c.classList.remove('active'));
@@ -5907,6 +6050,8 @@ function setMoreHistRange(r, el){
   if(r==='day'){ if(fromEl)fromEl.value=todayIso; if(toEl)toEl.value=todayIso; }
   else if(r==='7'){ const f=new Date();f.setDate(f.getDate()-6); if(fromEl)fromEl.value=_localIso(f); if(toEl)toEl.value=todayIso; }
   else if(r==='30'){ const f=new Date();f.setDate(f.getDate()-29); if(fromEl)fromEl.value=_localIso(f); if(toEl)toEl.value=todayIso; }
+  else if(r==='90'){ const f=new Date();f.setDate(f.getDate()-89); if(fromEl)fromEl.value=_localIso(f); if(toEl)toEl.value=todayIso; }
+  else if(r==='365'){ const f=new Date();f.setDate(f.getDate()-364); if(fromEl)fromEl.value=_localIso(f); if(toEl)toEl.value=todayIso; }
   else if(r==='all'){ if(fromEl)fromEl.value=''; if(toEl)toEl.value=todayIso; }
   renderMoreHistory();
 }
@@ -9550,9 +9695,7 @@ function renderNumbers() {
   // Show/hide admin Add button
   var addBtn = document.getElementById('addNumberBtn');
   if(addBtn) addBtn.style.display = isAdmin ? 'block' : 'none';
-  // Show/hide activity history accordion
-  var histWrap = document.getElementById('eq-hist-wrap');
-  if(histWrap) histWrap.style.display = isAdmin ? 'block' : 'none';
+  // (Equipment activity-history accordion removed — replaced by Dispatch Call History)
   let list=STATE.numbers||[];
   if(!isDispatch) list=list.filter(n=>n.memberVisible&&!n.dispatchOnly);
 
@@ -10835,6 +10978,33 @@ function subscribeNumbersFromFirestore() {
       try { if(typeof renderNumbers==='function' && document.getElementById('numbersList')) renderNumbers(); } catch(e){}
     }, err => console.warn('numbers snapshot error:', err));
   } catch(e) { console.warn('subscribeNumbersFromFirestore failed:', e); }
+}
+
+// ── Equipment + COBC 4 activity history (written by the Apps Script into Firestore) ──
+function subscribeEquipmentHistoryFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    // Latest 500 equipment events, newest first
+    firebase.firestore().collection('equipmentHistory').orderBy('at','desc').limit(500).onSnapshot(snap => {
+      const rows=[];
+      snap.forEach(d=>{ const x=d.data()||{}; x._id=d.id; rows.push(x); });
+      STATE.equipmentHistory = rows;
+      try { save&&save(); } catch(e){}
+      try { if(document.getElementById('eqHistList') && document.querySelector('#page-equipment:not(.hidden)')) renderEqActivityHistory(); } catch(e){}
+    }, err => console.warn('equipmentHistory snapshot:', err));
+  } catch(e) { console.warn('subscribeEquipmentHistory failed:', e); }
+}
+function subscribeCobc4HistoryFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('cobc4History').orderBy('at','desc').limit(500).onSnapshot(snap => {
+      const rows=[];
+      snap.forEach(d=>{ const x=d.data()||{}; x._id=d.id; rows.push(x); });
+      STATE.cobc4History = rows;
+      try { save&&save(); } catch(e){}
+      try { if(document.getElementById('cobc4HistList')) renderCobc4History(); } catch(e){}
+    }, err => console.warn('cobc4History snapshot:', err));
+  } catch(e) { console.warn('subscribeCobc4History failed:', e); }
 }
 
 // Build the schedule label for the current user, matching the member-dropdown format
@@ -14066,26 +14236,13 @@ function toggleAdminNumbersAdd(){
   if(btn) btn.textContent=isOpen?'+ Add Number':'✕ Cancel';
 }
 
-function _toggleEqHistAccordion(){
-  if(!_eqHistAdminCheck()) return;
-  var body=document.getElementById('eq-hist-body');
-  var arrow=document.getElementById('eq-hist-arrow');
-  var btn=document.getElementById('eq-hist-btn');
-  if(!body) return;
-  var isOpen=body.style.display!=='none';
-  body.style.display=isOpen?'none':'block';
-  if(arrow) arrow.style.transform=isOpen?'':'rotate(-180deg)';
-  if(btn) btn.style.borderRadius=isOpen?'12px':'12px 12px 0 0';
-  if(!isOpen){
-    var now=new Date();
-    var fmt=function(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
-    var toEl=document.getElementById('eq-hist-to');
-    var fromEl=document.getElementById('eq-hist-from');
-    if(toEl&&!toEl.value) toEl.value=fmt(now);
-    if(fromEl&&!fromEl.value){var d2=new Date();d2.setDate(d2.getDate()-30);fromEl.value=fmt(d2);}
-    loadEquipmentHistory();
-  }
+function _toggleEqAcc(btn){
+  var acc=btn.closest('.eq-acc'); if(!acc) return;
+  var body=acc.querySelector('.eq-acc-body');
+  var open=acc.classList.toggle('open');
+  if(body) body.classList.toggle('open', open);
 }
+function _toggleEqHistAccordion(){ /* removed — Activity History replaced by Dispatch Call History */ }
 
 function getMyActiveCarBookingForInventory() {
   if (!SESSION || !SESSION.unit || !carSchedule.length) return null;
