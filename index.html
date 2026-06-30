@@ -777,6 +777,13 @@ textarea.input{min-height:80px;resize:vertical;}
 .adm-acc-head.open .adm-acc-arrow{transform:rotate(180deg);}
 .adm-acc-body{display:none;padding:14px 16px;}
 .adm-acc-body.open{display:block;}
+/* Equipment Admin tab — glassy accordions (readable light text on dark glass) */
+#page-equipment .adm-acc{background:linear-gradient(160deg,rgba(234,88,12,.18),rgba(18,18,22,.55))!important;-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);border:1px solid rgba(255,255,255,.16);box-shadow:0 3px 12px rgba(0,0,0,.18);}
+#page-equipment .adm-acc-head{color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+#page-equipment .adm-acc-head:hover{background:rgba(255,255,255,.06);}
+#page-equipment .adm-acc-arrow{color:var(--gold-light,#e6c463)!important;}
+#page-equipment .adm-acc-body{color:#fff;}
+#page-equipment .adm-acc-body label,#page-equipment .adm-acc-body .input-label{color:rgba(255,255,255,.8)!important;}
 /* ── Car Schedule ── */
 .car-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px;}
 .car-cal-day{min-height:62px;border-radius:10px;padding:6px 4px 4px;background:rgba(255,255,255,.06);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);cursor:pointer;transition:background .15s,transform .1s;}
@@ -1166,9 +1173,9 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="chip" onclick="setChkFilter('missing',this)">Missing</div>
           <div class="chip" onclick="setChkFilter('damaged',this)">Damaged</div>
         </div>
-        <div id="chkSummary" style="display:none;background:#e8f4fd;border-radius:10px;padding:11px 14px;margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>Items checked</span><span style="font-weight:700;color:var(--navy);" id="chkChecked">0/0</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Issues flagged</span><span style="font-weight:700;color:var(--red);" id="chkIssues">0</span></div>
+        <div id="chkSummary" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.22),rgba(18,18,22,.55));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:11px 14px;margin-bottom:10px;box-shadow:0 3px 12px rgba(0,0,0,.16);">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;color:#fff;"><span>Items checked</span><span style="font-weight:700;color:#fff;" id="chkChecked">0/0</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:rgba(255,255,255,.85);"><span>Issues flagged</span><span style="font-weight:700;color:#fca5a5;" id="chkIssues">0</span></div>
         </div>
         <div id="chkList"></div>
         <div style="display:flex;gap:8px;margin-top:10px;">
@@ -5853,10 +5860,12 @@ function onHistoryDateEdit(){
   renderHistoryDay();
 }
 function openHistoryModal() {
-  // Default to the current date (today) — includes today's completed calls
+  // Default range: 1st of the current month through today (user can still adjust)
   const todayIso=_localIso(new Date());
+  const _mStart=new Date(); _mStart.setDate(1);
+  const monthStartIso=_localIso(_mStart);
   const fromEl=document.getElementById('historyFrom'), toEl=document.getElementById('historyTo');
-  if(fromEl) fromEl.value=todayIso;
+  if(fromEl) fromEl.value=monthStartIso;
   if(toEl) toEl.value=todayIso;
   document.querySelectorAll('#historyModal .filter-chips .chip').forEach(c=>c.classList.remove('active'));
   const dayChip = document.getElementById('histChipDay'); if(dayChip) dayChip.classList.add('active');
@@ -7868,7 +7877,7 @@ function openCallDetail(id) {
   if(call.phone && _canActOnCall) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
   if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
-  if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Re-alert Group</button>`;
+  if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
   if(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled'){
     const _myResp=(call.responders||[]).find(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
@@ -9188,13 +9197,13 @@ function resendCallAlert(id, btn) {
   if(btn){ btn.disabled=true; const _o=btn.innerHTML; btn.innerHTML='📢 Sent'; setTimeout(()=>{ btn.disabled=false; btn.innerHTML=_o; }, 2500); }
   setTimeout(()=>sendPush({
     target:'all',
-    title:`📢 Still needs a unit — Call #${call.callNum||''}`,
+    title:`📢 Any Units Available? — Call #${call.callNum||''}`,
     body:`${_typeLabel} — ${fmtLoc(call)}${_waitTag}`,
     url:'/cobc-dispatch/', callId:call.id,
     waChat: WA_GROUP_ID,
     waText: _waMsg
   }), 50);
-  showToast(_waitStr ? `📢 Re-alerted — waiting ${_waitStr}` : '📢 Re-alerted the group');
+  showToast(_waitStr ? `📢 Alert sent — waiting ${_waitStr}` : '📢 Any-units alert sent');
 }
 
 // ── Lazy tab render ──────────────────────────────────────────────────────────
@@ -15774,3 +15783,8 @@ function fmtMemberBadgeD(memberStr) {
 </script>
 </body>
 </html>
+
+<style id="__om-edit-overrides">
+#callDetailContent >.detail-actions { font-size: 6px !important }
+#callDetailContent >.detail-actions { font-size: 13px !important }
+</style>
