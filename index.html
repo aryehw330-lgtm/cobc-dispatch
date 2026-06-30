@@ -1104,7 +1104,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <span class="eq-acc-arrow">▾</span>
           </button>
           <div class="eq-acc-body">
-            <div id="eqHistList"></div>
+            <div id="eqActHistList"></div>
           </div>
         </div>
         <!-- Dispatch Call History — look up a call (and its caller phone) to chase overdue equipment -->
@@ -5993,7 +5993,7 @@ function renderEqCallHistory(){
 }
 // ── Equipment Activity History (synced from Firestore via Apps Script) ──
 function renderEqActivityHistory(){
-  const list=document.getElementById('eqHistList');
+  const list=document.getElementById('eqActHistList');
   if(!list) return;
   const rows=(STATE.equipmentHistory||[]);
   if(!rows.length){ list.innerHTML='<div style="text-align:center;padding:1.4rem;color:rgba(255,255,255,.5);font-size:13px;">No activity yet. Equipment check-ins/outs will appear here once syncing is enabled.</div>'; return; }
