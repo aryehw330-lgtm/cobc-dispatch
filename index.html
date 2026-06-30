@@ -2276,6 +2276,17 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
 
+    <!-- FLOOD: equipment needed (multi-select, shown for Flood) -->
+    <div id="floodNeedsSection" style="display:none;" class="input-group">
+      <label class="input-label">Equipment needed (tap any)</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="floodNeedsBtns">
+        <button type="button" class="flood-need-btn qtype-btn" data-need="Fans" onclick="toggleFloodNeed(this)" style="flex:1;min-width:90px;">💨 Fans</button>
+        <button type="button" class="flood-need-btn qtype-btn" data-need="Sump Pump" onclick="toggleFloodNeed(this)" style="flex:1;min-width:90px;">🌊 Sump Pump</button>
+        <button type="button" class="flood-need-btn qtype-btn" data-need="ShopVacs" onclick="toggleFloodNeed(this)" style="flex:1;min-width:90px;">🧽 ShopVacs</button>
+      </div>
+      <div id="floodQtyWrap" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
     <!-- OTHER TYPE WRITE-IN -->
     <div id="otherTypeGroup" style="display:none;" class="input-group">
       <label class="input-label">Describe Call Type</label>
@@ -6368,6 +6379,7 @@ function callCardHTML(call, mini=false) {
     ? `<div class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;justify-content:center;"><span id="card-eta-${call.id}" style="display:none;"></span></div>`
     : '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
+  const floodBadge = (call.floodNeeds&&call.floodNeeds.length) ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${call.floodNeeds.map(n=>`<span style="font-size:12px;font-weight:800;color:#fff;background:rgba(37,99,235,.85);border:1px solid rgba(255,255,255,.25);padding:2px 9px;border-radius:8px;text-shadow:0 1px 2px rgba(0,0,0,.4);">${n}</span>`).join('')}</div>` : '';
 
   if(mini) {
     const respList = (call.responders||[]);
@@ -6415,6 +6427,7 @@ function callCardHTML(call, mini=false) {
             ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfo}</div>`:''}
             <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
             ${ezFitBadge}
+            ${floodBadge}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
           </div>
         </div>
@@ -6458,6 +6471,7 @@ function callCardHTML(call, mini=false) {
         ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfo}</div>`:''}
         <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
         ${ezFitBadge}
+        ${floodBadge}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         ${isDispatch&&(call.pendingBackups||[]).length>0?(call.pendingBackups||[]).map(b=>`<div style="margin-top:6px;background:#fef2f2;border:1px solid rgba(220,80,80,.4);border-radius:10px;padding:8px 10px;" onclick="event.stopPropagation();"><div style="font-size:12px;font-weight:700;color:var(--red);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup${b.equipment?' · '+b.equipment:''}${b.notes?' · '+b.notes:''}</div><div style="display:flex;gap:6px;margin-top:7px;"><button onclick="event.stopPropagation();approveBackup('${call.id}',${b.time})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve Backup</button><button onclick="event.stopPropagation();rejectBackup('${call.id}',${b.time})" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Deny</button></div></div>`).join(''):''}
@@ -6815,13 +6829,21 @@ function populateModels() {
 
 function resetCallTypeGrid() {
   // No call type pre-selected — every button white until one is chosen
-  document.querySelectorAll('#callTypeGrid .qtype-btn').forEach(b=>b.classList.remove('active','urgent-active'));
+  document.querySelectorAll('#callTypeGrid .qtype-btn').forEach(b=>{b.classList.remove('active','urgent-active');b.style.display='';});
+  const _g=document.getElementById('callTypeGrid'); if(_g) _g.dataset.collapsed='';
   const ct=document.getElementById('callType'); if(ct) ct.value='';
   const ci=document.getElementById('carInfoSection'); if(ci) ci.style.display='none';
   const og=document.getElementById('otherTypeGroup'); if(og) og.style.display='none';
   const eq=document.getElementById('eqQtySection'); if(eq) eq.style.display='none';
 }
 function selectCallType(type, btn) {
+  const _grid=document.getElementById('callTypeGrid');
+  // Tapping the already-selected button (grid collapsed) → re-expand to change type
+  if(_grid && btn && btn.classList.contains('active') && _grid.dataset.collapsed==='1'){
+    _grid.querySelectorAll('.qtype-btn').forEach(b=>{ b.style.display=''; });
+    _grid.dataset.collapsed='';
+    return;
+  }
   const prevType = document.getElementById('callType').value;
   document.getElementById('callType').value = type;
   document.querySelectorAll('.qtype-btn:not(.ns-btn)').forEach(b=>b.classList.remove('active','urgent-active'));
@@ -6829,6 +6851,9 @@ function selectCallType(type, btn) {
   const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
+  // Flood → show equipment-needed multi-select
+  const floodSec=document.getElementById('floodNeedsSection');
+  if(floodSec){ floodSec.style.display=(type==='flood')?'block':'none'; if(type!=='flood'){ document.querySelectorAll('.flood-need-btn').forEach(b=>b.classList.remove('active')); } }
   // Show/hide equipment quantity picker (A/C, fans, heaters)
   const eqTypes=['needs_ac','needs_fan','needs_heat'];
   const eqQtySec=document.getElementById('eqQtySection');
@@ -6857,8 +6882,25 @@ function selectCallType(type, btn) {
     if(URGENT_TYPES.includes(type)) { if(typeof setUrgentToggle==='function') setUrgentToggle(true); else pri.value='urgent'; }
     else if(URGENT_TYPES.includes(prevType) && pri.value==='urgent') { if(typeof setUrgentToggle==='function') setUrgentToggle(false); else pri.value='normal'; }
   }
+  // Collapse the grid to just the chosen type (tap it again to change)
+  if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn) b.style.display='none'; }); _grid.dataset.collapsed='1'; }
 }
 
+// Flood equipment-needed multi-select toggle + per-item quantity steppers
+function toggleFloodNeed(btn){ btn.classList.toggle('active'); if(!btn.classList.contains('active')) btn.dataset.qty=''; renderFloodQty(); }
+function renderFloodQty(){
+  const wrap=document.getElementById('floodQtyWrap'); if(!wrap) return;
+  const active=Array.from(document.querySelectorAll('.flood-need-btn.active'));
+  wrap.innerHTML=active.map(b=>{
+    const need=b.dataset.need; const qty=b.dataset.qty||'1';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.25);border-radius:9px;padding:8px 12px;">
+      <span style="font-size:14px;font-weight:700;color:var(--text);">${need} — how many?</span>
+      <select onchange="document.querySelector('.flood-need-btn[data-need=\\'${need}\\']').dataset.qty=this.value" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border2);font-size:14px;font-weight:700;">
+        ${['1','2','3','4','5','6+'].map(n=>`<option value="${n}" ${n===qty?'selected':''}>${n}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+}
 // ── Create Call ──
 function updateDispatchBtn() {
   const cb = document.getElementById('callDontPublish');
@@ -6992,6 +7034,7 @@ function createCall() {
   if(carModel==='Other') carModel=(document.getElementById('carModelOther')?.value||'').trim();
   const carYear=document.getElementById('carYear').value;
   const carColor=document.getElementById('carColor').value.trim();
+  const floodNeeds=Array.from(document.querySelectorAll('.flood-need-btn.active')).map(b=>{const q=b.dataset.qty||'1';return b.dataset.need+(q&&q!=='1'?' x'+q:'');});
 
   if (!address) { showToast('⚠️ Enter an address'); return; }
 
@@ -7013,6 +7056,7 @@ function createCall() {
     rrCount: 0,
     rrLastSent: dontPublish?null:Date.now(),
     carMake:carMake||null, carModel:carModel||null, carYear:carYear||null, carColor:carColor||null,
+    floodNeeds: (type==='flood' && floodNeeds.length) ? floodNeeds : null,
     noSpareAction: (type==='flat_tire_no_spare' ? (document.getElementById('noSpareAction')?.value || null) : null),
     ezSpareSize: ((window._pendingEzFitment&&window._pendingEzFitment.size_1) || document.getElementById('ezSpareSize')?.value || null),
     ezSpareUnit: null,
@@ -7028,6 +7072,8 @@ function createCall() {
   const _cmo=document.getElementById('carMakeOther'); if(_cmo)_cmo.style.display='none';
   const _md=document.getElementById('carModel'); if(_md){_md.innerHTML='<option value="">Select make first</option>';_md.disabled=true;}
   try{ setColorPick('carColorPick',''); }catch(e){}
+  document.querySelectorAll('.flood-need-btn.active').forEach(b=>{b.classList.remove('active');b.dataset.qty='';});
+  const _fqw=document.getElementById('floodQtyWrap'); if(_fqw) _fqw.innerHTML='';
   const _cy=document.getElementById('carYear'); if(_cy)_cy.value='';
   const _mdo=document.getElementById('carModelOther'); if(_mdo)_mdo.style.display='none';
   // Reset no-spare picker
@@ -7080,7 +7126,13 @@ function cleanLabel(s) {
 }
 // ── WhatsApp helper — stays in-app via Web Share API, falls back to wa.me ──
 function openWA(text, phone) {
-  // Web Share API: shows native share sheet as an overlay — user returns to app after sharing
+  // If a specific number is given, go DIRECTLY to that chat (share sheet can't target a number)
+  if (phone) {
+    const url = `https://wa.me/${phone.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+    return;
+  }
+  // No number → share sheet (lets dispatcher pick the group), falls back to wa.me
   if (navigator.share) {
     navigator.share({ text }).catch(e => {
       // User cancelled or share failed — silently ignore
@@ -7129,6 +7181,7 @@ function buildDispatchWhatsApp(call) {
   let msg=`*COBC DISPATCH*\n`;
   msg+=`*${typeLabel}*\n`;
   msg+=`Address: ${fmtLoc(call)}\n`;
+  if(call.floodNeeds&&call.floodNeeds.length) msg+=`Needs: ${call.floodNeeds.join(', ')}\n`;
   if(call.carMake) {
     const carStr=[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ');
     msg+=`Vehicle: ${carStr}\n`;
@@ -7954,6 +8007,7 @@ function openCallDetail(id) {
     ${call.caller?`<div class="detail-row"><span class="detail-key">Caller</span><span class="detail-val">${call.caller}</span></div>`:''}
     ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="tel:${call.phone}" style="color:var(--blue);text-decoration:none;">${formatPhone(call.phone)}</a></span></div>`:''}
     ${call.carMake?`<div class="detail-row"><span class="detail-key">Vehicle</span><span class="detail-val">${[call.carYear,call.carMake?.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ')}</span></div>`:''}
+    ${(call.floodNeeds&&call.floodNeeds.length)?`<div class="detail-row"><span class="detail-key">Needs</span><span class="detail-val">${call.floodNeeds.join(', ')}</span></div>`:''}
     ${call.noSpareAction==='plug'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--orange);font-weight:700;">🔧 Plug Kit</span></div>`:''}
     ${call.noSpareAction==='tow'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--red);font-weight:700;">🚛 Tow Needed</span></div>`:''}
     ${typeof ezfDetailBlockHTML==='function'?ezfDetailBlockHTML(call):''}
