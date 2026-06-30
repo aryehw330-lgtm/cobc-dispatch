@@ -1132,6 +1132,7 @@ textarea.input{min-height:80px;resize:vertical;}
               <div class="chip" onclick="setEqHistRange('365',this)">1 Year</div>
               <div class="chip" onclick="setEqHistRange('all',this)">All</div>
             </div>
+            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="eqHistSearch" placeholder="Search call #, type, town, caller…" oninput="renderEqCallHistory()"/></div>
             <div id="eqHistSummary" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:rgba(255,255,255,.82);"></div>
             <div id="eqHistList"></div>
           </div>
@@ -1196,6 +1197,16 @@ textarea.input{min-height:80px;resize:vertical;}
         <div id="shiftSlotCar" style="display:none;"></div>
         <!-- Live status badge -->
         <div id="car-live-status" style="display:none;margin-bottom:12px;"></div>
+        <!-- COBC 4 trip history — synced from Firestore (Apps Script writes departures/returns) -->
+        <div class="eq-acc" style="margin-bottom:10px;background:linear-gradient(160deg,rgba(8,145,178,.18),rgba(18,18,22,.5));border-color:rgba(8,145,178,.4);">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderCobc4History()">
+            <span>🚗 COBC 4 History</span>
+            <span class="eq-acc-arrow">▾</span>
+          </button>
+          <div class="eq-acc-body">
+            <div id="cobc4HistList"></div>
+          </div>
+        </div>
         <!-- Calendar -->
         <div style="background:#fff;border-radius:12px;padding:14px;box-shadow:var(--shadow);margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -1532,6 +1543,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="chip" onclick="setMoreHistRange('all',this)">All Time</div>
         </div>
         <div id="histSummaryM" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:rgba(255,255,255,.82);"></div>
+        <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="histSearchM" placeholder="Search call #, type, town, caller…" oninput="renderMoreHistory()"/></div>
         <div id="histListM"></div>
       </div>
       <div id="more-numbers">
@@ -5970,10 +5982,17 @@ function renderEqCallHistory(){
   if(aMs!==null&&bMs!==null){ const lo=Math.min(aMs,bMs),hi=Math.max(aMs,bMs); startMs=lo;endMs=hi+dayMs; label=lo===hi?new Date(lo).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}):fmt(new Date(lo))+' – '+fmt(new Date(hi)); }
   else if(aMs!==null){ const t=_todayStartMs(),lo=Math.min(aMs,t),hi=Math.max(aMs,t); startMs=lo;endMs=hi+dayMs; label=lo===hi?fmt(new Date(lo)):fmt(new Date(lo))+' – '+fmt(new Date(hi)); }
   else { startMs=0;endMs=bMs+dayMs; label='All time through '+fmt(new Date(bMs)); }
-  const calls=(_allCalls()).filter(c=>{ const ts=c.completedAt||c.createdAt||0; return ts>=startMs&&ts<endMs; }).sort((a,b)=>(b.completedAt||b.createdAt||0)-(a.completedAt||a.createdAt||0));
-  if(summary) summary.innerHTML=`<b>${label}</b> · ${calls.length} call${calls.length===1?'':'s'} — tap 📞 to reach the caller`;
-  if(!calls.length){ list.innerHTML='<div style="text-align:center;padding:1.5rem;color:rgba(255,255,255,.5);">No calls in this range.</div>'; return; }
-  list.innerHTML=calls.map(c=>{
+  const calls=(_allCalls()).filter(c=>{ const ts=c.completedAt||c.createdAt||0; return ts>=startMs&&ts<endMs; }).sort((a,b)=>(Number(b.callNum)||0)-(Number(a.callNum)||0));
+  // Search filter (call #, type, town, caller, phone)
+  const q=(document.getElementById('eqHistSearch')?.value||'').trim().toLowerCase();
+  const shown = q ? calls.filter(c=>{
+    const typeRaw=c.type||'';
+    const tl=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw)).toLowerCase();
+    return String(c.callNum||'').includes(q) || tl.includes(q) || (c.town||'').toLowerCase().includes(q) || (fmtLoc(c)||'').toLowerCase().includes(q) || (c.caller||c.callerName||'').toLowerCase().includes(q) || String(c.phone||c.callerPhone||'').includes(q);
+  }) : calls;
+  if(summary) summary.innerHTML=`<b>${label}</b> · ${shown.length}${q?(' of '+calls.length):''} call${shown.length===1?'':'s'} — tap 📞 to reach the caller`;
+  if(!shown.length){ list.innerHTML='<div style="text-align:center;padding:1.5rem;color:rgba(255,255,255,.5);">No calls'+(q?' match “'+q+'”':' in this range')+'.</div>'; return; }
+  list.innerHTML=shown.map(c=>{
     const typeRaw=c.type||'other';
     const typeLabel=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw));
     const t=new Date(c.completedAt||c.createdAt);
@@ -6078,15 +6097,22 @@ function renderMoreHistory(){
   if(aMs!==null&&bMs!==null){ const lo=Math.min(aMs,bMs),hi=Math.max(aMs,bMs); startMs=lo;endMs=hi+dayMs; label=lo===hi?new Date(lo).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}):fmt(new Date(lo))+' – '+fmt(new Date(hi)); }
   else if(aMs!==null){ const t=_todayStartMs(),lo=Math.min(aMs,t),hi=Math.max(aMs,t); startMs=lo;endMs=hi+dayMs; label=lo===hi?fmt(new Date(lo)):fmt(new Date(lo))+' – '+fmt(new Date(hi)); }
   else { startMs=0;endMs=bMs+dayMs; label='All time through '+fmt(new Date(bMs)); }
-  const calls=(_allCalls()).filter(c=>{ const ts=c.completedAt||c.createdAt||0; return ts>=startMs&&ts<endMs; }).sort((a,b)=>(b.completedAt||b.createdAt||0)-(a.completedAt||a.createdAt||0));
+  const calls=(_allCalls()).filter(c=>{ const ts=c.completedAt||c.createdAt||0; return ts>=startMs&&ts<endMs; }).sort((a,b)=>(Number(b.callNum)||0)-(Number(a.callNum)||0));
   const completed=calls.filter(c=>c.status==='done').length;
   const cancelled=calls.filter(c=>c.status==='cancelled').length;
-  const parts=[`${calls.length} call${calls.length===1?'':'s'}`,`${completed} completed`];
+  // Search filter (call #, type, town, caller, phone)
+  const q=(document.getElementById('histSearchM')?.value||'').trim().toLowerCase();
+  const shown=q?calls.filter(c=>{
+    const typeRaw=c.type||'';
+    const tl=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw)).toLowerCase();
+    return String(c.callNum||'').includes(q)||tl.includes(q)||(c.town||'').toLowerCase().includes(q)||(fmtLoc(c)||'').toLowerCase().includes(q)||(c.caller||c.callerName||'').toLowerCase().includes(q)||String(c.phone||c.callerPhone||'').includes(q);
+  }):calls;
+  const parts=[`${shown.length}${q?(' of '+calls.length):''} call${shown.length===1?'':'s'}`,`${completed} completed`];
   if(cancelled) parts.push(`${cancelled} cancelled`);
   if(summary) summary.innerHTML=`<b>${label}</b> · ${parts.join(' · ')}`;
-  if(!calls.length){ list.innerHTML='<div style="text-align:center;padding:2rem;color:rgba(255,255,255,.5);">No calls in this range.</div>'; return; }
+  if(!shown.length){ list.innerHTML='<div style="text-align:center;padding:2rem;color:rgba(255,255,255,.5);">No calls'+(q?' match “'+q+'”':' in this range')+'.</div>'; return; }
   const _isDispatch=['admin','dispatch'].includes(SESSION.role);
-  list.innerHTML=calls.map(c=>{
+  list.innerHTML=shown.map(c=>{
     const typeRaw=c.type||'other';
     const typeLabel=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw));
     const t=new Date(c.completedAt||c.createdAt);
