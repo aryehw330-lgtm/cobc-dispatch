@@ -10906,8 +10906,8 @@ async function autofillFromLastCall(){
     if(phoneEl) phoneEl.value=digits||rawPhone;
     _lastTelzioCall={name:name,phone:digits||rawPhone,at:Date.now()};
     showToast('📞 Filled from last call'+(name?' — '+name:''));
-  }catch(e){ showToast('Could not reach Telzio'); console.warn('autofillFromLastCall',e); }
-  finally{ if(btn){ btn.disabled=false; btn.innerHTML=orig; } }
+  }catch(e){ if(btn){ btn.innerHTML='⚠️ No caller found — type manually'; setTimeout(()=>{ btn.innerHTML=orig; },2500); } showToast('Could not reach phone system — enter caller manually'); console.warn('autofillFromLastCall',e); }
+  finally{ if(btn){ btn.disabled=false; setTimeout(()=>{ if(btn.innerHTML==='⏳ Fetching…') btn.innerHTML=orig; },0); } }
 }
 // Auto-runs when the New Call modal OPENS — fills caller silently, no button tap needed.
 // 1) Use live webhook data instantly (Option A).  2) If none, quietly pull via Telzio (Option B).
