@@ -3196,6 +3196,7 @@ async function initFirebaseApp() {
       try { subscribeNumbersFromFirestore(); } catch(e){ console.warn('subscribeNumbers:', e); }
       try { subscribeEquipmentHistoryFromFirestore(); } catch(e){ console.warn('subscribeEqHist:', e); }
       try { subscribeCobc4HistoryFromFirestore(); } catch(e){ console.warn('subscribeCobc4Hist:', e); }
+      try { subscribeCustomCarDataFromFirestore(); } catch(e){ console.warn('subscribeCustomCar:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -4080,6 +4081,60 @@ function escapeHTML(s) {
 
 // Populate a car-year dropdown: newest = current year + 1 (models release early),
 // down to 1995, plus "Older". Safe to call repeatedly.
+// ── Custom car makes/models (admin-saved, synced to all devices) ──
+function _mergeCustomCarData(){
+  const cc=(STATE&&STATE.customCarData)||null;
+  if(!cc||typeof CAR_DATA==='undefined') return;
+  Object.keys(cc).forEach(make=>{
+    if(!CAR_DATA[make]) CAR_DATA[make]=[];
+    (cc[make]||[]).forEach(model=>{ if(model && CAR_DATA[make].indexOf(model)===-1) CAR_DATA[make].push(model); });
+    CAR_DATA[make].sort();
+  });
+}
+function pushCustomCarDataToFirestore(){
+  try{ if(typeof firebase==='undefined') return Promise.resolve();
+    return firebase.firestore().collection('config').doc('customCarData').set({
+      data: STATE.customCarData||{}, updatedAt: Date.now(), updatedBy:(SESSION&&SESSION.unit)||null
+    });
+  }catch(e){ console.warn('pushCustomCarData:',e); }
+}
+function subscribeCustomCarDataFromFirestore(){
+  try{ if(typeof firebase==='undefined') return;
+    firebase.firestore().collection('config').doc('customCarData').onSnapshot(doc=>{
+      if(!doc.exists) return; const d=doc.data();
+      if(!d||typeof d.data!=='object') return;
+      STATE.customCarData=d.data;
+      try{ save&&save(); }catch(e){}
+      _mergeCustomCarData();
+    }, err=>console.warn('customCarData snapshot:',err));
+  }catch(e){ console.warn('subscribeCustomCarData:',e); }
+}
+// Admin: permanently add a make (and optional model) to the shared dropdowns.
+function adminSaveCarEntry(make, model){
+  if((SESSION.role||'').toLowerCase()!=='admin') return false;
+  make=(make||'').trim(); model=(model||'').trim();
+  if(!make) return false;
+  STATE.customCarData=STATE.customCarData||{};
+  STATE.customCarData[make]=STATE.customCarData[make]||[];
+  if(model && STATE.customCarData[make].indexOf(model)===-1) STATE.customCarData[make].push(model);
+  // also reflect into the in-memory CAR_DATA + reset dropdown so it shows immediately
+  if(typeof CAR_DATA!=='undefined'){ if(!CAR_DATA[make]) CAR_DATA[make]=[]; if(model && CAR_DATA[make].indexOf(model)===-1) CAR_DATA[make].push(model); CAR_DATA[make].sort(); }
+  const ms=document.getElementById('carMake'); if(ms) ms.dataset.populated='';
+  save(); pushCustomCarDataToFirestore();
+  return true;
+}
+// Offer to permanently save a newly-typed make/model (admin only). Called on call save.
+function _maybeSaveCustomCar(make, model, usedOtherMake, usedOtherModel){
+  if((SESSION.role||'').toLowerCase()!=='admin') return;
+  if(!usedOtherMake && !usedOtherModel) return;
+  make=(make||'').trim(); model=(model||'').trim();
+  if(!make) return;
+  const known = (typeof CAR_DATA!=='undefined') && CAR_DATA[make];
+  const modelKnown = known && (!model || CAR_DATA[make].indexOf(model)!==-1);
+  if(known && modelKnown) return; // nothing new
+  const what = !known ? (make+(model?' '+model:'')) : (make+' '+model);
+  setTimeout(()=>{ if(confirm('Save "'+what+'" to the vehicle dropdowns permanently (for everyone)?')) adminSaveCarEntry(make, model); }, 400);
+}
 function populateCarYearSelect(yearId){
   const sel=document.getElementById(yearId||'carYear');
   if(!sel || sel.tagName!=='SELECT') return;
@@ -4092,6 +4147,8 @@ function populateCarYearSelect(yearId){
   sel.dataset.filled=String(newest);
 }
 function populateCarMakeSelect(makeId) {
+  // Merge any admin-saved custom makes/models before building the dropdown
+  try{ _mergeCustomCarData(); }catch(e){}
   const makeSelect = document.getElementById(makeId||'carMake');
   if(!makeSelect || makeSelect.tagName !== 'SELECT') return;
   if(makeSelect.dataset.populated === '1') return;
@@ -6916,8 +6973,10 @@ function createCall() {
   const notes=document.getElementById('callNotes').value.trim();
   const dontPublish=document.getElementById('callDontPublish').checked;
   let carMake=(document.getElementById('carMake')?.value||'').trim();
+  const _usedOtherMake=(carMake==='Other');
   if(carMake==='Other') carMake=(document.getElementById('carMakeOther')?.value||'').trim();
   let carModel=(document.getElementById('carModel')?.value||'').trim();
+  const _usedOtherModel=(carModel==='Other');
   if(carModel==='Other') carModel=(document.getElementById('carModelOther')?.value||'').trim();
   const carYear=document.getElementById('carYear').value;
   const carColor=document.getElementById('carColor').value.trim();
@@ -6950,6 +7009,7 @@ function createCall() {
 
   STATE.calls.push(call); save(); firestoreUpsertCall(call);
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
+  try{ _maybeSaveCustomCar(carMake, carModel, _usedOtherMake, _usedOtherModel); }catch(e){}
   hideModal('newCallModal');
   ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther','callTown','callTownText'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const _cm=document.getElementById('carMake'); if(_cm){_cm.value='';}
@@ -10882,6 +10942,7 @@ function stopTelzioLivePolling() {
 
 // Last 5 incoming calls — pulls from the Cloudflare Worker proxy (works without the webhook).
 let _telzioRecentTimer = null;
+let _telzioRecentCache = [];
 let _telzioRecentInFlight = false;
 let _telzioRecentFails = 0;
 let _telzioRecentSkipUntil = 0;
@@ -10919,6 +10980,7 @@ async function _loadTelzioRecent() {
       return { name: c.FromCnam || c.caller_name || '', phone: phone, at: at };
     });
     renderTelzioRecentList(calls);
+    _telzioRecentCache = calls;
   } catch(e) {
     _telzioRecentFails++;
     if(_telzioRecentFails >= 3){ _telzioRecentSkipUntil = Date.now() + 120000; _telzioRecentFails = 0; } // pause 2 min after 3 fails
@@ -11001,6 +11063,18 @@ async function autofillFromLastCall(){
   if(_applyTelzioToForm(true)){
     showToast('📞 Filled from last call'+(_lastTelzioCall&&_lastTelzioCall.name?' — '+_lastTelzioCall.name:''));
     return;
+  }
+  // Use the already-working recent-calls list (same data the panel shows) as primary source
+  if(_telzioRecentCache && _telzioRecentCache.length){
+    const c=_telzioRecentCache.find(x=>x.phone)||_telzioRecentCache[0];
+    if(c && c.phone){
+      const nameEl=document.getElementById('callCaller'), phoneEl=document.getElementById('callPhone');
+      if(phoneEl) phoneEl.value=c.phone;
+      if(nameEl && c.name) nameEl.value=c.name;
+      _lastTelzioCall={name:c.name||'',phone:c.phone,at:Date.now()};
+      showToast('📞 Filled from last call'+(c.name?' — '+c.name:''));
+      return;
+    }
   }
   if(btn){ btn.disabled=true; btn.innerHTML='⏳ Fetching…'; }
   try{
