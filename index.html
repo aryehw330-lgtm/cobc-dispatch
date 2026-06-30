@@ -504,6 +504,14 @@ textarea.input{min-height:80px;resize:vertical;}
 #page-equipment .stat-card .stat-label{color:rgba(255,255,255,.75);}
 #page-equipment #eqSubTabs .sub-tab{-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.14);background:linear-gradient(160deg,rgba(234,88,12,.20),rgba(18,18,22,.5));color:#fff;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.35);}
 #page-equipment #eqSubTabs .sub-tab.active{border-color:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(255,255,255,.4),inset 0 1px 0 rgba(255,255,255,.25);}
+/* ── Car color picker (dropdown with real color dots) ── */
+.color-pick{position:relative;}
+.color-pick-btn{display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;}
+.cp-dot{width:16px;height:16px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,.12) inset;}
+.color-pick-menu{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;background:#fff;border:1px solid var(--border2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:260px;overflow-y:auto;padding:4px;}
+.color-pick.open .color-pick-menu{display:block;}
+.cp-opt{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);}
+.cp-opt:hover{background:var(--border2);}
 /* ── DISPATCH ON-DUTY BANNER ── */
 .on-duty-banner{background:linear-gradient(135deg,rgba(212,169,58,.2),rgba(18,15,9,.7));-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(230,196,99,.4);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;color:#fff;display:flex;justify-content:flex-start;align-items:center;gap:14px;width:fit-content;max-width:100%;}
 .home-top-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
@@ -2284,11 +2292,11 @@ textarea.input{min-height:80px;resize:vertical;}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div class="input-group" style="margin-bottom:0;">
           <label class="input-label">Year</label>
-          <input class="input" type="number" id="carYear" placeholder="2020" min="1990" max="2030"/>
+          <select class="input" id="carYear"></select>
         </div>
         <div class="input-group" style="margin-bottom:0;">
           <label class="input-label">Color</label>
-          <input class="input" type="text" id="carColor" placeholder="Silver, Black..."/>
+          <div class="color-pick" id="carColorPick"><input type="hidden" id="carColor"/><button type="button" class="input color-pick-btn" onclick="toggleColorPick('carColorPick')"><span class="cp-dot" style="background:transparent;border:1px dashed var(--border2);"></span><span class="cp-label" style="color:var(--text3);">Select color…</span><span style="margin-left:auto;opacity:.5;">▾</span></button><div class="color-pick-menu"></div></div>
         </div>
       </div>
 
@@ -2364,6 +2372,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <button id="callSubmitBtn" class="btn-full btn-primary metal-gold" onclick="createCall()" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);font-size:16px;font-weight:700;padding:16px;letter-spacing:-.2px;">Dispatch Call</button>
+    <button type="button" class="btn-full" onclick="sendToInterstate()" style="margin-top:8px;background:linear-gradient(135deg,#047857,#059669);color:#fff;border:none;font-size:15px;font-weight:700;padding:14px;border-radius:12px;">🌐 Send to Interstate</button>
     <button class="btn-full btn-ghost" onclick="hideModal('newCallModal')" style="margin-top:8px;">Cancel</button>
   </div>
 </div>
@@ -2564,11 +2573,11 @@ textarea.input{min-height:80px;resize:vertical;}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div class="input-group" style="margin-bottom:0;">
           <label class="input-label">Year</label>
-          <input class="input" type="number" id="editCarYear" placeholder="2020" min="1990" max="2030"/>
+          <select class="input" id="editCarYear"></select>
         </div>
         <div class="input-group" style="margin-bottom:0;">
           <label class="input-label">Color</label>
-          <input class="input" type="text" id="editCarColor" placeholder="Silver, Black..."/>
+          <div class="color-pick" id="editCarColorPick"><input type="hidden" id="editCarColor"/><button type="button" class="input color-pick-btn" onclick="toggleColorPick('editCarColorPick')"><span class="cp-dot" style="background:transparent;border:1px dashed var(--border2);"></span><span class="cp-label" style="color:var(--text3);">Select color…</span><span style="margin-left:auto;opacity:.5;">▾</span></button><div class="color-pick-menu"></div></div>
         </div>
       </div>
     </div>
@@ -3987,7 +3996,7 @@ function addrAutoLookup(inputEl, townSelId, townTextId) {
     } catch(e) {
       box.innerHTML='<div class="addr-suggest-empty">⚠️ Lookup failed — type manually</div>';
     }
-  }, 350);
+  }, 150);
 }
 
 function renderAddrSuggestions(predictions, box, inputEl, townSelId, townTextId) {
@@ -4069,7 +4078,19 @@ function escapeHTML(s) {
   return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// ── Car Makes & Models ──
+// Populate a car-year dropdown: newest = current year + 1 (models release early),
+// down to 1995, plus "Older". Safe to call repeatedly.
+function populateCarYearSelect(yearId){
+  const sel=document.getElementById(yearId||'carYear');
+  if(!sel || sel.tagName!=='SELECT') return;
+  const newest=new Date().getFullYear()+1;
+  if(sel.dataset.filled===String(newest)) return;
+  let html='<option value="">Year…</option>';
+  for(let y=newest;y>=1995;y--) html+=`<option value="${y}">${y}</option>`;
+  html+='<option value="Older">Older</option>';
+  sel.innerHTML=html;
+  sel.dataset.filled=String(newest);
+}
 function populateCarMakeSelect(makeId) {
   const makeSelect = document.getElementById(makeId||'carMake');
   if(!makeSelect || makeSelect.tagName !== 'SELECT') return;
@@ -4113,13 +4134,14 @@ function onCarModelChange(modelId, modelOtherId) {
 // Hydrate an edit-modal make/model pair from a saved call's stored strings.
 function hydrateEditCar(call){
   populateCarMakeSelect('editCarMake');
+  if(typeof populateCarYearSelect==='function') populateCarYearSelect('editCarYear');
   const makeSel=document.getElementById('editCarMake');
   const makeOther=document.getElementById('editCarMakeOther');
   const modelOther=document.getElementById('editCarModelOther');
   if(!makeSel) return;
   const make=(call.carMake||'').replace(/_/g,' ').trim();
   document.getElementById('editCarYear').value = call.carYear||'';
-  document.getElementById('editCarColor').value = call.carColor||'';
+  setColorPick('editCarColorPick', call.carColor||'');
   if(!make){ makeSel.value=''; onCarMakeChange('editCarMake','editCarModel','editCarMakeOther','editCarModelOther'); return; }
   const known=Array.from(makeSel.options).some(o=>o.value===make);
   if(known){
@@ -5249,6 +5271,8 @@ function initApp() {
 
   // Start the unified app heartbeat (replaces several separate 30s timers)
   startAppHeartbeat();
+  // Warm up Google Maps API now (not on first keystroke) so address search is instant
+  try{ if(typeof loadGoogleMapsAPI==='function') loadGoogleMapsAPI().catch(()=>{}); }catch(e){}
   // Load live equipment from Google Sheet (async, non-blocking)
   loadInventoryFromSheet();
 
@@ -5334,7 +5358,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof populateCarYearSelect==='function')populateCarYearSelect('carYear');if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');if(id==='callDetailModal')window._openDetailId=null;}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -6798,6 +6822,77 @@ function _nextCallNum() {
   return next;
 }
 
+// Send the current New-Call form info to the Chaverim Interstate WhatsApp number.
+const INTERSTATE_WA = '18458524357';
+function sendToInterstate(){
+  let type=document.getElementById('callType').value;
+  if(!type){ showToast('Choose a call type first'); return; }
+  if(type==='other'){ const ct=document.getElementById('otherTypeText')?.value?.trim(); if(ct) type='other:'+ct; }
+  const eqTypes=['needs_ac','needs_fan','needs_heat'];
+  if(eqTypes.includes(type)){ const qty=(document.getElementById('eqQtySelect')?.value||'1'); type=type+':qty'+qty; }
+  const typeLabel=cleanLabel(type.startsWith('other:')?type.replace('other:',''):CALL_TYPE_LABELS[type]||type);
+  const address=document.getElementById('callAddress').value.trim();
+  if(!address){ showToast('⚠️ Enter an address first'); return; }
+  const townSel=document.getElementById('callTown').value;
+  const town=townSel==='Other'?(document.getElementById('callTownText')?.value?.trim()||''):townSel;
+  const caller=document.getElementById('callCaller').value.trim();
+  const phone=document.getElementById('callPhone').value.trim();
+  const notes=document.getElementById('callNotes').value.trim();
+  const urgent=(document.getElementById('callPriority').value==='urgent');
+  const loc=address+(town?', '+town:'');
+  const lines=[];
+  lines.push('New Call (BC)'+(urgent?' — URGENT':''));
+  lines.push('');
+  lines.push('Location: '+loc);
+  lines.push('');
+  lines.push('Phone: '+(phone||''));
+  lines.push('');
+  lines.push('Name: '+(caller||''));
+  lines.push('');
+  lines.push('Nature: '+typeLabel);
+  if(notes) lines.push('\n'+notes);
+  openWA(lines.join('\n'), INTERSTATE_WA);
+}
+// ── Car color picker (dropdown with real color dots) ──
+const CAR_COLORS=[
+  ['White','#ffffff'],['Black','#1a1a1a'],['Silver','#c0c5cb'],['Gray','#6b7280'],
+  ['Red','#dc2626'],['Blue','#2563eb'],['Navy','#1e3a5f'],['Green','#16a34a'],
+  ['Gold','#c8a951'],['Beige','#d9c8a9'],['Brown','#7c4a21'],['Orange','#ea580c'],
+  ['Yellow','#eab308'],['Maroon','#7f1d1d'],['Tan','#cda878'],['Other','#9ca3af']
+];
+function _colorHex(name){ const f=CAR_COLORS.find(c=>c[0].toLowerCase()===String(name||'').toLowerCase()); return f?f[1]:'#9ca3af'; }
+function buildColorMenu(pickId){
+  const pick=document.getElementById(pickId); if(!pick) return;
+  const menu=pick.querySelector('.color-pick-menu'); if(!menu||menu.dataset.built) return;
+  menu.innerHTML=CAR_COLORS.map(([n,hex])=>`<div class="cp-opt" onclick="selectColor('${pickId}','${n}')"><span class="cp-dot" style="background:${hex};"></span>${n}</div>`).join('');
+  menu.dataset.built='1';
+}
+function toggleColorPick(pickId){
+  const pick=document.getElementById(pickId); if(!pick) return;
+  buildColorMenu(pickId);
+  const wasOpen=pick.classList.contains('open');
+  document.querySelectorAll('.color-pick.open').forEach(p=>p.classList.remove('open'));
+  if(!wasOpen) pick.classList.add('open');
+}
+function selectColor(pickId,name){
+  const pick=document.getElementById(pickId); if(!pick) return;
+  const input=pick.querySelector('input[type=hidden]'); if(input) input.value=name;
+  const dot=pick.querySelector('.color-pick-btn .cp-dot');
+  const lbl=pick.querySelector('.color-pick-btn .cp-label');
+  if(dot){ dot.style.background=_colorHex(name); dot.style.border='none'; }
+  if(lbl){ lbl.textContent=name; lbl.style.color='var(--text)'; }
+  pick.classList.remove('open');
+}
+// Reflect a stored value into the picker button (used when opening the edit modal)
+function setColorPick(pickId,name){
+  const pick=document.getElementById(pickId); if(!pick) return;
+  const input=pick.querySelector('input[type=hidden]'); if(input) input.value=name||'';
+  const dot=pick.querySelector('.color-pick-btn .cp-dot');
+  const lbl=pick.querySelector('.color-pick-btn .cp-label');
+  if(name){ if(dot){dot.style.background=_colorHex(name);dot.style.border='none';} if(lbl){lbl.textContent=name;lbl.style.color='var(--text)';} }
+  else { if(dot){dot.style.background='transparent';dot.style.border='1px dashed var(--border2)';} if(lbl){lbl.textContent='Select color…';lbl.style.color='var(--text3)';} }
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('.color-pick')) document.querySelectorAll('.color-pick.open').forEach(p=>p.classList.remove('open')); });
 function createCall() {
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Only dispatch can create calls'); return; }
   let type=document.getElementById('callType').value;
@@ -6860,6 +6955,8 @@ function createCall() {
   const _cm=document.getElementById('carMake'); if(_cm){_cm.value='';}
   const _cmo=document.getElementById('carMakeOther'); if(_cmo)_cmo.style.display='none';
   const _md=document.getElementById('carModel'); if(_md){_md.innerHTML='<option value="">Select make first</option>';_md.disabled=true;}
+  try{ setColorPick('carColorPick',''); }catch(e){}
+  const _cy=document.getElementById('carYear'); if(_cy)_cy.value='';
   const _mdo=document.getElementById('carModelOther'); if(_mdo)_mdo.style.display='none';
   // Reset no-spare picker
   const _ns=document.getElementById('noSpareAction'); if(_ns) _ns.value='';
@@ -6932,6 +7029,24 @@ function openWA(text, phone) {
   }
 }
 
+// Send a SAVED call to Chaverim Interstate WhatsApp (same number/format as the New-Call button)
+function sendCallToInterstate(id){
+  const call=STATE.calls.find(c=>c.id===id); if(!call){ showToast('Call not found'); return; }
+  const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  const urgent=call.priority==='urgent';
+  const lines=[];
+  lines.push('New Call (BC)'+(urgent?' — URGENT':''));
+  lines.push('');
+  lines.push('Location: '+(fmtLoc(call)||''));
+  lines.push('');
+  lines.push('Phone: '+(call.phone||''));
+  lines.push('');
+  lines.push('Name: '+(call.caller||''));
+  lines.push('');
+  lines.push('Nature: '+typeLabel);
+  if(call.notes) lines.push('\n'+call.notes);
+  openWA(lines.join('\n'), INTERSTATE_WA);
+}
 function buildDispatchWhatsApp(call) {
   // Strip emoji from type label (e.g. "Vehicle: Flat Tire" → "Flat Tire")
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -7878,6 +7993,7 @@ function openCallDetail(id) {
   if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
+  if(isDispatch && (call.status==='open'||call.status==='active')) html+=`<button class="btn-sm" style="background:linear-gradient(135deg,#047857,#059669);color:#fff;font-weight:700;" onclick="sendCallToInterstate('${id}')">🌐 Send to Interstate</button>`;
   if(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled'){
     const _myResp=(call.responders||[]).find(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
