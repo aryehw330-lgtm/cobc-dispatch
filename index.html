@@ -946,6 +946,17 @@ textarea.input{min-height:80px;resize:vertical;}
 </script>
 
 <!-- APP -->
+<script>
+  // Prevent login-screen flash on PWA re-open: if a saved session exists, hide the
+  // login overlay synchronously at parse time (before Firebase init / restore runs).
+  try {
+    var _ss = JSON.parse(localStorage.getItem('cobc_session')||'null');
+    if (_ss && _ss.unit && _ss.role) {
+      var _ls = document.getElementById('login-screen');
+      if (_ls) { _ls.style.display='none'; _ls.classList.add('hidden'); }
+    }
+  } catch(e){}
+</script>
 <div id="app">
   <div class="topbar">
     <div class="topbar-left">
@@ -3197,6 +3208,7 @@ async function initFirebaseApp() {
       try { subscribeEquipmentHistoryFromFirestore(); } catch(e){ console.warn('subscribeEqHist:', e); }
       try { subscribeCobc4HistoryFromFirestore(); } catch(e){ console.warn('subscribeCobc4Hist:', e); }
       try { subscribeCustomCarDataFromFirestore(); } catch(e){ console.warn('subscribeCustomCar:', e); }
+      try { subscribeTelzioRecentList(); } catch(e){ console.warn('subscribeTelzioRecent:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -4766,7 +4778,7 @@ function _tryRestoreSession() {
       const topSub = document.getElementById('topbarSub');
       if (topSub) topSub.textContent = s.name+' · '+(s.unit||'');
       _applyRoleUI(s.role);
-      setTimeout(()=>{ renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner(); }, 300);
+      try{ renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner(); }catch(e){}
     });
   } catch(e) { try { localStorage.removeItem('cobc_session'); } catch(_){} }
 }
