@@ -11497,6 +11497,13 @@ async function _freezeYearSilent(year){
   console.log('Auto-froze year '+year+' ('+bcs.length+' members)');
   return true;
 }
+// Leading-zero-safe lookup for stats objects keyed by BC number (handles "05" vs "5").
+function _lookupStats(obj, key){
+  if(!obj) return null;
+  const k=String(key).replace(/^BC-?/i,'');
+  const kz=k.replace(/^0+/,'');
+  return obj[k]||obj[kz]||(kz?obj['0'+kz]:null)||null;
+}
 // Per-member historical totals derived from MEMBER_STATS (ALL members, no top-25 limit).
 function _memberHist(bc){
   const k=String(bc).replace(/^BC-?/i,"");
@@ -12018,7 +12025,7 @@ function renderMyStats(bcArg, opts) {
     if(typeof window['_'+_cid+'CallsMo']==='undefined') window['_'+_cid+'CallsMo']='all';
     const _yrSel=window['_'+_cid+'CallsYr'], _moSel=window['_'+_cid+'CallsMo'];
     const _MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const _mhRaw=(typeof MEMBER_STATS!=='undefined')?MEMBER_STATS[bc]:null;
+    const _mhRaw=(function(){ if(typeof MEMBER_STATS==='undefined') return null; const kk=String(bc).replace(/^BC-?/i,''); const kz=kk.replace(/^0+/,''); return MEMBER_STATS[kk]||MEMBER_STATS[kz]||(kz?MEMBER_STATS['0'+kz]:null)||null; })();
     const _yrsSet=new Set();
     if(_mhRaw) Object.keys(_mhRaw.years||{}).forEach(y=>_yrsSet.add(y));
     liveCalls.forEach(c=>{ if(c.createdAt) _yrsSet.add(String(new Date(c.createdAt).getFullYear())); });
@@ -12360,7 +12367,7 @@ function searchStatsMember() {
 // time per call type vs peers. Negative pct = faster than peers (green).
 function _perfSectionHTML(bc){
   const k=String(bc).replace(/^BC-?/i,'');
-  const p=(typeof PERF_DATA!=='undefined')?PERF_DATA[k]:null;
+  const p=_lookupStats(PERF_DATA,k);
   if(!p||!p.types||!Object.keys(p.types).length) return '';
   const rows=Object.entries(p.types)
     .sort((a,b)=>(b[1].n||0)-(a[1].n||0))
@@ -12451,7 +12458,7 @@ function showMemberStatsCard(bc) {
 let _memberMonthYr = {};
 function _memberMonthlyHTML(bc){
   const k=String(bc).replace(/^BC-?/i,'');
-  const m=(typeof MEMBER_STATS!=='undefined')?MEMBER_STATS[k]:null;
+  const m=_lookupStats(MEMBER_STATS,k);
   if(!m||!m.years) return '';
   const yrs=Object.keys(m.years).filter(y=>m.years[y]&&m.years[y].months).sort((a,b)=>b-a);
   if(!yrs.length) return '';
@@ -12468,7 +12475,7 @@ function _memberMonthlyHTML(bc){
 }
 function _renderMemberMonthChart(bc){
   const k=String(bc).replace(/^BC-?/i,'');
-  const m=(typeof MEMBER_STATS!=='undefined')?MEMBER_STATS[k]:null;
+  const m=_lookupStats(MEMBER_STATS,k);
   if(!m||!m.years) return;
   const yr=_memberMonthYr[k];
   const mo=(m.years[yr]&&m.years[yr].months)||{};
