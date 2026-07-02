@@ -1502,6 +1502,17 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
 
+        <!-- Get latest version (in-app cache clear + fresh fetch) -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">⬆️ Get Latest Version</div>
+              <div class="card-desc">Clears the app cache and fetches the newest version. You stay signed in.</div>
+            </div>
+            <button class="btn-sm btn-primary" onclick="forceGetLatestVersion(this)" style="flex-shrink:0;">Update</button>
+          </div>
+        </div>
+
         <!-- Reset all calls (admin-only, testing) -->
         <div class="card" id="settingsResetCard" style="margin-bottom:10px;display:none;border:1.5px solid #fca5a5;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
@@ -10459,6 +10470,23 @@ function clearAppCache() {
     showToast('✅ Cache cleared. Reloading…');
     setTimeout(() => location.reload(), 800);
   } catch(e) { showToast('Error clearing cache'); }
+}
+// Full "get latest version" — does in-app what clearing site data does manually:
+// unregisters service workers, wipes the browser's Cache Storage, then reloads with
+// a cache-busting URL so the freshest index.html is fetched. Stays signed in.
+async function forceGetLatestVersion(btn){
+  const orig=btn?btn.textContent:'';
+  if(btn){ btn.disabled=true; btn.textContent='Updating…'; }
+  try{
+    if('serviceWorker' in navigator){
+      try{ const regs=await navigator.serviceWorker.getRegistrations(); for(const r of regs){ try{ await r.unregister(); }catch(e){} } }catch(e){}
+    }
+    if(window.caches && caches.keys){
+      try{ const keys=await caches.keys(); for(const k of keys){ try{ await caches.delete(k); }catch(e){} } }catch(e){}
+    }
+    showToast('⬆️ Fetching latest version…');
+  }catch(e){}
+  setTimeout(()=>{ location.replace(location.pathname+'?v='+Date.now()); }, 700);
 }
 function showInstallInstructions() {
   showAddToHomePrompt(true);
