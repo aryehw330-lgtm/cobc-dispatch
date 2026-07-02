@@ -2253,8 +2253,8 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn qtype-btn-urgent" onclick="selectCallType('child_lockout',this)">🚨 Child<br><span style="font-size:10px;opacity:.9;">Locked in Car</span></button>
       <button class="qtype-btn" onclick="selectCallType('missing_person',this)">Missing Person</button>
       <button class="qtype-btn" onclick="selectCallType('flood',this)">Flood</button>
+      <button class="qtype-btn" onclick="selectCallType('out_of_gas',this)">⛽ Out Of Gas</button>
       <button class="qtype-btn" onclick="selectCallType('needs_ac',this)">❄️ Needs A/C<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
-      <button class="qtype-btn" onclick="selectCallType('needs_fan',this)">💨 Needs Fans<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
       <button class="qtype-btn" onclick="selectCallType('needs_heat',this)">🔥 Needs Heater<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
       <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
     </div>
@@ -2357,6 +2357,10 @@ textarea.input{min-height:80px;resize:vertical;}
       <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>document.getElementById('callAddressSuggest').style.display='none',200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
       <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <button type="button" onclick="pasteMapsLink()" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📋 Paste Maps link</button>
+      <button type="button" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
+    </div>
     <!-- Town is auto-detected from the address; hidden from the UI but still stored for color-coding, maps & ETA -->
     <div style="display:none;">
       <select id="callTown">
@@ -2370,8 +2374,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <!-- CALLER INFO in one row -->
-    <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="width:100%;margin-bottom:8px;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
       <div class="input-group" style="margin-bottom:0;">
         <label class="input-label">Caller Name</label>
         <input class="input" type="text" id="callCaller" placeholder="Name"/>
@@ -2381,6 +2384,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <input class="input" type="tel" id="callPhone" placeholder="Phone"/>
       </div>
     </div>
+    <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="width:100%;margin-bottom:12px;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
 
     <div class="input-group">
       <label class="input-label">Notes</label>
@@ -3052,7 +3056,35 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 // Build stamp — shown at the bottom of the Settings tab. Bump this whenever code
 // changes so the running version is identifiable on each device.
-const APP_BUILD = 'Build 2026-06-23e · route line from your dot to destination';
+const APP_BUILD = 'Build 2026-07-02a · auto-update';
+// ── Auto-update: force every device onto the latest deployed build ──────────
+// A `config/appVersion` doc in Firestore holds the newest build stamp. On startup
+// and whenever the app returns to the foreground, each device compares its own
+// APP_BUILD to that doc: if the cloud is newer, it hard-refreshes past the PWA/HTTP
+// cache (once per version — no reload loops). Admin/dispatch devices running a
+// NEWER build than the doc publish theirs, so simply deploying + opening the app
+// as admin rolls everyone forward automatically.
+function _buildToken(s){ const m=String(s||'').match(/(\d{4}-\d{2}-\d{2}[a-z]?)/i); return m?m[1].toLowerCase():''; }
+function _checkAppVersion(){
+  try{
+    if(typeof firebase==='undefined' || !_firebaseReady) return;
+    firebase.firestore().collection('config').doc('appVersion').get().then(doc=>{
+      const mine=_buildToken(APP_BUILD);
+      const theirs=doc.exists?_buildToken((doc.data()||{}).build):'';
+      if(theirs && mine && theirs>mine){
+        const key='cobc_forced_'+theirs;
+        if(sessionStorage.getItem(key)) return; // already tried this version this session
+        sessionStorage.setItem(key,'1');
+        try{ showToast('⬆️ Updating to the latest version…'); }catch(e){}
+        if('serviceWorker' in navigator){ try{ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{ try{ r.update(); }catch(e){} })); }catch(e){} }
+        setTimeout(()=>{ location.replace(location.pathname+'?v='+Date.now()); }, 900);
+      } else if(mine && theirs<mine && ['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'')){
+        firebase.firestore().collection('config').doc('appVersion').set({build:APP_BUILD, at:Date.now(), by:(SESSION&&SESSION.unit)||''}).catch(()=>{});
+      }
+    }).catch(()=>{});
+  }catch(e){}
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ try{ _checkAppVersion(); }catch(e){} } });
 
 // ── Haptic feedback ───────────────────────────────────
 function haptic(type) {
@@ -3220,6 +3252,9 @@ async function initFirebaseApp() {
       try { subscribeCobc4HistoryFromFirestore(); } catch(e){ console.warn('subscribeCobc4Hist:', e); }
       try { subscribeCustomCarDataFromFirestore(); } catch(e){ console.warn('subscribeCustomCar:', e); }
       try { subscribeTelzioRecentList(); } catch(e){ console.warn('subscribeTelzioRecent:', e); }
+      try { subscribeTelzioFromFirestore(); } catch(e){ console.warn('subscribeTelzioWebhook:', e); }
+      try { subscribeTelzioCallsFromFirestore(); } catch(e){ console.warn('subscribeTelzioCalls:', e); }
+      try { _checkAppVersion(); } catch(e){ console.warn('versionCheck:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -3518,10 +3553,10 @@ function _waMsgResponderUpdate(call, newResponder) {
 // "🆘 BACKUP NEEDED"
 function _waMsgBackup(call, backupReq) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  let msg = `*BACKUP NEEDED — Call #${call.callNum||''}*\n`;
-  msg += `${typeLabel} · ${fmtLoc(call)}`;
-  if (backupReq.equipment) msg += `\nEquipment: ${backupReq.equipment}`;
-  if (backupReq.notes)     msg += `\nNotes: ${backupReq.notes}`;
+  let msg = `🆘 *BACKUP NEEDED — Call #${call.callNum||''}*\n`;
+  msg += `${typeLabel}\n📍 ${fmtLoc(call)}`;
+  if (backupReq.equipment) msg += `\n🧰 ${backupReq.equipment}`;
+  if (backupReq.notes)     msg += `\n📝 ${backupReq.notes}`;
   return msg;
 }
 
@@ -3984,6 +4019,31 @@ function setUrgentToggle(on){
   if(row){ row.style.background= on?'rgba(220,38,38,.12)':'var(--border2)'; row.style.borderColor= on?'var(--red)':'transparent'; }
 }
 
+// Paste a Google/Apple Maps link from the clipboard → fill the address field
+async function pasteMapsLink(){
+  let text='';
+  try{ text=await navigator.clipboard.readText(); }catch(e){ text=prompt('Paste the Maps link:')||''; }
+  text=(text||'').trim();
+  if(!text){ showToast('Clipboard empty — copy a Maps link first'); return; }
+  const input=document.getElementById('callAddress'); if(!input) return;
+  const placeM=text.match(/\/place\/([^\/@?]+)/);
+  if(placeM){ const addr=decodeURIComponent(placeM[1].replace(/\+/g,' ')).trim(); if(addr){ input.value=addr; addrAutoLookup(input,'callTown','callTownText'); showToast('📍 Address pasted'); return; } }
+  const coordM=text.match(/[@=\/](-?\d{1,3}\.\d{3,}),(-?\d{1,3}\.\d{3,})/);
+  if(coordM){
+    const lat=coordM[1], lng=coordM[2];
+    input.value=lat+', '+lng;
+    showToast('📍 Location pasted — resolving…');
+    try{ await loadGoogleMapsAPI(); const geo=new google.maps.Geocoder(); geo.geocode({location:{lat:parseFloat(lat),lng:parseFloat(lng)}},(res,st)=>{ if(st==='OK'&&res&&res[0]){ input.value=res[0].formatted_address; addrAutoLookup(input,'callTown','callTownText'); } }); }catch(e){}
+    return;
+  }
+  if(!/^https?:/i.test(text)){ input.value=text; addrAutoLookup(input,'callTown','callTownText'); showToast('📍 Pasted'); return; }
+  showToast('Could not read that Maps link — paste the address instead');
+}
+// Open the i911 portal where dispatch requests the caller's location (result comes
+// back as a Maps link → paste it with "Paste Maps link").
+function requestViaI911(){
+  window.open('https://i911.com/', '_blank', 'noopener');
+}
 function addrAutoLookup(inputEl, townSelId, townTextId) {
   const q = (inputEl.value||'').trim();
   const suggestId = inputEl.id + 'Suggest';
@@ -5911,7 +5971,7 @@ function renderHome() {
 const CALL_TYPE_LABELS = {
   flat_tire_spare:'Flat Tire - Has Spare',flat_tire_no_spare:'Flat Tire - No Spare',lockout:'House Lockout',car_lockout:'Car Lockout',child_lockout:'Child Locked in Car',missing_person:'Missing Person',jump_start:'⚡ Boost',
   flood:'Flood',ac_heat:'A/C or Heat',generator:'Generator',
-  needs_ac:'Needs A/C',needs_fan:'Needs Fans',needs_heat:'Needs Heater',
+  needs_ac:'Needs A/C',needs_fan:'Needs Fans',needs_heat:'Needs Heater',out_of_gas:'Out Of Gas',
   'needs_ac:qty1':'Needs A/C — Quantity: 1','needs_ac:qty2':'Needs A/Cs — Quantity: 2','needs_ac:qty3':'Needs A/Cs — Quantity: 3','needs_ac:qty4':'Needs A/Cs — Quantity: 4','needs_ac:qty5':'Needs A/Cs — Quantity: 5','needs_ac:qty6+':'Needs A/Cs — Quantity: 6+',
   'needs_fan:qty1':'Needs Fan — Quantity: 1','needs_fan:qty2':'Needs Fans — Quantity: 2','needs_fan:qty3':'Needs Fans — Quantity: 3','needs_fan:qty4':'Needs Fans — Quantity: 4','needs_fan:qty5':'Needs Fans — Quantity: 5','needs_fan:qty6+':'Needs Fans — Quantity: 6+',
   'needs_heat:qty1':'Needs Heater — Quantity: 1','needs_heat:qty2':'Needs Heaters — Quantity: 2','needs_heat:qty3':'Needs Heaters — Quantity: 3','needs_heat:qty4':'Needs Heaters — Quantity: 4','needs_heat:qty5':'Needs Heaters — Quantity: 5','needs_heat:qty6+':'Needs Heaters — Quantity: 6+',
@@ -6815,7 +6875,7 @@ function renderCalls() {
 // ── Car fields ──
 function handleCallTypeChange() {
   const t=document.getElementById('callType').value;
-  document.getElementById('carInfoSection').style.display=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'].includes(t)?'block':'none';
+  document.getElementById('carInfoSection').style.display=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas'].includes(t)?'block':'none';
   const otherGrp=document.getElementById('otherTypeGroup');
   if(otherGrp) otherGrp.style.display=t==='other'?'block':'none';
   const nsSec=document.getElementById('noSpareSection');
@@ -6848,7 +6908,7 @@ function selectCallType(type, btn) {
   document.getElementById('callType').value = type;
   document.querySelectorAll('.qtype-btn:not(.ns-btn)').forEach(b=>b.classList.remove('active','urgent-active'));
   if(btn) btn.classList.add('active');
-  const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'];
+  const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
   // Flood → show equipment-needed multi-select
@@ -7034,7 +7094,7 @@ function createCall() {
   if(carModel==='Other') carModel=(document.getElementById('carModelOther')?.value||'').trim();
   const carYear=document.getElementById('carYear').value;
   const carColor=document.getElementById('carColor').value.trim();
-  const floodNeeds=Array.from(document.querySelectorAll('.flood-need-btn.active')).map(b=>{const q=b.dataset.qty||'1';return b.dataset.need+(q&&q!=='1'?' x'+q:'');});
+  const floodNeeds=Array.from(document.querySelectorAll('.flood-need-btn.active')).map(b=>{const q=b.dataset.qty||'1';return b.dataset.need+' ×'+q;});
 
   if (!address) { showToast('⚠️ Enter an address'); return; }
 
@@ -7096,11 +7156,10 @@ function createCall() {
     const _typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const _waDispatch = (()=>{
       let m = `📢 *COBC Call #${call.callNum||''}*\n`;
-      m += `${_typeLabel} — ${fmtLoc(call)}`;
-      if (call.caller) m += `\nCaller: ${call.caller}`;
-      if (call.phone)  m += ` · ${call.phone}`;
+      m += `${_typeLabel}\n📍 ${fmtLoc(call)}`;
+      if (call.caller||call.phone) m += `\n👤 ${[call.caller,call.phone].filter(Boolean).join(' · ')}`;
       m += `\n\nWaiver: https://form.jotform.com/212776438913868`;
-      m += `\n📱 Open COBC Dispatch: tinyurl.com/cobc-dispatch`;
+      m += `\n📱 ${'tinyurl.com/cobc-dispatch'}`;
       return m;
     })();
 setTimeout(() => {
@@ -7178,13 +7237,13 @@ function buildDispatchWhatsApp(call) {
   const appLink='tinyurl.com/cobc-dispatch';
   const time=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 
-  let msg=`*COBC DISPATCH*\n`;
-  msg+=`*${typeLabel}*\n`;
-  msg+=`Address: ${fmtLoc(call)}\n`;
-  if(call.floodNeeds&&call.floodNeeds.length) msg+=`Needs: ${call.floodNeeds.join(', ')}\n`;
+  let msg = call.priority==='urgent' ? `🚨 *COBC DISPATCH — URGENT*\n` : `📢 *COBC DISPATCH*\n`;
+  msg+=`*${typeLabel} — Call #${call.callNum||''}*\n`;
+  msg+=`📍 ${fmtLoc(call)}\n`;
+  if(call.floodNeeds&&call.floodNeeds.length) msg+=`🧰 ${call.floodNeeds.join(', ')}\n`;
   if(call.carMake) {
     const carStr=[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ');
-    msg+=`Vehicle: ${carStr}\n`;
+    msg+=`🚗 ${carStr}\n`;
   }
   // EZ-Spare / Plug / Tow action
   if(call.noSpareAction==='plug') {
@@ -7203,14 +7262,11 @@ function buildDispatchWhatsApp(call) {
     }
     msg+=`Bring: ${EZ_SPARE_KIT.join(', ')}\n`;
   }
-  if(call.caller) msg+=`Caller: ${call.caller}\n`;
-  if(call.phone)  msg+=`Phone: ${call.phone}\n`;
-  if(call.notes)  msg+=`Notes: ${call.notes}\n`;
-  if(call.priority==='urgent') msg+=`🚨 *URGENT* 🚨\n`;
-  msg+=`\n`;
-  msg+=`Map: ${mapLink}\n`;
-  msg+=`📱 Open COBC Dispatch: ${appLink}\n`;
-  msg+=`_#${call.id.slice(-5)} · ${time}_`;
+  if(call.caller||call.phone) msg+=`👤 ${[call.caller,call.phone].filter(Boolean).join(' · ')}\n`;
+  if(call.notes)  msg+=`📝 ${call.notes}\n`;
+  msg+=`\n🗺️ ${mapLink}\n`;
+  msg+=`📱 ${appLink}\n`;
+  msg+=`_${time}_`;
   return msg;
 }
 
@@ -7759,7 +7815,7 @@ function submitBackup() {
     renderCalls(); renderHome();
     showToast('🆘 Backup alert sent');
     const _bL=CALL_TYPE_LABELS[call.type]||call.type;
-    setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendPush({target:'all',title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
     setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
     return;
   }
@@ -7797,7 +7853,7 @@ function approveBackup(callId, time) {
   showToast('🆘 Backup approved — alert sent');
   // NOW the gated broadcast goes out to everyone
   const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
-  setTimeout(()=>{ try{ sendPush({target:'all',title:'🆘 Backup Needed',body:`${_bLabel} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
+  setTimeout(()=>{ try{ sendPush({target:'all',title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bLabel} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
   setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
 }
 
@@ -10890,6 +10946,18 @@ function telzioFetch(path) {
 }
 let _lastTelzioCall = null;        // { name, phone, at }
 let _telzioFirstSnap = true;       // skip banner on the initial load
+// Firestore-backed recent-calls list (webhook writes to the telzioCalls collection).
+// Standalone: keeps the recent panel working even if the polling proxy goes down.
+function subscribeTelzioCallsFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('telzioCalls').orderBy('at','desc').limit(5).onSnapshot(snap => {
+      const calls=[];
+      snap.forEach(d=>{ const x=d.data()||{}; let p=String(x.phone||'').replace(/\D+/g,''); if(p.length===11&&p[0]==='1')p=p.slice(1); calls.push({name:x.name||'',phone:p,at:Number(x.at||Date.now())}); });
+      if(calls.length){ _telzioRecentCache=calls; try{ renderTelzioRecentList(calls); }catch(e){} }
+    }, err => console.warn('telzioCalls snapshot:', err));
+  } catch(e) { console.warn('subscribeTelzioCalls failed:', e); }
+}
 function subscribeTelzioFromFirestore() {
   try {
     if(typeof firebase === 'undefined') return;
@@ -11090,13 +11158,13 @@ function renderTelzioRecentList(calls){
   list.innerHTML = calls.map(c=>{
     const pretty=_telzioFmtPhone(c.phone);
     const label=c.name||pretty||'Unknown';
-    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;">'
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:10px;margin-bottom:6px;">'
       +'<div style="font-size:16px;">📞</div>'
       +'<div style="flex:1;min-width:0;">'
-      +  '<div style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+label+'</div>'
-      +  (c.name&&pretty?'<div style="font-size:12px;color:var(--text3);">'+pretty+'</div>':'')
+      +  '<div style="font-size:14px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+label+'</div>'
+      +  (c.name&&pretty?'<div style="font-size:12px;color:rgba(255,255,255,.65);">'+pretty+'</div>':'')
       +'</div>'
-      +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;">'+_telzioFmtWhen(c.at)+'</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,.6);white-space:nowrap;">'+_telzioFmtWhen(c.at)+'</div>'
       +(c.phone?'<button onclick="_newCallFromRecent(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+c.phone+'\')" style="background:var(--navy,#0f2540);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Call</button>':'')
       +'</div>';
   }).join('');
@@ -11143,18 +11211,23 @@ async function autofillFromLastCall(){
     }
   }
   if(btn){ btn.disabled=true; btn.innerHTML='⏳ Fetching…'; }
+  function _diag(msg){ if(btn){ btn.innerHTML=msg; setTimeout(()=>{ btn.innerHTML=orig; },3500); } showToast(msg); }
   try{
     // Option B: direct proxy call (bypasses Apps Script, no 403)
-    var resp = await telzioFetch('/calls/log?MaxResults=3&Direction=inbound');
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    var resp;
+    try{ resp = await telzioFetch('/calls/log?MaxResults=3&Direction=inbound'); }
+    catch(netErr){ _diag('⚠️ Phone system unreachable (network)'); console.warn('telzio net',netErr); return; }
+    if(!resp.ok){ _diag('⚠️ Phone system error: HTTP '+resp.status); return; }
     var data = await resp.json();
     var calls = Array.isArray(data) ? data : (data.Calls || data.calls || data.CallLog || []);
+    if(!calls || !calls.length){ _diag('⚠️ Connected, but 0 recent calls returned'); return; }
     var call = null;
     for(var i=0;i<calls.length;i++){ if(calls[i].From||calls[i].from){call=calls[i];break;} }
-    if(!call){ showToast('No recent call found'); return; }
+    if(!call){ _diag('⚠️ Got '+calls.length+' call(s) but no caller number'); return; }
     var rawPhone = call.From||call.from||'';
     var digits = rawPhone.replace(/\D+/g,'');
     if(digits.length===11 && digits.charAt(0)==='1') digits=digits.substring(1);
+    if(!digits && !rawPhone){ _diag('⚠️ Got call but no caller ID'); return; }
     var name = call.FromCnam||call.caller_name||'';
     var nameEl=document.getElementById('callCaller');
     var phoneEl=document.getElementById('callPhone');
@@ -11162,7 +11235,7 @@ async function autofillFromLastCall(){
     if(phoneEl) phoneEl.value=digits||rawPhone;
     _lastTelzioCall={name:name,phone:digits||rawPhone,at:Date.now()};
     showToast('📞 Filled from last call'+(name?' — '+name:''));
-  }catch(e){ if(btn){ btn.innerHTML='⚠️ No caller found — type manually'; setTimeout(()=>{ btn.innerHTML=orig; },2500); } showToast('Could not reach phone system — enter caller manually'); console.warn('autofillFromLastCall',e); }
+  }catch(e){ _diag('⚠️ Unexpected error reading phone system'); console.warn('autofillFromLastCall',e); }
   finally{ if(btn){ btn.disabled=false; setTimeout(()=>{ if(btn.innerHTML==='⏳ Fetching…') btn.innerHTML=orig; },0); } }
 }
 // Auto-runs when the New Call modal OPENS — fills caller silently, no button tap needed.
