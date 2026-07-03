@@ -5856,8 +5856,8 @@ function initHomeWidgets(){
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
       p=>_fetchHomeWeather(p.coords.latitude,p.coords.longitude),
-      ()=>fallback(),
-      {timeout:6000,maximumAge:600000}
+      ()=>{ console.warn('Geolocation denied/timeout — using Teaneck fallback'); fallback(); },
+      {timeout:8000,maximumAge:600000}
     );
   } else fallback();
 }
@@ -7180,7 +7180,7 @@ function createCall() {
 setTimeout(() => {
       sendPush({
       target: 'all',
-      title: (priority === 'high' || priority === 'urgent') ? `🚨 New COBC Call #${call.callNum||''}` : (call.type === 'jump_start' ? `⚡ New COBC Call #${call.callNum||''}` : `📢 New COBC Call #${call.callNum||''}`),
+      title: (priority === 'high' || priority === 'urgent') ? `🚨 New Call #${call.callNum||''}` : `New Call #${call.callNum||''}`,
       body: `${_typeLabel} — ${fmtLoc(call)}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
@@ -7252,22 +7252,30 @@ function buildDispatchWhatsApp(call) {
   const appLink='tinyurl.com/cobc-dispatch';
   const time=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 
-  let msg = call.priority==='urgent' ? `🚨 *COBC DISPATCH — URGENT*\n` : `📢 *COBC DISPATCH*\n`;
-  msg+=`*${typeLabel} — Call #${call.callNum||''}*\n`;
-  msg+=`📍 ${fmtLoc(call)}\n`;
-  if(call.floodNeeds&&call.floodNeeds.length) msg+=`🧰 ${call.floodNeeds.join(', ')}\n`;
-  if(call.carMake) {
-    const carStr=[call.carYear,call.carMake.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ');
-    msg+=`🚗 ${carStr}\n`;
+  let msg = call.priority==='urgent' ? `🚨 *URGENT*\n\n` : '';
+  msg+=`Call#:${call.callNum||''}\n\n`;
+  msg+=`Location:${fmtLoc(call)}\n`;
+  msg+=`${mapLink}\n\n`;
+  msg+=`Phone:${call.phone||''}\n\n`;
+  msg+=`Name:${call.caller||''}\n\n`;
+  // Nature line: type + spare status + car info
+  let nature=typeLabel;
+  if(call.type==='flat_tire_spare') nature='Flat Tire | With spare';
+  else if(call.type==='flat_tire_no_spare') nature='Flat Tire | No spare';
+  if(call.carMake){
+    const carStr=[call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' ');
+    if(carStr) nature+=' | '+carStr;
   }
+  if(call.floodNeeds&&call.floodNeeds.length) nature+=' | '+call.floodNeeds.join(', ');
+  msg+=`Nature:${nature}\n`;
   // EZ-Spare / Plug / Tow action
   if(call.noSpareAction==='plug') {
-    msg+=`*Action: PLUG KIT*\n`;
+    msg+=`\n*Action: PLUG KIT*\n`;
   } else if(call.noSpareAction==='tow') {
-    msg+=`*Action: TOW NEEDED*\n`;
+    msg+=`\n*Action: TOW NEEDED*\n`;
   } else if(call.noSpareAction==='ezspare') {
     const _ezsz=(call.ezSpareFitment&&call.ezSpareFitment.size_1)||call.ezSpareSize;
-    msg+=`*Action: EZ-SPARE*`;
+    msg+=`\n*Action: EZ-SPARE*`;
     if(_ezsz) msg+=` - Size ${_ezsz}`;
     msg+=`\n`;
     if(call.ezSpareFitment){
@@ -7277,11 +7285,9 @@ function buildDispatchWhatsApp(call) {
     }
     msg+=`Bring: ${EZ_SPARE_KIT.join(', ')}\n`;
   }
-  if(call.caller||call.phone) msg+=`👤 ${[call.caller,call.phone].filter(Boolean).join(' · ')}\n`;
-  if(call.notes)  msg+=`📝 ${call.notes}\n`;
-  msg+=`\n🗺️ ${mapLink}\n`;
-  msg+=`📱 ${appLink}\n`;
-  msg+=`_${time}_`;
+  if(call.notes) msg+=`\n📝 ${call.notes}\n`;
+  msg+=`\n📱 ${appLink}\n\n`;
+  msg+=`SAFETY FIRST! Please remember to wear your Chaverim vest.\nPlease remember to have the caller sign the waiver.`;
   return msg;
 }
 
@@ -8276,7 +8282,7 @@ function publishCall(id) {
   // Push + WA piggybacked in one server-side request (most reliable path)
   setTimeout(()=>sendPush({
     target:'all',
-    title:`${call.type==='jump_start'?'⚡':'📢'} New COBC Call #${call.callNum||''}`,
+    title:`${call.type==='jump_start'?'':''}New Call #${call.callNum||''}`,
     body:`${_typeLabel} — ${fmtLoc(call)}`,
     url:'/cobc-dispatch/', callId:call.id,
     waChat: WA_GROUP_ID,
@@ -8330,12 +8336,26 @@ function toggleEquipmentOnCall(callId, eqName){
   if(!call) return;
   call.assignedEquipment=call.assignedEquipment||[];
   const idx=call.assignedEquipment.indexOf(eqName);
+  const action = idx>-1 ? 'IN' : 'OUT';
   if(idx>-1) call.assignedEquipment.splice(idx,1); else call.assignedEquipment.push(eqName);
   save(); firestoreUpsertCall(call);
+  // Write to equipmentHistory so Activity History populates from in-app actions
+  try{
+    if(window.firebase && _firebaseReady){
+      firebase.firestore().collection('equipmentHistory').add({
+        item: eqName,
+        action: action,
+        byUnit: String(SESSION.unit||'').replace(/^BC-?/i,''),
+        callNum: String(call.callNum||''),
+        status: '',
+        at: Date.now()
+      });
+    }
+  }catch(e){ console.warn('equipmentHistory write:',e); }
   const modal=document.getElementById('equipAssignModal');
   const pickerOpen = modal && !modal.classList.contains('hidden');
   if(pickerOpen) renderEquipAssignList();
-  openCallDetail(callId); // refresh detail summary + chips underneath
+  openCallDetail(callId);
 }
 
 function updateCallStatus(id,status) {
