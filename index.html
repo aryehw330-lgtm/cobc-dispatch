@@ -5852,14 +5852,8 @@ function initHomeWidgets(){
   // Refresh weather at most every 15 minutes
   if(Date.now()-_homeWeatherAt < 15*60*1000) return;
   _homeWeatherAt=Date.now();
-  const fallback=()=>_fetchHomeWeather(40.8976,-74.0160); // Teaneck, NJ
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(
-      p=>_fetchHomeWeather(p.coords.latitude,p.coords.longitude),
-      ()=>{ console.warn('Geolocation denied/timeout — using Teaneck fallback'); fallback(); },
-      {timeout:8000,maximumAge:600000}
-    );
-  } else fallback();
+  // Bergen County app — hardcode coordinates (skip geolocation, which often fails on phones)
+  _fetchHomeWeather(40.8976,-74.0160); // Teaneck, NJ (central Bergen County)
 }
 
 function homeEmptyCallsHTML(){
@@ -7180,7 +7174,7 @@ function createCall() {
 setTimeout(() => {
       sendPush({
       target: 'all',
-      title: (priority === 'high' || priority === 'urgent') ? `🚨 New Call #${call.callNum||''}` : `New Call #${call.callNum||''}`,
+      title: (priority === 'high' || priority === 'urgent') ? `🚨 URGENT COBC Call #${call.callNum||''}` : `New COBC Call #${call.callNum||''}`,
       body: `${_typeLabel} — ${fmtLoc(call)}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
@@ -7267,15 +7261,15 @@ function buildDispatchWhatsApp(call) {
     if(carStr) nature+=' | '+carStr;
   }
   if(call.floodNeeds&&call.floodNeeds.length) nature+=' | '+call.floodNeeds.join(', ');
-  msg+=`Nature:${nature}\n`;
+  msg+=`Nature:${nature}\n\n`;
   // EZ-Spare / Plug / Tow action
   if(call.noSpareAction==='plug') {
-    msg+=`\n*Action: PLUG KIT*\n`;
+    msg+=`*Action: PLUG KIT*\n\n`;
   } else if(call.noSpareAction==='tow') {
-    msg+=`\n*Action: TOW NEEDED*\n`;
+    msg+=`*Action: TOW NEEDED*\n\n`;
   } else if(call.noSpareAction==='ezspare') {
     const _ezsz=(call.ezSpareFitment&&call.ezSpareFitment.size_1)||call.ezSpareSize;
-    msg+=`\n*Action: EZ-SPARE*`;
+    msg+=`*Action: EZ-SPARE*`;
     if(_ezsz) msg+=` - Size ${_ezsz}`;
     msg+=`\n`;
     if(call.ezSpareFitment){
@@ -7283,11 +7277,11 @@ function buildDispatchWhatsApp(call) {
       if(f.efs_adapter) msg+=`EFS Adapter: ${f.efs_adapter}${f.pattern?' · '+f.pattern:''}\n`;
       if(f.hub_ring) msg+=`Hub Ring: ${f.hub_ring}\n`;
     }
-    msg+=`Bring: ${EZ_SPARE_KIT.join(', ')}\n`;
+    msg+=`Bring: ${EZ_SPARE_KIT.join(', ')}\n\n`;
   }
-  if(call.notes) msg+=`\n📝 ${call.notes}\n`;
-  msg+=`\n📱 ${appLink}\n\n`;
-  msg+=`SAFETY FIRST! Please remember to wear your Chaverim vest.\nPlease remember to have the caller sign the waiver.`;
+  if(call.notes) msg+=`📝 ${call.notes}\n\n`;
+  msg+=`📱 ${appLink}\n\n`;
+  msg+=`SAFETY FIRST! Please remember to wear your Chaverim vest.\n\nPlease remember to have the caller sign the waiver.`;
   return msg;
 }
 
@@ -8282,7 +8276,7 @@ function publishCall(id) {
   // Push + WA piggybacked in one server-side request (most reliable path)
   setTimeout(()=>sendPush({
     target:'all',
-    title:`${call.type==='jump_start'?'':''}New Call #${call.callNum||''}`,
+    title:`New COBC Call #${call.callNum||''}`,
     body:`${_typeLabel} — ${fmtLoc(call)}`,
     url:'/cobc-dispatch/', callId:call.id,
     waChat: WA_GROUP_ID,
@@ -9530,7 +9524,7 @@ function resendCallAlert(id, btn) {
   if(btn){ btn.disabled=true; const _o=btn.innerHTML; btn.innerHTML='📢 Sent'; setTimeout(()=>{ btn.disabled=false; btn.innerHTML=_o; }, 2500); }
   setTimeout(()=>sendPush({
     target:'all',
-    title:`📢 Any Units Available? — Call #${call.callNum||''}`,
+    title:`Any Units Available? — Call #${call.callNum||''}`,
     body:`${_typeLabel} — ${fmtLoc(call)}${_waitTag}`,
     url:'/cobc-dispatch/', callId:call.id,
     waChat: WA_GROUP_ID,
