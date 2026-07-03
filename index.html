@@ -142,7 +142,8 @@ button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary
 .pages{flex:1;overflow:hidden;position:relative;}
 .page{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
 /* GPU-composited scrolling for all pages */
-.page{will-change:transform;}uto;padding:14px 16px 80px;transition:opacity .2s,transform .2s;background:radial-gradient(ellipse at top,rgba(212,169,58,.07) 0%,transparent 45%),linear-gradient(180deg,#141210 0%,#0a0a0a 60%,#000 100%);touch-action:pan-y;}
+.page{will-change:transform;}
+.page{overflow-y:auto;padding:14px 16px 80px;transition:opacity .2s,transform .2s;background:radial-gradient(ellipse at top,rgba(212,169,58,.07) 0%,transparent 45%),linear-gradient(180deg,#141210 0%,#0a0a0a 60%,#000 100%);touch-action:pan-y;}
 .page .section-title{color:#fff;}
 .page .section-sub{color:rgba(255,255,255,.55);}
 .page .section-label{color:var(--gold-light);}
@@ -1076,12 +1077,17 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="callsList"></div>
 
       <!-- Telzio: last 5 incoming calls (live heartbeat) — dispatch/admin only -->
-      <div id="telzioRecentPanel" style="display:none;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div class="section-label" style="margin:0;">📞 Recent Incoming Calls</div>
-          <div id="telzioRecentSub" style="font-size:11px;color:var(--text3);"></div>
+      <div id="telzioRecentPanel" style="display:none;margin-top:14px;">
+        <button onclick="toggleTelzioRecentPanel()" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:linear-gradient(160deg,rgba(37,99,235,.20),rgba(18,18,22,.5));-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);color:#fff;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.4);">
+          <span>📞 Recent Calls</span>
+          <span style="display:flex;align-items:center;gap:8px;">
+            <span id="telzioRecentSub" style="font-size:11px;font-weight:600;color:rgba(255,255,255,.65);"></span>
+            <span id="telzioRecentArrow" style="transition:transform .25s;opacity:.85;font-size:12px;">▾</span>
+          </span>
+        </button>
+        <div id="telzioRecentBody" style="display:none;padding-top:10px;">
+          <div id="telzioRecentList"></div>
         </div>
-        <div id="telzioRecentList"></div>
       </div>
     </div>
 
@@ -1130,6 +1136,16 @@ textarea.input{min-height:80px;resize:vertical;}
             <span class="eq-acc-arrow">▾</span>
           </button>
           <div class="eq-acc-body">
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <div class="input-group" style="flex:1;margin-bottom:0;">
+                <label class="input-label">From</label>
+                <input class="input" type="date" id="eqActHistFrom" onchange="renderEqActivityHistory()"/>
+              </div>
+              <div class="input-group" style="flex:1;margin-bottom:0;">
+                <label class="input-label">To</label>
+                <input class="input" type="date" id="eqActHistTo" onchange="renderEqActivityHistory()"/>
+              </div>
+            </div>
             <div id="eqActHistList"></div>
           </div>
         </div>
@@ -1183,6 +1199,15 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="eq-checklist" style="display:none;">
         <div class="filter-chips" id="eqLocTabs"></div>
         <div id="chkAlertsWrap" style="display:none;margin-bottom:8px;"><div class="section-label">Alerts at this location</div><div id="chkAlertsList"></div></div>
+        <div class="eq-acc" style="margin-bottom:10px;background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(18,18,22,.5));border-color:rgba(37,99,235,.4);">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderChecklistHistoryFS()">
+            <span>📋 Checklist History (Firebase)</span>
+            <span class="eq-acc-arrow">▾</span>
+          </button>
+          <div class="eq-acc-body">
+            <div id="checklistHistList"></div>
+          </div>
+        </div>
         <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">&#128269;</span><input type="text" id="chkSearch" placeholder="Search items..." oninput="renderChkItems()"/></div>
         <div class="filter-chips" id="chkFilterRow">
           <div class="chip active" onclick="setChkFilter('all',this)">All</div>
@@ -1217,6 +1242,15 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="btn-full btn-primary" onclick="submitReport()">Submit Report</button>
         <div class="section-label" style="margin-top:16px;">Open Reports</div>
         <div id="reportsList"></div>
+        <div class="eq-acc" style="margin-top:14px;background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(18,18,22,.5));border-color:rgba(37,99,235,.4);">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderReportHistoryFS()">
+            <span>📋 Report History</span>
+            <span class="eq-acc-arrow">▾</span>
+          </button>
+          <div class="eq-acc-body">
+            <div id="reportHistList"></div>
+          </div>
+        </div>
       </div>
       <!-- CAR SCHEDULE -->
       <div id="eq-car" style="display:none;">
@@ -3265,6 +3299,8 @@ async function initFirebaseApp() {
       try { subscribeNumbersFromFirestore(); } catch(e){ console.warn('subscribeNumbers:', e); }
       try { subscribeEquipmentHistoryFromFirestore(); } catch(e){ console.warn('subscribeEqHist:', e); }
       try { subscribeCobc4HistoryFromFirestore(); } catch(e){ console.warn('subscribeCobc4Hist:', e); }
+      try { subscribeChecklistHistoryFromFirestore(); } catch(e){ console.warn('subscribeChecklistHist:', e); }
+      try { subscribeReportHistoryFromFirestore(); } catch(e){ console.warn('subscribeReportHist:', e); }
       try { subscribeCustomCarDataFromFirestore(); } catch(e){ console.warn('subscribeCustomCar:', e); }
       try { subscribeTelzioRecentList(); } catch(e){ console.warn('subscribeTelzioRecent:', e); }
       try { subscribeTelzioFromFirestore(); } catch(e){ console.warn('subscribeTelzioWebhook:', e); }
@@ -4818,7 +4854,7 @@ function initFirestore(){
     try{_unsubReset&&_unsubReset();}catch(e){}
   };
   // Cloud-first stats: pull the historical snapshot from Firestore if it's been uploaded.
-  try{ loadStatsFromCloud().then(()=>{ try{ _autoFreezePastYears(); }catch(e){} }); }catch(e){}
+  try{ loadStatsFromCloud().then(()=>{ try{ _autoFreezePastYears(); }catch(e){} try{ _autoPruneOldHistory(); }catch(e){} }); }catch(e){}
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
@@ -6196,8 +6232,18 @@ function renderEqCallHistory(){
 function renderEqActivityHistory(){
   const list=document.getElementById('eqActHistList');
   if(!list) return;
-  const rows=(STATE.equipmentHistory||[]);
-  if(!rows.length){ list.innerHTML='<div style="text-align:center;padding:1.4rem;color:rgba(255,255,255,.5);font-size:13px;">No activity yet. Equipment check-ins/outs will appear here once syncing is enabled.</div>'; return; }
+  const fromEl=document.getElementById('eqActHistFrom'), toEl=document.getElementById('eqActHistTo');
+  // Default: last 10 days (only set once, so user's picked range persists across re-renders)
+  if(fromEl && toEl && !fromEl.value && !toEl.value){
+    const today=new Date(); const start=new Date(); start.setDate(start.getDate()-9);
+    fromEl.value=_localIso(start); toEl.value=_localIso(today);
+  }
+  const startMs = fromEl&&fromEl.value ? new Date(fromEl.value+'T00:00:00').getTime() : 0;
+  const endMs   = toEl&&toEl.value ? new Date(toEl.value+'T23:59:59').getTime() : Infinity;
+  const allRows=(STATE.equipmentHistory||[]);
+  const rows=allRows.filter(r=>{ const t=r.at||0; return t>=startMs && t<=endMs; });
+  if(!allRows.length){ list.innerHTML='<div style="text-align:center;padding:1.4rem;color:rgba(255,255,255,.5);font-size:13px;">No activity yet. Equipment check-ins/outs will appear here once syncing is enabled.</div>'; return; }
+  if(!rows.length){ list.innerHTML='<div style="text-align:center;padding:1.4rem;color:rgba(255,255,255,.5);font-size:13px;">No activity in this date range.</div>'; return; }
   list.innerHTML=rows.slice(0,300).map(r=>{
     const at=r.at?new Date(r.at):null;
     const time=at?at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
@@ -7164,11 +7210,14 @@ function createCall() {
     // PUSH HOOK #1 — new call → all members (WA dispatch piggybacked server-side)
     const _typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const _waDispatch = (()=>{
-      let m = `📢 *COBC Call #${call.callNum||''}*\n`;
-      m += `${_typeLabel}\n📍 ${fmtLoc(call)}`;
-      if (call.caller||call.phone) m += `\n👤 ${[call.caller,call.phone].filter(Boolean).join(' · ')}`;
-      m += `\n\nWaiver: https://form.jotform.com/212776438913868`;
-      m += `\n📱 ${'tinyurl.com/cobc-dispatch'}`;
+      let m = `📢 *COBC Call #${call.callNum||''}*\n\n`;
+      m += `*Call Type:* ${_typeLabel}\n\n`;
+      m += `📍 ${fmtLoc(call)}\n`;
+      if(call.floodNeeds&&call.floodNeeds.length) m += `🧰 ${call.floodNeeds.join(', ')}\n`;
+      m += `\n`;
+      if (call.caller||call.phone) m += `👤 ${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
+      m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
+      m += `📱 ${'tinyurl.com/cobc-dispatch'}`;
       return m;
     })();
 setTimeout(() => {
@@ -8259,12 +8308,16 @@ function publishCall(id) {
 
   const _typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const _waMsg = (()=>{
-    let m = `📢 *COBC Call #${call.callNum||''}*\n`;
-    m += `${_typeLabel} — ${fmtLoc(call)}`;
-    if (call.caller) m += `\nCaller: ${call.caller}`;
+    let m = `📢 *COBC Call #${call.callNum||''}*\n\n`;
+    m += `*Call Type:* ${_typeLabel}\n\n`;
+    m += `📍 ${fmtLoc(call)}\n`;
+    if(call.floodNeeds&&call.floodNeeds.length) m += `🧰 ${call.floodNeeds.join(', ')}\n`;
+    m += `\n`;
+    if (call.caller) m += `Caller: ${call.caller}`;
     if (call.phone)  m += ` · ${call.phone}`;
-    m += `\n\nWaiver: https://form.jotform.com/212776438913868`;
-    m += `\n📱 Open COBC Dispatch: tinyurl.com/cobc-dispatch`;
+    if (call.caller||call.phone) m += `\n\n`;
+    m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
+    m += `📱 Open COBC Dispatch: tinyurl.com/cobc-dispatch`;
     return m;
   })();
 
@@ -11216,6 +11269,14 @@ function renderTelzioRecentList(calls){
   }).join('');
 }
 // Start a New Call pre-filled from a recent-calls row
+function toggleTelzioRecentPanel(){
+  const body=document.getElementById('telzioRecentBody');
+  const arrow=document.getElementById('telzioRecentArrow');
+  if(!body) return;
+  const open = body.style.display==='block';
+  body.style.display = open?'none':'block';
+  if(arrow) arrow.style.transform = open?'':'rotate(180deg)';
+}
 function _newCallFromRecent(name, phone){
   if(typeof showModal==='function') showModal('newCallModal');
   setTimeout(()=>{
@@ -11415,6 +11476,71 @@ function subscribeCobc4HistoryFromFirestore() {
       try { if(document.getElementById('cobc4HistList')) renderCobc4History(); } catch(e){}
     }, err => console.warn('cobc4History snapshot:', err));
   } catch(e) { console.warn('subscribeCobc4History failed:', e); }
+}
+// ── Checklist + Report history (written by the Apps Script into Firestore) ──
+function subscribeChecklistHistoryFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('checklistHistory').orderBy('at','desc').limit(500).onSnapshot(snap => {
+      const rows=[];
+      snap.forEach(d=>{ const x=d.data()||{}; x._id=d.id; rows.push(x); });
+      STATE.checklistHistory = rows;
+      try { save&&save(); } catch(e){}
+      try { if(document.getElementById('checklistHistList')) renderChecklistHistoryFS(); } catch(e){}
+    }, err => console.warn('checklistHistory snapshot:', err));
+  } catch(e) { console.warn('subscribeChecklistHistory failed:', e); }
+}
+function subscribeReportHistoryFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('reportHistory').orderBy('at','desc').limit(500).onSnapshot(snap => {
+      const rows=[];
+      snap.forEach(d=>{ const x=d.data()||{}; x._id=d.id; rows.push(x); });
+      STATE.reportHistory = rows;
+      try { save&&save(); } catch(e){}
+      try { if(document.getElementById('reportHistList')) renderReportHistoryFS(); } catch(e){}
+    }, err => console.warn('reportHistory snapshot:', err));
+  } catch(e) { console.warn('subscribeReportHistory failed:', e); }
+}
+// Render helpers for both — same card style as equipment history
+function renderChecklistHistoryFS(){
+  const list=document.getElementById('checklistHistList'); if(!list) return;
+  const rows=(STATE.checklistHistory||[]);
+  if(!rows.length){ list.innerHTML='<div style="text-align:center;padding:1.4rem;color:rgba(255,255,255,.5);font-size:13px;">No checklist submissions synced yet.</div>'; return; }
+  list.innerHTML=rows.slice(0,300).map(r=>{
+    const at=r.at?new Date(r.at):null;
+    const time=at?at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+    const unit=r.byUnit?('BC-'+String(r.byUnit).replace(/^BC-?/i,'')):'';
+    const issues=Number(r.issuesFlagged||0);
+    const color=issues>0?'#d97706':'#16a34a';
+    return `<div style="background:rgba(255,255,255,.95);border-radius:10px;padding:10px 12px;margin-bottom:6px;border-left:3px solid ${color};">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div style="min-width:0;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);">${r.location||'Checklist'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time}${unit?' · '+unit:''}</div>
+        </div>
+        <div style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;background:${color}22;color:${color};flex-shrink:0;">${issues>0?issues+' ISSUE'+(issues>1?'S':''):'ALL OK'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderReportHistoryFS(){
+  const list=document.getElementById('reportHistList'); if(!list) return;
+  const rows=(STATE.reportHistory||[]);
+  if(!rows.length){ list.innerHTML='<div style="text-align:center;padding:1.4rem;color:rgba(255,255,255,.5);font-size:13px;">No reports synced yet.</div>'; return; }
+  list.innerHTML=rows.slice(0,300).map(r=>{
+    const at=r.at?new Date(r.at):null;
+    const time=at?at.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+    const unit=r.byUnit?('BC-'+String(r.byUnit).replace(/^BC-?/i,'')):'';
+    return `<div style="background:rgba(255,255,255,.95);border-radius:10px;padding:10px 12px;margin-bottom:6px;border-left:3px solid #2563eb;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div style="min-width:0;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);">${r.type||'Report'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time}${unit?' · '+unit:''}${r.item?' · '+r.item:''}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // Build the schedule label for the current user, matching the member-dropdown format
@@ -11832,6 +11958,33 @@ async function freezeYearToHistory(year, btn){
     showToast(`✅ ${year} frozen into history (${bcs.length} members)`);
   }catch(e){ console.error(e); showToast("Error: "+(e.message||"freeze failed")); }
   finally{ if(btn){btn.disabled=false;btn.textContent=orig;} }
+}
+// Auto-prune old equipment/COBC4 history so those Firestore collections never grow
+// unbounded (keeps the "500 newest" cap meaningful forever, not just "for now").
+// Admin-only, runs occasionally (throttled via localStorage), deletes docs older
+// than PRUNE_KEEP_DAYS. Safe: reads never exceed the collection's live cap anyway;
+// this just keeps storage/cost bounded long-term too.
+const PRUNE_KEEP_DAYS = 400; // keep ~13 months of raw history; older = pruned (Sheet still has full record)
+async function _autoPruneOldHistory(){
+  try{
+    if((SESSION.role||'').toLowerCase()!=='admin') return;
+    if(!(window.firebase && _firebaseReady)) return;
+    const lastRun = parseInt(localStorage.getItem('cobc_lastPruneRun')||'0',10) || 0;
+    if(Date.now() - lastRun < 7*24*60*60*1000) return; // at most once a week
+    localStorage.setItem('cobc_lastPruneRun', String(Date.now()));
+    const cutoff = Date.now() - PRUNE_KEEP_DAYS*24*60*60*1000;
+    const db = firebase.firestore();
+    for(const coll of ['equipmentHistory','cobc4History','checklistHistory','reportHistory']){
+      try{
+        const snap = await db.collection(coll).where('at','<',cutoff).limit(450).get();
+        if(snap.empty) continue;
+        const batch = db.batch();
+        snap.docs.forEach(d=>batch.delete(d.ref));
+        await batch.commit();
+        console.log('Pruned '+snap.docs.length+' old '+coll+' docs (older than '+PRUNE_KEEP_DAYS+'d)');
+      }catch(e){ console.warn('prune '+coll+' failed:', e); }
+    }
+  }catch(e){ console.warn('autoPruneOldHistory:', e); }
 }
 // Auto year-end freeze: admin-only, runs on load. Freezes any fully-ended year that
 // has app calls and isn't already frozen — so the year-end archival never needs a
