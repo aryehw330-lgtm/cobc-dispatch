@@ -13507,18 +13507,23 @@ function renderEquipmentDashboard() {
   const ow=document.getElementById('eq-out-wrap');
   if(ow) ow.style.display='block'; // always show so dashboard isn't empty
   const ol=document.getElementById('eq-out-list');
-  if(ol) ol.innerHTML=outItems.length?outItems.map(e=>`
+  if(ol) ol.innerHTML=outItems.length?outItems.map(e=>{
+    let _callPhone='';
+    if(e.callNum){ const _c=(_allCalls()||[]).find(x=>String(x.callNum)===String(e.callNum)); _callPhone=_c?(_c.phone||_c.callerPhone||''):''; }
+    const _callTag=e.callNum?` · Call #${e.callNum}`+(_callPhone?` <a href="tel:${_callPhone}" onclick="event.stopPropagation();" style="color:#e6c463;font-weight:800;text-decoration:none;white-space:nowrap;">📞 ${formatPhone(_callPhone)}</a>`:''):'';
+    return `
     <div style="background:linear-gradient(160deg,rgba(212,169,58,.16),rgba(18,16,12,.62));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(230,196,99,.34);border-left:3px solid var(--gold,#d4a93a);border-radius:12px;padding:11px 13px;margin-bottom:8px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;" onclick="openCheckout(${e.row||0})">
       <div style="flex:1;min-width:0;">
         <div style="font-size:14px;font-weight:700;color:#fff;">${e.name}</div>
-        <div style="font-size:12px;color:rgba(255,255,255,.62);margin-top:2px;">${e.location}${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.62);margin-top:2px;">${e.location}${e.checkedOutBy?' · '+fmtEqHolder(e):''}${_callTag}</div>
         ${e.isCNC?`<div style="font-size:12px;color:var(--gold-light,#e6c463);margin-top:2px;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <span class="badge badge-red">OUT</span>
         <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;">${fmtEqTime(e.lastUpdated)}</div>
       </div>
-    </div>`).join(''):
+    </div>`;
+  }).join(''):
     '<div style="background:linear-gradient(160deg,rgba(34,197,94,.20),rgba(8,20,12,.66));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(74,222,128,.38);border-left:3px solid var(--green,#16a34a);border-radius:12px;padding:13px 15px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;align-items:center;gap:12px;"><span style="font-size:24px;">✅</span><div><div style="font-size:14px;font-weight:700;color:#fff;">All equipment checked in</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Everything is home and accounted for</div></div></div>';
 
   // 🎉 Confetti when everything JUST came back in (transition from some-out → all-in)
