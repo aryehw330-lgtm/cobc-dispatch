@@ -642,6 +642,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .qtype-btn-urgent.active{background:var(--red);border-color:var(--red);color:#fff;animation:urgentpulse 1.4s ease-in-out infinite;}
 @keyframes urgentpulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5);}50%{box-shadow:0 0 0 6px rgba(220,38,38,0);}}
 @keyframes pendingPulse{0%,100%{box-shadow:0 0 0 0 rgba(217,119,6,.6);}50%{box-shadow:0 0 0 8px rgba(217,119,6,0);}}
+@keyframes zelloPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.6);}50%{box-shadow:0 0 0 7px rgba(34,197,94,0);}}
 @keyframes incomingRing{0%,100%{transform:rotate(0deg);}15%{transform:rotate(-18deg);}30%{transform:rotate(18deg);}45%{transform:rotate(-12deg);}60%{transform:rotate(12deg);}75%{transform:rotate(0deg);}}
 .qtype-btn.ns-btn{padding:8px 4px;font-size:11px;background:rgba(255,255,255,.85);}
 .qtype-btn.ns-btn.active{background:#d97706;border-color:#d97706;color:#fff;}
@@ -819,7 +820,7 @@ textarea.input{min-height:80px;resize:vertical;}
 #global-shift-banner.banner-out{animation:bannerSlideDown .22s ease-in forwards;}
 
 /* ── Car shift cards — fade + lift in ── */
-.car-shift-card{border-radius:10px;padding:11px 13px;margin-bottom:8px;border-left:3px solid var(--green);background:#f8fafc;
+.car-shift-card{border-radius:10px;padding:11px 13px;margin-bottom:8px;border-left:3px solid var(--green);background:rgba(255,255,255,.95);
   animation:cardFadeIn .22s ease both;transition:box-shadow .18s,transform .12s;}
 .car-shift-card:active{transform:scale(.99);}
 .car-shift-card.pending{border-left-color:#e65100;background:#fff8f0;}
@@ -1111,7 +1112,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="sub-tab" onclick="setEqTab('inventory',this)">Inventory</button>
         <button class="sub-tab" id="eqChecklistTab" onclick="setEqTab('checklist',this)">Checklist</button>
         <button class="sub-tab" onclick="setEqTab('reports',this)">Reports</button>
-        <button class="sub-tab" onclick="setEqTab('car',this)">🚗 Car</button>
+        <button class="sub-tab" onclick="setEqTab('car',this)">🚗 Car <span id="carReqBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 6px;margin-left:2px;">0</span></button>
         <button class="sub-tab" id="eqAdminTab" style="display:none;" onclick="setEqTab('admin',this)">⚙️ Admin</button>
       </div>
       <!-- Shift banner slot — shows on EVERY equipment sub-tab (above the panels) -->
@@ -1286,10 +1287,10 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="car-cal-grid" id="car-cal-grid"></div>
         </div>
         <!-- Day detail panel -->
-        <div id="car-day-panel" style="display:none;background:#fff;border-radius:12px;padding:14px;box-shadow:var(--shadow);margin-bottom:10px;">
+        <div id="car-day-panel" style="display:none;background:linear-gradient(160deg,rgba(212,169,58,.26),rgba(18,18,22,.55));-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);border:1px solid rgba(230,196,99,.35);border-radius:14px;padding:14px;box-shadow:0 4px 16px rgba(0,0,0,.2);margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div style="font-size:14px;font-weight:700;color:var(--navy);" id="car-day-title"></div>
-            <button onclick="closeCarDay()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);">✕</button>
+            <div style="font-size:14px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);" id="car-day-title"></div>
+            <button onclick="closeCarDay()" style="background:none;border:none;font-size:18px;cursor:pointer;color:rgba(255,255,255,.7);">✕</button>
           </div>
           <div id="car-day-shifts"></div>
           <div id="car-book-wrap"></div>
@@ -1345,7 +1346,7 @@ textarea.input{min-height:80px;resize:vertical;}
               <div id="car-book-for-note" style="display:none;margin-top:6px;padding:6px 10px;background:#fff8e1;border-radius:7px;font-size:12px;color:#e65100;font-weight:600;"></div>
             </div>
             <div style="display:flex;gap:8px;">
-              <button id="car-submit-btn" onclick="submitCarBooking()" style="flex:1;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Book Shift</button>
+              <button id="car-submit-btn" onclick="submitCarBooking()" style="flex:1;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Request Shift</button>
               <button onclick="closeCarBooking()" style="padding:11px 16px;background:var(--border2);color:var(--text2);border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
             </div>
           </div>
@@ -2525,6 +2526,11 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">📻 Assigned Units</div>
+    <!-- Zello live transmission badge (shows who's currently talking) -->
+    <div id="zelloNowSpeaking" style="display:none;align-items:center;gap:8px;background:linear-gradient(160deg,rgba(34,197,94,.22),rgba(18,18,22,.5));border:1px solid rgba(34,197,94,.45);border-radius:10px;padding:9px 13px;margin-bottom:10px;">
+      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:zelloPulse 1.2s infinite;"></span>
+      <span id="zelloNowSpeakingText" style="font-size:14px;font-weight:800;color:#fff;">—</span>
+    </div>
     <input type="hidden" id="radioCallId"/>
     <!-- Search -->
     <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="radioSearch" placeholder="Search by name or BC#..." oninput="renderRadioSearch()"/></div>
@@ -3305,6 +3311,7 @@ async function initFirebaseApp() {
       try { subscribeTelzioRecentList(); } catch(e){ console.warn('subscribeTelzioRecent:', e); }
       try { subscribeTelzioFromFirestore(); } catch(e){ console.warn('subscribeTelzioWebhook:', e); }
       try { subscribeTelzioCallsFromFirestore(); } catch(e){ console.warn('subscribeTelzioCalls:', e); }
+      try { subscribeZelloConfig(); } catch(e){ console.warn('subscribeZello:', e); }
       try { _checkAppVersion(); } catch(e){ console.warn('versionCheck:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
@@ -6279,12 +6286,14 @@ function renderCobc4History(){
     const actColor=act==='OUT'?'#dc2626':'#16a34a';
     const driver=r.driver||r.byUnit?('BC-'+String(r.driver||r.byUnit).replace(/^BC-?/i,'')):'';
     const callTag=r.callNum?` · <span style="color:var(--blue);font-weight:800;">#${r.callNum}</span>`:'';
+    const noteLine=r.note?`<div style="font-size:11px;color:#555;margin-top:3px;">📝 ${r.note}</div>`:'';
     return `<div style="background:rgba(255,255,255,.95);border-radius:10px;padding:10px 12px;margin-bottom:6px;border-left:3px solid ${actColor};">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <div><div style="font-size:13px;font-weight:700;color:var(--text);">${driver||'COBC 4'}${callTag}</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time}</div></div>
         <div style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;background:${actColor}22;color:${actColor};">${act}</div>
       </div>
+      ${noteLine}
     </div>`;
   }).join('');
 }
@@ -6714,10 +6723,10 @@ function fitCardAddresses(){
     if(!el || !el.textContent.trim()) return;
     const isUrgent = !!el.closest('.call-card.urgent');
     const max = isUrgent ? 22 : 20;
-    const min = 11.5;
+    const min = 9.5;
     let size = max;
     el.style.setProperty('font-size', size+'px', 'important');
-    let guard = 40;
+    let guard = 60;
     while(el.scrollWidth > el.clientWidth + 0.5 && size > min && guard-- > 0){
       size -= 0.5;
       el.style.setProperty('font-size', size+'px', 'important');
@@ -8114,9 +8123,12 @@ function openCallDetail(id) {
   // Call number (left) · town (right)
   html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
     <span class="call-num" style="flex-shrink:0;">#${call.callNum||call.id.slice(-5)}</span>
-    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-      <div style="width:10px;height:10px;border-radius:50%;background:${townColor};"></div>
-      <span class="cd-town" style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap;">${call.town||''}</span>
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      ${call.createdBy?`<span class="cd-town" style="font-size:12px;font-weight:800;white-space:nowrap;">Dispatched by ${getMemberNameD(call.createdBy)||('BC-'+String(call.createdBy).replace(/^BC-?/i,''))}</span>`:''}
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:${townColor};"></div>
+        <span class="cd-town" style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap;">${call.town||''}</span>
+      </div>
     </div>
   </div>`;
 
@@ -9654,6 +9666,7 @@ function _appHeartbeatRun(){
   _appTick++;
   try { tickOpenTimers(); } catch(e){}
   try { checkReRequests(); } catch(e){}
+  try { checkPendingShiftRequests(); } catch(e){}
   try { checkWaitingEscalation(); } catch(e){}
   try { updateGlobalShiftBanner(); } catch(e){}
   try { _drainRetryQueue(); } catch(e){}
@@ -11056,6 +11069,76 @@ function subscribeTelzioCallsFromFirestore() {
       if(calls.length){ _telzioRecentCache=calls; try{ renderTelzioRecentList(calls); }catch(e){} }
     }, err => console.warn('telzioCalls snapshot:', err));
   } catch(e) { console.warn('subscribeTelzioCalls failed:', e); }
+}
+// ── Zello live transmissions (paid Zello Work network) ──────────────────────
+// Config lives in Firestore config/zello: { enabled, network, channel, username,
+// password, authToken }. Connects to the Zello Work WebSocket and shows a live
+// "BC-XX speaking…" badge in the Assign Units modal. Fully gated — does nothing
+// until an enabled config exists, so it's safe to ship before the account is live.
+let _zelloWS=null, _zelloCfg=null, _zelloSeq=1, _zelloSpeaking=null, _zelloReconnectT=null;
+// Hardcoded fallback — works WITHOUT Firebase. Fill in username/password and set
+// enabled:true to test. (Firestore config/zello, if present, overrides this.)
+// NOTE: this file is public, so a password here is visible to anyone who views the
+// source — use a throwaway/test account, and switch to the Firestore doc (rules-
+// protected) with the real account at go-live.
+const ZELLO_HARDCODED = { enabled:false, network:'bergencountychaverim', channel:'All Users', username:'', password:'' };
+function subscribeZelloConfig(){
+  // Start from the hardcoded config so it works with no Firebase doc at all
+  if(ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network){ _zelloCfg=ZELLO_HARDCODED; _zelloConnect(); }
+  try{
+    if(typeof firebase==='undefined') return;
+    firebase.firestore().collection('config').doc('zello').onSnapshot(doc=>{
+      const cfg=doc.exists?doc.data():null;
+      // Firestore doc (if enabled) wins; otherwise fall back to the hardcoded one
+      _zelloCfg = (cfg && cfg.enabled && cfg.network) ? cfg
+                 : (ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network ? ZELLO_HARDCODED : cfg);
+      if(_zelloCfg && _zelloCfg.enabled && _zelloCfg.network){ _zelloConnect(); }
+      else { _zelloDisconnect(); }
+    }, err=>console.warn('zello config snapshot:', err));
+  }catch(e){ console.warn('subscribeZelloConfig failed:', e); }
+}
+function _zelloConnect(){
+  try{
+    if(!_zelloCfg || !_zelloCfg.network) return;
+    if(_zelloWS && (_zelloWS.readyState===0 || _zelloWS.readyState===1)) return; // already connecting/open
+    const url='wss://'+String(_zelloCfg.network).replace(/^https?:\/\//,'').replace(/\.zellowork\.com.*$/,'')+'.zellowork.com/ws';
+    _zelloWS=new WebSocket(url);
+    _zelloWS.onopen=()=>{
+      try{
+        _zelloWS.send(JSON.stringify({
+          command:'logon', seq:_zelloSeq++,
+          auth_token:_zelloCfg.authToken||undefined,
+          username:_zelloCfg.username||undefined,
+          password:_zelloCfg.password||undefined,
+          channels:[_zelloCfg.channel||'All Users']
+        }));
+      }catch(e){}
+    };
+    _zelloWS.onmessage=(ev)=>{
+      let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+      if(m.command==='on_stream_start'){ _zelloSetSpeaking(m.from||m.username||''); }
+      else if(m.command==='on_stream_stop'){ _zelloSetSpeaking(null); }
+    };
+    _zelloWS.onclose=()=>{ _zelloSetSpeaking(null); if(_zelloCfg && _zelloCfg.enabled){ clearTimeout(_zelloReconnectT); _zelloReconnectT=setTimeout(_zelloConnect, 5000); } };
+    _zelloWS.onerror=()=>{ try{ _zelloWS.close(); }catch(e){} };
+  }catch(e){ console.warn('zello connect failed:', e); }
+}
+function _zelloDisconnect(){
+  clearTimeout(_zelloReconnectT);
+  try{ if(_zelloWS){ _zelloWS.onclose=null; _zelloWS.close(); } }catch(e){}
+  _zelloWS=null; _zelloSetSpeaking(null);
+}
+// Map a Zello username → the plain unit number (usernames == unit numbers). Show number only.
+function _zelloSetSpeaking(user){
+  _zelloSpeaking = user ? String(user).replace(/^BC-?/i,'').replace(/\D+/g,'') : null;
+  _zelloRenderBadge();
+}
+function _zelloRenderBadge(){
+  const box=document.getElementById('zelloNowSpeaking');
+  const txt=document.getElementById('zelloNowSpeakingText');
+  if(!box||!txt) return;
+  if(_zelloSpeaking){ txt.textContent='BC-'+_zelloSpeaking+' speaking…'; box.style.display='flex'; }
+  else { box.style.display='none'; }
 }
 function subscribeTelzioFromFirestore() {
   try {
@@ -15004,7 +15087,7 @@ function renderCarDay(dateStr) {
   if (!el) return;
 
   if (!shifts.length) {
-    el.innerHTML = '<div style="color:#aaa;font-size:13px;padding:6px 0 10px">No shifts booked for this day yet.</div>';
+    el.innerHTML = '<div style="color:rgba(255,255,255,.6);font-size:13px;padding:6px 0 10px">No shifts booked for this day yet.</div>';
   } else {
     el.innerHTML = shifts.map(function(b) {
       var isMine = myId && parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10)===parseInt(myId,10);
@@ -15064,7 +15147,12 @@ function renderCarDay(dateStr) {
         +'<div><div style="font-size:13px;font-weight:700;color:#1a1a1a;">BC-'+String(b.memberId||'').replace(/^BC-?/i,'')+' '+( b.memberName||'')+(isMine?' <span style="font-size:10px;color:var(--navy);background:#dbeafe;padding:1px 6px;border-radius:8px">You</span>':'')+'</div>'
         +dayBookedByLine
         +'<div style="font-size:12px;color:#555;margin-top:3px;">🕐 '+b.startTime+' – '+b.endTime+'</div>'
-        +(b.note?'<div style="font-size:11px;color:#888;margin-top:2px;">📝 '+b.note+'</div>':'')
+        +(function(){
+          var canEditNote = isMine || isAdm || (typeof isDispatchUser==='function' && isDispatchUser());
+          var noteHtml = b.note ? '<div style="font-size:11px;color:#888;margin-top:2px;">📝 '+b.note+(canEditNote?' <span onclick="editCarShiftNote(\''+b.id+'\')" style="color:var(--navy);cursor:pointer;text-decoration:underline;font-weight:700;">✏️ Edit</span>':'')+'</div>'
+                       : (canEditNote ? '<div style="font-size:11px;margin-top:2px;"><span onclick="editCarShiftNote(\''+b.id+'\')" style="color:var(--navy);cursor:pointer;text-decoration:underline;font-weight:700;">📝 Add note</span></div>' : '');
+          return noteHtml;
+        })()
         +'</div><div style="text-align:right;">'+stLabel+'</div></div>'
         +(actions?'<div style="display:flex;flex-wrap:wrap;gap:4px;">'+actions+'</div>':'')
         +'</div>';
@@ -15138,12 +15226,15 @@ function submitCarBooking() {
   note = note.trim();
   if (!startDisp) { showToast('Please select a start time'); return; }
   if (!endDisp)   { showToast('Please select an end time');   return; }
-  if (end24 <= start24) { showToast('End time must be after start time'); return; }
+  // Minute-based comparison so an 11PM→12AM (00:00) shift is valid (midnight = 1440)
+  var _toMin=function(hhmm,isEnd){ var p=(hhmm||'').split(':'); var m=parseInt(p[0],10)*60+parseInt(p[1],10); if(isEnd&&m===0)m=1440; return m; };
+  var startMin=_toMin(start24,false), endMin=_toMin(end24,true);
+  if (endMin <= startMin) { showToast('End time must be after start time'); return; }
   var conflict = carSchedule.find(function(b) {
     if (b.date !== carSelectedDate) return false;
     if (b.status==='cancelled'||b.status==='done') return false;
-    var bS = parse12to24C(b.startTime), bE = parse12to24C(b.endTime);
-    return start24 < bE && end24 > bS;
+    var bS = _toMin(parse12to24C(b.startTime),false), bE = _toMin(parse12to24C(b.endTime),true);
+    return startMin < bE && endMin > bS;
   });
   if (conflict) { showToast('⚠️ Overlaps BC-'+conflict.memberId+'\'s shift ('+conflict.startTime+' – '+conflict.endTime+')'); return; }
   var memberId   = SESSION ? String(SESSION.unit||'') : '';
@@ -15161,24 +15252,25 @@ function submitCarBooking() {
   if (!memberId) { showToast('No member logged in'); return; }
   var btn = document.getElementById('car-submit-btn');
   if (btn) { btn.textContent='...'; btn.disabled=true; }
-  postJ('bookCarShift', {memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, needsApproval:false, bookedBy:bookedByVal||null})
+  postJ('bookCarShift', {memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, needsApproval:true, bookedBy:bookedByVal||null})
     .then(function(d) {
       if (d.success) {
-        var newB = {id:d.id||('local_'+Date.now()), memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, status:'approved', bookedBy:bookedByVal||null};
+        var newB = {id:d.id||('local_'+Date.now()), memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, status:'pending', bookedBy:bookedByVal||null};
         carSchedule.push(newB);
         renderCarCalendar(); renderCarDay(carSelectedDate); closeCarBooking();
         showCarBookingSuccess(startDisp, endDisp, carSelectedDate, memberName, note);
-      } else { showToast('Error: '+(d.error||'Unknown')); if(btn){btn.disabled=false;btn.textContent='Book Shift';} }
-    }).catch(function(){ showToast('Network error'); if(btn){btn.disabled=false;btn.textContent='Book Shift';} });
+      } else { showToast('Error: '+(d.error||'Unknown')); if(btn){btn.disabled=false;btn.textContent='Request Shift';} }
+    }).catch(function(){ showToast('Network error'); if(btn){btn.disabled=false;btn.textContent='Request Shift';} });
 }
 
 function showCarBookingSuccess(startTime, endTime, date, memberName, note) {
   var wrap = document.getElementById('car-book-wrap');
   if (!wrap) return;
   var dateLabel = new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-  wrap.innerHTML = '<div style="background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;padding:16px;margin-top:6px;text-align:center;">'
-    +'<div style="font-size:28px;margin-bottom:6px;">✅</div>'
-    +'<div style="font-size:15px;font-weight:700;color:#2e7d32;">Shift booked for '+dateLabel+'!</div>'
+  wrap.innerHTML = '<div style="background:#fff4e5;border:1.5px solid #ffcc80;border-radius:10px;padding:16px;margin-top:6px;text-align:center;">'
+    +'<div style="font-size:28px;margin-bottom:6px;">⏳</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#e65100;">Shift requested for '+dateLabel+'</div>'
+    +'<div style="font-size:12px;font-weight:700;color:#e65100;margin-top:2px;">Awaiting admin approval</div>'
     +'<div style="font-size:13px;color:#555;margin-top:4px;">'+startTime+' – '+endTime+(memberName?' · '+memberName:'')+'</div>'
     +(note?'<div style="font-size:12px;color:#888;margin-top:3px;">'+note+'</div>':'')
     +'<button onclick="renderCarDay(carSelectedDate)" style="margin-top:12px;background:none;border:none;color:#888;font-size:12px;cursor:pointer;text-decoration:underline;">Dismiss</button>'
@@ -15234,6 +15326,51 @@ function deleteCarShift(bookingId, fromAdminHistory) {
         showToast('Booking deleted');
       } else { showToast('Error: '+(d.error||'Unknown')); }
     }).catch(function(){ showToast('Network error'); });
+}
+
+// Notify admins/dispatch of new pending shift requests (once per request id).
+var _firedShiftReqs = {};
+function checkPendingShiftRequests() {
+  if (!(isAdminUser() || (typeof isDispatchUser==='function' && isDispatchUser()))) { _updateCarReqBadge(0); return; }
+  if (!carSchedule || !carSchedule.length) { _updateCarReqBadge(0); return; }
+  var pending = carSchedule.filter(function(b){ return b.status === 'pending'; });
+  var newCount = 0;
+  pending.forEach(function(b){
+    var key = 'pendingreq_' + b.id;
+    if (_firedShiftReqs[key]) return;
+    _firedShiftReqs[key] = true; newCount++;
+    var who = 'BC-'+(b.memberId||'')+(b.memberName?' '+b.memberName:'');
+    var when = new Date(b.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🙋 Car Shift Request', { body: who+' requested '+when+' · '+b.startTime+'–'+b.endTime+'. Tap to approve.', tag: 'shift-request-'+b.id });
+      }
+    } catch(e){}
+  });
+  if (newCount) showToast('🙋 '+newCount+' new shift request'+(newCount>1?'s':'')+' awaiting approval');
+  _updateCarReqBadge(pending.length);
+}
+function _updateCarReqBadge(n) {
+  var badge = document.getElementById('carReqBadge');
+  if (!badge) return;
+  var isPriv = isAdminUser() || (typeof isDispatchUser==='function' && isDispatchUser());
+  if (isPriv && n > 0) { badge.textContent = n; badge.style.display = 'inline-block'; }
+  else { badge.style.display = 'none'; }
+}
+
+function editCarShiftNote(bookingId) {
+  var bkg = carSchedule.find(function(x){return x.id===bookingId;});
+  if (!bkg) return;
+  var isMine = loggedInMember && parseInt((bkg.memberId||'').toString().replace(/^BC-?/i,''),10)===parseInt(loggedInMember.id,10);
+  var canEdit = isMine || isAdminUser() || (typeof isDispatchUser==='function' && isDispatchUser());
+  if (!canEdit) { showToast('Not allowed'); return; }
+  var next = prompt('Edit note for this shift:', bkg.note||'');
+  if (next===null) return;
+  next = next.trim();
+  postJ('updateCarShiftNote', {id:bookingId, note:next}).then(function(d){
+    if (d && d.success) { bkg.note = next; renderCarDay(carSelectedDate); showToast('Note updated'); }
+    else showToast((d&&d.error)||'Could not update note');
+  }).catch(function(){ showToast('Network error'); });
 }
 
 function approveCarShift(bookingId) {
@@ -15409,10 +15546,11 @@ function renderCarHistory() {
         ? '<br><button onclick="deleteCarShift(\''+b.id+'\',true)" style="margin-top:5px;padding:3px 9px;background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3);border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;">🗑 Delete</button>'
         : '';
       var histBookedBy = b.bookedBy ? (function(){ var n=getMemberNameD(b.bookedBy); return '<div style="font-size:11px;font-weight:700;color:#fdba74;margin-top:1px;"> · booked by BC-'+b.bookedBy+(n?' '+n:'')+'</div>'; })() : '';
+      var histNote = b.note ? '<div style="font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;">📝 '+b.note+'</div>' : '';
       return '<div style="padding:11px 0;border-bottom:1px solid rgba(255,255,255,.08);">'
         +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
         +'<div><div style="font-size:15px;font-weight:700;color:#fff;">BC-'+String(b.memberId||'').replace(/^BC-?/i,'')+(b.memberName?' · '+b.memberName:'')
-        +(isMineH?' <span style="font-size:10px;color:#93c5fd;background:rgba(59,130,246,.18);padding:1px 6px;border-radius:8px">You</span>':'')+'</div>'+histBookedBy+timeRow+'</div>'
+        +(isMineH?' <span style="font-size:10px;color:#93c5fd;background:rgba(59,130,246,.18);padding:1px 6px;border-radius:8px">You</span>':'')+'</div>'+histBookedBy+timeRow+histNote+'</div>'
         +'<div style="text-align:right;"><div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.7);">'+ds+'</div>'
         +'<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px;display:inline-block;margin-top:3px;'
         +(b.status==='active'?'background:rgba(239,68,68,.18);color:#fca5a5':'background:rgba(34,197,94,.18);color:#86efac')+';">'
