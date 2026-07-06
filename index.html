@@ -15110,7 +15110,15 @@ function renderCarDay(dateStr) {
           var start24chk = parse12to24C(b.startTime);
           var startDtChk = new Date(b.date+'T'+start24chk+':00');
           var minsUntilChk = (startDtChk-new Date())/60000;
-          if (minsUntilChk<=60) {
+          // Shift end passed but car was never taken out → offer "not taken out"
+          var end24chk = parse12to24C(b.endTime);
+          var endMinChk = (function(p){var a=p.split(':');var m=parseInt(a[0],10)*60+parseInt(a[1],10);if(m===0)m=1440;return m;})(end24chk);
+          var endDtChk = new Date(b.date+'T00:00:00'); endDtChk.setMinutes(endMinChk);
+          if (new Date() > endDtChk) {
+            actions = '<div style="margin-top:8px;font-size:11px;color:#e65100;padding:7px 10px;background:rgba(230,101,0,.12);border-radius:7px;border:1px solid rgba(230,101,0,.3);text-align:center;">⚠️ Shift time passed — car was never taken out</div>'
+              + ((isMine||isAdm)?'<button onclick="markCarShiftNoShow(\''+b.id+'\')" style="margin-top:7px;width:100%;padding:8px;background:#fff3e0;color:#e65100;border:1.5px solid #ffcc80;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">📋 Log as Not Taken Out</button>':'')
+              + memberDeleteBtn+deleteBtn;
+          } else if (minsUntilChk<=60) {
             actions = '<button onclick="startCarShift(\''+b.id+'\')" style="margin-top:8px;width:100%;padding:9px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🔑 Start Shift</button>'+memberDeleteBtn+deleteBtn;
           } else {
             var hLeft=Math.floor(minsUntilChk/60), mLeft=Math.round(minsUntilChk%60);
@@ -15373,6 +15381,16 @@ function editCarShiftNote(bookingId) {
   }).catch(function(){ showToast('Network error'); });
 }
 
+function markCarShiftNoShow(bookingId) {
+  var bkg = carSchedule.find(function(x){return x.id===bookingId;});
+  if (!bkg) return;
+  if (!confirm('Log this shift as "car not taken out" and move it to history?')) return;
+  var note = ((bkg.note?bkg.note+' · ':'')+'Not taken out').trim();
+  postJ('updateCarShiftNote', {id:bookingId, note:note});
+  bkg.status='done'; bkg.note=note; bkg.notTakenOut=true;
+  renderCarDay(carSelectedDate); if(typeof renderCarHistory==='function') renderCarHistory();
+  showToast('Logged as not taken out');
+}
 function approveCarShift(bookingId) {
   postJ('approveCarShift', {id:bookingId})
     .then(function(d) {
