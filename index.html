@@ -6790,8 +6790,8 @@ async function fillCardETAs() {
       const bg    = mins<=5?'#dcfce7':mins<=12?'#fef3c7':'#f3f4f6';
       if(wrap) wrap.style.display='flex';
       span.style.display = 'inline-flex';
-      span.style.cssText += `display:inline-flex;align-items:center;gap:5px;background:${bg};color:${color};padding:3px 8px;border-radius:7px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;`;
-      span.textContent = `📍 Your Est. ETA: ${mins} min`;
+      span.style.cssText += `display:inline-flex;align-items:center;gap:0;background:${bg};color:${color};padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;`;
+      span.textContent = `Your ETA: ${mins} min`;
       // Upgrade the straight-line estimate to a real traffic-aware Google driving ETA
       const _origin = { lat:_myLoc.lat, lng:_myLoc.lng };
       _googleDriveMins(_origin, pt).then(gm => {
@@ -6799,7 +6799,7 @@ async function fillCardETAs() {
         const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
         span.style.cssText += `background:${gbg};color:${gc};`;
-        span.textContent = `📍 Your Est. ETA: ${gm} min`;
+        span.textContent = `Your ETA: ${gm} min`;
       }).catch(()=>{}); // keep the instant estimate if Google routing is unavailable
       // Tap to open Google Maps directions
       span.onclick = function(e) {
@@ -9303,6 +9303,8 @@ async function openLiveMap(callId) {
     }
     _refreshLiveMap();
   }, 400);
+  // Re-fit again once the destination geocode + first responder locations/routes settle
+  setTimeout(() => { try { if(_liveMap._isLeaflet) _liveMap.invalidateSize(); else if(window.google&&google.maps) google.maps.event.trigger(_liveMap,'resize'); _refreshLiveMap(); } catch(e){} }, 1400);
 
   if (_liveMapRefresh) clearInterval(_liveMapRefresh);
   _liveMapRefresh = setInterval(_refreshLiveMap, 30000);
@@ -9488,6 +9490,10 @@ async function _refreshLiveMap() {
                 strokeColor: color, strokeWeight: 4, strokeOpacity: 0.75
               });
             }
+            // Include the whole route in the map bounds so it auto-frames the full path
+            coords.forEach(c => { isLeaflet ? bounds.push([c.lat,c.lng]) : bounds.extend(c); });
+            if (isLeaflet) { if(bounds.length>1) _liveMap.fitBounds(bounds,{padding:[40,40]}); }
+            else if(!bounds.isEmpty()) _liveMap.fitBounds(bounds,{padding:60});
           }
         } catch(e) {}
       }
