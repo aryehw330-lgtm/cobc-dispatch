@@ -3107,7 +3107,7 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 // Build stamp — shown at the bottom of the Settings tab. Bump this whenever code
 // changes so the running version is identifiable on each device.
-const APP_BUILD = 'Build 2026-07-02a · auto-update';
+const APP_BUILD = 'Build 2026-07-06a · auto-update';
 // ── Auto-update: force every device onto the latest deployed build ──────────
 // A `config/appVersion` doc in Firestore holds the newest build stamp. On startup
 // and whenever the app returns to the foreground, each device compares its own
@@ -6557,7 +6557,7 @@ function callCardHTML(call, mini=false) {
         </div>
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${_respNumBadges(call)}${etaWrap}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:0 13px;margin:2px 0 4px;">${_respNumBadges(call)?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">${_respNumBadges(call)}</div>`:`<span></span>`}${etaWrap}</div>
       ${cornerMeta}
       ${(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
     </div>`;
@@ -6602,7 +6602,7 @@ function callCardHTML(call, mini=false) {
       </div>
       ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:''}</div>`:''}
     </div>
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${_respNumBadges(call)}${etaWrap}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:0 13px;margin:2px 0 4px;">${_respNumBadges(call)?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">${_respNumBadges(call)}</div>`:`<span></span>`}${etaWrap}</div>
     ${cornerMeta}
     <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
       <div style="display:flex;gap:5px;">
