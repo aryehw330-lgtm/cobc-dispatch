@@ -6498,7 +6498,7 @@ function callCardHTML(call, mini=false) {
   // Status color
   const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
   const sc = statusColors[call.status]||'var(--text3)';
-  const cornerMeta = `<div class="call-card-corner">${townChipInline}<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span><span style="display:inline-flex;align-items:center;gap:6px;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span>${timeStr}</span></span></div>`;
+  const cornerMeta = `<div class="call-card-corner">${townChipInline}<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span><span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
   const etaWrap = '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
   const floodBadge = (call.floodNeeds&&call.floodNeeds.length) ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${call.floodNeeds.map(n=>`<span style="font-size:12px;font-weight:800;color:#fff;background:rgba(37,99,235,.85);border:1px solid rgba(255,255,255,.25);padding:2px 9px;border-radius:8px;text-shadow:0 1px 2px rgba(0,0,0,.4);">${n}</span>`).join('')}</div>` : '';
