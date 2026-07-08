@@ -1552,7 +1552,11 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="card" id="zelloStatusCard" style="margin-bottom:10px;display:none;">
           <div class="card-title" style="margin-bottom:4px;">📻 Zello Radio</div>
           <div id="zelloStatusLine" style="font-size:13px;font-weight:700;color:var(--text3);">📻 Zello: off</div>
-          <button class="btn-sm btn-ghost" style="margin-top:8px;" onclick="try{_zelloDisconnect();_zelloConnect();showToast('Reconnecting Zello…');}catch(e){}">Reconnect</button>
+          <div id="zelloAcctLine" style="font-size:12px;color:var(--text3);margin-top:6px;"></div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn-sm btn-ghost" onclick="try{_zelloDisconnect();_zelloConnect();showToast('Reconnecting Zello…');}catch(e){}">Reconnect</button>
+            <button class="btn-sm btn-ghost" id="zelloEditBtn" style="display:none;color:var(--amber);" onclick="openZelloEdit()">⚙️ Change Account</button>
+          </div>
         </div>
         <!-- Reset all calls (admin-only, testing) -->
         <div class="card" id="settingsResetCard" style="margin-bottom:10px;display:none;border:1.5px solid #fca5a5;">
@@ -11135,15 +11139,16 @@ function _zelloConnect(){
   try{
     if(!_zelloCfg || !(_zelloCfg.network || _zelloCfg.api || _zelloCfg.endpoint)) return;
     if(_zelloWS && (_zelloWS.readyState===0 || _zelloWS.readyState===1)) return; // already connecting/open
-    // Consumer Zello Channels API (zello.io) vs ZelloWork network endpoint.
-    // api:true  → wss://zello.io/ws  (needs a developer JWT in authToken)
-    // network   → wss://<network>.zellowork.com/ws
+    // ZelloWork Channels API endpoint (matches the proven reference app):
+    //   wss://zellowork.io/ws/<network>
+    // (NOT <network>.zellowork.com/ws — that fails with close code 1006.)
     let url;
     if(_zelloCfg.endpoint){ url=_zelloCfg.endpoint; }
     else if(_zelloCfg.api || /(^|\.)zello\.io$/i.test(_zelloCfg.network||'')){ url='wss://zello.io/ws'; }
-    else { url='wss://'+String(_zelloCfg.network).replace(/^https?:\/\//,'').replace(/\.zellowork\.com.*$/,'')+'.zellowork.com/ws'; }
+    else { url='wss://zellowork.io/ws/'+encodeURIComponent(String(_zelloCfg.network).replace(/^https?:\/\//,'').replace(/\.zellowork\.(io|com).*$/,'')); }
     _zelloSetStatus('connecting…');
     _zelloWS=new WebSocket(url);
+    _zelloWS.binaryType='arraybuffer';
     _zelloWS.onopen=()=>{
       try{
         _zelloSetStatus('socket open — logging on…');
@@ -11157,21 +11162,23 @@ function _zelloConnect(){
             auth_token:_zelloCfg.authToken||undefined,
             username:_zelloCfg.username||undefined,
             password:_zelloCfg.password||undefined,
-            channel:ch
+            channel:ch, channels:[ch]
           }));
         });
       }catch(e){}
     };
     _zelloWS.onmessage=(ev)=>{
+      if(typeof ev.data!=='string') return;
       let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
-      // Logon response: {success:true,...} or {success:false,error:'...'}
-      if(typeof m.success!=='undefined' || m.error){
+      // Logon response: {success:true, seq:N} / {success:false, error:'...'}
+      if(typeof m.command==='undefined' && typeof m.seq!=='undefined'){
         if(m.success){ _zelloOkCount++; _zelloSetStatus('connected ('+_zelloOkCount+'/'+_zelloChanCount+' channels)'); }
         else { _zelloSetStatus('logon failed: '+(m.error||'unknown')); }
+        return;
       }
-      if(m.command==='on_stream_start'){ _zelloSetSpeaking(m.from||m.username||''); }
+      if(m.command==='on_channel_status'){ if(m.status==='online') _zelloSetStatus('online — listening'); }
+      else if(m.command==='on_stream_start'){ if(m.from) _zelloSetSpeaking(m.from); }
       else if(m.command==='on_stream_stop'){ _zelloSetSpeaking(null); }
-      else if(m.command==='on_channel_status' && m.status){ /* channel online/offline info */ }
     };
     _zelloWS.onclose=(ev)=>{ _zelloSetSpeaking(null); _zelloSetStatus('disconnected'+(ev&&ev.code?(' (code '+ev.code+(ev.reason?': '+ev.reason:'')+')'):'')); if(_zelloCfg && _zelloCfg.enabled){ clearTimeout(_zelloReconnectT); _zelloReconnectT=setTimeout(_zelloConnect, 5000); } };
     _zelloWS.onerror=()=>{ _zelloSetStatus('socket error'); try{ _zelloWS.close(); }catch(e){} };
@@ -11181,7 +11188,27 @@ let _zelloStatus='off', _zelloChanCount=0, _zelloOkCount=0;
 function _zelloSetStatus(s){
   _zelloStatus=s;
   const el=document.getElementById('zelloStatusLine');
-  if(el){ el.textContent='📻 Zello: '+s; el.style.color = /connected/.test(s)?'var(--green)':/fail|error|disconnect/.test(s)?'var(--red)':'var(--text3)'; }
+  if(el){ el.textContent='📻 Zello: '+s; el.style.color = /connected|online|listening/.test(s)?'var(--green)':/fail|error|disconnect/.test(s)?'var(--red)':'var(--text3)'; }
+  const acct=document.getElementById('zelloAcctLine');
+  if(acct && _zelloCfg){ const chans=Array.isArray(_zelloCfg.channels)?_zelloCfg.channels.join(', '):(_zelloCfg.channel||'—'); acct.textContent='Account: '+(_zelloCfg.username||'—')+' · Network: '+(_zelloCfg.network||'—')+' · Channel: '+chans; }
+  const eb=document.getElementById('zelloEditBtn');
+  if(eb) eb.style.display=(typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin')?'inline-flex':'none';
+}
+// Admin-only: change the shared Zello monitor account. Warns first; writes to the
+// rules-protected Firestore config/zello doc so all devices pick it up.
+function openZelloEdit(){
+  if(!(typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin')){ showToast('Admin only'); return; }
+  if(!confirm('⚠️ This is the shared radio-monitor account for the whole team.\n\nOnly change it if the account is BROKEN. Wrong info will stop Zello for every dispatcher.\n\nContinue?')) return;
+  const cur=_zelloCfg||{};
+  const network=prompt('Zello network (subdomain):', cur.network||''); if(network===null) return;
+  const username=prompt('Username:', cur.username||''); if(username===null) return;
+  const password=prompt('Password:', cur.password||''); if(password===null) return;
+  const channel=prompt('Channel name (exact):', Array.isArray(cur.channels)?cur.channels[0]:(cur.channel||'')); if(channel===null) return;
+  const cfg={ enabled:true, api:false, network:network.trim(), username:username.trim(), password:password, channel:channel.trim() };
+  try{
+    if(typeof firebase!=='undefined'){ firebase.firestore().collection('config').doc('zello').set(cfg).then(()=>showToast('✅ Zello account updated')).catch(e=>showToast('Save failed: '+(e.message||e))); }
+  }catch(e){ showToast('Save failed'); }
+  _zelloCfg=cfg; try{ _zelloDisconnect(); _zelloConnect(); }catch(e){}
 }
 function _zelloDisconnect(){
   clearTimeout(_zelloReconnectT);
