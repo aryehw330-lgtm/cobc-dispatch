@@ -1549,6 +1549,12 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
 
         <!-- Reset all calls (admin-only, testing) -->
+        <div class="card" id="zelloStatusCard" style="margin-bottom:10px;display:none;">
+          <div class="card-title" style="margin-bottom:4px;">📻 Zello Radio</div>
+          <div id="zelloStatusLine" style="font-size:13px;font-weight:700;color:var(--text3);">📻 Zello: off</div>
+          <button class="btn-sm btn-ghost" style="margin-top:8px;" onclick="try{_zelloDisconnect();_zelloConnect();showToast('Reconnecting Zello…');}catch(e){}">Reconnect</button>
+        </div>
+        <!-- Reset all calls (admin-only, testing) -->
         <div class="card" id="settingsResetCard" style="margin-bottom:10px;display:none;border:1.5px solid #fca5a5;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <div style="flex:1;min-width:0;">
@@ -2526,14 +2532,14 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">📻 Assigned Units</div>
-    <!-- Zello live transmission badge (shows who's currently talking) -->
-    <div id="zelloNowSpeaking" style="display:none;align-items:center;gap:8px;background:linear-gradient(160deg,rgba(34,197,94,.22),rgba(18,18,22,.5));border:1px solid rgba(34,197,94,.45);border-radius:10px;padding:9px 13px;margin-bottom:10px;">
-      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:zelloPulse 1.2s infinite;"></span>
-      <span id="zelloNowSpeakingText" style="font-size:14px;font-weight:800;color:#fff;">—</span>
-    </div>
     <input type="hidden" id="radioCallId"/>
     <!-- Search -->
     <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="radioSearch" placeholder="Search by name or BC#..." oninput="renderRadioSearch()"/></div>
+    <!-- Zello: last 5 units to transmit (tap a number to assign) -->
+    <div id="zelloNowSpeaking" style="display:none;flex-wrap:wrap;align-items:center;gap:4px;background:linear-gradient(160deg,rgba(34,197,94,.16),rgba(18,18,22,.45));border:1px solid rgba(34,197,94,.35);border-radius:10px;padding:8px 10px;margin-bottom:10px;">
+      <span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.65);margin-right:4px;">📻 Last on radio:</span>
+      <span id="zelloNowSpeakingText"></span>
+    </div>
     <div id="radioSearchResults" style="display:none;max-height:160px;overflow-y:auto;background:#fff;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;"></div>
     <!-- Selected members -->
     <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;">Selected</div>
@@ -4953,6 +4959,8 @@ function _applyRoleUI(role) {
   if (chkSubmitBtn) chkSubmitBtn.style.display = (role==='admin'||role==='equipment') ? 'block' : 'none';
   const settingsResetCard = document.getElementById('settingsResetCard');
   if (settingsResetCard) settingsResetCard.style.display = (role==='admin') ? '' : 'none';
+  const zelloStatusCard = document.getElementById('zelloStatusCard');
+  if (zelloStatusCard){ zelloStatusCard.style.display = (role==='admin'||role==='dispatch') ? '' : 'none'; try{ _zelloSetStatus(_zelloStatus); }catch(e){} }
   const adminStatsCloudRow = document.getElementById('adminStatsCloudRow');
   if (adminStatsCloudRow) adminStatsCloudRow.style.display = (role==='admin') ? '' : 'none';
   const adminFreezeRow = document.getElementById('adminFreezeRow');
@@ -7976,9 +7984,11 @@ function renderRadioSearch() {
 }
 
 function addRadioMember(unit) {
-  const m=STATE.members.find(x=>String(x.unit)===String(unit));
-  if(!m||radioSelectedMembers.find(x=>x.unit===unit)) return;
-  radioSelectedMembers.push({...m, eta:5}); // copy so per-row ETA never mutates the member record
+  const u=String(unit).replace(/^BC-?/i,'');
+  const m=STATE.members.find(x=>String(x.unit).replace(/^BC-?/i,'')===u);
+  if(radioSelectedMembers.find(x=>String(x.unit).replace(/^BC-?/i,'')===u)) return;
+  if(m) radioSelectedMembers.push({...m, eta:5}); // copy so per-row ETA never mutates the member record
+  else radioSelectedMembers.push({unit:u, first:'BC-'+u, last:'', eta:5}); // radio unit not in roster — still assignable
   document.getElementById('radioSearch').value='';
   document.getElementById('radioSearchResults').style.display='none';
   renderRadioSelected();
@@ -11085,7 +11095,7 @@ let _zelloWS=null, _zelloCfg=null, _zelloSeq=1, _zelloSpeaking=null, _zelloRecon
 // NOTE: this file is public, so a password here is visible to anyone who views the
 // source — use a throwaway/test account, and switch to the Firestore doc (rules-
 // protected) with the real account at go-live.
-const ZELLO_HARDCODED = { enabled:false, network:'bergencountychaverim', channel:'All Users', username:'', password:'' };
+const ZELLO_HARDCODED = { enabled:true, api:false, network:'bergencountychaverim', channels:['01 Dispatch','03 Events','Emergency'], username:'BCapp', password:'bc38app' };
 function subscribeZelloConfig(){
   // Start from the hardcoded config so it works with no Firebase doc at all
   if(ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network){ _zelloCfg=ZELLO_HARDCODED; _zelloConnect(); }
@@ -11103,29 +11113,55 @@ function subscribeZelloConfig(){
 }
 function _zelloConnect(){
   try{
-    if(!_zelloCfg || !_zelloCfg.network) return;
+    if(!_zelloCfg || !(_zelloCfg.network || _zelloCfg.api || _zelloCfg.endpoint)) return;
     if(_zelloWS && (_zelloWS.readyState===0 || _zelloWS.readyState===1)) return; // already connecting/open
-    const url='wss://'+String(_zelloCfg.network).replace(/^https?:\/\//,'').replace(/\.zellowork\.com.*$/,'')+'.zellowork.com/ws';
+    // Consumer Zello Channels API (zello.io) vs ZelloWork network endpoint.
+    // api:true  → wss://zello.io/ws  (needs a developer JWT in authToken)
+    // network   → wss://<network>.zellowork.com/ws
+    let url;
+    if(_zelloCfg.endpoint){ url=_zelloCfg.endpoint; }
+    else if(_zelloCfg.api || /(^|\.)zello\.io$/i.test(_zelloCfg.network||'')){ url='wss://zello.io/ws'; }
+    else { url='wss://'+String(_zelloCfg.network).replace(/^https?:\/\//,'').replace(/\.zellowork\.com.*$/,'')+'.zellowork.com/ws'; }
+    _zelloSetStatus('connecting…');
     _zelloWS=new WebSocket(url);
     _zelloWS.onopen=()=>{
       try{
-        _zelloWS.send(JSON.stringify({
-          command:'logon', seq:_zelloSeq++,
-          auth_token:_zelloCfg.authToken||undefined,
-          username:_zelloCfg.username||undefined,
-          password:_zelloCfg.password||undefined,
-          channels:[_zelloCfg.channel||'All Users']
-        }));
+        _zelloSetStatus('socket open — logging on…');
+        const chans=Array.isArray(_zelloCfg.channels)&&_zelloCfg.channels.length
+          ? _zelloCfg.channels
+          : [_zelloCfg.channel||'All Users'];
+        _zelloChanCount=chans.length; _zelloOkCount=0;
+        chans.forEach(ch=>{
+          _zelloWS.send(JSON.stringify({
+            command:'logon', seq:_zelloSeq++,
+            auth_token:_zelloCfg.authToken||undefined,
+            username:_zelloCfg.username||undefined,
+            password:_zelloCfg.password||undefined,
+            channels:[ch]
+          }));
+        });
       }catch(e){}
     };
     _zelloWS.onmessage=(ev)=>{
       let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+      // Logon response: {success:true,...} or {success:false,error:'...'}
+      if(typeof m.success!=='undefined' || m.error){
+        if(m.success){ _zelloOkCount++; _zelloSetStatus('connected ('+_zelloOkCount+'/'+_zelloChanCount+' channels)'); }
+        else { _zelloSetStatus('logon failed: '+(m.error||'unknown')); }
+      }
       if(m.command==='on_stream_start'){ _zelloSetSpeaking(m.from||m.username||''); }
       else if(m.command==='on_stream_stop'){ _zelloSetSpeaking(null); }
+      else if(m.command==='on_channel_status' && m.status){ /* channel online/offline info */ }
     };
-    _zelloWS.onclose=()=>{ _zelloSetSpeaking(null); if(_zelloCfg && _zelloCfg.enabled){ clearTimeout(_zelloReconnectT); _zelloReconnectT=setTimeout(_zelloConnect, 5000); } };
-    _zelloWS.onerror=()=>{ try{ _zelloWS.close(); }catch(e){} };
-  }catch(e){ console.warn('zello connect failed:', e); }
+    _zelloWS.onclose=()=>{ _zelloSetSpeaking(null); _zelloSetStatus('disconnected'); if(_zelloCfg && _zelloCfg.enabled){ clearTimeout(_zelloReconnectT); _zelloReconnectT=setTimeout(_zelloConnect, 5000); } };
+    _zelloWS.onerror=()=>{ _zelloSetStatus('socket error'); try{ _zelloWS.close(); }catch(e){} };
+  }catch(e){ _zelloSetStatus('connect error: '+(e.message||e)); console.warn('zello connect failed:', e); }
+}
+let _zelloStatus='off', _zelloChanCount=0, _zelloOkCount=0;
+function _zelloSetStatus(s){
+  _zelloStatus=s;
+  const el=document.getElementById('zelloStatusLine');
+  if(el){ el.textContent='📻 Zello: '+s; el.style.color = /connected/.test(s)?'var(--green)':/fail|error|disconnect/.test(s)?'var(--red)':'var(--text3)'; }
 }
 function _zelloDisconnect(){
   clearTimeout(_zelloReconnectT);
@@ -11133,16 +11169,26 @@ function _zelloDisconnect(){
   _zelloWS=null; _zelloSetSpeaking(null);
 }
 // Map a Zello username → the plain unit number (usernames == unit numbers). Show number only.
+let _zelloRecent = []; // recent speakers, most-recent first (unit numbers)
 function _zelloSetSpeaking(user){
   _zelloSpeaking = user ? String(user).replace(/^BC-?/i,'').replace(/\D+/g,'') : null;
+  if(_zelloSpeaking){
+    _zelloRecent = [_zelloSpeaking, ..._zelloRecent.filter(u=>u!==_zelloSpeaking)].slice(0,6);
+  }
   _zelloRenderBadge();
 }
 function _zelloRenderBadge(){
   const box=document.getElementById('zelloNowSpeaking');
   const txt=document.getElementById('zelloNowSpeakingText');
   if(!box||!txt) return;
-  if(_zelloSpeaking){ txt.textContent='BC-'+_zelloSpeaking+' speaking…'; box.style.display='flex'; }
-  else { box.style.display='none'; }
+  if(!_zelloRecent.length){ box.style.display='none'; return; }
+  box.style.display='flex';
+  // Clickable number pills — tap to drop the unit into the assigned box.
+  // The one currently transmitting pulses; the rest are recent speakers.
+  txt.innerHTML = _zelloRecent.map(u=>{
+    const live = (u===_zelloSpeaking);
+    return `<span onclick="addRadioMember('${u}')" title="Tap to assign" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:${live?'#22c55e':'rgba(255,255,255,.14)'};color:#fff;font-weight:800;font-size:14px;padding:3px 10px;border-radius:8px;margin:2px 4px 2px 0;${live?'animation:zelloPulse 1.2s infinite;':''}">${live?'🎙 ':''}${u}</span>`;
+  }).join('');
 }
 function subscribeTelzioFromFirestore() {
   try {
