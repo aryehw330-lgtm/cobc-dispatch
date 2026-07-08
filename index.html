@@ -1552,7 +1552,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="card" id="zelloStatusCard" style="margin-bottom:10px;display:none;">
           <div class="card-title" style="margin-bottom:4px;">📻 Zello Radio</div>
           <div id="zelloStatusLine" style="font-size:13px;font-weight:700;color:var(--text3);">📻 Zello: off</div>
-          <button class="btn-sm btn-ghost" style="margin-top:8px;" onclick="try{_zelloDisconnect();_zelloConnect();showToast('Reconnecting Zello…');}catch(e){}">Reconnect</button>
+          <button class="btn-sm btn-ghost" style="margin-top:8px;" onclick="try{_zelloDisconnect();subscribeZelloConfig();showToast('Refreshing Zello feed…');}catch(e){}">Reconnect</button>
         </div>
         <!-- Reset all calls (admin-only, testing) -->
         <div class="card" id="settingsResetCard" style="margin-bottom:10px;display:none;border:1.5px solid #fca5a5;">
@@ -11085,88 +11085,47 @@ function subscribeTelzioCallsFromFirestore() {
   } catch(e) { console.warn('subscribeTelzioCalls failed:', e); }
 }
 // ── Zello live transmissions (paid Zello Work network) ──────────────────────
-// Config lives in Firestore config/zello: { enabled, network, channel, username,
-// password, authToken }. Connects to the Zello Work WebSocket and shows a live
-// "BC-XX speaking…" badge in the Assign Units modal. Fully gated — does nothing
-// until an enabled config exists, so it's safe to ship before the account is live.
-let _zelloWS=null, _zelloCfg=null, _zelloSeq=1, _zelloSpeaking=null, _zelloReconnectT=null;
-// Hardcoded fallback — works WITHOUT Firebase. Fill in username/password and set
-// enabled:true to test. (Firestore config/zello, if present, overrides this.)
-// NOTE: this file is public, so a password here is visible to anyone who views the
-// source — use a throwaway/test account, and switch to the Firestore doc (rules-
-// protected) with the real account at go-live.
-const ZELLO_HARDCODED = { enabled:true, api:false, network:'bergencountychaverim', channels:['01 Dispatch','03 Events','Emergency'], username:'BCapp', password:'bc38app' };
+// A browser CANNOT connect directly to Zello Work's WebSocket — it fails with
+// close code 1006 (that endpoint is for native/server clients only, browsers
+// are blocked). So instead, a server-side relay (Cloudflare Worker, same
+// pattern as the Telzio caller-ID relay) holds the real Zello connection and
+// writes { unit, at } to Firestore config/zelloSpeaking every time someone
+// keys up. This app just reads that doc — no Zello credentials ever ship to
+// the browser anymore.
+let _zelloUnsub=null, _zelloSpeaking=null, _zelloClearT=null;
+const ZELLO_LIVE_WINDOW_MS = 15000; // treat "at" as live if within this window
 function subscribeZelloConfig(){
-  // Start from the hardcoded config so it works with no Firebase doc at all
-  if(ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network){ _zelloCfg=ZELLO_HARDCODED; _zelloConnect(); }
   try{
     if(typeof firebase==='undefined') return;
-    firebase.firestore().collection('config').doc('zello').onSnapshot(doc=>{
-      const cfg=doc.exists?doc.data():null;
-      // Firestore doc (if enabled) wins; otherwise fall back to the hardcoded one
-      _zelloCfg = (cfg && cfg.enabled && cfg.network) ? cfg
-                 : (ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network ? ZELLO_HARDCODED : cfg);
-      if(_zelloCfg && _zelloCfg.enabled && _zelloCfg.network){ _zelloConnect(); }
-      else { _zelloDisconnect(); }
-    }, err=>console.warn('zello config snapshot:', err));
-  }catch(e){ console.warn('subscribeZelloConfig failed:', e); }
-}
-function _zelloConnect(){
-  try{
-    if(!_zelloCfg || !(_zelloCfg.network || _zelloCfg.api || _zelloCfg.endpoint)) return;
-    if(_zelloWS && (_zelloWS.readyState===0 || _zelloWS.readyState===1)) return; // already connecting/open
-    // Consumer Zello Channels API (zello.io) vs ZelloWork network endpoint.
-    // api:true  → wss://zello.io/ws  (needs a developer JWT in authToken)
-    // network   → wss://<network>.zellowork.com/ws
-    let url;
-    if(_zelloCfg.endpoint){ url=_zelloCfg.endpoint; }
-    else if(_zelloCfg.api || /(^|\.)zello\.io$/i.test(_zelloCfg.network||'')){ url='wss://zello.io/ws'; }
-    else { url='wss://'+String(_zelloCfg.network).replace(/^https?:\/\//,'').replace(/\.zellowork\.com.*$/,'')+'.zellowork.com/ws'; }
-    _zelloSetStatus('connecting…');
-    _zelloWS=new WebSocket(url);
-    _zelloWS.onopen=()=>{
-      try{
-        _zelloSetStatus('socket open — logging on…');
-        const chans=Array.isArray(_zelloCfg.channels)&&_zelloCfg.channels.length
-          ? _zelloCfg.channels
-          : [_zelloCfg.channel||'All Users'];
-        _zelloChanCount=chans.length; _zelloOkCount=0;
-        chans.forEach(ch=>{
-          _zelloWS.send(JSON.stringify({
-            command:'logon', seq:_zelloSeq++,
-            auth_token:_zelloCfg.authToken||undefined,
-            username:_zelloCfg.username||undefined,
-            password:_zelloCfg.password||undefined,
-            channel:ch
-          }));
-        });
-      }catch(e){}
-    };
-    _zelloWS.onmessage=(ev)=>{
-      let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
-      // Logon response: {success:true,...} or {success:false,error:'...'}
-      if(typeof m.success!=='undefined' || m.error){
-        if(m.success){ _zelloOkCount++; _zelloSetStatus('connected ('+_zelloOkCount+'/'+_zelloChanCount+' channels)'); }
-        else { _zelloSetStatus('logon failed: '+(m.error||'unknown')); }
+    _zelloSetStatus('waiting for signal…');
+    if(_zelloUnsub) { try{ _zelloUnsub(); }catch(e){} }
+    _zelloUnsub = firebase.firestore().collection('config').doc('zelloSpeaking').onSnapshot(doc=>{
+      if(!doc.exists) return;
+      const d = doc.data() || {};
+      const unit = d.unit ? String(d.unit) : '';
+      const at = Number(d.at) || 0;
+      if(!unit || !at) return;
+      const age = Date.now() - at;
+      if(age <= ZELLO_LIVE_WINDOW_MS){
+        _zelloSetStatus('connected (live feed)');
+        _zelloSetSpeaking(unit);
+        clearTimeout(_zelloClearT);
+        _zelloClearT = setTimeout(()=>_zelloSetSpeaking(null), ZELLO_LIVE_WINDOW_MS - age + 500);
       }
-      if(m.command==='on_stream_start'){ _zelloSetSpeaking(m.from||m.username||''); }
-      else if(m.command==='on_stream_stop'){ _zelloSetSpeaking(null); }
-      else if(m.command==='on_channel_status' && m.status){ /* channel online/offline info */ }
-    };
-    _zelloWS.onclose=(ev)=>{ _zelloSetSpeaking(null); _zelloSetStatus('disconnected'+(ev&&ev.code?(' (code '+ev.code+(ev.reason?': '+ev.reason:'')+')'):'')); if(_zelloCfg && _zelloCfg.enabled){ clearTimeout(_zelloReconnectT); _zelloReconnectT=setTimeout(_zelloConnect, 5000); } };
-    _zelloWS.onerror=()=>{ _zelloSetStatus('socket error'); try{ _zelloWS.close(); }catch(e){} };
-  }catch(e){ _zelloSetStatus('connect error: '+(e.message||e)); console.warn('zello connect failed:', e); }
+    }, err=>{ console.warn('zelloSpeaking snapshot:', err); _zelloSetStatus('error: '+(err.message||err)); });
+  }catch(e){ console.warn('subscribeZelloConfig failed:', e); _zelloSetStatus('error: '+(e.message||e)); }
 }
-let _zelloStatus='off', _zelloChanCount=0, _zelloOkCount=0;
+let _zelloStatus='off';
 function _zelloSetStatus(s){
   _zelloStatus=s;
   const el=document.getElementById('zelloStatusLine');
-  if(el){ el.textContent='📻 Zello: '+s; el.style.color = /connected/.test(s)?'var(--green)':/fail|error|disconnect/.test(s)?'var(--red)':'var(--text3)'; }
+  if(el){ el.textContent='📻 Zello: '+s; el.style.color = /connected/.test(s)?'var(--green)':/error/.test(s)?'var(--red)':'var(--text3)'; }
 }
 function _zelloDisconnect(){
-  clearTimeout(_zelloReconnectT);
-  try{ if(_zelloWS){ _zelloWS.onclose=null; _zelloWS.close(); } }catch(e){}
-  _zelloWS=null; _zelloSetSpeaking(null);
+  clearTimeout(_zelloClearT);
+  if(_zelloUnsub){ try{ _zelloUnsub(); }catch(e){} _zelloUnsub=null; }
+  _zelloSetSpeaking(null);
+  _zelloSetStatus('off');
 }
 // Map a Zello username → the plain unit number (usernames == unit numbers). Show number only.
 let _zelloRecent = []; // recent speakers, most-recent first (unit numbers)
