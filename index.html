@@ -11153,7 +11153,7 @@ function _zelloConnect(){
       else if(m.command==='on_stream_stop'){ _zelloSetSpeaking(null); }
       else if(m.command==='on_channel_status' && m.status){ /* channel online/offline info */ }
     };
-    _zelloWS.onclose=()=>{ _zelloSetSpeaking(null); _zelloSetStatus('disconnected'); if(_zelloCfg && _zelloCfg.enabled){ clearTimeout(_zelloReconnectT); _zelloReconnectT=setTimeout(_zelloConnect, 5000); } };
+    _zelloWS.onclose=(ev)=>{ _zelloSetSpeaking(null); _zelloSetStatus('disconnected'+(ev&&ev.code?(' (code '+ev.code+(ev.reason?': '+ev.reason:'')+')'):'')); if(_zelloCfg && _zelloCfg.enabled){ clearTimeout(_zelloReconnectT); _zelloReconnectT=setTimeout(_zelloConnect, 5000); } };
     _zelloWS.onerror=()=>{ _zelloSetStatus('socket error'); try{ _zelloWS.close(); }catch(e){} };
   }catch(e){ _zelloSetStatus('connect error: '+(e.message||e)); console.warn('zello connect failed:', e); }
 }
