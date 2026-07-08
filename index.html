@@ -11161,13 +11161,11 @@ function _zelloConnect(){
           : [_zelloCfg.channel||'All Users'];
         _zelloChanCount=chans.length; _zelloOkCount=0;
         chans.forEach(ch=>{
-          _zelloWS.send(JSON.stringify({
-            command:'logon', seq:_zelloSeq++,
-            auth_token:_zelloCfg.authToken||undefined,
-            username:_zelloCfg.username||undefined,
-            password:_zelloCfg.password||undefined,
-            channel:ch, channels:[ch]
-          }));
+          const msg={ command:'logon', seq:_zelloSeq++, channel:ch };
+          if(_zelloCfg.authToken) msg.auth_token=_zelloCfg.authToken;
+          if(_zelloCfg.username) msg.username=_zelloCfg.username;
+          if(_zelloCfg.password) msg.password=_zelloCfg.password;
+          _zelloWS.send(JSON.stringify(msg));
         });
       }catch(e){}
     };
