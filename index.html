@@ -11143,6 +11143,7 @@ function _zelloConnect(){
   try{
     if(!_zelloCfg || !(_zelloCfg.network || _zelloCfg.api || _zelloCfg.endpoint)) return;
     if(_zelloWS && (_zelloWS.readyState===0 || _zelloWS.readyState===1)) return; // already connecting/open
+    _zelloSeq=1; // fresh sequence per connection (matches reference app)
     // ZelloWork Channels API endpoint (matches the proven reference app):
     //   wss://zellowork.io/ws/<network>
     // (NOT <network>.zellowork.com/ws — that fails with close code 1006.)
@@ -11161,7 +11162,7 @@ function _zelloConnect(){
           : [_zelloCfg.channel||'All Users'];
         _zelloChanCount=chans.length; _zelloOkCount=0;
         chans.forEach(ch=>{
-          const msg={ command:'logon', seq:_zelloSeq++, channel:ch };
+          const msg={ command:'logon', seq:_zelloSeq++, channel:ch, channels:[ch] };
           if(_zelloCfg.authToken) msg.auth_token=_zelloCfg.authToken;
           if(_zelloCfg.username) msg.username=_zelloCfg.username;
           if(_zelloCfg.password) msg.password=_zelloCfg.password;
