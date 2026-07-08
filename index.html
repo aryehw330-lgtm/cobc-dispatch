@@ -11127,10 +11127,14 @@ function subscribeZelloConfig(){
     if(typeof firebase==='undefined') return;
     firebase.firestore().collection('config').doc('zello').onSnapshot(doc=>{
       const cfg=doc.exists?doc.data():null;
-      // Firestore doc (if enabled) wins; otherwise fall back to the hardcoded one
-      _zelloCfg = (cfg && cfg.enabled && cfg.network) ? cfg
-                 : (ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network ? ZELLO_HARDCODED : cfg);
-      if(_zelloCfg && _zelloCfg.enabled && _zelloCfg.network){ _zelloConnect(); }
+      // Only let a Firestore doc override if it's a COMPLETE ZelloWork account
+      // (network + username + password, non-API). This prevents a stale/partial doc
+      // from the old API/relay experiments from hijacking the good hardcoded login
+      // (which showed up as logon "not enough params").
+      const cfgValid = cfg && cfg.enabled && !cfg.api && cfg.network && cfg.username && cfg.password;
+      _zelloCfg = cfgValid ? cfg
+                 : (ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network ? ZELLO_HARDCODED : null);
+      if(_zelloCfg && _zelloCfg.enabled && _zelloCfg.network && _zelloCfg.username){ _zelloConnect(); }
       else { _zelloDisconnect(); }
     }, err=>console.warn('zello config snapshot:', err));
   }catch(e){ console.warn('subscribeZelloConfig failed:', e); }
