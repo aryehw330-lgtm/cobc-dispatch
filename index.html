@@ -484,7 +484,7 @@ textarea.input{min-height:80px;resize:vertical;}
 #more-sub-tabs .sub-tab:nth-child(3){background:linear-gradient(160deg,rgba(124,58,237,.30),rgba(18,18,22,.5));}
 #more-sub-tabs .sub-tab:nth-child(4){background:linear-gradient(160deg,rgba(212,169,58,.30),rgba(18,18,22,.5));}
 #more-sub-tabs .sub-tab:nth-child(5){background:linear-gradient(160deg,rgba(100,116,139,.34),rgba(18,18,22,.5));}
-#more-sub-tabs .sub-tab:nth-child(6){background:linear-gradient(160deg,rgba(22,163,74,.30),rgba(18,18,22,.5));}
+#more-sub-tabs .sub-tab:nth-child(6){background:linear-gradient(160deg,rgba(255,255,255,.28),rgba(255,255,255,.08));color:#fff;}
 #more-sub-tabs .sub-tab:nth-child(7){background:linear-gradient(160deg,rgba(234,88,12,.30),rgba(18,18,22,.5));}
 #more-sub-tabs .sub-tab:nth-child(8){background:linear-gradient(160deg,rgba(8,145,178,.30),rgba(18,18,22,.5));}
 #more-sub-tabs .sub-tab.active{border-color:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(255,255,255,.4),inset 0 1px 0 rgba(255,255,255,.25);}
@@ -513,6 +513,17 @@ textarea.input{min-height:80px;resize:vertical;}
 .color-pick.open .color-pick-menu{display:block;}
 .cp-opt{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);}
 .cp-opt:hover{background:var(--border2);}
+/* ── Schedule Slot Editor — dark glassy theme to match the rest of the app ── */
+#schedEditModal .modal{background:linear-gradient(165deg,rgba(212,169,58,.14),rgba(18,16,12,.97) 45%);border-top:1px solid rgba(230,196,99,.35);}
+#schedEditModal .modal-title{color:#fff;}
+#schedEditModal #schedEditShift{color:rgba(255,255,255,.65)!important;}
+#schedEditModal .input-label{color:rgba(255,255,255,.7)!important;}
+#schedEditModal select.input{background:rgba(255,255,255,.08)!important;color:#fff!important;border:1px solid rgba(230,196,99,.4)!important;}
+#schedEditModal select.input option{color:#1a1407;}
+#schedEditModal .btn-ghost{background:rgba(255,255,255,.1)!important;color:#fff!important;}
+/* ── Jump-to-date calendar — glassy white ── */
+#schedCalModal .modal{background:rgba(255,255,255,.72);-webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);border-top:1px solid rgba(255,255,255,.6);box-shadow:0 -8px 30px rgba(0,0,0,.25);}
+#more-schedule .btn-ghost{background:rgba(255,255,255,.14)!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.3)!important;color:#fff!important;}
 /* ── DISPATCH ON-DUTY BANNER ── */
 .on-duty-banner{background:linear-gradient(135deg,rgba(212,169,58,.2),rgba(18,15,9,.7));-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(230,196,99,.4);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;color:#fff;display:flex;justify-content:flex-start;align-items:center;gap:14px;width:fit-content;max-width:100%;}
 .home-top-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
@@ -1022,7 +1033,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-          <button id="schedFromDispatchBtn" onclick="goToDispatchSchedule()" title="Dispatch Schedule" style="background:var(--border2);color:var(--navy);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">📅 Schedule</button>
+          <button id="schedFromDispatchBtn" onclick="goToDispatchSchedule()" title="Dispatch Schedule" style="background:linear-gradient(160deg,rgba(255,255,255,.45),rgba(255,255,255,.15));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 2px 8px rgba(0,0,0,.15);">📅 Schedule</button>
           <button id="newCallBtn" class="metal-gold" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;display:none">+ New Call</button>
         </div>
       </div>
@@ -1570,6 +1581,16 @@ textarea.input{min-height:80px;resize:vertical;}
             </div>
           </div>
         </div>
+        <!-- Clear schedule fill-in test data (admin-only) -->
+        <div class="card" style="margin-bottom:10px;border:1.5px solid rgba(230,196,99,.5);">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">🗓️ Clear Schedule Fill-ins</div>
+              <div class="card-desc">Removes all one-time "Take" / "Save Changes" fill-ins (useful to wipe test data). Does not touch the recurring weekly schedule.</div>
+            </div>
+            <button class="btn-sm btn-ghost" onclick="clearAllSchedOverrides()" style="flex-shrink:0;color:var(--amber);">Clear</button>
+          </div>
+        </div>
         <!-- Reset all calls (admin-only, testing) -->
         <div class="card" id="settingsResetCard" style="margin-bottom:10px;display:none;border:1.5px solid #fca5a5;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
@@ -1829,8 +1850,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div class="section-label">Weekly Schedule</div>
           <div style="position:relative;display:inline-flex;flex-shrink:0;">
-            <button type="button" class="btn-sm btn-ghost" style="font-size:11px;padding:4px 12px;display:inline-flex;align-items:center;gap:5px;pointer-events:none;">📅 Jump to date</button>
-            <input type="date" id="schedJumpDate" onchange="schedPickDate(this.value)" onclick="openSchedDatePicker()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;margin:0;cursor:pointer;"/>
+            <button type="button" class="btn-sm btn-ghost" style="font-size:11px;padding:4px 12px;display:inline-flex;align-items:center;gap:5px;" onclick="openSchedCalendar()">📅 Jump to date</button>
           </div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
@@ -2904,6 +2924,27 @@ textarea.input{min-height:80px;resize:vertical;}
   </div>
 </div>
 
+<!-- Jump-to-date custom calendar (red dot = opening in Primary, green background = fully covered) -->
+<div class="modal-overlay hidden" id="schedCalModal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button class="btn-sm btn-ghost" onclick="schedCalNavMonth(-1)">‹</button>
+      <div id="schedCalMonthLabel" style="font-size:15px;font-weight:800;color:var(--text);"></div>
+      <button class="btn-sm btn-ghost" onclick="schedCalNavMonth(1)">›</button>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-bottom:10px;font-size:11px;color:var(--text3);">
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:4px;"></span>Opening</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:rgba(34,197,94,.3);border:1px solid var(--green);margin-right:4px;"></span>Fully covered</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:10px;font-weight:700;color:var(--text3);text-align:center;margin-bottom:4px;">
+      <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+    </div>
+    <div id="schedCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;"></div>
+    <button class="btn-full btn-ghost" style="margin-top:14px;" onclick="hideModal('schedCalModal')">Close</button>
+  </div>
+</div>
+
 <!-- Edit Member Role Modal -->
 <div class="modal-overlay hidden" id="editMemberRoleModal">
   <div class="modal">
@@ -3131,7 +3172,7 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 // Build stamp — shown at the bottom of the Settings tab. Bump this whenever code
 // changes so the running version is identifiable on each device.
-const APP_BUILD = 'Build 2026-07-06a · auto-update';
+const APP_BUILD = 'Build 2026-07-09a · auto-update';
 // ── Auto-update: force every device onto the latest deployed build ──────────
 // A `config/appVersion` doc in Firestore holds the newest build stamp. On startup
 // and whenever the app returns to the foreground, each device compares its own
@@ -11814,6 +11855,37 @@ function _myScheduleLabel(){
 }
 // ── Date helpers for schedule overrides (temporary fill-ins) ──
 function _dateStrOf(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
+// Coverage status for a given date: 'open' if any shift has an unfilled Primary or
+// Secondary slot, 'full' if every shift's Primary AND Secondary are staffed.
+function _dayCoverageStatus(date){
+  if(typeof DISPATCH_SCHEDULE==='undefined') return null;
+  const dow=date.getDay();
+  const dateStr=_dateStrOf(date);
+  let anyOpen=false, allCovered=true;
+  DISPATCH_SCHEDULE.forEach((row,shiftIdx)=>{
+    const ov=STATE.schedOverrides && STATE.schedOverrides[dateStr] && STATE.schedOverrides[dateStr][shiftIdx];
+    const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[dow]||{p:'OPEN',s:'OPEN'});
+    if(slot.p==='OPEN') anyOpen=true;
+    if(slot.p==='OPEN' || slot.s==='OPEN') allCovered=false;
+  });
+  if(anyOpen) return 'open';
+  if(allCovered) return 'full';
+  return null;
+}
+// Count how many shifts have an OPEN Primary on a given date.
+function _dayOpenCount(date){
+  if(typeof DISPATCH_SCHEDULE==='undefined') return 0;
+  const dow=date.getDay();
+  const dateStr=_dateStrOf(date);
+  let n=0;
+  DISPATCH_SCHEDULE.forEach((row,shiftIdx)=>{
+    const ov=STATE.schedOverrides && STATE.schedOverrides[dateStr] && STATE.schedOverrides[dateStr][shiftIdx];
+    const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[dow]||{p:'OPEN',s:'OPEN'});
+    if(slot.p==='OPEN') n++;
+    if(slot.s==='OPEN') n++;
+  });
+  return n;
+}
 function _schedDateFor(dayIdx){
   const now=new Date(); const todayDow=now.getDay();
   const weekStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()-todayDow+((typeof schedWeekOffset!=='undefined'?schedWeekOffset:0)*7));
@@ -11832,6 +11904,18 @@ function _pruneSchedOverrides(){
   const today=_dateStrOf(new Date()); let changed=false;
   for(const k of Object.keys(STATE.schedOverrides)){ if(k<today){ delete STATE.schedOverrides[k]; changed=true; } }
   if(changed) save();
+}
+// Admin: wipe ALL one-time schedule fill-ins (e.g. to clear test data). Does not
+// touch the recurring weekly template.
+function clearAllSchedOverrides(){
+  if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Admin only'); return; }
+  if(!confirm('Clear ALL one-time schedule fill-ins? This cannot be undone.')) return;
+  STATE.schedOverrides={};
+  save();
+  try{ pushScheduleToFirestore(); }catch(e){}
+  try{ renderSchedule(); }catch(e){}
+  try{ renderSchedCalGrid(); }catch(e){}
+  showToast('✅ Schedule fill-ins cleared');
 }
 
 // "Take" a slot: ask whether it's a temporary fill-in (this date only) or a
@@ -12003,24 +12087,56 @@ function schedNavWeek(delta) {
   if(delta===0) schedWeekOffset=0; else schedWeekOffset+=delta;
   renderSchedule();
 }
-// Open the native calendar from the "Jump to date" button (iOS/Android/desktop)
-function openSchedDatePicker(){
-  const inp=document.getElementById('schedJumpDate');
-  if(!inp) return;
-  if(typeof inp.showPicker==='function'){ try{ inp.showPicker(); return; }catch(e){} }
-  inp.focus(); inp.click();
+// Custom jump-to-date calendar (native pickers can't show custom dot markers)
+let _schedCalYear=null, _schedCalMonth=null;
+function openSchedCalendar(){
+  const now=new Date(); const todayDow=now.getDay();
+  const weekStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()-todayDow+(schedWeekOffset*7));
+  const sel=new Date(weekStart); sel.setDate(sel.getDate()+schedCurDay);
+  _schedCalYear=sel.getFullYear(); _schedCalMonth=sel.getMonth();
+  renderSchedCalGrid();
+  showModal('schedCalModal');
 }
-// Jump the weekly schedule to whatever date the user picked
-function schedPickDate(val){
-  if(!val) return;
-  const [y,m,d]=val.split('-').map(Number);
-  const target=new Date(y, m-1, d);
-  if(isNaN(target)) return;
+function schedCalNavMonth(delta){
+  _schedCalMonth+=delta;
+  if(_schedCalMonth<0){_schedCalMonth=11;_schedCalYear--;}
+  if(_schedCalMonth>11){_schedCalMonth=0;_schedCalYear++;}
+  renderSchedCalGrid();
+}
+function renderSchedCalGrid(){
+  const grid=document.getElementById('schedCalGrid');
+  const label=document.getElementById('schedCalMonthLabel');
+  if(!grid||!label) return;
+  const y=_schedCalYear, m=_schedCalMonth;
+  label.textContent=new Date(y,m,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const firstDow=new Date(y,m,1).getDay();
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const today=new Date(); today.setHours(0,0,0,0);
+  let html='';
+  for(let i=0;i<firstDow;i++) html+='<div></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const date=new Date(y,m,d);
+    const cov=_dayCoverageStatus(date);
+    const isToday = date.getTime()===today.getTime();
+    const isPast = date < today;
+    const bg = isPast ? (isToday?'border:1px solid var(--blue);':'border:1px solid transparent;')
+      : cov==='full' ? '-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);background:rgba(34,197,94,.22);border:1px solid rgba(34,197,94,.5);'
+      : cov==='open' ? '-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.45);'
+      : (isToday?'border:1px solid var(--blue);':'border:1px solid transparent;');
+    const openCount=isPast?0:_dayOpenCount(date);
+    const countBadge = openCount>0 ? `<span style="position:absolute;top:2px;right:2px;min-width:13px;height:13px;padding:0 2px;border-radius:50%;background:#7f1d1d;color:#fff;font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;">${openCount}</span>` : '';
+    html+=`<div onclick="schedCalPickDay(${y},${m},${d})" style="position:relative;text-align:center;padding:8px 0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:${isToday?'800':'600'};color:var(--text);${bg}">${countBadge}${d}</div>`;
+  }
+  grid.innerHTML=html;
+}
+function schedCalPickDay(y,m,d){
+  const target=new Date(y,m,d);
   const now=new Date();
   const nowWeekStart=new Date(now.getFullYear(), now.getMonth(), now.getDate()-now.getDay());
   const tgtWeekStart=new Date(target.getFullYear(), target.getMonth(), target.getDate()-target.getDay());
   schedWeekOffset=Math.round((tgtWeekStart-nowWeekStart)/(7*24*3600*1000));
   schedCurDay=target.getDay();
+  hideModal('schedCalModal');
   renderSchedule();
 }
 
@@ -12105,19 +12221,25 @@ function renderSchedule() {
     const date = new Date(weekStart); date.setDate(date.getDate()+i);
     const dateStr = date.toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
     const isToday = schedWeekOffset===0 && todayDow===i;
-    return `<div class="chip${schedCurDay===i?' active':''}" style="display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:6px 10px;min-width:54px;" onclick="schedCurDay=${i};renderScheduleDay();document.querySelectorAll('#schedDayChips .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');">
+    const _todayMid=new Date(); _todayMid.setHours(0,0,0,0);
+    const isPast = date < _todayMid;
+    const cov=_dayCoverageStatus(date);
+    const chipBg = isPast ? '' : cov==='full' ? '-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);background:rgba(34,197,94,.2);border-color:rgba(34,197,94,.5);'
+      : cov==='open' ? '-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.4);'
+      : '';
+    const isActive = schedCurDay===i;
+    // Fully covered days always show green (even when selected). Open days show red
+    // glassy when NOT selected, or the active/yellow color + a small red reminder dot
+    // when selected. Past/partial days use the default look.
+    const bgOverride = isActive ? '' : chipBg;
+    const activeDot = (isActive && !isPast && cov==='full') ? '<span style="position:absolute;bottom:11px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--green);"></span>'
+      : (isActive && !isPast && cov==='open') ? '<span style="position:absolute;bottom:11px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--red);"></span>' : '';
+    return `<div class="chip${isActive?' active':''}" style="position:relative;display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:6px 10px;min-width:54px;${bgOverride}" onclick="schedCurDay=${i};renderSchedule();">
+      ${activeDot}
       <div style="font-size:11px;font-weight:700;">${d}${isToday?' ★':''}</div>
       <div style="font-size:10px;opacity:.7;margin-top:1px;">${dateStr}</div>
     </div>`;
   }).join('');
-
-  // Keep the date-picker in sync with the currently-selected day
-  const jumpInp=document.getElementById('schedJumpDate');
-  if(jumpInp){
-    const sel=new Date(weekStart); sel.setDate(sel.getDate()+schedCurDay);
-    const mm=String(sel.getMonth()+1).padStart(2,'0'), dd=String(sel.getDate()).padStart(2,'0');
-    jumpInp.value=`${sel.getFullYear()}-${mm}-${dd}`;
-  }
 
   renderScheduleDay();
 }
