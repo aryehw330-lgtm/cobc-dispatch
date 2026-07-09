@@ -2924,14 +2924,17 @@ textarea.input{min-height:80px;resize:vertical;}
   </div>
 </div>
 
-<!-- Jump-to-date custom calendar (red dot = opening in Primary, green background = fully covered) -->
+<!-- Jump-to-date custom calendar: left circle = Primary openings, right circle = Secondary openings -->
 <div class="modal-overlay hidden" id="schedCalModal">
-  <div class="modal" style="max-width:400px;">
+  <div class="modal" style="max-width:400px;width:94vw;">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
       <button class="btn-sm btn-ghost" onclick="schedCalNavMonth(-1)">‹</button>
       <div id="schedCalMonthLabel" style="font-size:15px;font-weight:800;color:var(--text);"></div>
       <button class="btn-sm btn-ghost" onclick="schedCalNavMonth(1)">›</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:8px;line-height:1.4;">
+      Each date shows two circles: <b style="color:#7f1d1d;">left = Primary</b> openings not filled, <b style="color:#a16207;">right = Secondary</b> openings not filled. A circle turns <b style="color:var(--green);">green with 0</b> when that role is fully staffed.
     </div>
     <div style="display:flex;gap:10px;justify-content:center;margin-bottom:10px;font-size:11px;color:var(--text3);">
       <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:4px;"></span>Opening</span>
@@ -9747,6 +9750,7 @@ function _appHeartbeatRun(){
   try { checkReRequests(); } catch(e){}
   try { checkPendingShiftRequests(); } catch(e){}
   try { checkWaitingEscalation(); } catch(e){}
+  try { checkShiftSignInOutReminders(); } catch(e){}
   try { updateGlobalShiftBanner(); } catch(e){}
   try { _drainRetryQueue(); } catch(e){}
   try { _updateOfflineBanner(); } catch(e){}
@@ -9787,6 +9791,90 @@ document.addEventListener('visibilitychange', function(){
 // dispatch/admin devices only; milestone count is persisted to Firestore so
 // overlapping dispatchers don't double-send the same milestone.
 function checkWaitingEscalation() { /* now SERVER-SIDE — see cobc-waiting-escalation-appscript.js. No-op on the client to avoid duplicate alerts. */ }
+
+// ── Telzio sign-in / sign-out shift reminders (local per-device) ──
+// Each dispatcher's own device watches the schedule and reminds THEM (locally —
+// no server round-trip) 30 min + 1 min before their shift starts, and 10 min + 1 min
+// before it ends. If they're doing back-to-back shifts (same role carries over to the
+// adjacent shift), the redundant reminder is skipped — they're already signed in/out.
+let _firedShiftRem = {};
+try{ _firedShiftRem = JSON.parse(localStorage.getItem('cobc_shift_rem')||'{}'); }catch(e){}
+function _persistShiftRem(){ try{ localStorage.setItem('cobc_shift_rem', JSON.stringify(_firedShiftRem)); }catch(e){} }
+function _pruneShiftRem(){
+  const cutoff=_dateStrOf(new Date(Date.now()-3*86400000));
+  let changed=false;
+  Object.keys(_firedShiftRem).forEach(k=>{ const ds=k.slice(0,10); if(/^\d{4}-\d{2}-\d{2}$/.test(ds) && ds<cutoff){ delete _firedShiftRem[k]; changed=true; } });
+  if(changed) _persistShiftRem();
+}
+function _shiftUnitOf(nameStr){
+  const m=String(nameStr||'').match(/BC-?(\d+)/i);
+  return m ? m[1].replace(/^0+/,'') : '';
+}
+// Is SESSION.unit the Primary ('p') or Secondary ('s') of this shift, on this date
+// (respecting one-time schedOverrides)? Returns null if neither.
+function _mySlotRoleAt(shiftIdx, date){
+  if(typeof DISPATCH_SCHEDULE==='undefined') return null;
+  const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return null;
+  const dow=date.getDay();
+  const dateStr=_dateStrOf(date);
+  const ov=STATE.schedOverrides && STATE.schedOverrides[dateStr] && STATE.schedOverrides[dateStr][shiftIdx];
+  const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[dow]||{p:'OPEN',s:'OPEN'});
+  const myU=String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,'').replace(/^0+/,'');
+  if(!myU) return null;
+  if(_shiftUnitOf(slot.p)===myU) return 'p';
+  if(_shiftUnitOf(slot.s)===myU) return 's';
+  return null;
+}
+function _fireShiftRem(key, title, body){
+  if(_firedShiftRem[key]) return;
+  _firedShiftRem[key]=Date.now();
+  _persistShiftRem();
+  try{ if('Notification' in window && Notification.permission==='granted'){ new Notification(title,{body,tag:key}); } }catch(e){}
+  try{ showToast(title+' — '+body); }catch(e){}
+}
+function checkShiftSignInOutReminders(){
+  try{
+    if(!SESSION || !SESSION.unit) return;
+    if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length) return;
+    _pruneShiftRem();
+    const now=new Date();
+    // Scan yesterday/today/tomorrow so overnight shifts (e.g. 23:00–03:00) are covered
+    // no matter which calendar day "now" falls on.
+    for(let dayOffset=-1; dayOffset<=1; dayOffset++){
+      const baseDate=new Date(now); baseDate.setDate(baseDate.getDate()+dayOffset); baseDate.setHours(0,0,0,0);
+      DISPATCH_SCHEDULE.forEach((row,shiftIdx)=>{
+        const role=_mySlotRoleAt(shiftIdx, baseDate);
+        if(!role) return;
+        const parts=(row.shift||'').split('-');
+        if(parts.length<2) return;
+        const [sHH,sMM]=parts[0].split(':').map(Number);
+        const [eHH,eMM]=parts[1].split(':').map(Number);
+        const start=new Date(baseDate); start.setHours(sHH,sMM,0,0);
+        let end=new Date(baseDate); end.setHours(eHH,eMM,0,0);
+        if(end<=start) end.setDate(end.getDate()+1); // shift crosses midnight
+        const minsToStart=(start-now)/60000;
+        const minsToEnd=(end-now)/60000;
+        const keyBase=`${_dateStrOf(baseDate)}_${shiftIdx}_${role}`;
+        // Back-to-back detection: same role carries into the adjacent shift means
+        // they're already signed in (skip start reminder) / staying signed in (skip end reminder).
+        const prevIdx=(shiftIdx+DISPATCH_SCHEDULE.length-1)%DISPATCH_SCHEDULE.length;
+        const prevBase = shiftIdx===0 ? new Date(baseDate.getTime()-86400000) : baseDate;
+        const continuingFromPrev = _mySlotRoleAt(prevIdx, prevBase)===role;
+        const nextIdx=(shiftIdx+1)%DISPATCH_SCHEDULE.length;
+        const nextBase = shiftIdx===DISPATCH_SCHEDULE.length-1 ? new Date(baseDate.getTime()+86400000) : baseDate;
+        const continuingToNext = _mySlotRoleAt(nextIdx, nextBase)===role;
+        if(!continuingFromPrev){
+          if(minsToStart<=30 && minsToStart>28.5) _fireShiftRem(keyBase+'_s30','📻 Sign in to Telzio','Your dispatch shift starts in 30 minutes.');
+          if(minsToStart<=1 && minsToStart>-0.5) _fireShiftRem(keyBase+'_s1','📻 Sign in to Telzio','Your dispatch shift starts in 1 minute.');
+        }
+        if(!continuingToNext){
+          if(minsToEnd<=10 && minsToEnd>8.5) _fireShiftRem(keyBase+'_e10','📻 Sign out of Telzio','Please sign out of Telzio in 10 minutes — your shift is ending.');
+          if(minsToEnd<=1 && minsToEnd>-0.5) _fireShiftRem(keyBase+'_e1','📻 Sign out of Telzio','Please sign out of Telzio in 1 minute — your shift is ending.');
+        }
+      });
+    }
+  }catch(e){ console.warn('checkShiftSignInOutReminders:',e); }
+}
 
 // Foreground catch-up: phone OSes throttle/suspend setInterval while the app is
 // backgrounded or the screen is locked, so the 10-min heartbeat tick can be
@@ -11872,20 +11960,22 @@ function _dayCoverageStatus(date){
   if(allCovered) return 'full';
   return null;
 }
-// Count how many shifts have an OPEN Primary on a given date.
-function _dayOpenCount(date){
-  if(typeof DISPATCH_SCHEDULE==='undefined') return 0;
+// Count Primary and Secondary openings separately for a given date.
+function _dayOpenCounts(date){
+  if(typeof DISPATCH_SCHEDULE==='undefined') return {p:0,s:0};
   const dow=date.getDay();
   const dateStr=_dateStrOf(date);
-  let n=0;
+  let p=0, s=0;
   DISPATCH_SCHEDULE.forEach((row,shiftIdx)=>{
     const ov=STATE.schedOverrides && STATE.schedOverrides[dateStr] && STATE.schedOverrides[dateStr][shiftIdx];
     const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[dow]||{p:'OPEN',s:'OPEN'});
-    if(slot.p==='OPEN') n++;
-    if(slot.s==='OPEN') n++;
+    if(slot.p==='OPEN') p++;
+    if(slot.s==='OPEN') s++;
   });
-  return n;
+  return {p,s};
 }
+// Count how many shifts have an OPEN Primary on a given date.
+function _dayOpenCount(date){ return _dayOpenCounts(date).p; }
 function _schedDateFor(dayIdx){
   const now=new Date(); const todayDow=now.getDay();
   const weekStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()-todayDow+((typeof schedWeekOffset!=='undefined'?schedWeekOffset:0)*7));
@@ -12119,13 +12209,18 @@ function renderSchedCalGrid(){
     const cov=_dayCoverageStatus(date);
     const isToday = date.getTime()===today.getTime();
     const isPast = date < today;
-    const bg = isPast ? (isToday?'border:1px solid var(--blue);':'border:1px solid transparent;')
+    const bg = isPast ? (isToday?'border:1px solid var(--blue);':'border:1px solid var(--border2);')
       : cov==='full' ? '-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);background:rgba(34,197,94,.22);border:1px solid rgba(34,197,94,.5);'
       : cov==='open' ? '-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.45);'
-      : (isToday?'border:1px solid var(--blue);':'border:1px solid transparent;');
-    const openCount=isPast?0:_dayOpenCount(date);
-    const countBadge = openCount>0 ? `<span style="position:absolute;top:2px;right:2px;min-width:13px;height:13px;padding:0 2px;border-radius:50%;background:#7f1d1d;color:#fff;font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;">${openCount}</span>` : '';
-    html+=`<div onclick="schedCalPickDay(${y},${m},${d})" style="position:relative;text-align:center;padding:8px 0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:${isToday?'800':'600'};color:var(--text);${bg}">${countBadge}${d}</div>`;
+      : (isToday?'border:1px solid var(--blue);':'border:1px solid var(--border2);');
+    const oc=isPast?{p:0,s:0}:_dayOpenCounts(date);
+    const pBadge = oc.p>0
+      ? `<span style="position:absolute;top:2px;left:2px;min-width:13px;height:13px;padding:0 2px;border-radius:50%;background:#7f1d1d;color:#fff;font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;">${oc.p}</span>`
+      : (isPast?'':`<span style="position:absolute;top:2px;left:2px;min-width:13px;height:13px;padding:0 2px;border-radius:50%;background:var(--green);color:#fff;font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;">0</span>`);
+    const sBadge = oc.s>0
+      ? `<span style="position:absolute;top:2px;right:2px;min-width:13px;height:13px;padding:0 2px;border-radius:50%;background:#a16207;color:#fff;font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;">${oc.s}</span>`
+      : (isPast?'':`<span style="position:absolute;top:2px;right:2px;min-width:13px;height:13px;padding:0 2px;border-radius:50%;background:var(--green);color:#fff;font-size:8.5px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;">0</span>`);
+    html+=`<div onclick="schedCalPickDay(${y},${m},${d})" style="position:relative;text-align:center;padding:8px 0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:${isToday?'800':'600'};color:var(--text);${bg}">${pBadge}${sBadge}${d}</div>`;
   }
   grid.innerHTML=html;
 }
