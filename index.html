@@ -1560,14 +1560,14 @@ textarea.input{min-height:80px;resize:vertical;}
             <div id="zelloPersonalLoggedIn" style="display:none;font-size:13px;font-weight:700;color:var(--green);"></div>
             <div id="zelloPersonalForm">
               <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">Log in with your own separate Zello listener account (not your radio login) so you can connect at the same time as other dispatchers.</div>
-              <input type="text" id="zelloPersonalUser" placeholder="Your Zello listener username" autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box;"/>
-              <input type="password" id="zelloPersonalPass" placeholder="Password" autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:8px;font-size:13px;margin-bottom:8px;box-sizing:border-box;"/>
-              <button class="btn-sm btn-primary" onclick="zelloPersonalLogin()">Login to Zello</button>
+              <input type="text" id="zelloPersonalUser" placeholder="Your Zello listener username" autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box;background:rgba(255,255,255,.06);color:#fff;"/>
+              <input type="password" id="zelloPersonalPass" placeholder="Password" autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:8px;font-size:13px;margin-bottom:8px;box-sizing:border-box;background:rgba(255,255,255,.06);color:#fff;"/>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn-sm btn-primary" onclick="zelloPersonalLogin()">Login to Zello</button>
+                <button id="zelloReconnectBtn" onclick="zelloReconnectBtnClick()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">Reconnect</button>
+                <button id="zelloEditBtn" style="display:none;background:rgba(230,196,99,.16);border:1px solid rgba(230,196,99,.4);color:var(--gold-light,#e6c463);border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);" onclick="openZelloEdit()">⚙️ Change Shared Account</button>
+              </div>
             </div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:8px;">
-            <button class="btn-sm btn-ghost" id="zelloReconnectBtn" onclick="zelloReconnectBtnClick()">Reconnect</button>
-            <button class="btn-sm btn-ghost" id="zelloEditBtn" style="display:none;color:var(--amber);" onclick="openZelloEdit()">⚙️ Change Shared Account</button>
           </div>
         </div>
         <!-- Reset all calls (admin-only, testing) -->
@@ -3603,9 +3603,16 @@ function formatPhone(raw) {
 const WA_GROUP_ID = '120363429005503944@g.us'; // test group
 
 // Send a WhatsApp message via keepalive fetch — survives iOS PWA navigation
+let _waLastSent = {}; // dedupe: same exact message fired twice in quick succession is suppressed
 function sendWA(payload) {
   const { target, message } = payload;
   if (!message || target !== 'all') return;
+  const _waNow = Date.now();
+  if (_waLastSent[message] && (_waNow - _waLastSent[message]) < 4000) {
+    console.log('[WA] duplicate suppressed within 4s');
+    return;
+  }
+  _waLastSent[message] = _waNow;
   try {
     const url = PUSH_SEND_URL
       + '?action=sendWA'
@@ -11921,13 +11928,55 @@ function saveScheduleEdit() {
   const primary = document.getElementById('schedEditPrimary').value;
   const secondary = document.getElementById('schedEditSecondary').value;
   if(!DISPATCH_SCHEDULE[shiftIdx] || !DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx]) return;
+  // Ask one-time (just this date) vs permanent (recurring every week) — same choice
+  // already offered by the "Take" flow, now available here too.
+  const dateLabel=(typeof _schedDateLabel==='function')?_schedDateLabel(dayIdx):'';
+  // Escape primary/secondary before embedding in an inline onclick — member labels can
+  // contain apostrophes (e.g. "O'Brien"), which would otherwise break the JS string
+  // literal and silently kill the click handler (exactly the "not working" symptom).
+  const _escJs = s => String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const primaryEsc=_escJs(primary), secondaryEsc=_escJs(secondary);
+  const existing=document.getElementById('saveSchedChoice'); if(existing) existing.remove();
+  const ov=document.createElement('div');
+  ov.id='saveSchedChoice';
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:#16140d;border:1px solid rgba(230,196,99,.4);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.5);">
+    <div style="font-size:17px;font-weight:800;color:#e6c463;margin-bottom:4px;">Save Changes</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.65);margin-bottom:16px;">Is this a one-time change or permanent?</div>
+    <button onclick="document.getElementById('saveSchedChoice').remove();_applyScheduleEdit(${shiftIdx},${dayIdx},'${primaryEsc}','${secondaryEsc}','onetime')" style="width:100%;text-align:left;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;">
+      <div style="font-size:15px;font-weight:800;">Just ${dateLabel||'this date'}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">One-time change \u2014 doesn't touch the recurring weekly schedule.</div>
+    </button>
+    <button onclick="document.getElementById('saveSchedChoice').remove();_applyScheduleEdit(${shiftIdx},${dayIdx},'${primaryEsc}','${secondaryEsc}','permanent')" style="width:100%;text-align:left;background:linear-gradient(180deg,rgba(230,196,99,.22),rgba(230,196,99,.1));border:1px solid rgba(230,196,99,.45);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;">
+      <div style="font-size:15px;font-weight:800;color:#e6c463;">Every week (permanent)</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Changes the recurring weekly schedule going forward.</div>
+    </button>
+    <button onclick="document.getElementById('saveSchedChoice').remove()" style="width:100%;background:transparent;border:none;color:rgba(255,255,255,.6);font-size:14px;font-weight:700;padding:10px;cursor:pointer;font-family:inherit;">Cancel</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _applyScheduleEdit(shiftIdx, dayIdx, primary, secondary, mode) {
+  if(!DISPATCH_SCHEDULE[shiftIdx] || !DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx]) return;
+  if(mode==='onetime' && typeof _schedDateFor==='function'){
+    const dateStr=_schedDateFor(dayIdx);
+    STATE.schedOverrides=STATE.schedOverrides||{};
+    STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
+    STATE.schedOverrides[dateStr][shiftIdx]={ p:primary, s:secondary, by:SESSION.unit, at:Date.now() };
+    save();
+    pushScheduleToFirestore();
+    hideModal('schedEditModal');
+    renderSchedule();
+    showToast('✅ One-time change saved for '+((typeof _schedDateLabel==='function')?_schedDateLabel(dayIdx):'this date'));
+    return;
+  }
   DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx] = { p: primary, s: secondary };
   STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r => ({shift:r.shift, slots:[...r.slots]}));
   save();
   pushScheduleToFirestore();
   hideModal('schedEditModal');
   renderSchedule();
-  showToast('✅ Schedule updated');
+  showToast('✅ Schedule updated permanently');
 }
 
 function resetScheduleSlot() {
