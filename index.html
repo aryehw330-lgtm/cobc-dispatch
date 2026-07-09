@@ -1712,6 +1712,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <div id="st-overview">
           <div class="chart-card">
             <div class="chart-title">📅 Calls by Month</div>
+            <div id="ch-monthly-total" style="font-size:12px;color:var(--text3);font-weight:700;margin-bottom:6px;"></div>
             <div class="chart-wrap"><canvas id="ch-monthly"></canvas></div>
           </div>
           <div class="chart-card">
@@ -12851,7 +12852,7 @@ function getYearData(yr) {
     return c;
   }
   const base = HIST[yr]||HIST['2026'];
-  return mergeWithLive(base, calcLiveStats(yr));
+  return mergeWithLive(base, calcLiveStats(yr), yr);
 }
 
 // ── Live stats from Firestore calls ─────────────────────────────────────────
@@ -12924,12 +12925,30 @@ function calcLiveStats(yr) {
 }
 
 // Merge live stats on top of a HIST entry
-function mergeWithLive(base, live) {
+function mergeWithLive(base, live, yr) {
   if(!live) return base;
   const m = JSON.parse(JSON.stringify(base)); // deep copy
   m.total += live.total;
   m.cancelled += live.cancelled;
-  m.members = Math.max(m.members, STATE.members.length);
+  // "Active members" = distinct people who actually had a call that year — not the
+  // full roster size. Union of: historical top25 for that year (from MEMBER_STATS,
+  // which has ALL members, not just top25) + anyone who responded to a live call.
+  const _activeSet=new Set();
+  try{
+    if(typeof MEMBER_STATS!=='undefined'){
+      Object.entries(MEMBER_STATS).forEach(([mbc,md])=>{
+        const yd=(md.years||{})[String(yr)];
+        if(yd && yd.total && ((yd.total.p||0)+(yd.total.b||0)+(yd.total.o||0))>0) _activeSet.add(mbc);
+      });
+    }
+  }catch(e){}
+  (_allCalls()||[]).forEach(c=>{
+    if(c.status!=='done'&&c.status!=='active') return;
+    const cy=c.completedAt||c.createdAt; if(!cy) return;
+    if(String(new Date(cy).getFullYear())!==String(yr)) return;
+    (c.responders||[]).forEach(r=>{ const u=String(r.unit||'').replace(/^BC-?/i,''); if(u) _activeSet.add(u); });
+  });
+  m.members = _activeSet.size || m.members;
   // call types
   Object.entries(live.call_types).forEach(([t,n])=>{ m.call_types[t]=(m.call_types[t]||0)+n; });
   // monthly
@@ -13415,6 +13434,8 @@ const OPTS_HBAR={responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins
 function renderStatsOverview() {
   const d=getYearData(stYear);
   const isAll=stYear==='all';
+  const _mtEl=document.getElementById('ch-monthly-total');
+  if(_mtEl) _mtEl.textContent = isAll ? '' : `Total: ${d.total.toLocaleString()} call${d.total===1?'':'s'}`;
   // Monthly / Year chart
   if(isAll) {
     const yrs=Object.keys(HIST);
