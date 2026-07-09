@@ -1553,9 +1553,21 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="card-title" style="margin-bottom:4px;">📻 Zello Radio</div>
           <div id="zelloStatusLine" style="font-size:13px;font-weight:700;color:var(--text3);">📻 Zello: off</div>
           <div id="zelloAcctLine" style="font-size:12px;color:var(--text3);margin-top:6px;"></div>
+          <!-- Personal Zello login: each admin/dispatcher uses their OWN separate listener
+               account (not their radio login) so multiple people can connect at once
+               without kicking each other off. Network + channel are fixed, not editable here. -->
+          <div id="zelloPersonalWrap" style="margin-top:10px;border-top:1px solid var(--border2);padding-top:10px;">
+            <div id="zelloPersonalLoggedIn" style="display:none;font-size:13px;font-weight:700;color:var(--green);"></div>
+            <div id="zelloPersonalForm">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">Log in with your own separate Zello listener account (not your radio login) so you can connect at the same time as other dispatchers.</div>
+              <input type="text" id="zelloPersonalUser" placeholder="Your Zello listener username" autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:8px;font-size:13px;margin-bottom:6px;box-sizing:border-box;"/>
+              <input type="password" id="zelloPersonalPass" placeholder="Password" autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:8px;font-size:13px;margin-bottom:8px;box-sizing:border-box;"/>
+              <button class="btn-sm btn-primary" onclick="zelloPersonalLogin()">Login to Zello</button>
+            </div>
+          </div>
           <div style="display:flex;gap:8px;margin-top:8px;">
-            <button class="btn-sm btn-ghost" onclick="try{_zelloDisconnect();_zelloConnect();showToast('Reconnecting Zello…');}catch(e){}">Reconnect</button>
-            <button class="btn-sm btn-ghost" id="zelloEditBtn" style="display:none;color:var(--amber);" onclick="openZelloEdit()">⚙️ Change Account</button>
+            <button class="btn-sm btn-ghost" id="zelloReconnectBtn" onclick="zelloReconnectBtnClick()">Reconnect</button>
+            <button class="btn-sm btn-ghost" id="zelloEditBtn" style="display:none;color:var(--amber);" onclick="openZelloEdit()">⚙️ Change Shared Account</button>
           </div>
         </div>
         <!-- Reset all calls (admin-only, testing) -->
@@ -11121,23 +11133,31 @@ function subscribeZelloSpeaking(){
   }catch(e){ console.warn('subscribeZelloSpeaking failed:', e); }
 }
 function subscribeZelloConfig(){
-  // Direct browser→ZelloWork socket (confirmed working in the reference app).
-  if(ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network){ _zelloCfg=ZELLO_HARDCODED; _zelloConnect(); }
+  _zelloRenderPersonalUI();
+  _zelloApplyConfig();
   try{
     if(typeof firebase==='undefined') return;
     firebase.firestore().collection('config').doc('zello').onSnapshot(doc=>{
-      const cfg=doc.exists?doc.data():null;
-      // Only let a Firestore doc override if it's a COMPLETE ZelloWork account
-      // (network + username + password, non-API). This prevents a stale/partial doc
-      // from the old API/relay experiments from hijacking the good hardcoded login
-      // (which showed up as logon "not enough params").
-      const cfgValid = cfg && cfg.enabled && !cfg.api && cfg.network && cfg.username && cfg.password;
-      _zelloCfg = cfgValid ? cfg
-                 : (ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network ? ZELLO_HARDCODED : null);
-      if(_zelloCfg && _zelloCfg.enabled && _zelloCfg.network && _zelloCfg.username){ _zelloConnect(); }
-      else { _zelloDisconnect(); }
+      _zelloFirestoreCfg=doc.exists?doc.data():null;
+      _zelloApplyConfig();
     }, err=>console.warn('zello config snapshot:', err));
   }catch(e){ console.warn('subscribeZelloConfig failed:', e); }
+}
+// Priority: (1) this device's personal login (own account, fixed network/channel),
+// (2) a complete Firestore config/zello doc (admin "Change Shared Account"),
+// (3) the hardcoded shared fallback account.
+function _zelloApplyConfig(){
+  const personal=_zelloPersonalCreds();
+  let cfg;
+  if(personal && personal.username && personal.password){
+    cfg = { enabled:true, api:false, network:ZELLO_HARDCODED.network, channel:ZELLO_HARDCODED.channel, username:personal.username, password:personal.password };
+  } else {
+    const cfgValid = _zelloFirestoreCfg && _zelloFirestoreCfg.enabled && !_zelloFirestoreCfg.api && _zelloFirestoreCfg.network && _zelloFirestoreCfg.username && _zelloFirestoreCfg.password;
+    cfg = cfgValid ? _zelloFirestoreCfg : (ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network ? ZELLO_HARDCODED : null);
+  }
+  _zelloCfg = cfg;
+  if(_zelloCfg && _zelloCfg.enabled && _zelloCfg.network && _zelloCfg.username){ _zelloDisconnect(); _zelloConnect(); }
+  else { _zelloDisconnect(); }
 }
 function _zelloConnect(){
   try{
@@ -11187,15 +11207,60 @@ function _zelloConnect(){
     _zelloWS.onerror=()=>{ _zelloSetStatus('socket error'); try{ _zelloWS.close(); }catch(e){} };
   }catch(e){ _zelloSetStatus('connect error: '+(e.message||e)); console.warn('zello connect failed:', e); }
 }
-let _zelloStatus='off', _zelloChanCount=0, _zelloOkCount=0;
+let _zelloStatus='off', _zelloChanCount=0, _zelloOkCount=0, _zelloConnected=false, _zelloFirestoreCfg=null;
+// Personal per-device Zello login. Each admin/dispatcher can log in with their OWN
+// separate listener account (not their radio account) so multiple people can each
+// run the listener at the same time without kicking each other off Zello.
+// Network + channel stay FIXED (from ZELLO_HARDCODED) — only username/password are personal.
+function _zelloPersonalCreds(){
+  try{ return JSON.parse(localStorage.getItem('cobc_zello_personal')||'null'); }catch(e){ return null; }
+}
+function zelloPersonalLogin(){
+  const u=(document.getElementById('zelloPersonalUser')?.value||'').trim();
+  const p=(document.getElementById('zelloPersonalPass')?.value||'');
+  if(!u||!p){ showToast('Enter your Zello username and password'); return; }
+  localStorage.setItem('cobc_zello_personal', JSON.stringify({username:u,password:p}));
+  _zelloRenderPersonalUI();
+  showToast('Logging into Zello…');
+  _zelloApplyConfig();
+}
+function zelloPersonalLogout(){
+  localStorage.removeItem('cobc_zello_personal');
+  _zelloRenderPersonalUI();
+  _zelloDisconnect();
+  _zelloApplyConfig();
+  showToast('Logged out of Zello');
+}
+function _zelloRenderPersonalUI(){
+  const creds=_zelloPersonalCreds();
+  const loggedInEl=document.getElementById('zelloPersonalLoggedIn');
+  const formEl=document.getElementById('zelloPersonalForm');
+  if(!loggedInEl||!formEl) return;
+  if(creds && creds.username){
+    loggedInEl.style.display='block';
+    loggedInEl.innerHTML='✅ Logged in as <b>'+creds.username.replace(/</g,'&lt;')+'</b> · <span onclick="zelloPersonalLogout()" style="color:var(--red);cursor:pointer;text-decoration:underline;font-weight:600;">Logout</span>';
+    formEl.style.display='none';
+  } else {
+    loggedInEl.style.display='none';
+    formEl.style.display='block';
+  }
+}
+function zelloReconnectBtnClick(){
+  if(_zelloConnected){ _zelloDisconnect(); showToast('Disconnected from Zello'); }
+  else { try{ _zelloDisconnect(); _zelloConnect(); showToast('Reconnecting Zello…'); }catch(e){} }
+}
 function _zelloSetStatus(s){
   _zelloStatus=s;
+  _zelloConnected = /connected|online|listening/.test(s);
   const el=document.getElementById('zelloStatusLine');
-  if(el){ el.textContent='📻 Zello: '+s; el.style.color = /connected|online|listening/.test(s)?'var(--green)':/fail|error|disconnect/.test(s)?'var(--red)':'var(--text3)'; }
+  if(el){ el.textContent='📻 Zello: '+s; el.style.color = _zelloConnected?'var(--green)':/fail|error|disconnect/.test(s)?'var(--red)':'var(--text3)'; }
   const acct=document.getElementById('zelloAcctLine');
   if(acct && _zelloCfg){ const chans=Array.isArray(_zelloCfg.channels)?_zelloCfg.channels.join(', '):(_zelloCfg.channel||'—'); acct.textContent='Account: '+(_zelloCfg.username||'—')+' · Network: '+(_zelloCfg.network||'—')+' · Channel: '+chans; }
   const eb=document.getElementById('zelloEditBtn');
   if(eb) eb.style.display=(typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin')?'inline-flex':'none';
+  const rb=document.getElementById('zelloReconnectBtn');
+  if(rb) rb.textContent=_zelloConnected?'Disconnect':'Reconnect';
+  _zelloRenderPersonalUI();
 }
 // Admin-only: change the shared Zello monitor account. Warns first; writes to the
 // rules-protected Firestore config/zello doc so all devices pick it up.
