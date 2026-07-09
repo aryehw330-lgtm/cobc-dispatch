@@ -9903,11 +9903,11 @@ function _fireShiftRem(key, title, body){
   if(_firedShiftRem[key]) return;
   _firedShiftRem[key]=Date.now();
   _persistShiftRem();
-  // Real server push (same mechanism as new-call/backup alerts) — arrives even if
-  // the app is fully closed, since it's delivered via FCM through the service worker.
+  // Real server push only (same mechanism as new-call/backup alerts) — arrives even
+  // if the app is fully closed via FCM + service worker. Deliberately NOT also firing
+  // a local Notification here — doing both showed as two separate banners when the
+  // app happened to be open.
   try{ sendPush({target:'unit', unit:String((SESSION&&SESSION.unit)||''), title, body, url:'/cobc-dispatch/'}); }catch(e){}
-  // Local notification + toast as an immediate same-device backup while the app is open.
-  try{ if('Notification' in window && Notification.permission==='granted'){ new Notification(title,{body,tag:key}); } }catch(e){}
   try{ showToast(title+' — '+body); }catch(e){}
 }
 // Compute this device's current Telzio shift status, reusing the same schedule
@@ -9977,6 +9977,11 @@ function checkShiftSignInOutReminders(){
     if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length) return;
     _pruneShiftRem();
     const now=new Date();
+    // Collect every qualifying reminder first instead of firing immediately — if the
+    // dedupe memory ever gets reset (e.g. a page reload mid-window), this stops a
+    // burst of many at once: only the single most urgent one actually fires; the rest
+    // are silently marked as seen so they can never queue up into another avalanche.
+    const candidates=[];
     // Scan yesterday/today/tomorrow so overnight shifts (e.g. 23:00–03:00) are covered
     // no matter which calendar day "now" falls on.
     for(let dayOffset=-1; dayOffset<=1; dayOffset++){
@@ -10003,15 +10008,20 @@ function checkShiftSignInOutReminders(){
         const nextBase = shiftIdx===DISPATCH_SCHEDULE.length-1 ? new Date(baseDate.getTime()+86400000) : baseDate;
         const continuingToNext = _mySlotRoleAt(nextIdx, nextBase)===role;
         if(!continuingFromPrev){
-          if(minsToStart<=30) _fireShiftRem(keyBase+'_s30','📻 Sign in to Telzio','Your dispatch shift starts in 30 minutes.');
-          if(minsToStart<=1) _fireShiftRem(keyBase+'_s1','📻 Sign in to Telzio','Your dispatch shift starts in 1 minute.');
+          if(minsToStart<=30 && !_firedShiftRem[keyBase+'_s30']) candidates.push({key:keyBase+'_s30',title:'📻 Sign in to Telzio',body:'Your dispatch shift starts in 30 minutes.',away:minsToStart});
+          if(minsToStart<=1 && !_firedShiftRem[keyBase+'_s1']) candidates.push({key:keyBase+'_s1',title:'📻 Sign in to Telzio',body:'Your dispatch shift starts in 1 minute.',away:minsToStart});
         }
         if(!continuingToNext){
-          if(minsToEnd<=10) _fireShiftRem(keyBase+'_e10','📻 Sign out of Telzio','Please sign out of Telzio in 10 minutes — your shift is ending.');
-          if(minsToEnd<=1) _fireShiftRem(keyBase+'_e1','📻 Sign out of Telzio','Please sign out of Telzio in 1 minute — your shift is ending.');
+          if(minsToEnd<=10 && !_firedShiftRem[keyBase+'_e10']) candidates.push({key:keyBase+'_e10',title:'📻 Sign out of Telzio',body:'Please sign out of Telzio in 10 minutes — your shift is ending.',away:minsToEnd});
+          if(minsToEnd<=1 && !_firedShiftRem[keyBase+'_e1']) candidates.push({key:keyBase+'_e1',title:'📻 Sign out of Telzio',body:'Please sign out of Telzio in 1 minute — your shift is ending.',away:minsToEnd});
         }
       });
     }
+    if(!candidates.length) return;
+    candidates.sort((a,b)=>a.away-b.away);
+    _fireShiftRem(candidates[0].key, candidates[0].title, candidates[0].body);
+    for(let i=1;i<candidates.length;i++){ _firedShiftRem[candidates[i].key]=Date.now(); }
+    if(candidates.length>1) _persistShiftRem();
   }catch(e){ console.warn('checkShiftSignInOutReminders:',e); }
 }
 
