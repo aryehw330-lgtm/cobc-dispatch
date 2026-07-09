@@ -12849,7 +12849,9 @@ function getYearData(yr) {
     c.top_r_bc=c.top25[0]?.[0]||''; c.top_r_name=c.top25[0]?.[5]||''; c.top_r_cnt=c.top25[0]?.[1]||0;
     c.top_type=Object.entries(c.call_types).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
     c.top_type_cnt=c.call_types[c.top_type]||0;
-    return c;
+    // Merge in live app calls too — otherwise "All Time" only ever showed the
+    // frozen historical snapshot and could look identical to just this year.
+    return mergeWithLive(c, calcLiveStats('all'), 'all');
   }
   const base = HIST[yr]||HIST['2026'];
   return mergeWithLive(base, calcLiveStats(yr), yr);
@@ -12945,7 +12947,7 @@ function mergeWithLive(base, live, yr) {
   (_allCalls()||[]).forEach(c=>{
     if(c.status!=='done'&&c.status!=='active') return;
     const cy=c.completedAt||c.createdAt; if(!cy) return;
-    if(String(new Date(cy).getFullYear())!==String(yr)) return;
+    if(cy && yr!=='all' && String(new Date(cy).getFullYear())!==String(yr)) return;
     (c.responders||[]).forEach(r=>{ const u=String(r.unit||'').replace(/^BC-?/i,''); if(u) _activeSet.add(u); });
   });
   m.members = _activeSet.size || m.members;
@@ -12976,6 +12978,18 @@ function mergeWithLive(base, live, yr) {
   m.top_r_name=m.top25[0]?.[5]||m.top_r_name;
   m.top_r_cnt=m.top25[0]?.[1]||m.top_r_cnt;
   m.note=(live.total>0)?`Includes ${live.total} live call${live.total!==1?'s':''} dispatched via app`:(m.note||null);
+  // Weighted merge of response times — otherwise "Avg Response" stayed frozen at
+  // the historical figure no matter which year/live data was actually selected.
+  if(live.rt && live.rt.count){
+    const baseCount=base.rt.count||0, baseAvg=parseFloat(base.rt.avg)||0, baseU30=parseFloat(base.rt.under30)||0;
+    const liveCount=live.rt.count||0, liveAvg=parseFloat(live.rt.avg)||0, liveU30=parseFloat(live.rt.under30)||0;
+    const totCount=baseCount+liveCount;
+    if(totCount){
+      m.rt.avg=((baseAvg*baseCount+liveAvg*liveCount)/totCount).toFixed(1);
+      m.rt.under30=((baseU30*baseCount+liveU30*liveCount)/totCount).toFixed(1);
+      m.rt.count=totCount;
+    }
+  }
   return m;
 }
 
