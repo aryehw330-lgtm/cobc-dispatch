@@ -1689,6 +1689,17 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <div id="more-stats" style="display:none;">
         <div id="more-stats-legacy">
+        <!-- App calls banner -->
+        <div class="alltime-banner" id="alltimeBanner">
+          <div class="alltime-num" id="st-alltime-num">0</div>
+          <div class="alltime-lbl">Calls Dispatched via App</div>
+          <div class="alltime-sub" id="st-alltime-sub">Loading…</div>
+        </div>
+        <!-- Year selector — app data only -->
+        <div class="stats-year-strip" id="stYearStrip">
+          <button class="yr-btn active" data-yr="2026" onclick="setStatsYear('2026',this)">This Year</button>
+          <button class="yr-btn" data-yr="all" onclick="setStatsYear('all',this)">All Time</button>
+        </div>
         <!-- Year note -->
         <div id="st-year-note" class="stats-note" style="display:none;"></div>
         <!-- KPI cards -->
@@ -3162,7 +3173,7 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 // Build stamp — shown at the bottom of the Settings tab. Bump this whenever code
 // changes so the running version is identifiable on each device.
-const APP_BUILD = 'Build 2026-07-09b · auto-update';
+const APP_BUILD = 'Build 2026-07-09a · auto-update';
 // ── Auto-update: force every device onto the latest deployed build ──────────
 // A `config/appVersion` doc in Firestore holds the newest build stamp. On startup
 // and whenever the app returns to the foreground, each device compares its own
@@ -12928,9 +12939,8 @@ function mergeWithLive(base, live, yr) {
   try{
     if(typeof MEMBER_STATS!=='undefined'){
       Object.entries(MEMBER_STATS).forEach(([mbc,md])=>{
-        const yrs = yr==='all' ? Object.values(md.years||{}) : [(md.years||{})[String(yr)]].filter(Boolean);
-        const active = yrs.some(yd=>yd && yd.total && ((yd.total.p||0)+(yd.total.b||0)+(yd.total.o||0))>0);
-        if(active) _activeSet.add(mbc);
+        const yd=(md.years||{})[String(yr)];
+        if(yd && yd.total && ((yd.total.p||0)+(yd.total.b||0)+(yd.total.o||0))>0) _activeSet.add(mbc);
       });
     }
   }catch(e){}
