@@ -3333,7 +3333,7 @@ async function initFirebaseApp() {
       try { subscribeTelzioRecentList(); } catch(e){ console.warn('subscribeTelzioRecent:', e); }
       try { subscribeTelzioFromFirestore(); } catch(e){ console.warn('subscribeTelzioWebhook:', e); }
       try { subscribeTelzioCallsFromFirestore(); } catch(e){ console.warn('subscribeTelzioCalls:', e); }
-      try { subscribeZelloConfig(); } catch(e){ console.warn('subscribeZello:', e); }
+      try { if(['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'')) subscribeZelloConfig(); } catch(e){ console.warn('subscribeZello:', e); }
       try { _checkAppVersion(); } catch(e){ console.warn('versionCheck:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
