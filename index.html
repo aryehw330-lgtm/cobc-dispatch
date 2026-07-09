@@ -3625,8 +3625,7 @@ function _waMsgResponderUpdate(call, newResponder) {
   const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ');
   const callNum = call.callNum ? ` to call #${call.callNum}` : '';
   let msg = `*BC-${unitDisp} is responding${callNum}*\n`;
-  msg += `${typeLabel} · ${fmtLoc(call)}`;
-  if (allResponders) msg += `\nOn call: ${allResponders}`;
+  if (allResponders) msg += `On call: ${allResponders}`;
   return msg;
 }
 
