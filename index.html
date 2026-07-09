@@ -5024,6 +5024,8 @@ function _applyRoleUI(role) {
   if (chkSubmitBtn) chkSubmitBtn.style.display = (role==='admin'||role==='equipment') ? 'block' : 'none';
   const settingsResetCard = document.getElementById('settingsResetCard');
   if (settingsResetCard) settingsResetCard.style.display = (role==='admin') ? '' : 'none';
+  const alltimeBanner1 = document.getElementById('alltimeBanner');
+  if (alltimeBanner1) alltimeBanner1.style.display = (role==='admin') ? '' : 'none';
   const zelloStatusCard = document.getElementById('zelloStatusCard');
   if (zelloStatusCard){ zelloStatusCard.style.display = (role==='admin'||role==='dispatch') ? '' : 'none'; try{ _zelloSetStatus(_zelloStatus); }catch(e){} }
   const adminStatsCloudRow = document.getElementById('adminStatsCloudRow');
@@ -5310,6 +5312,7 @@ function finishLogin(member){const role=(member.role||'member').toLowerCase();SE
 const mgmtBtn=document.getElementById('adminMgmtBtnWrap');if(mgmtBtn)mgmtBtn.style.display=(role==='admin')?'block':'none';
 // Hide draft filter chip for non-dispatch
 const draftChip=document.getElementById('draftFilterChip');if(draftChip)draftChip.style.display=['admin','dispatch'].includes(role)?'':'none';
+const alltimeBanner2=document.getElementById('alltimeBanner');if(alltimeBanner2)alltimeBanner2.style.display=(role==='admin')?'':'none';
 // Show submit checklist button for equipment/admin
 const chkSubmitBtn=document.getElementById('chkSubmitBtn');if(chkSubmitBtn)chkSubmitBtn.style.display=(role==='admin'||role==='equipment')?'block':'none';
 // New Call button — dispatch and admin only
@@ -10605,7 +10608,7 @@ function _liveCountsByYear(year){
     (c.responders||[]).forEach(r=>{
       const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
       out[bc]=out[bc]||{p:0,b:0,o:0};
-      if(r.role==='backup') out[bc].b++; else out[bc].p++;
+      if(r.role==='backup'||r.isObserver) out[bc].b++; else out[bc].p++;
     });
   });
   return out;
@@ -12602,7 +12605,7 @@ async function freezeYearToHistory(year, btn){
         const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
         tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
         tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
-        const isB=r.role==='backup';
+        const isB=r.role==='backup'||r.isObserver;
         tally[bc].months[mo][isB?'b':'p']++;
         tally[bc].total[isB?'b':'p']++;
       });
@@ -12679,7 +12682,7 @@ async function _freezeYearSilent(year){
       const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
       tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
       tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
-      const isB=r.role==='backup';
+      const isB=r.role==='backup'||r.isObserver;
       tally[bc].months[mo][isB?'b':'p']++;
       tally[bc].total[isB?'b':'p']++;
     });
@@ -13090,6 +13093,16 @@ function renderStatsSub() {
 }
 
 // ══ MY STATS — personal card shown to every role ══
+// Per-call diary notes — private to this device, attached to the specific call.
+function _toggleCallNote(callId){
+  const wrap=document.getElementById('callNoteWrap-'+callId);
+  if(wrap) wrap.style.display = wrap.style.display==='none' ? 'block' : 'none';
+}
+function _saveCallNote(bc, callId){
+  const box=document.getElementById('callNoteBox-'+callId);
+  if(!box) return;
+  try{ localStorage.setItem('cobc_diary_'+bc+'_'+callId, box.value); }catch(e){}
+}
 function renderMyStats(bcArg, opts) {
   opts=opts||{};
   const _self = !bcArg;
@@ -13119,6 +13132,12 @@ function renderMyStats(bcArg, opts) {
   }
   const liveCalls=_allCalls().filter(c=>c.status!=='draft'&&!_isFrozenYear(c.createdAt?new Date(c.createdAt).getFullYear():'')&&(c.responders||[]).some(r=>String(r.unit).replace(/^BC-?/i,'')===bc));
   const liveCount=liveCalls.length;
+  // Split the live count into Primary/Backup too, so the displayed P+B+O always
+  // sums to the grand total (previously live calls only inflated the top number).
+  liveCalls.forEach(c=>{
+    const r=(c.responders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===bc);
+    if(r && (r.role==='backup'||r.isObserver)) totalB++; else totalP++;
+  });
   const grandTotal=totalAll+liveCount;
 
   // Rank in all-time top25
@@ -13258,11 +13277,24 @@ function renderMyStats(bcArg, opts) {
       const dt=new Date(c.completedAt||c.createdAt||0);
       const dStr=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
       const myR=(c.responders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===bc);
-      const rTag=myR&&myR.role==='backup'?'<span style="font-size:9px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.12);border-radius:5px;padding:1px 5px;margin-left:6px;">BACKUP</span>':'';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2);">
-        <div style="min-width:0;"><div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tLabel}${rTag}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:1px;">${dStr}</div></div>
-        <div style="font-size:13px;font-weight:800;color:var(--blue);flex-shrink:0;">#${c.callNum||'—'}</div>
+      const rTag=myR&&(myR.role==='backup'||myR.isObserver)?'<span style="font-size:9px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.12);border-radius:5px;padding:1px 5px;margin-left:6px;">BACKUP</span>':'';
+      // Other members who responded with you on this call
+      const withOthers=(c.responders||[]).filter(r=>String(r.unit).replace(/^BC-?/i,'')!==bc)
+        .map(r=>'BC-'+String(r.unit).replace(/^BC-?/i,'')+(r.name?' '+r.name.split(' ')[0]:'')).join(', ');
+      const diaryKey='cobc_diary_'+bc+'_'+c.id;
+      const savedNote=(function(){ try{ return localStorage.getItem(diaryKey)||''; }catch(e){ return ''; } })();
+      return `<div style="padding:9px 0;border-bottom:1px solid var(--border2);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div style="min-width:0;"><div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tLabel}${rTag}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:1px;">${dStr}${withOthers?' · with '+withOthers:''}</div></div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <span onclick="_toggleCallNote('${c.id}')" style="font-size:14px;cursor:pointer;opacity:${savedNote?'1':'.45'};" title="${savedNote?'Edit note':'Add note'}">${savedNote?'📝':'🖊️'}</span>
+            <div style="font-size:13px;font-weight:800;color:var(--blue);">#${c.callNum||'—'}</div>
+          </div>
+        </div>
+        <div id="callNoteWrap-${c.id}" style="display:${savedNote?'block':'none'};margin-top:6px;">
+          <textarea id="callNoteBox-${c.id}" oninput="_saveCallNote('${bc}','${c.id}')" placeholder="Note about this call…" style="width:100%;min-height:52px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;">${savedNote.replace(/</g,'&lt;')}</textarea>
+        </div>
       </div>`;
     }).join('');
     const _scopeLbl=(_yrSel==='all'?'All Years':_yrSel);
@@ -13296,6 +13328,15 @@ function renderMyStats(bcArg, opts) {
         </div>`).join('')}
       </div>
     </div>`;
+    // Call History — per-call detail (type, date, call #), scoped to the year picker above.
+    if(_detRows){
+      html+=`<div class="chart-card" style="margin-bottom:12px;">
+        <div class="chart-title">📋 Call History</div>
+        <div>${_detRows}</div>
+        ${_scopeCalls.length>50?`<div style="font-size:11px;color:var(--text3);text-align:center;padding-top:8px;">Showing latest 50 of ${_scopeCalls.length}</div>`:''}
+      </div>`;
+    }
+    // Member Diary — private free-write notes (this device only; doesn't sync elsewhere).
   }
 
   // Dispatcher block for dispatch role (self only — matched against SESSION.name)
