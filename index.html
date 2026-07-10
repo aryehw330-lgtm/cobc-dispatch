@@ -1711,7 +1711,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <!-- OVERVIEW (admin only) -->
         <div id="st-overview">
           <div class="chart-card">
-            <div class="chart-title">📅 Calls by Month</div>
+            <div class="chart-title" id="ch-monthly-title">📅 Calls by Month</div>
             <div id="ch-monthly-total" style="font-size:12px;color:var(--text3);font-weight:700;margin-bottom:6px;"></div>
             <div class="chart-wrap"><canvas id="ch-monthly"></canvas></div>
           </div>
@@ -10022,9 +10022,14 @@ function checkShiftSignInOutReminders(){
       });
     }
     if(!candidates.length) return;
+    // Fire every distinct-key candidate that's due (each key is a genuinely different
+    // milestone message — e.g. '10 min left' vs '1 min left' — so silently discarding
+    // one because another fired first was causing warnings to appear to arrive late
+    // or be skipped entirely). Still capped at a small number so a long-stale check
+    // (many old shifts at once) can't burst-fire a pile of notifications.
     candidates.sort((a,b)=>a.away-b.away);
-    _fireShiftRem(candidates[0].key, candidates[0].title, candidates[0].body);
-    for(let i=1;i<candidates.length;i++){ _firedShiftRem[candidates[i].key]=Date.now(); }
+    candidates.slice(0,3).forEach(c=>_fireShiftRem(c.key, c.title, c.body));
+    for(let i=3;i<candidates.length;i++){ _firedShiftRem[candidates[i].key]=Date.now(); }
     if(candidates.length>1) _persistShiftRem();
   }catch(e){ console.warn('checkShiftSignInOutReminders:',e); }
 }
@@ -13060,7 +13065,9 @@ function initStats() {
     try{ (_allCalls()||[]).forEach(c=>{ if(c.createdAt) yset.add(String(new Date(c.createdAt).getFullYear())); }); }catch(e){}
     yset.add(curYr);
     const years=[...yset].sort((a,b)=>b-a);
-    strip.innerHTML = years.map(y=>`<button class="yr-btn" data-yr="${y}" onclick="setStatsYear('${y}',this)">${y===curYr?y+' YTD':y}</button>`).join('')
+    strip.innerHTML = `<select id="statsYearSelect" onchange="setStatsYear(this.value, document.querySelector('.yr-btn[data-yr=&quot;'+this.value+'&quot;]'))" style="padding:7px 10px;border-radius:20px;border:2px solid var(--border);background:#fff;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;color:var(--text2);">`
+      + years.map(y=>`<option value="${y}" class="yr-btn" data-yr="${y}">${y===curYr?y+' YTD':y}</option>`).join('')
+      + `</select>`
       + `<button class="yr-btn" data-yr="all" onclick="setStatsYear('all',this)">All Time</button>`;
   }
   const firstTab = buildStatsSubNav();
@@ -13468,6 +13475,8 @@ function renderStatsOverview() {
   const isAll=stYear==='all';
   const _mtEl=document.getElementById('ch-monthly-total');
   if(_mtEl) _mtEl.textContent = isAll ? '' : `Total: ${d.total.toLocaleString()} call${d.total===1?'':'s'}`;
+  const _mtTitle=document.getElementById('ch-monthly-title');
+  if(_mtTitle) _mtTitle.textContent = isAll ? '📅 Calls by Year' : '📅 Calls by Month';
   // Monthly / Year chart
   if(isAll) {
     const yrs=Object.keys(HIST);
