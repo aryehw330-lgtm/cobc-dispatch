@@ -12422,7 +12422,7 @@ function getShiftIndexNow() {
   if(h>=17&&h<19) return 5;
   if(h>=19&&h<21) return 6;
   if(h>=21&&h<23) return 7;
-  if(h>=23)       return 8;
+  if(h>=23||h<3)  return 8; // 23:00-03:00 spans midnight — hours 0-2 belong to it
   return 9; // 03-07
 }
 
