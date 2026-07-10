@@ -6438,6 +6438,9 @@ function renderMoreHistory(){
     const time=t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     const statusColor=c.status==='done'?'#7c3aed':c.status==='active'?'#16a34a':c.status==='open'?'#d97706':c.status==='cancelled'?'#dc2626':'#94a3b8';
     const responders=(c.responders||[]).map(r=>{const u='BC-'+String(r.unit||'').replace(/^BC-?/i,'');const fn=(r.name||'').split(' ')[0];return fn?`${u} ${fn}`:u;}).join(', ')||'—';
+    const myBc=String(SESSION.unit||'').replace(/^BC-?/i,'');
+    const diaryKey='cobc_diary_'+myBc+'_'+c.id;
+    const savedNote=(function(){ try{ return localStorage.getItem(diaryKey)||''; }catch(e){ return ''; } })();
     const reopenBtn=(_isDispatch&&(c.status==='done'||c.status==='cancelled'))?`<button onclick="event.stopPropagation();reopenCall('${c.id}')" style="margin-top:6px;background:linear-gradient(180deg,rgba(230,196,99,.95),rgba(212,169,58,.95));color:#3a2c05;border:none;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">🔄 Re-open</button>`:'';
     return `<div onclick="openCallDetail('${c.id}')" style="background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:6px;box-shadow:var(--shadow);cursor:pointer;border-left:3px solid ${statusColor};">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
@@ -6447,10 +6450,15 @@ function renderMoreHistory(){
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">${time}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;"><b>Responded:</b> ${responders}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;">
+        <div style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;gap:4px;">
           <div style="font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;background:${statusColor}22;color:${statusColor};text-transform:uppercase;">${c.status}</div>
+          <span onclick="event.stopPropagation();_toggleCallNote('${c.id}')" style="font-size:14px;cursor:pointer;opacity:${savedNote?'1':'.45'};" title="${savedNote?'Edit note':'Add note'}">${savedNote?'📝':'🖊️'}</span>
           ${reopenBtn}
         </div>
+      </div>
+      <div id="callNoteWrap-${c.id}" style="display:${savedNote?'block':'none'};margin-top:6px;" onclick="event.stopPropagation();">
+        <textarea id="callNoteBox-${c.id}" oninput="_saveCallNote('${myBc}','${c.id}')" placeholder="Private note about this call…" style="width:100%;min-height:52px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;">${savedNote.replace(/</g,'&lt;')}</textarea>
+      </div>
       </div>
     </div>`;
   }).join('');
