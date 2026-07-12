@@ -1033,7 +1033,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-          <button id="telzioSignInBtn" onclick="window.open('https://telzio.com/login','_blank')" title="Sign in to Telzio" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.55),rgba(37,99,235,.2));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(147,197,253,.6);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 8px rgba(0,0,0,.15);">📞 Telzio</button>
+          <button id="telzioSignInBtn" onclick="toggleTelzioSignIn()" title="Sign in / out of Telzio" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.55),rgba(37,99,235,.2));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(147,197,253,.6);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 8px rgba(0,0,0,.15);">📞 Telzio</button>
           <button id="newCallBtn" class="metal-gold" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;display:none">+ New Call</button>
         </div>
       </div>
@@ -3368,6 +3368,17 @@ async function initFirebaseApp() {
       _syncStarted = true;
       try { initFirestore(); } catch(e){ console.warn('initFirestore:', e); }
       try { subscribeScheduleFromFirestore(); } catch(e){ console.warn('subscribeSchedule:', e); }
+      try { subscribeSchedOverridesFromFirestore(); } catch(e){ console.warn('subscribeSchedOv:', e); }
+      try {
+        // Feature flag: when the server-side reminder cron is live, the co-worker sets
+        // config/featureFlags.serverShiftReminders=true and the client stops pushing
+        // shift reminders itself (prevents duplicate notifications).
+        firebase.firestore().collection('config').doc('featureFlags').onSnapshot(doc=>{
+          const d=doc.exists?(doc.data()||{}):{};
+          window._serverShiftReminders = d.serverShiftReminders===true;
+        }, ()=>{});
+      } catch(e){ console.warn('featureFlags:', e); }
+      try { subscribeDispatchPool(); } catch(e){ console.warn('subscribeDispatchPool:', e); }
       try { subscribeNumbersFromFirestore(); } catch(e){ console.warn('subscribeNumbers:', e); }
       try { subscribeEquipmentHistoryFromFirestore(); } catch(e){ console.warn('subscribeEqHist:', e); }
       try { subscribeCobc4HistoryFromFirestore(); } catch(e){ console.warn('subscribeCobc4Hist:', e); }
@@ -6583,6 +6594,10 @@ function callCardHTML(call, mini=false) {
   const cornerMeta = `<div class="call-card-corner">${townChipInline}<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span><span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
   const etaWrap = '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
+  // Boost calls: show the vehicle inline next to the call type after a small dash
+  const isBoostCard = (call.type==='jump_start');
+  const typeLabelDisp = (isBoostCard && carInfo) ? `${typeLabel} <span style="font-weight:600;font-size:.78em;opacity:.85;">– ${carInfo}</span>` : typeLabel;
+  const carInfoLine = (isBoostCard && carInfo) ? '' : carInfo;
   const floodBadge = (call.floodNeeds&&call.floodNeeds.length) ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${call.floodNeeds.map(n=>`<span style="font-size:12px;font-weight:800;color:#fff;background:rgba(37,99,235,.85);border:1px solid rgba(255,255,255,.25);padding:2px 9px;border-radius:8px;text-shadow:0 1px 2px rgba(0,0,0,.4);">${n}</span>`).join('')}</div>` : '';
 
   if(mini) {
@@ -6627,8 +6642,8 @@ function callCardHTML(call, mini=false) {
       <div class="call-card-header">
         <div style="display:flex;gap:10px;align-items:flex-start;flex:1;min-width:0;">
           <div style="flex:1;min-width:0;">
-            <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabel}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
-            ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfo}</div>`:''}
+            <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabelDisp}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
+            ${carInfoLine?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfoLine}</div>`:''}
             <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
             ${ezFitBadge}
             ${floodBadge}
@@ -6668,11 +6683,11 @@ function callCardHTML(call, mini=false) {
     <div class="call-card-header">
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
-          <div class="call-card-type" style="color:${townColor};">${typeLabel}</div>
+          <div class="call-card-type" style="color:${townColor};">${typeLabelDisp}</div>
           ${isDraft?'<span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}
           ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
         </div>
-        ${carInfo?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfo}</div>`:''}
+        ${carInfoLine?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfoLine}</div>`:''}
         <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
         ${ezFitBadge}
         ${floodBadge}
@@ -9911,7 +9926,13 @@ function _fireShiftRem(key, title, body){
   // if the app is fully closed via FCM + service worker. Deliberately NOT also firing
   // a local Notification here — doing both showed as two separate banners when the
   // app happened to be open.
-  try{ sendPush({target:'unit', unit:String((SESSION&&SESSION.unit)||''), title, body, url:'/cobc-dispatch/'}); }catch(e){}
+  // Once the Cloudflare cron (wa-worker.js scheduled handler) is live it becomes the
+  // sole sender — the co-worker sets config/featureFlags.serverShiftReminders=true and
+  // this client path stops pushing (so the two can't double-fire). It still shows the
+  // in-app toast when the app is open.
+  if(!window._serverShiftReminders){
+    try{ sendPush({target:'unit', unit:String((SESSION&&SESSION.unit)||''), title, body, url:'/cobc-dispatch/'}); }catch(e){}
+  }
   try{ showToast(title+' — '+body); }catch(e){}
 }
 // Compute this device's current Telzio shift status, reusing the same schedule
@@ -9956,24 +9977,162 @@ function _myTelzioShiftStatus(){
     return best ? best.mode : null;
   }catch(e){ console.warn('_myTelzioShiftStatus:',e); return null; }
 }
-// Update the Telzio button's label/color to reflect shift status (sign in / on shift /
-// sign out). Tapping it still just opens Telzio — this is a status label, not a
-// remote toggle (no Telzio API connection exists to change your real status).
+// ── Telzio dispatch lineup: Primary / Secondary / Pool ───────────────────────
+// The org's Telzio call flow cascades: Primary rings first, after 60s no-answer
+// it rings Secondary, after another 60s it rings the POOL of everyone signed in.
+// This shared board (config/dispatchPool, live across all devices) is the single
+// source of truth for who holds each role. Primary and Secondary are single-seat:
+// signing in as one BUMPS whoever held it (they're signed out and notified). The
+// pool holds everyone else who's available.
+//
+// Tapping the button opens a sheet to pick your seat. It still opens Telzio so you
+// complete the actual sign-in there — the app coordinates WHO should be where.
+var _dispatchPool = { primary:null, secondary:null, pool:[], updatedAt:0 };
+var _poolPrevRole = null;   // my role as of the last snapshot, to detect a bump
+
+function _poolMyKey(){ return String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,'').replace(/^0+/,''); }
+function _poolMyEntry(){ return { unit:(SESSION&&SESSION.unit)||'', name:(SESSION&&SESSION.name)||'', key:_poolMyKey(), at:Date.now() }; }
+function _poolSamePerson(a){ return a && String(a.key||'')===_poolMyKey() && _poolMyKey()!==''; }
+// Which seat do I currently hold? 'primary' | 'secondary' | 'pool' | null
+function _poolMyRole(){
+  const p=_dispatchPool;
+  if(_poolSamePerson(p.primary)) return 'primary';
+  if(_poolSamePerson(p.secondary)) return 'secondary';
+  if((p.pool||[]).some(_poolSamePerson)) return 'pool';
+  return null;
+}
+
+function pushDispatchPool(){
+  try{
+    if(typeof firebase==='undefined') return Promise.resolve();
+    return firebase.firestore().collection('config').doc('dispatchPool').set({
+      primary:_dispatchPool.primary||null,
+      secondary:_dispatchPool.secondary||null,
+      pool:_dispatchPool.pool||[],
+      updatedAt:Date.now(), updatedBy:(SESSION&&SESSION.unit)||null
+    });
+  }catch(e){ console.warn('pushDispatchPool:',e); return Promise.resolve(); }
+}
+function subscribeDispatchPool(){
+  try{
+    if(typeof firebase==='undefined') return;
+    firebase.firestore().collection('config').doc('dispatchPool').onSnapshot(doc=>{
+      if(!doc.exists){ _dispatchPool={primary:null,secondary:null,pool:[],updatedAt:0}; }
+      else{
+        const d=doc.data()||{};
+        _dispatchPool={ primary:d.primary||null, secondary:d.secondary||null, pool:Array.isArray(d.pool)?d.pool:[], updatedAt:d.updatedAt||0 };
+      }
+      // Detect a bump: I held a seat, now I hold none → someone took over.
+      const myRole=_poolMyRole();
+      if(_poolPrevRole && (_poolPrevRole==='primary'||_poolPrevRole==='secondary') && !myRole){
+        try{ showToast('⚠️ You were replaced as '+ (_poolPrevRole==='primary'?'Primary':'Secondary') +' — sign out of Telzio'); }catch(e){}
+      }
+      _poolPrevRole=myRole;
+      updateTelzioBtnStatus();
+      if(document.getElementById('telzioSheet')) _renderTelzioSheet();
+    }, e=>{ console.warn('dispatchPool listener:',e); });
+  }catch(e){ console.warn('subscribeDispatchPool:',e); }
+}
+
+// Take a seat. Primary/Secondary are single-occupancy — the previous holder is
+// removed entirely (kicked out). 'pool' just adds you to the shared pool.
+function poolTakeSeat(role){
+  if(!SESSION || !SESSION.unit){ showToast('Log in first'); return; }
+  const me=_poolMyEntry();
+  const p=_dispatchPool;
+  // Remove me from every seat first so I only occupy one.
+  if(_poolSamePerson(p.primary)) p.primary=null;
+  if(_poolSamePerson(p.secondary)) p.secondary=null;
+  p.pool=(p.pool||[]).filter(x=>!_poolSamePerson(x));
+  let bumped=null;
+  if(role==='primary'){
+    if(p.primary && !_poolSamePerson(p.primary)) bumped=p.primary;
+    p.primary=me;
+  }else if(role==='secondary'){
+    if(p.secondary && !_poolSamePerson(p.secondary)) bumped=p.secondary;
+    p.secondary=me;
+  }else{
+    p.pool.push(me);
+  }
+  _poolPrevRole=role;
+  pushDispatchPool();
+  updateTelzioBtnStatus();
+  try{ window.open('https://telzio.com/login','_blank'); }catch(e){}
+  const roleLabel = role==='primary'?'Primary':role==='secondary'?'Secondary':'the pool';
+  showToast('✅ Signed in as '+roleLabel + (bumped?(' — replaced '+(bumped.name||('BC-'+bumped.key))):''));
+  if(document.getElementById('telzioSheet')) _renderTelzioSheet();
+}
+// Sign fully out of every seat.
+function poolSignOut(){
+  const p=_dispatchPool;
+  if(_poolSamePerson(p.primary)) p.primary=null;
+  if(_poolSamePerson(p.secondary)) p.secondary=null;
+  p.pool=(p.pool||[]).filter(x=>!_poolSamePerson(x));
+  _poolPrevRole=null;
+  pushDispatchPool();
+  updateTelzioBtnStatus();
+  showToast('🚪 Signed out of Telzio');
+  if(document.getElementById('telzioSheet')) _renderTelzioSheet();
+}
+
+// The button opens the lineup sheet (no longer a blind toggle).
+function toggleTelzioSignIn(){ openTelzioSheet(); }
+
+function openTelzioSheet(){
+  const existing=document.getElementById('telzioSheet'); if(existing) existing.remove();
+  const ov=document.createElement('div');
+  ov.id='telzioSheet';
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML='<div id="telzioSheetInner" style="background:#0f1b2e;border:1px solid rgba(147,197,253,.3);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.5);max-height:88dvh;overflow-y:auto;"></div>';
+  document.body.appendChild(ov);
+  _renderTelzioSheet();
+}
+function _poolSeatRow(label, entry, color){
+  const who = entry ? (entry.name || ('BC-'+entry.key)) : '<span style="color:rgba(255,255,255,.4);font-weight:600;">Open</span>';
+  const mine = _poolSamePerson(entry);
+  return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid '+(mine?color:'rgba(255,255,255,.12)')+';border-radius:10px;margin-bottom:8px;">'
+    +'<span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:'+color+';">'+label+'</span>'
+    +'<span style="font-size:14px;font-weight:700;color:#fff;">'+who+(mine?' <span style="font-size:11px;color:'+color+';">(you)</span>':'')+'</span></div>';
+}
+function _renderTelzioSheet(){
+  const el=document.getElementById('telzioSheetInner'); if(!el) return;
+  const p=_dispatchPool;
+  const myRole=_poolMyRole();
+  const poolNames=(p.pool||[]).map(x=>(x.name||('BC-'+x.key))+(_poolSamePerson(x)?' (you)':'')).join(', ');
+  const btn=(id,txt,sub,bg,border,onclick,active)=>'<button onclick="'+onclick+'" style="width:100%;text-align:left;background:'+bg+';border:1px solid '+border+';border-radius:12px;padding:13px 15px;margin-bottom:9px;cursor:pointer;color:#fff;font-family:inherit;'+(active?'box-shadow:0 0 0 2px '+border+' inset;':'')+'">'
+    +'<div style="font-size:15px;font-weight:800;">'+txt+'</div>'
+    +(sub?'<div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">'+sub+'</div>':'')+'</button>';
+  el.innerHTML=
+     '<div style="font-size:17px;font-weight:800;color:#93c5fd;margin-bottom:3px;">📞 Telzio Dispatch Lineup</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:14px;line-height:1.45;">Primary rings first · Secondary after 60s · then everyone in the pool.</div>'
+    +_poolSeatRow('Primary', p.primary, '#f87171')
+    +_poolSeatRow('Secondary', p.secondary, '#fbbf24')
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;margin-bottom:16px;">'
+      +'<span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#86efac;">Pool</span>'
+      +'<span style="font-size:13px;font-weight:600;color:#fff;text-align:right;">'+(poolNames||'<span style="color:rgba(255,255,255,.4);">Nobody</span>')+'</span></div>'
+    +'<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:rgba(255,255,255,.5);margin-bottom:8px;">Sign in as</div>'
+    +btn('','Take Primary', p.primary&&!_poolSamePerson(p.primary)?('Replaces '+(p.primary.name||('BC-'+p.primary.key))):'Ring first on every call','linear-gradient(180deg,rgba(248,113,113,.22),rgba(248,113,113,.08))','rgba(248,113,113,.5)','poolTakeSeat(\'primary\')',myRole==='primary')
+    +btn('','Take Secondary', p.secondary&&!_poolSamePerson(p.secondary)?('Replaces '+(p.secondary.name||('BC-'+p.secondary.key))):'Ring after 60s if Primary misses','linear-gradient(180deg,rgba(251,191,36,.22),rgba(251,191,36,.08))','rgba(251,191,36,.5)','poolTakeSeat(\'secondary\')',myRole==='secondary')
+    +btn('','Join the Pool','Ring after 120s with all signed-in dispatchers','linear-gradient(180deg,rgba(134,239,172,.2),rgba(134,239,172,.07))','rgba(134,239,172,.5)','poolTakeSeat(\'pool\')',myRole==='pool')
+    +(myRole?btn('','🚪 Sign Out','Leave the lineup entirely','rgba(255,255,255,.06)','rgba(248,113,113,.4)','poolSignOut()',false):'')
+    +'<button onclick="document.getElementById(\'telzioSheet\').remove()" style="width:100%;background:transparent;border:none;color:rgba(255,255,255,.6);font-size:14px;font-weight:700;padding:8px;cursor:pointer;font-family:inherit;">Close</button>';
+}
+
+// Render the header button to reflect my current seat.
 function updateTelzioBtnStatus(){
   const btn=document.getElementById('telzioSignInBtn');
   if(!btn || btn.style.display==='none') return;
-  const status=_myTelzioShiftStatus();
-  const styles={
-    signin1:  {label:'📞 Sign in to Telzio',  bg:'rgba(220,38,38,.6)',  border:'rgba(252,165,165,.7)'},
-    signin30: {label:'📞 Sign in to Telzio',  bg:'rgba(217,119,6,.55)', border:'rgba(253,230,138,.7)'},
-    onshift:  {label:'📞 On Shift — Telzio',  bg:'rgba(22,163,74,.55)', border:'rgba(134,239,172,.7)'},
-    signout10:{label:'📞 Sign out of Telzio', bg:'rgba(217,119,6,.55)', border:'rgba(253,230,138,.7)'},
-    signout1: {label:'📞 Sign out of Telzio', bg:'rgba(220,38,38,.6)',  border:'rgba(252,165,165,.7)'},
+  const role=_poolMyRole();
+  const map={
+    primary:  {label:'📞 Primary — Telzio',   bg:'rgba(248,113,113,.6)', border:'rgba(252,165,165,.7)'},
+    secondary:{label:'📞 Secondary — Telzio',  bg:'rgba(251,191,36,.55)', border:'rgba(253,230,138,.7)'},
+    pool:     {label:'📞 In Pool — Telzio',    bg:'rgba(22,163,74,.55)',  border:'rgba(134,239,172,.7)'},
   };
-  const s = styles[status] || {label:'📞 Telzio', bg:'rgba(37,99,235,.55)', border:'rgba(147,197,253,.6)'};
-  btn.textContent = s.label;
-  btn.style.background = 'linear-gradient(160deg,'+s.bg+',rgba(37,99,235,.15))';
-  btn.style.borderColor = s.border;
+  const s = role ? map[role] : {label:'📞 Sign in to Telzio', bg:'rgba(37,99,235,.55)', border:'rgba(147,197,253,.6)'};
+  btn.textContent=s.label;
+  btn.style.background='linear-gradient(160deg,'+s.bg+',rgba(37,99,235,.12))';
+  btn.style.borderColor=s.border;
 }
 function checkShiftSignInOutReminders(){
   try{
@@ -10011,13 +10170,20 @@ function checkShiftSignInOutReminders(){
         const nextIdx=(shiftIdx+1)%DISPATCH_SCHEDULE.length;
         const nextBase = shiftIdx===DISPATCH_SCHEDULE.length-1 ? new Date(baseDate.getTime()+86400000) : baseDate;
         const continuingToNext = _mySlotRoleAt(nextIdx, nextBase)===role;
+        // Each reminder only fires inside a LIVE window around its trigger moment —
+        // never as stale backfill. Without the lower bound, opening the app mid-shift
+        // made every long-past milestone (minsToStart hugely negative) count as "due"
+        // and they all fired at once. The window allows a few minutes of catch-up (so a
+        // throttled/asleep timer that wakes slightly late still delivers) but discards
+        // anything older. True on-time delivery while fully closed is the server cron's
+        // job (see wa-worker.js scheduled handler); this path is the in-app backup.
         if(!continuingFromPrev){
-          if(minsToStart<=30 && !_firedShiftRem[keyBase+'_s30']) candidates.push({key:keyBase+'_s30',title:'📻 Sign in to Telzio',body:'Your dispatch shift starts in 30 minutes.',away:minsToStart});
-          if(minsToStart<=1 && !_firedShiftRem[keyBase+'_s1']) candidates.push({key:keyBase+'_s1',title:'📻 Sign in to Telzio',body:'Your dispatch shift starts in 1 minute.',away:minsToStart});
+          if(minsToStart<=30 && minsToStart>6 && !_firedShiftRem[keyBase+'_s30']) candidates.push({key:keyBase+'_s30',title:'📻 Sign in to Telzio',body:'Your dispatch shift starts in 30 minutes.',away:minsToStart});
+          if(minsToStart<=1 && minsToStart>-6 && !_firedShiftRem[keyBase+'_s1']) candidates.push({key:keyBase+'_s1',title:'📻 Sign in to Telzio',body:'Your dispatch shift is starting now.',away:minsToStart});
         }
         if(!continuingToNext){
-          if(minsToEnd<=10 && !_firedShiftRem[keyBase+'_e10']) candidates.push({key:keyBase+'_e10',title:'📻 Sign out of Telzio',body:'Please sign out of Telzio in 10 minutes — your shift is ending.',away:minsToEnd});
-          if(minsToEnd<=1 && !_firedShiftRem[keyBase+'_e1']) candidates.push({key:keyBase+'_e1',title:'📻 Sign out of Telzio',body:'Please sign out of Telzio in 1 minute — your shift is ending.',away:minsToEnd});
+          if(minsToEnd<=10 && minsToEnd>2 && !_firedShiftRem[keyBase+'_e10']) candidates.push({key:keyBase+'_e10',title:'📻 Sign out of Telzio',body:'Please sign out of Telzio in 10 minutes — your shift is ending.',away:minsToEnd});
+          if(minsToEnd<=1 && minsToEnd>-6 && !_firedShiftRem[keyBase+'_e1']) candidates.push({key:keyBase+'_e1',title:'📻 Sign out of Telzio',body:'Your shift is ending — please sign out of Telzio.',away:minsToEnd});
         }
       });
     }
@@ -11374,6 +11540,37 @@ function subscribeScheduleFromFirestore() {
     }, err => console.warn('schedule snapshot error:', err));
   } catch(e) { console.warn('subscribeScheduleFromFirestore failed:', e); }
 }
+// ── Firestore sync: temporary fill-ins / one-time overrides (shared) ──
+// These were previously LOCAL-ONLY: a "Take" or one-time edit lived only on the
+// device that made it, so other dispatchers — and the server-side reminder cron —
+// never saw it. Now they live in config/schedOverrides so everyone (and the cron)
+// works off the same picture.
+function pushSchedOverridesToFirestore(){
+  try{
+    if(typeof firebase==='undefined') return Promise.resolve();
+    return firebase.firestore().collection('config').doc('schedOverrides').set({
+      overrides: STATE.schedOverrides || {},
+      updatedAt: Date.now(), updatedBy:(SESSION&&SESSION.unit)||null
+    });
+  }catch(e){ console.warn('pushSchedOverrides:',e); return Promise.resolve(); }
+}
+let _schedOvRemoteApplied=false;
+function subscribeSchedOverridesFromFirestore(){
+  try{
+    if(typeof firebase==='undefined') return;
+    firebase.firestore().collection('config').doc('schedOverrides').onSnapshot(doc=>{
+      if(!doc.exists) return;
+      const d=doc.data()||{};
+      if(!d.overrides || typeof d.overrides!=='object') return;
+      STATE.schedOverrides = d.overrides;
+      try{ _pruneSchedOverrides&&_pruneSchedOverrides(); }catch(e){}
+      try{ save&&save(); }catch(e){}
+      _schedOvRemoteApplied=true;
+      if(typeof renderSchedule==='function') renderSchedule();
+      if(typeof updateOnDutyBanner==='function') updateOnDutyBanner();
+    }, err=>console.warn('schedOverrides snapshot:',err));
+  }catch(e){ console.warn('subscribeSchedOverridesFromFirestore failed:',e); }
+}
 // ── Telzio live caller ID ──
 // Uses the shared Cloudflare worker on the same dev account as the EZ-Spare proxy
 // and the BC-Dispatch app (same Telzio phone account). The worker takes plain
@@ -12230,7 +12427,7 @@ function _assignSlot(shiftIdx, dayIdx, mode){
     STATE.schedOverrides[dateStr][shiftIdx]={ p:myLabel, s:curS, by:SESSION.unit, at:Date.now() };
     showToast('✅ Primary for '+_schedDateLabel(dayIdx));
   }
-  save(); pushScheduleToFirestore(); renderSchedule();
+  save(); pushScheduleToFirestore(); pushSchedOverridesToFirestore(); renderSchedule();
 }
 // Remove a temporary fill-in (revert that date back to the recurring schedule).
 function clearSlotOverride(shiftIdx, dayIdx){
@@ -12238,7 +12435,7 @@ function clearSlotOverride(shiftIdx, dayIdx){
   if(STATE.schedOverrides && STATE.schedOverrides[dateStr]){
     delete STATE.schedOverrides[dateStr][shiftIdx];
     if(Object.keys(STATE.schedOverrides[dateStr]).length===0) delete STATE.schedOverrides[dateStr];
-    save(); pushScheduleToFirestore(); renderSchedule();
+    save(); pushScheduleToFirestore(); pushSchedOverridesToFirestore(); renderSchedule();
     showToast('Fill-in removed');
   }
 }
@@ -12317,7 +12514,7 @@ function _applyScheduleEdit(shiftIdx, dayIdx, primary, secondary, mode) {
     STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
     STATE.schedOverrides[dateStr][shiftIdx]={ p:primary, s:secondary, by:SESSION.unit, at:Date.now() };
     save();
-    pushScheduleToFirestore();
+    pushScheduleToFirestore(); pushSchedOverridesToFirestore();
     hideModal('schedEditModal');
     renderSchedule();
     showToast('✅ One-time change saved for '+((typeof _schedDateLabel==='function')?_schedDateLabel(dayIdx):'this date'));
