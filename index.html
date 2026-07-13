@@ -3182,30 +3182,65 @@ const APP_BUILD = 'Build 2026-07-09a · auto-update';
 // NEWER build than the doc publish theirs, so simply deploying + opening the app
 // as admin rolls everyone forward automatically.
 function _buildToken(s){ const m=String(s||'').match(/(\d{4}-\d{2}-\d{2}[a-z]?)/i); return m?m[1].toLowerCase():''; }
-let _verSubbed=false;
+// ── How the update works, plainly ──
+// ONE check, at open. While it runs, a cover sits over the app so nothing can be
+// touched. If a newer build exists, we reload immediately — so the new version is
+// already in place before you do anything. If we're current (or the check is slow /
+// offline), the cover lifts after at most ~3s and the app runs normally. We do NOT
+// keep a live listener and do NOT re-check when the app returns to the foreground,
+// so the page can never reload out from under you mid-session.
+let _verChecked=false;
+function _revealApp(){
+  _verChecked=true;
+  const c=document.getElementById('updateGate');
+  if(c){ c.style.opacity='0'; setTimeout(()=>{ try{ c.remove(); }catch(e){} }, 180); }
+}
 function _checkAppVersion(){
   try{
-    if(typeof firebase==='undefined' || !_firebaseReady || _verSubbed) return;
-    _verSubbed=true;
-    // LIVE listener: the moment an admin/dispatch device publishes a newer build,
-    // every open app hears it within seconds and refreshes itself — no reopen needed.
-    firebase.firestore().collection('config').doc('appVersion').onSnapshot(doc=>{
+    if(_verChecked){ _revealApp(); return; }
+    if(typeof firebase==='undefined' || !_firebaseReady) return; // retried by the gate poller
+    _verChecked=true;
+    firebase.firestore().collection('config').doc('appVersion').get().then(doc=>{
       const mine=_buildToken(APP_BUILD);
       const theirs=doc.exists?_buildToken((doc.data()||{}).build):'';
       if(theirs && mine && theirs>mine){
         const key='cobc_forced_'+theirs;
-        if(sessionStorage.getItem(key)) return; // already tried this version this session
+        if(sessionStorage.getItem(key)){ _revealApp(); return; } // already tried this version — never loop
         sessionStorage.setItem(key,'1');
-        try{ showToast('⬆️ Updating to the latest version…'); }catch(e){}
         if('serviceWorker' in navigator){ try{ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{ try{ r.update(); }catch(e){} })); }catch(e){} }
-        setTimeout(()=>{ location.replace(location.pathname+'?v='+Date.now()); }, 900);
-      } else if(mine && theirs<mine && ['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'')){
+        location.replace(location.pathname+'?v='+Date.now());   // reload NOW, cover still up
+        return;
+      }
+      // We're current (or newer). Admin/dispatch on a newer build publishes it so others roll forward.
+      if(mine && theirs && theirs<mine && ['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'')){
         firebase.firestore().collection('config').doc('appVersion').set({build:APP_BUILD, at:Date.now(), by:(SESSION&&SESSION.unit)||''}).catch(()=>{});
       }
-    }, ()=>{ _verSubbed=false; }); // on listener error, allow a retry next foreground
-  }catch(e){}
+      _revealApp();
+    }).catch(()=>{ _revealApp(); });
+  }catch(e){ _revealApp(); }
 }
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ try{ _checkAppVersion(); }catch(e){} } });
+// Put the cover up immediately and drive the one-shot check as soon as Firebase is
+// ready. Hard failsafe reveals after 3s no matter what (offline, slow network), and
+// commits to "no update this session" so nothing reloads later.
+(function(){
+  function mount(){
+    if(document.getElementById('updateGate')) return;
+    const g=document.createElement('div');
+    g.id='updateGate';
+    g.style.cssText='position:fixed;inset:0;z-index:99999;background:#0f2540;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .18s ease;';
+    g.innerHTML='<div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:updSpin .8s linear infinite;"></div><div style="color:rgba(255,255,255,.85);font:600 14px system-ui,sans-serif;">Checking for updates…</div><style>@keyframes updSpin{to{transform:rotate(360deg)}}</style>';
+    document.body.appendChild(g);
+    let tries=0;
+    const iv=setInterval(()=>{
+      tries++;
+      if(_verChecked){ clearInterval(iv); return; }
+      if(typeof firebase!=='undefined' && _firebaseReady){ clearInterval(iv); _checkAppVersion(); }
+      else if(tries>28){ clearInterval(iv); _revealApp(); }   // ~2.8s waiting for Firebase
+    }, 100);
+    setTimeout(()=>{ if(!_verChecked) _revealApp(); }, 3000);  // absolute failsafe
+  }
+  if(document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+})();
 
 // ── Haptic feedback ───────────────────────────────────
 function haptic(type) {
@@ -12506,13 +12541,14 @@ function renderSchedule() {
     nowEl.innerHTML=`
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            ${isOpen?'No dispatcher assigned':isChiefs?'Chiefs on Duty':curSlot.p} <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,.6);">· ${curShift.shift} · ${SCHED_DAYS_FULL[dow]}</span>
+          <div style="font-size:15px;font-weight:700;line-height:1.3;text-wrap:balance;">
+            ${isOpen?'No dispatcher assigned':isChiefs?'Chiefs on Duty':curSlot.p}
           </div>
-          ${curSlot.s&&curSlot.s!=='OPEN'&&curSlot.s!==curSlot.p?`<div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:3px;">Secondary: ${curSlot.s}${secPhone?` · <a href="tel:${secPhone.replace(/\D/g,'')}" style="color:rgba(255,255,255,.85);">📞</a>`:''}</div>`:''}
+          <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,.6);margin-top:2px;">${curShift.shift} · ${SCHED_DAYS_FULL[dow]}</div>
+          ${curSlot.s&&curSlot.s!=='OPEN'&&curSlot.s!==curSlot.p?`<div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px;">Secondary: ${curSlot.s}${secPhone?` · <a href="tel:${secPhone.replace(/\D/g,'')}" style="color:rgba(255,255,255,.85);">📞</a>`:''}</div>`:''}
           ${isOpen?'<div style="font-size:12px;color:#fde68a;margin-top:4px;font-weight:600;">Shift is open — needs coverage</div>':''}
         </div>
-        ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none;flex-shrink:0;">Phone: Call</a>`:''}
+        ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none;flex-shrink:0;white-space:nowrap;">Call</a>`:''}
       </div>`;
   }
 
