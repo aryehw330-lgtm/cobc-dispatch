@@ -4776,6 +4776,48 @@ function _fsRestFetch(collection){
   return page(null,[]);
 }
 
+// Scoped Firestore REST query (:runQuery) — used ONLY by the ITP/offline poll
+// fallback below, so it re-checks just the two bounded slices the onSnapshot
+// listeners already use (this calendar year + still-open calls) instead of
+// re-downloading the ENTIRE ever-growing /calls collection every 30s. The full
+// unscoped _fsRestFetch('calls') above is left untouched — it's still correct
+// for ensureFullCallHistory(), which intentionally wants everything, once,
+// lazily, when History/Stats is opened.
+function _fsRunQuery(collection, where){
+  const url=`https://firestore.googleapis.com/v1/projects/cobc-dispatch/databases/(default)/documents:runQuery`;
+  return _fsIdToken().then(tok=>{
+    const opts=Object.assign({}, _fsRestOpts(tok));
+    opts.method='POST';
+    opts.headers=Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+    opts.body=JSON.stringify({structuredQuery:{from:[{collectionId:collection}], where, limit:1000}});
+    return fetch(url,opts);
+  }).then(r=>r.json()).then(rows=>{
+    const acc=[];
+    (Array.isArray(rows)?rows:[]).forEach(row=>{
+      const doc=row&&row.document; if(!doc) return;
+      const id=doc.name.split('/').pop();
+      const obj={id};
+      Object.entries(doc.fields||{}).forEach(([k,v])=>{obj[k]=_fsVal(v);});
+      acc.push(obj);
+    });
+    return acc;
+  });
+}
+function _fsRestFetchCallsScoped(){
+  const yearStart=_yearStartMs();
+  const yearQ=_fsRunQuery('calls',{fieldFilter:{field:{fieldPath:'createdAt'},op:'GREATER_THAN_OR_EQUAL',value:{integerValue:String(Math.floor(yearStart))}}});
+  const openQ=_fsRunQuery('calls',{fieldFilter:{field:{fieldPath:'status'},op:'IN',value:{arrayValue:{values:[{stringValue:'open'},{stringValue:'active'},{stringValue:'draft'}]}}}});
+  return Promise.all([yearQ,openQ]).then(([yearCalls,openCalls])=>{
+    const map=new Map();
+    (openCalls||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+    (yearCalls||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+    return [...map.values()];
+  }).catch(e=>{
+    console.warn('_fsRestFetchCallsScoped failed, falling back to full fetch:',e);
+    return _fsRestFetch('calls');
+  });
+}
+
 // ── Year-windowed call cache helpers ────────────────────────────────────────
 // The live listeners below hold only the CURRENT YEAR + still-open calls so the
 // app stays light no matter how many years of history pile up. History & Stats
@@ -4815,7 +4857,7 @@ function initFirestore(){
   function _pollFirestore(){
     _pollCount++;
     const _isFirst=_pollCount===1;
-    Promise.all([_fsRestFetch('calls'),_fsRestFetch('members')]).then(([fsCalls,fsMembers])=>{
+    Promise.all([_fsRestFetchCallsScoped(),_fsRestFetch('members')]).then(([fsCalls,fsMembers])=>{
       if(_isFirst)console.log('REST sync: '+fsCalls.length+' calls, '+fsMembers.length+' members');
       clearSyncError();
       if(typeof SESSION==='undefined')return;
@@ -9911,13 +9953,11 @@ function _fireShiftRem(key, title, body){
   if(_firedShiftRem[key]) return;
   _firedShiftRem[key]=Date.now();
   _persistShiftRem();
-  // Server-side Cloudflare Worker cron (wa-worker-test, config/shiftRemFired in
-  // Firestore) now reliably sends these same reminders via real push, even with
-  // the app fully closed. This client-side heartbeat used to ALSO call sendPush()
-  // here, which double-sent the same reminder from two unsynced dedupe stores
-  // (this device's localStorage vs. the server's Firestore log) — that's what
-  // caused duplicate/mistimed "30 min" + "1 min" notifications arriving together.
-  // Local-only feedback now; the real push is the server's job.
+  // Real server push only (same mechanism as new-call/backup alerts) — arrives even
+  // if the app is fully closed via FCM + service worker. Deliberately NOT also firing
+  // a local Notification here — doing both showed as two separate banners when the
+  // app happened to be open.
+  try{ sendPush({target:'unit', unit:String((SESSION&&SESSION.unit)||''), title, body, url:'/cobc-dispatch/'}); }catch(e){}
   try{ showToast(title+' — '+body); }catch(e){}
 }
 // Compute this device's current Telzio shift status, reusing the same schedule
