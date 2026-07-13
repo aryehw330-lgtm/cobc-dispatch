@@ -9953,11 +9953,13 @@ function _fireShiftRem(key, title, body){
   if(_firedShiftRem[key]) return;
   _firedShiftRem[key]=Date.now();
   _persistShiftRem();
-  // Real server push only (same mechanism as new-call/backup alerts) — arrives even
-  // if the app is fully closed via FCM + service worker. Deliberately NOT also firing
-  // a local Notification here — doing both showed as two separate banners when the
-  // app happened to be open.
-  try{ sendPush({target:'unit', unit:String((SESSION&&SESSION.unit)||''), title, body, url:'/cobc-dispatch/'}); }catch(e){}
+  // Server-side Cloudflare Worker cron (wa-worker-test, config/shiftRemFired in
+  // Firestore) now reliably sends these same reminders via real push, even with
+  // the app fully closed. This client-side heartbeat used to ALSO call sendPush()
+  // here, which double-sent the same reminder from two unsynced dedupe stores
+  // (this device's localStorage vs. the server's Firestore log) — that's what
+  // caused duplicate/mistimed "30 min" + "1 min" notifications arriving together.
+  // Local-only feedback now; the real push is the server's job.
   try{ showToast(title+' — '+body); }catch(e){}
 }
 // Compute this device's current Telzio shift status, reusing the same schedule
