@@ -1025,15 +1025,10 @@ textarea.input{min-height:80px;resize:vertical;}
 
 <!-- APP -->
 <script>
-  // Prevent login-screen flash on PWA re-open: if a saved session exists, hide the
-  // login overlay synchronously at parse time (before Firebase init / restore runs).
-  try {
-    var _ss = JSON.parse(localStorage.getItem('cobc_session')||'null');
-    if (_ss && _ss.unit && _ss.role) {
-      var _ls = document.getElementById('login-screen');
-      if (_ls) { _ls.style.display='none'; _ls.classList.add('hidden'); }
-    }
-  } catch(e){}
+  // Returning user (saved session): keep the login screen up as the "Logging you in…"
+  // cover (see session-boot logic above) — do NOT hide it here. hideCover() lifts it
+  // once the app has rendered. (Previously this hid the login screen synchronously,
+  // which removed the cover and let the launch glitches show.)
 </script>
 <div id="app">
   <div class="topbar">
@@ -15464,7 +15459,11 @@ async function submitReport(){
   const item=STATE.equipment.find(e=>e.name===itemName);
   const location=item?.location||'';
   try{
-    await sheetPOST({action:'submitReport',item:itemName,location,type:rptCurType,note:notes,member});
+    const _res=await sheetPOST({action:'submitReport',item:itemName,location,type:rptCurType,note:notes,member});
+    if(!_res || _res.success===false || _res.error){
+      showToast('❌ Report not saved: '+((_res&&_res.error)||'server did not accept it'));
+      unlock(); return;
+    }
     // If it's a status issue, also update col K on the sheet
     if(item&&['Missing','Damaged','Need More'].includes(rptCurType)){
       await sheetPOST({action:'updateEquipmentStatus',row:item.row,status:rptCurType,note:notes});
