@@ -1185,7 +1185,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="sub-tab" onclick="setEqTab('inventory',this)">Inventory</button>
         <button class="sub-tab" id="eqChecklistTab" onclick="setEqTab('checklist',this)">Checklist</button>
         <button class="sub-tab" onclick="setEqTab('reports',this)">Reports</button>
-        <button class="sub-tab" onclick="setEqTab('car',this)">🚗 Car <span id="carReqBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 6px;margin-left:2px;">0</span></button>
+        <button class="sub-tab" id="eqCarTab" onclick="setEqTab('car',this)">🚗 Car <span id="carReqBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 6px;margin-left:2px;">0</span></button>
         <button class="sub-tab" id="eqAdminTab" style="display:none;" onclick="setEqTab('admin',this)">⚙️ Admin</button>
       </div>
       <!-- Shift banner slot — shows on EVERY equipment sub-tab (above the panels) -->
@@ -1373,18 +1373,18 @@ textarea.input{min-height:80px;resize:vertical;}
             <div style="margin-bottom:10px;">
               <div style="font-size:12px;color:var(--text3);margin-bottom:6px;font-weight:600;">Start Time</div>
               <div style="display:flex;gap:6px;">
-                <select id="car-start-hour" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--navy);">
+                <select id="car-start-hour" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:14px;font-weight:600;color:#0f172a;background:#fff;">
                   <option value="">Hr</option>
                   <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option>
                   <option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
                 </select>
-                <select id="car-start-min" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--navy);">
+                <select id="car-start-min" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:14px;font-weight:600;color:#0f172a;background:#fff;">
                   <option value="">Min</option>
                   <option value="00">:00</option><option value="05">:05</option><option value="10">:10</option><option value="15">:15</option>
                   <option value="20">:20</option><option value="25">:25</option><option value="30">:30</option><option value="35">:35</option>
                   <option value="40">:40</option><option value="45">:45</option><option value="50">:50</option><option value="55">:55</option>
                 </select>
-                <select id="car-start-ampm" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--navy);">
+                <select id="car-start-ampm" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:14px;font-weight:600;color:#0f172a;background:#fff;">
                   <option>AM</option><option>PM</option>
                 </select>
               </div>
@@ -1392,18 +1392,18 @@ textarea.input{min-height:80px;resize:vertical;}
             <div style="margin-bottom:10px;">
               <div style="font-size:12px;color:var(--text3);margin-bottom:6px;font-weight:600;">End Time</div>
               <div style="display:flex;gap:6px;">
-                <select id="car-end-hour" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--navy);">
+                <select id="car-end-hour" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:14px;font-weight:600;color:#0f172a;background:#fff;">
                   <option value="">Hr</option>
                   <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option>
                   <option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
                 </select>
-                <select id="car-end-min" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--navy);">
+                <select id="car-end-min" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:14px;font-weight:600;color:#0f172a;background:#fff;">
                   <option value="">Min</option>
                   <option value="00">:00</option><option value="05">:05</option><option value="10">:10</option><option value="15">:15</option>
                   <option value="20">:20</option><option value="25">:25</option><option value="30">:30</option><option value="35">:35</option>
                   <option value="40">:40</option><option value="45">:45</option><option value="50">:50</option><option value="55">:55</option>
                 </select>
-                <select id="car-end-ampm" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--navy);">
+                <select id="car-end-ampm" style="flex:1;padding:8px;border:1px solid var(--border2);border-radius:8px;font-size:14px;font-weight:600;color:#0f172a;background:#fff;">
                   <option>AM</option><option>PM</option>
                 </select>
               </div>
@@ -1415,7 +1415,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <!-- Admin-only: book on behalf of another member -->
             <div id="car-book-for-wrap" style="display:none;border-top:1.5px solid var(--border);padding-top:12px;margin-bottom:12px;">
               <div style="font-size:12px;color:var(--text3);margin-bottom:4px;font-weight:600;">📋 Booking for unit #</div>
-              <select id="car-book-for" onchange="updateCarBookForNoteD()" style="width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--navy);background:var(--bg2);"></select>
+              <select id="car-book-for" onchange="updateCarBookForNoteD()" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;font-size:14px;font-weight:600;color:#0f172a;background:#fff;"></select>
               <div id="car-book-for-note" style="display:none;margin-top:6px;padding:6px 10px;background:#fff8e1;border-radius:7px;font-size:12px;color:#e65100;font-weight:600;"></div>
             </div>
             <div style="display:flex;gap:8px;">
@@ -2171,7 +2171,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <span class="tab-icon">📡</span>Dispatch
       <span class="tab-badge" id="tab-dispatch-badge" style="display:none">0</span>
     </button>
-    <button class="tab" onclick="showTab('equipment')" id="tab-equipment"><span class="tab-icon">📦</span>Equip</button>
+    <button class="tab" onclick="showTab('equipment')" id="tab-equipment"><span class="tab-icon">📦</span>Equip<span class="tab-badge" id="tab-equipment-badge" style="display:none;">0</span></button>
     <button class="tab" onclick="showTab('members')" id="tab-members"><span class="tab-icon">👥</span>Members</button>
     <button class="tab" onclick="showTab('more')" id="tab-more"><span class="tab-icon" id="tab-more-icon">⚙️</span><span id="tab-more-label">Admin</span></button>
   </div>
@@ -3141,6 +3141,17 @@ textarea.input{min-height:80px;resize:vertical;}
   </div>
 </div>
 
+<!-- Global Shift-Approval Banner (car shift requests; admin only, every tab) -->
+<div id="globalShiftBanner" style="display:none;position:fixed;left:0;right:0;bottom:calc(70px + env(safe-area-inset-bottom));z-index:899;padding:0 12px;pointer-events:none;">
+  <div onclick="showTab('equipment');setEqTab('car',document.getElementById('eqCarTab'));" style="pointer-events:auto;cursor:pointer;background:linear-gradient(135deg,rgba(230,81,0,.42),rgba(20,12,4,.66));-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5);color:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);display:flex;align-items:center;gap:10px;border:1px solid rgba(255,167,90,.55);animation:pendingPulse 1.8s ease-in-out infinite;">
+    <div style="font-size:18px;">🚗</div>
+    <div style="flex:1;min-width:0;">
+      <div id="globalShiftTitle" style="font-size:13px;font-weight:800;letter-spacing:.3px;color:#ffcc99;text-shadow:0 1px 3px rgba(0,0,0,.4);">— shift requests</div>
+      <div id="globalShiftSub" style="font-size:11px;color:rgba(255,255,255,.82);">Tap to approve</div>
+    </div>
+    <div style="font-size:18px;color:#ffcc99;">›</div>
+  </div>
+</div>
 <style>
 @keyframes scanLineAnim{
   0%{top:16px;opacity:1}
@@ -16233,6 +16244,17 @@ function showCarBookingSuccess(startTime, endTime, date, memberName, note) {
 }
 
 function startCarShift(bookingId) {
+  var bkg = carSchedule.find(function(x){ return x.id===bookingId; });
+  var carItemNow = (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
+  var carIsOutNow = carItemNow && String(carItemNow.status||'').toLowerCase() === 'out';
+  // Already marked active but the car was never actually signed OUT → don't re-hit the
+  // backend (it would error / double-count). Just route them to sign COBC 4 out.
+  if (bkg && bkg.status === 'active' && !carIsOutNow) {
+    if (!confirm('Sign COBC 4 out for your shift now?')) return;
+    showToast('🔑 Sign COBC 4 OUT in Inventory now');
+    setTimeout(function(){ navigateToCarCheckout('OUT'); }, 500);
+    return;
+  }
   if (!confirm('Start your shift? You\'ll be taken to sign COBC 4 out in Inventory.')) return;
   postJ('startCarShift', {id:bookingId})
     .then(function(d) {
@@ -16272,15 +16294,29 @@ function cancelCarShift(bookingId) {
 
 function deleteCarShift(bookingId, fromAdminHistory) {
   if (!confirm('Permanently delete this booking? This cannot be undone.')) return;
-  postJ('deleteCarShift', {id:bookingId})
+  var bkg = carSchedule.find(function(x){ return x.id===bookingId; });
+  // Old bookings created offline have a local-only id the Sheet never stored, so the
+  // backend can't match them. Send matching fields as a fallback so the server can
+  // find and remove the row by date+member+time.
+  var payload = {id:bookingId};
+  if (bkg && /^local_/.test(String(bookingId))) {
+    payload.matchDate = bkg.date; payload.matchMember = bkg.memberId;
+    payload.matchStart = bkg.startTime; payload.matchEnd = bkg.endTime;
+  }
+  postJ('deleteCarShift', payload)
     .then(function(d) {
-      if (d.success) {
+      if (d && d.success) {
         carSchedule = carSchedule.filter(function(x){ return x.id!==bookingId; });
+        try { localStorage.removeItem(CAR_SCHED_CACHE_KEY); } catch(e) {}
         if (fromAdminHistory) { renderAdminCarHistory(); renderAdminCarHistory2(); }
         else { renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); renderCarHistory(); }
         showToast('Booking deleted');
-      } else { showToast('Error: '+(d.error||'Unknown')); }
-    }).catch(function(){ showToast('Network error'); });
+        setTimeout(function(){ loadCarSchedule && loadCarSchedule(); }, 800);
+      } else {
+        // Surface the real reason instead of silently doing nothing.
+        showToast('Could not delete: ' + ((d&&d.error) || 'not found on server'));
+      }
+    }).catch(function(){ showToast('Network error — delete not saved'); });
 }
 
 // Notify admins/dispatch of new pending shift requests (once per request id).
@@ -16306,11 +16342,29 @@ function checkPendingShiftRequests() {
   _updateCarReqBadge(pending.length);
 }
 function _updateCarReqBadge(n) {
-  var badge = document.getElementById('carReqBadge');
-  if (!badge) return;
   var isPriv = isAdminUser() || (typeof isDispatchUser==='function' && isDispatchUser());
-  if (isPriv && n > 0) { badge.textContent = n; badge.style.display = 'inline-block'; }
-  else { badge.style.display = 'none'; }
+  var badge = document.getElementById('carReqBadge');
+  if (badge) {
+    if (isPriv && n > 0) { badge.textContent = n; badge.style.display = 'inline-block'; }
+    else { badge.style.display = 'none'; }
+  }
+  // Badge on the main Equipment nav tab (so admin sees it from any tab)
+  var navBadge = document.getElementById('tab-equipment-badge');
+  if (navBadge) {
+    if (isPriv && n > 0) { navBadge.textContent = n; navBadge.style.display = ''; }
+    else { navBadge.style.display = 'none'; }
+  }
+  // Global floating shift-approval banner (admin only, every tab except the Car tab itself)
+  var gb = document.getElementById('globalShiftBanner');
+  if (gb) {
+    var onCarTab = (typeof currentTab!=='undefined' && currentTab==='equipment' && typeof eqTab!=='undefined' && eqTab==='car');
+    if (isPriv && n > 0 && !onCarTab) {
+      gb.style.display = 'block';
+      var t=document.getElementById('globalShiftTitle'), s=document.getElementById('globalShiftSub');
+      if(t) t.textContent = n+' shift request'+(n>1?'s':'')+' to approve';
+      if(s) s.textContent = 'Tap to review on the Car tab';
+    } else { gb.style.display = 'none'; }
+  }
 }
 
 function editCarShiftNote(bookingId) {
@@ -16323,9 +16377,9 @@ function editCarShiftNote(bookingId) {
   if (next===null) return;
   next = next.trim();
   postJ('updateCarShiftNote', {id:bookingId, note:next}).then(function(d){
-    if (d && d.success) { bkg.note = next; renderCarDay(carSelectedDate); showToast('Note updated'); }
-    else showToast((d&&d.error)||'Could not update note');
-  }).catch(function(){ showToast('Network error'); });
+    if (d && d.success) { bkg.note = next; try{localStorage.removeItem(CAR_SCHED_CACHE_KEY);}catch(e){} renderCarDay(carSelectedDate); showToast('Note updated'); }
+    else showToast('Could not update note: ' + ((d&&d.error)||'not found on server'));
+  }).catch(function(){ showToast('Network error — note not saved'); });
 }
 
 function markCarShiftNoShow(bookingId) {
