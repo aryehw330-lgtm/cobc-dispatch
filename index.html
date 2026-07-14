@@ -17,7 +17,15 @@
 html.booting *,html.booting *::before,html.booting *::after{animation:none!important;transition:none!important;}
 html.booting #login-screen{transition:none!important;}
 /* but DO allow the shader canvas to fade in smoothly during boot (avoids the pop) */
-html.booting #loginShader{transition:opacity .6s ease!important;}</style>
+html.booting #loginShader{transition:opacity .6s ease!important;}
+/* Returning user (saved session): never paint the login screen at all — go straight
+   to the app. Class is set synchronously below, before <body> parses. */
+html.has-session #login-screen{display:none!important;}</style>
+<script>
+  // Set has-session BEFORE the body parses so the login screen never flashes for
+  // returning users (the CSS above hides it immediately).
+  try{ var _s=JSON.parse(localStorage.getItem('cobc_session')||'null'); if(_s&&_s.unit&&_s.role) document.documentElement.classList.add('has-session'); }catch(e){}
+</script>
 <script>
   // Remove the boot-suppression class once the app has had a chance to settle:
   // after window 'load' plus a short delay, or a hard cap so it never sticks.
@@ -908,29 +916,20 @@ textarea.input{min-height:80px;resize:vertical;}
   (function(){
     var hasSession=false;
     try{ var _ss=JSON.parse(localStorage.getItem('cobc_session')||'null'); hasSession=!!(_ss&&_ss.unit&&_ss.role); }catch(e){}
+    window._hideBootCover=function(){};   // no-op: no cover anymore
     if(!hasSession) return;   // first-time user → normal login form
-    document.documentElement.classList.add('session-boot');
-    var _bootStart=Date.now(), _MIN_COVER=650;
-    function hideCover(){
-      var s=document.getElementById('login-screen');
-      if(!s || s._booted) return;
-      // Enforce a minimum on-screen time so the cover always spans the whole ~1.5s
-      // launch-glitch window, even if finishLogin fires very early on a warm cache.
-      var elapsed=Date.now()-_bootStart;
-      if(elapsed<_MIN_COVER){ setTimeout(hideCover, _MIN_COVER-elapsed); return; }
-      s._booted=true;
-      s.style.transition='opacity .28s ease'; s.style.opacity='0';
-      setTimeout(function(){
-        try{ s.style.display='none'; s.style.pointerEvents='none'; s.style.visibility='hidden'; s.style.zIndex='-1'; s.classList.add('hidden'); }catch(e){}
-        try{ document.documentElement.classList.remove('session-boot'); }catch(e){}
-      }, 300);
+    // Returning user: skip the "Logging you in…" cover entirely — hide the login
+    // screen and reveal the app synchronously at parse time so launch lands STRAIGHT
+    // on the Open Calls tab. (Boot flashes are masked by the html.booting animation
+    // suppression + the dark background that matches the app.)
+    function go(){
+      var ls=document.getElementById('login-screen');
+      if(ls){ ls.style.display='none'; ls.style.visibility='hidden'; ls.style.pointerEvents='none'; ls.style.zIndex='-1'; ls.classList.add('hidden'); }
+      var app=document.getElementById('app');
+      if(app){ app.classList.remove('hidden'); app.style.display=''; }
     }
-    window._hideBootCover = hideCover;
-    // The cover is lifted by finishLogin once real session data has rendered (see the
-    // requestAnimationFrame call there). These are only fallbacks so it can never stick
-    // if the verify is offline/slow.
-    window.addEventListener('load', function(){ setTimeout(hideCover, 1600); });
-    setTimeout(hideCover, 3500);   // hard cap
+    if(document.getElementById('login-screen')) go();
+    else document.addEventListener('DOMContentLoaded', go);
   })();
 </script>
 
