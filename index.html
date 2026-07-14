@@ -3260,10 +3260,14 @@ function _checkAppVersion(){
       const theirs=doc.exists?_buildToken((doc.data()||{}).build):'';
       if(theirs && mine && theirs>mine){
         const key='cobc_forced_'+theirs;
-        if(sessionStorage.getItem(key)) return;   // already tried this version — never loop
+        if(sessionStorage.getItem(key)) return;
         sessionStorage.setItem(key,'1');
+        // A newer build exists. DO NOT reload the page here — a forced location.replace
+        // a few seconds after open is exactly what restarted the app mid-action (e.g.
+        // right after tapping "+ New Call"), wiping the open modal. Instead we just tell
+        // the service worker to refresh its cache in the background; the new build is
+        // picked up on the NEXT natural launch. No interruption to the current session.
         if('serviceWorker' in navigator){ try{ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{ try{ r.update(); }catch(e){} })); }catch(e){} }
-        location.replace(location.pathname+'?v='+Date.now());
         return;
       }
       // We're current (or newer). Admin/dispatch on a newer build publishes it so others roll forward.
