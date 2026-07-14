@@ -4909,13 +4909,13 @@ function _fsRunQuery(collection, where){
   });
 }
 function _fsRestFetchCallsScoped(){
-  const yearStart=_yearStartMs();
-  const yearQ=_fsRunQuery('calls',{fieldFilter:{field:{fieldPath:'createdAt'},op:'GREATER_THAN_OR_EQUAL',value:{integerValue:String(Math.floor(yearStart))}}});
+  const recentStart=_recentWindowStartMs();
+  const recentQ=_fsRunQuery('calls',{fieldFilter:{field:{fieldPath:'createdAt'},op:'GREATER_THAN_OR_EQUAL',value:{integerValue:String(Math.floor(recentStart))}}});
   const openQ=_fsRunQuery('calls',{fieldFilter:{field:{fieldPath:'status'},op:'IN',value:{arrayValue:{values:[{stringValue:'open'},{stringValue:'active'},{stringValue:'draft'}]}}}});
-  return Promise.all([yearQ,openQ]).then(([yearCalls,openCalls])=>{
+  return Promise.all([recentQ,openQ]).then(([recentCalls,openCalls])=>{
     const map=new Map();
     (openCalls||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
-    (yearCalls||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+    (recentCalls||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
     return [...map.values()];
   }).catch(e=>{
     console.warn('_fsRestFetchCallsScoped failed, falling back to full fetch:',e);
@@ -4923,12 +4923,16 @@ function _fsRestFetchCallsScoped(){
   });
 }
 
-// ── Year-windowed call cache helpers ────────────────────────────────────────
-// The live listeners below hold only the CURRENT YEAR + still-open calls so the
-// app stays light no matter how many years of history pile up. History & Stats
-// need the full archive, so we lazy-load every call once (via REST — works even
-// through iOS ITP) the first time those views open, then merge with the live set.
-function _yearStartMs(){ return new Date(new Date().getFullYear(),0,1).getTime(); }
+// ── Recent-window call cache helpers ────────────────────────────────────────
+// The live listeners below hold only the LAST 7 DAYS + still-open calls so the
+// app stays light no matter how many years of history pile up (a full calendar
+// year was tried first, but re-reads on every listener reconnect — which happens
+// constantly on mobile PWAs backgrounding/foregrounding — made that far too
+// read-expensive; 7 days keeps the same reconnect pattern nearly free).
+// History & Stats need the full archive, so we lazy-load every call once (via
+// REST — works even through iOS ITP) the first time those views open, then
+// merge with the live set.
+function _recentWindowStartMs(){ return Date.now() - 7*86400000; }
 let _archiveCalls=[], _archiveLoaded=false, _archiveLoading=null;
 function ensureFullCallHistory(){
   if(_archiveLoaded) return Promise.resolve();
@@ -5000,17 +5004,17 @@ function initFirestore(){
     });
   }
   const db=firebase.firestore();
-  // ── Year-windowed live load ────────────────────────────────────────────────
+  // ── Recent-windowed live load ──────────────────────────────────────────────
   // Rather than stream the ENTIRE (ever-growing) calls collection, we listen to
   // just two bounded slices and merge them:
-  //   1. every call created in the current calendar year, and
+  //   1. every call created in the last 7 days, and
   //   2. every still-unfinished call (open/active/draft) regardless of age — so a
-  //      call opened Dec 31 that's still running Jan 1 is never dropped.
-  // Past years load on demand for History + Stats (ensureFullCallHistory()).
+  //      call opened 8+ days ago that's still running is never dropped.
+  // Anything older loads on demand for History + Stats (ensureFullCallHistory()).
   // If either scoped listener errors (e.g. a missing index), we automatically
   // fall back to the original full-collection listener so the board never goes dark.
-  const _yearStart=_yearStartMs();
-  let _bufYear=null, _bufOpen=null, _unsubYear=null, _unsubOpen=null, _fellBack=false;
+  const _recentStart=_recentWindowStartMs();
+  let _bufRecent=null, _bufOpen=null, _unsubRecent=null, _unsubOpen=null, _fellBack=false;
   function _snapDocs(snap){
     if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
     if(!snap.metadata.fromCache)clearSyncError();
@@ -5020,18 +5024,18 @@ function initFirestore(){
     return docs;
   }
   function _applyCallsMerge(){
-    if(_bufYear===null && _bufOpen===null) return;
+    if(_bufRecent===null && _bufOpen===null) return;
     const map=new Map();
     (_bufOpen||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
-    (_bufYear||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+    (_bufRecent||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
     const firestoreCalls=[...map.values()];
     const firestoreIds=new Set(map.keys());
     // Keep (and upload) only genuinely-unsynced calls that belong IN the window —
-    // recent (this year) or still unfinished. Old finished calls outside the window
-    // are intentionally not re-kept here; they reload on demand for History/Stats.
+    // recent (last 7 days) or still unfinished. Old finished calls outside the
+    // window are intentionally not re-kept here; they reload on demand for History/Stats.
     const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>{
       if(!c.id||firestoreIds.has(c.id)||_deletedCallIds.has(c.id)||_isResetPurged(c))return false;
-      return (c.createdAt||0)>=_yearStart || ['open','active','draft'].includes(c.status);
+      return (c.createdAt||0)>=_recentStart || ['open','active','draft'].includes(c.status);
     });
     localOnly.forEach(call=>firestoreUpsertCall(call));
     STATE.calls=[...firestoreCalls,...localOnly];
@@ -5043,20 +5047,20 @@ function initFirestore(){
   }
   function _attachFullListener(){
     if(_fellBack)return; _fellBack=true;
-    try{ _unsubYear&&_unsubYear(); }catch(e){}
+    try{ _unsubRecent&&_unsubRecent(); }catch(e){}
     try{ _unsubOpen&&_unsubOpen(); }catch(e){}
     console.warn('calls: falling back to full-collection listener');
     db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
       const docs=_snapDocs(snap); if(docs===null)return;
-      _bufYear=docs; _bufOpen=[]; _applyCallsMerge();
+      _bufRecent=docs; _bufOpen=[]; _applyCallsMerge();
     }catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},
     e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
   }
   try{
-    _unsubYear=db.collection('calls').where('createdAt','>=',_yearStart).onSnapshot(snap=>{
-      try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufYear=d;} _applyCallsMerge(); }
-      catch(e){console.warn('calls year snap:',e);}
-    }, e=>{console.warn('calls year listener error:',e); _attachFullListener();});
+    _unsubRecent=db.collection('calls').where('createdAt','>=',_recentStart).onSnapshot(snap=>{
+      try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufRecent=d;} _applyCallsMerge(); }
+      catch(e){console.warn('calls recent snap:',e);}
+    }, e=>{console.warn('calls recent listener error:',e); _attachFullListener();});
     _unsubOpen=db.collection('calls').where('status','in',['open','active','draft']).onSnapshot(snap=>{
       try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufOpen=d;} _applyCallsMerge(); }
       catch(e){console.warn('calls open snap:',e);}
@@ -5075,7 +5079,7 @@ function initFirestore(){
   // Register cleanup so initFirestore() can safely be called again after login
   window._firestoreCleanup=()=>{
     if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}
-    try{_unsubYear&&_unsubYear();}catch(e){}
+    try{_unsubRecent&&_unsubRecent();}catch(e){}
     try{_unsubOpen&&_unsubOpen();}catch(e){}
     try{_unsubReset&&_unsubReset();}catch(e){}
   };
