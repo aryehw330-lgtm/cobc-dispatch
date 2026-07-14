@@ -5029,26 +5029,35 @@ function _tryRestoreSession() {
     if (!s || !s.unit || !s.role) return;
     // Already logged in? skip
     if (SESSION.unit) return;
+    // Paint from cache IMMEDIATELY so returning users see the app instantly instead
+    // of a black shell while the Firestore re-verify round-trips. The verify below
+    // still runs and refreshes in the background.
+    try {
+      SESSION = s;
+      const _lsNow=document.getElementById('login-screen');
+      if(_lsNow){ _lsNow.style.display='none'; _lsNow.style.pointerEvents='none'; _lsNow.style.visibility='hidden'; _lsNow.style.zIndex='-1'; _lsNow.classList.add('hidden'); }
+      const _appNow=document.getElementById('app'); if(_appNow){ _appNow.classList.remove('hidden'); _appNow.style.display=''; }
+      const rd = {admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};
+      const roleLabel = document.getElementById('roleLabel'); if (roleLabel) roleLabel.textContent = rd[s.role]||s.role;
+      const topSub = document.getElementById('topbarSub'); if (topSub) topSub.textContent = s.name+' · '+(s.unit||'');
+      _applyRoleUI(s.role);
+      renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner();
+    } catch(e){}
     // Re-verify against Firestore via REST (SDK hangs on iOS ITP; REST is plain HTTPS).
-    // If the fetch fails or times out, fall through to cached session restore.
+    // If the fetch fails or times out, the cached paint above already stands.
     const _restoreTimeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),6000));
     Promise.race([_fsRestGetDoc('members',s.unit),_restoreTimeout]).then(member=>{
       if(!member){localStorage.removeItem('cobc_session');return;}
       finishLogin(member);
     }).catch(()=>{
-      // Offline or timeout — restore from cache without re-verify
-      SESSION = s;
-      const _lsOff=document.getElementById('login-screen');_lsOff.style.display='none';_lsOff.style.pointerEvents='none';_lsOff.style.visibility='hidden';_lsOff.style.zIndex='-1';_lsOff.style.transform='translateX(-110vw)';_lsOff.style.position='static';_lsOff.style.height='0';_lsOff.style.overflow='hidden';_lsOff.classList.add('hidden');const _appOff=document.getElementById('app');_appOff.classList.remove('hidden');_appOff.style.display='';
-      const rd = {admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};
-      const roleLabel = document.getElementById('roleLabel');
-      if (roleLabel) roleLabel.textContent = rd[s.role]||s.role;
-      const topSub = document.getElementById('topbarSub');
-      if (topSub) topSub.textContent = s.name+' · '+(s.unit||'');
-      _applyRoleUI(s.role);
-      try{ renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner(); }catch(e){}
+      // Offline or timeout — cached session already painted above; nothing more to do.
     });
   } catch(e) { try { localStorage.removeItem('cobc_session'); } catch(_){} }
 }
+// Fire the cached paint the instant the DOM is ready — don't wait for the Firebase
+// SDK to finish loading. The call in initFirebaseApp() still runs but no-ops once
+// SESSION is set (guarded above).
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_tryRestoreSession); else _tryRestoreSession();
 
 function _applyRoleUI(role) {
   const isDispatch = ['admin','dispatch'].includes(role);
