@@ -16311,13 +16311,27 @@ function startCarShift(bookingId) {
 }
 
 function endCarShift(bookingId) {
-  if (!confirm('Return COBC 4? Sign it IN in Inventory to complete.')) return;
-  // Phase 1: just open the inventory check-in modal.
-  // The shift is NOT marked done yet — that happens inside submitCO when the
-  // inventory sign-in actually succeeds. This means if the user dismisses the
-  // modal without finishing, the shift stays active and the banner stays visible.
-  window._pendingEndShiftId = bookingId;
-  navigateToCarCheckout('IN');
+  if (!confirm('Return COBC 4? You\'ll be taken to sign it back IN in Inventory.')) return;
+  // Mirror the equipment app: persist the shift end to the backend FIRST (marks
+  // CarSchedule done + ActualSignIn on the sheet), THEN send them to inventory to
+  // physically sign COBC 4 in. Deferring this to submitCO meant nothing persisted
+  // if the inventory modal wasn't completed.
+  window._pendingEndShiftId = bookingId; // still consumed by submitCO as a backup
+  postJ('endCarShift', {id:bookingId, member:(SESSION&&SESSION.unit)||''})
+    .then(function(d){
+      if (d && d.success) {
+        var b = carSchedule.find(function(x){ return x.id===bookingId; });
+        if (b) { b.status='done'; b.actualSignIn=new Date().toISOString(); }
+        try{ localStorage.removeItem(CAR_SCHED_CACHE_KEY); }catch(e){}
+        _lastCompactHtml=null; _lastLargeHtml=null;
+        renderCarCalendar&&renderCarCalendar(); if(carSelectedDate) renderCarDay&&renderCarDay(carSelectedDate); renderCarHistory&&renderCarHistory();
+        updateGlobalShiftBanner&&updateGlobalShiftBanner();
+        showToast('🏁 Sign COBC 4 IN in Inventory now');
+        setTimeout(function(){ loadCarSchedule&&loadCarSchedule(); }, 3000);
+      } else { showToast('⚠️ Shift end failed: '+((d&&d.error)||'Unknown')); }
+    }).catch(function(){ showToast('Network error ending shift — try again'); });
+  // Go sign the car in physically regardless (checkInOut persists separately).
+  setTimeout(function(){ navigateToCarCheckout('IN'); }, 700);
 }
 
 function cancelCarShift(bookingId) {
@@ -16696,14 +16710,20 @@ function _doUpdateGlobalShiftBanner() {
     return b.status === 'active' && parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10) === myId;
   });
 
-  // Safety net: if shift is marked active but the car is physically IN,
-  // the shift must have ended (signed in without using the banner).
-  // Mark it done locally so the banner clears immediately.
+  // Safety net: if shift is marked active but the car is physically IN, the shift
+  // ended (car signed in without using the Return Car banner). Mark it done locally
+  // AND persist to the backend — otherwise the next server sync resurrects it as
+  // 'active' and it keeps showing as car-out.
   if (activeShift && !carIsOut) {
+    var _autoSid = activeShift.id;
     activeShift.status = 'done';
     activeShift.actualSignIn = activeShift.actualSignIn || new Date().toISOString();
-    activeShift = null; // treat as no active shift for banner purposes
     try { localStorage.removeItem(CAR_SCHED_CACHE_KEY); } catch(e){}
+    if (_autoSid && !window['_autoEnded_'+_autoSid]) {
+      window['_autoEnded_'+_autoSid] = true;
+      try { postJ('endCarShift', {id:_autoSid, member:(SESSION&&SESSION.unit)||''}); } catch(e){}
+    }
+    activeShift = null; // treat as no active shift for banner purposes
   }
 
   // Fire 20/10-min reminders to the driver every refresh
