@@ -14898,6 +14898,28 @@ async function submitCO(action){
   // BACKGROUND PERSIST: fire the sheet writes; reconcile on failure.
   Promise.all(itemsSnapshot.map(it=>sheetPOST({action:'checkInOut',row:it.row,status:action,member,call,ccSel:ccnc,cncNote,loggedBy:loggedBy||null})))
     .then(()=>{
+      // Auto-START car shift when COBC 4 is actually signed OUT (the shift only
+      // becomes 'active' now — not when the Start Shift button was tapped).
+      if (action === 'OUT' && itemsSnapshot.some(it => isCarItem(it.name))) {
+        const startId = window._pendingStartShiftId || null;
+        window._pendingStartShiftId = null;
+        const startBkg = startId
+          ? (carSchedule||[]).find(function(b){ return b.id===startId; })
+          : (carSchedule||[]).find(function(b){ return b.status==='approved' && parseInt(String(b.memberId||'').replace(/^BC-?/i,''),10)===parseInt(String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,''),10); });
+        if (startBkg && startBkg.status==='approved') {
+          postJ('startCarShift', {id:startBkg.id, member:(SESSION&&SESSION.unit)||'', call}).then(function(d){
+            if (d && d.success) {
+              startBkg.status='active';
+              try{ var _so=JSON.parse(localStorage.getItem('cobc_shift_sawout')||'{}')||{}; _so[startBkg.id]=1; localStorage.setItem('cobc_shift_sawout', JSON.stringify(_so)); }catch(e){}
+              try { localStorage.removeItem(CAR_SCHED_CACHE_KEY); } catch(e){}
+              _lastCompactHtml=null; _lastLargeHtml=null;
+              renderCarCalendar&&renderCarCalendar(); if(carSelectedDate) renderCarDay&&renderCarDay(carSelectedDate); renderCarHistory&&renderCarHistory();
+              updateGlobalShiftBanner&&updateGlobalShiftBanner();
+              setTimeout(function(){ loadCarSchedule&&loadCarSchedule(); }, 3000);
+            } else { showToast('⚠️ Shift start failed: '+((d&&d.error)||'Unknown')); }
+          }).catch(function(){ showToast('Network error starting shift'); });
+        }
+      }
       // Auto-end car shift when COBC 4 is signed back IN
       if (action === 'IN' && itemsSnapshot.some(it => isCarItem(it.name))) {
         // Prefer the pending shift ID (set by endCarShift banner tap); fall back
@@ -16301,18 +16323,15 @@ function startCarShift(bookingId) {
     return;
   }
   if (!confirm('Start your shift? You\'ll be taken to sign COBC 4 out in Inventory.')) return;
-  postJ('startCarShift', {id:bookingId})
-    .then(function(d) {
-      if (d.success) {
-        var b = carSchedule.find(function(x){ return x.id===bookingId; });
-        if (b) b.status='active';
-        try { localStorage.removeItem(CAR_SCHED_CACHE_KEY); } catch(e) {}
-        renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); renderCarHistory();
-        updateGlobalShiftBanner&&updateGlobalShiftBanner();
-        showToast('🔑 Sign COBC 4 OUT in Inventory now');
-        setTimeout(function(){ navigateToCarCheckout('OUT'); }, 900);
-      } else { showToast('Error: '+(d.error||'Unknown')); }
-    }).catch(function(){ showToast('Network error'); });
+  if (!confirm('Start your shift? You\'ll be taken to sign COBC 4 out in Inventory.')) return;
+  // Do NOT mark the shift active yet — that only happens once the car is actually
+  // signed OUT in inventory (handled in submitCO). Until then the shift stays
+  // 'approved' so the Start Shift button keeps showing. This prevents a shift being
+  // "started" when the user taps the button but never signs the car out.
+  window._pendingStartShiftId = bookingId;
+  window._carCobc4Auth = 'OUT';
+  showToast('🔑 Sign COBC 4 OUT in Inventory to start your shift');
+  setTimeout(function(){ navigateToCarCheckout('OUT'); }, 400);
 }
 
 function endCarShift(bookingId) {
