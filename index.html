@@ -2376,7 +2376,10 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="modal" style="max-height:92dvh;">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:18px;font-weight:700;color:var(--text);">New Dispatch Call</div>
+      <div style="display:flex;align-items:baseline;gap:6px;font-size:18px;font-weight:700;color:var(--text);">
+        <span>New Dispatch Call</span>
+        <input id="newCallNumInput" type="number" inputmode="numeric" onchange="_onEditExpectedNum(this)" style="width:64px;font-size:18px;font-weight:700;color:var(--text);font-family:inherit;background:transparent;border:none;border-bottom:1.5px dashed var(--border2);padding:0 2px;text-align:center;"/>
+      </div>
       <button onclick="hideModal('newCallModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">x</button>
     </div>
 
@@ -2692,6 +2695,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="modal-handle"></div>
     <div class="modal-title">Edit Call</div>
     <input type="hidden" id="editCallId"/>
+    <div class="input-group"><label class="input-label">Call #</label><input class="input" type="number" inputmode="numeric" id="editCallNum" placeholder="e.g. 127"/></div>
     <div class="input-group"><label class="input-label">Call Type</label>
       <select class="input" id="editCallType" onchange="onEditCallTypeChange()">
         <option value="flat_tire_no_spare">Flat Tire - No Spare</option><option value="flat_tire_spare">Flat Tire - Has Spare</option>
@@ -5789,7 +5793,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof populateCarYearSelect==='function')populateCarYearSelect('carYear');if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){try{var _ne=document.getElementById('newCallNumInput');if(_ne){window._newCallNumOverride=null;_ne.value=_peekNextCallNum();}}catch(e){}if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof populateCarYearSelect==='function')populateCarYearSelect('carYear');if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');if(id==='callDetailModal')window._openDetailId=null;}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -7292,6 +7296,39 @@ function _nextCallNum() {
   return next;
 }
 
+// Handler for the editable call-# field in the New Call header. Records a manual
+// override (or clears it when blank / equal to the auto value).
+function _onEditExpectedNum(el){
+  const raw=(el.value||'').trim().replace(/^#/,'');
+  if(raw===''){ window._newCallNumOverride=null; el.value=_peekNextCallNum(); return; }
+  window._newCallNumOverride=parseInt(raw,10)||null;
+}
+// Resolve the number a new call should get: manual override if set (and free),
+// otherwise the normal sequential next. Consumes/advances the counter as needed.
+function _resolveNewCallNum(){
+  const ov=window._newCallNumOverride;
+  if(ov){
+    const clash=(STATE.calls||[]).some(c=>String(c.callNum||'')===String(ov));
+    window._newCallNumOverride=null;
+    if(clash){ showToast('Call #'+ov+' already used — using next number'); return _nextCallNum(); }
+    // Advance the stored counter so future calls continue past this number.
+    try{ const key='cobc_callnum_'+new Date().getFullYear(); const stored=parseInt(localStorage.getItem(key)||'0',10)||0; if(ov>stored) localStorage.setItem(key,String(ov)); }catch(e){}
+    return ov;
+  }
+  return _nextCallNum();
+}
+// Peek the next call number WITHOUT consuming it (for the New Call preview).
+function _peekNextCallNum() {
+  const year = new Date().getFullYear();
+  const key = 'cobc_callnum_' + year;
+  const stateMax = (STATE.calls||[]).reduce((m,c) => {
+    if (_appResetAt && (c.createdAt||0) <= _appResetAt) return m;
+    const y = c.createdAt ? new Date(c.createdAt).getFullYear() : 0;
+    return y === year ? Math.max(m, c.callNum||0) : m;
+  }, 0);
+  const stored = parseInt(localStorage.getItem(key)||'0', 10)||0;
+  return Math.max(stateMax, stored) + 1;
+}
 // Send the current New-Call form info to the Chaverim Interstate WhatsApp number.
 const INTERSTATE_WA = '18458524357';
 function sendToInterstate(){
@@ -7399,7 +7436,7 @@ function createCall() {
 
   const call = {
     id:'C'+Date.now(),
-    callNum: dontPublish ? null : _nextCallNum(),
+    callNum: dontPublish ? null : _resolveNewCallNum(),
     type, address, town, caller, phone, priority, notes,
     status: dontPublish?'draft':'open',
     createdAt: Date.now(),
@@ -8359,7 +8396,7 @@ function openCallDetail(id) {
 
   // Call number (left) · town (right)
   html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
-    <span class="call-num" style="flex-shrink:0;">#${call.callNum||call.id.slice(-5)}</span>
+    <span class="call-num" style="flex-shrink:0;${(['admin','dispatch'].includes(SESSION.role))?'cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;':''}" ${(['admin','dispatch'].includes(SESSION.role))?`onclick="openCallEdit('${call.id}')" title="Tap to edit call #"`:''}>#${call.callNum||call.id.slice(-5)}</span>
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
       ${call.createdBy?`<span class="cd-town" style="font-size:12px;font-weight:800;white-space:nowrap;">Dispatched by ${getMemberNameD(call.createdBy)||('BC-'+String(call.createdBy).replace(/^BC-?/i,''))}</span>`:''}
       <div style="display:flex;align-items:center;gap:6px;">
@@ -8721,6 +8758,7 @@ function openCallEdit(id) {
   document.getElementById('editCallPhone').value=call.phone||'';
   document.getElementById('editCallPriority').value=call.priority||'normal';
   document.getElementById('editCallNotes').value=call.notes||'';
+  const cnField=document.getElementById('editCallNum'); if(cnField) cnField.value=call.callNum||'';
   // Hydrate no-spare action
   document.getElementById('editNoSpareAction').value = call.noSpareAction||'';
   document.querySelectorAll('#editNoSpareSection .ns-btn').forEach(b=>b.classList.toggle('active', b.dataset.action===call.noSpareAction));
@@ -8819,6 +8857,20 @@ function saveCallEdit() {
   call.phone=document.getElementById('editCallPhone').value.trim();
   call.priority=document.getElementById('editCallPriority').value;
   call.notes=document.getElementById('editCallNotes').value.trim();
+  // Editable call number (admin/dispatch may renumber). Blank keeps the existing one;
+  // a duplicate of another call's number is rejected so lookups stay unambiguous.
+  const cnEl=document.getElementById('editCallNum');
+  if(cnEl){
+    const raw=cnEl.value.trim();
+    if(raw!==''){
+      const newNum=raw.replace(/^#/,'');
+      if(String(newNum)!==String(call.callNum||'')){
+        const clash=STATE.calls.find(c=>c.id!==id && String(c.callNum||'')===String(newNum));
+        if(clash){ showToast('Call #'+newNum+' is already used by another call'); return; }
+        call.callNum=newNum;
+      }
+    }
+  }
   // Save editable vehicle fields (for vehicle-related call types)
   if(['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'].includes(call.type)){
     const car=readEditCar();
