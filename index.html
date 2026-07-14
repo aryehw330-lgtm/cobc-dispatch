@@ -888,34 +888,39 @@ textarea.input{min-height:80px;resize:vertical;}
 </head>
 <body>
 
-<!-- Boot splash: a branded dark cover shown from the first paint until the app has
-     fully rendered once. It hides the launch sequence's two flashes — the black
-     empty shell and the half-rendered home ("No dispatcher set" before data lands).
-     Only used for RETURNING users (a saved session); first-time users go straight
-     to the login screen. -->
-<div id="boot-splash" style="position:fixed;inset:0;z-index:99998;background:radial-gradient(ellipse at top,#1c1814 0%,#0a0a0a 55%,#000 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;">
-  <div style="width:82px;height:82px;border-radius:20px;background:linear-gradient(160deg,#2a2a2a,#000);border:1px solid rgba(212,169,58,.5);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 30px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08);">
-    <span style="font:800 26px/1 -apple-system,system-ui,sans-serif;letter-spacing:1px;color:#d4a93a;">COBC</span>
-  </div>
-</div>
+<!-- Boot cover: for RETURNING users (saved session) we keep the real login screen
+     (with its live shader background) on top during launch and swap the sign-in form
+     for a "Logging you in…" message. The app renders behind it; once it's fully
+     painted the login screen fades away. This hides the launch flashes (black shell,
+     half-rendered home) behind the branded screen the user already knows.
+     First-time users see the normal login form — no cover. -->
+<style>
+  .session-boot #login-screen .login-card{display:none!important;}
+  .login-logging{display:none;flex-direction:column;align-items:center;gap:16px;margin-top:8px;}
+  .session-boot #login-screen .login-logging{display:flex;}
+  .login-logging .spin{width:32px;height:32px;border:3px solid rgba(212,169,58,.25);border-top-color:#d4a93a;border-radius:50%;animation:loginSpin .8s linear infinite;}
+  @keyframes loginSpin{to{transform:rotate(360deg);}}
+  .login-logging .txt{color:rgba(255,255,255,.9);font:700 15px/1 -apple-system,system-ui,sans-serif;letter-spacing:.4px;text-shadow:0 1px 4px rgba(0,0,0,.5);}
+</style>
 <script>
-  // Decide the splash's fate as early as possible.
   (function(){
-    function hideSplash(){
-      var s=document.getElementById('boot-splash');
-      if(!s || s._gone) return; s._gone=true;
-      s.style.transition='opacity .22s ease'; s.style.opacity='0';
-      setTimeout(function(){ try{ s.remove(); }catch(e){} }, 240);
-    }
-    window._hideBootSplash = hideSplash;
     var hasSession=false;
     try{ var _ss=JSON.parse(localStorage.getItem('cobc_session')||'null'); hasSession=!!(_ss&&_ss.unit&&_ss.role); }catch(e){}
-    if(!hasSession){ hideSplash(); return; }   // first-time user → show login, no splash
-    // Returning user: keep the splash up briefly so the cached paint AND the first
-    // Firestore snapshot (dispatcher on duty, etc.) land before it fades. Hard cap
-    // ensures it can never stick.
-    window.addEventListener('load', function(){ setTimeout(hideSplash, 550); });
-    setTimeout(hideSplash, 3000);
+    if(!hasSession) return;   // first-time user → normal login form
+    document.documentElement.classList.add('session-boot');
+    function hideCover(){
+      var s=document.getElementById('login-screen');
+      if(!s || s._booted) return; s._booted=true;
+      s.style.transition='opacity .28s ease'; s.style.opacity='0';
+      setTimeout(function(){
+        try{ s.style.display='none'; s.style.pointerEvents='none'; s.style.visibility='hidden'; s.style.zIndex='-1'; s.classList.add('hidden'); }catch(e){}
+        try{ document.documentElement.classList.remove('session-boot'); }catch(e){}
+      }, 300);
+    }
+    window._hideBootCover = hideCover;
+    // Keep the cover up until the cached paint AND first Firestore snapshot land, then fade.
+    window.addEventListener('load', function(){ setTimeout(hideCover, 550); });
+    setTimeout(hideCover, 3000);   // hard cap so it can never stick
   })();
 </script>
 
@@ -946,6 +951,10 @@ textarea.input{min-height:80px;resize:vertical;}
       Your role is set automatically by your BC#<br/>
       <span style="color:rgba(255,255,255,.7);">Member · Dispatch · Admin · Equipment</span>
     </div>
+  </div>
+  <div class="login-logging">
+    <div class="spin"></div>
+    <div class="txt">Logging you in…</div>
   </div>
   <div style="margin-top:24px;font-size:10px;color:rgba(255,255,255,.28);text-align:center;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">COBC Operations Platform &middot; v2.1</div>
 </div>
@@ -5065,8 +5074,12 @@ function _tryRestoreSession() {
     // still runs and refreshes in the background.
     try {
       SESSION = s;
-      const _lsNow=document.getElementById('login-screen');
-      if(_lsNow){ _lsNow.style.display='none'; _lsNow.style.pointerEvents='none'; _lsNow.style.visibility='hidden'; _lsNow.style.zIndex='-1'; _lsNow.classList.add('hidden'); }
+      // During session-boot the login screen is intentionally the cover; leave it up
+      // (hideCover fades it out on its timer). Otherwise hide it now.
+      if(!document.documentElement.classList.contains('session-boot')){
+        const _lsNow=document.getElementById('login-screen');
+        if(_lsNow){ _lsNow.style.display='none'; _lsNow.style.pointerEvents='none'; _lsNow.style.visibility='hidden'; _lsNow.style.zIndex='-1'; _lsNow.classList.add('hidden'); }
+      }
       const _appNow=document.getElementById('app'); if(_appNow){ _appNow.classList.remove('hidden'); _appNow.style.display=''; }
       const rd = {admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};
       const roleLabel = document.getElementById('roleLabel'); if (roleLabel) roleLabel.textContent = rd[s.role]||s.role;
