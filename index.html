@@ -16049,11 +16049,19 @@ function renderCarDay(dateStr) {
   } else {
     el.innerHTML = shifts.map(function(b) {
       var isMine = myId && parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10)===parseInt(myId,10);
-      var cls = 'car-shift-card'+(b.status==='pending'?' pending':'')+(isMine?' mine':'')+(b.status==='active'?' active-shift':'')+(b.status==='done'?' done-shift':'');
+      // Is COBC 4 actually signed out right now? An "active" booking whose car is still
+      // IN means the person tapped Start Shift but never signed the car out — don't show
+      // it as a live/out shift.
+      var _carItemNow = (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
+      var _carOutNow  = _carItemNow && String(_carItemNow.status||'').toLowerCase()==='out';
+      var activeButCarIn = (b.status==='active' && !_carOutNow);
+      var cls = 'car-shift-card'+(b.status==='pending'?' pending':'')+(isMine?' mine':'')+((b.status==='active'&&_carOutNow)?' active-shift':'')+(b.status==='done'?' done-shift':'');
       var stLabel = {
         approved:'<span style="color:#2e7d32;font-size:11px;font-weight:700">✓ Approved</span>',
         pending: '<span style="color:#e65100;font-size:11px;font-weight:700">⏳ Awaiting Approval</span>',
-        active:  '<span style="color:#c0392b;font-size:11px;font-weight:700">🚗 Active</span>',
+        active:  (activeButCarIn
+                   ? '<span style="color:#e65100;font-size:11px;font-weight:700">⏳ Not signed out yet</span>'
+                   : '<span style="color:#c0392b;font-size:11px;font-weight:700">🚗 Active</span>'),
         done:    '<span style="font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px;background:#e0e0e0;color:#555">✓ Done</span>'
       }[b.status]||'';
       // Member can delete their OWN pending/approved booking (not started, not done)
@@ -16090,7 +16098,9 @@ function renderCarDay(dateStr) {
           if (_carOut) {
             actions = ((isMine||isAdm)?'<button onclick="endCarShift(\''+b.id+'\')" style="margin-top:8px;width:100%;padding:9px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🏁 Return Car</button>':'')+deleteBtn;
           } else {
-            actions = ((isMine||isAdm)?'<button onclick="navigateToCarCheckout(\'OUT\')" style="margin-top:8px;width:100%;padding:9px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🔑 Start Shift</button>':'')+deleteBtn;
+            actions = ((isMine||isAdm)?'<button onclick="navigateToCarCheckout(\'OUT\')" style="margin-top:8px;width:100%;padding:9px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🔑 Sign COBC 4 Out Now</button>':'')
+              + ((isMine||isAdm)?'<button onclick="revertCarShift(\''+b.id+'\')" style="margin-top:7px;width:100%;padding:8px;background:#fff3e0;color:#e65100;border:1.5px solid #ffcc80;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">↩️ Didn\'t take car — reset shift</button>':'')
+              + deleteBtn;
           }
         } else if (b.status==='pending') {
           actions = memberDeleteBtn+deleteBtn;
@@ -16225,6 +16235,13 @@ function submitCarBooking() {
         carSchedule.push(newB);
         renderCarCalendar(); renderCarDay(carSelectedDate); closeCarBooking();
         showCarBookingSuccess(startDisp, endDisp, carSelectedDate, memberName, note);
+        // Notify admin + dispatch (real push — arrives even if their app is closed)
+        try {
+          var _dl = new Date(carSelectedDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+          sendPush({ target:'dispatchers', title:'🚗 New Car Shift Request',
+            body:'BC-'+String(memberId).replace(/^BC-?/i,'')+(memberName?' '+memberName:'')+' requested '+_dl+' · '+startDisp+'–'+endDisp+'. Tap to approve.',
+            url:'/cobc-dispatch/?page=equipment' });
+        } catch(e){}
       } else { showToast('Error: '+(d.error||'Unknown')); if(btn){btn.disabled=false;btn.textContent='Request Shift';} }
     }).catch(function(){ showToast('Network error'); if(btn){btn.disabled=false;btn.textContent='Request Shift';} });
 }
@@ -16241,6 +16258,24 @@ function showCarBookingSuccess(startTime, endTime, date, memberName, note) {
     +(note?'<div style="font-size:12px;color:#888;margin-top:3px;">'+note+'</div>':'')
     +'<button onclick="renderCarDay(carSelectedDate)" style="margin-top:12px;background:none;border:none;color:#888;font-size:12px;cursor:pointer;text-decoration:underline;">Dismiss</button>'
     +'</div>';
+}
+
+// Reset a stuck 'active' shift (Start Shift tapped but car never signed out) back to
+// 'approved' via the backend's revertCarShift action, so it stops showing as active.
+function revertCarShift(bookingId) {
+  if (!confirm('Reset this shift? Use this if the car was never actually signed out.')) return;
+  postJ('revertCarShift', {id:bookingId})
+    .then(function(d){
+      if (d && d.success) {
+        var b = carSchedule.find(function(x){ return x.id===bookingId; });
+        if (b) { b.status='approved'; b.actualSignOut=''; }
+        try{ localStorage.removeItem(CAR_SCHED_CACHE_KEY); }catch(e){}
+        renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); renderCarHistory();
+        updateGlobalShiftBanner&&updateGlobalShiftBanner();
+        showToast('↩️ Shift reset to approved');
+        setTimeout(function(){ loadCarSchedule&&loadCarSchedule(); }, 800);
+      } else { showToast('Could not reset: ' + ((d&&d.error)||'not found on server')); }
+    }).catch(function(){ showToast('Network error — reset not saved'); });
 }
 
 function startCarShift(bookingId) {
