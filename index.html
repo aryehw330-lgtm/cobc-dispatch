@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="booting">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
@@ -8,7 +8,24 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="COBC"/>
 <meta name="theme-color" content="#0a0a0a"/>
-<style>html,body{background:#0a0a0a;margin:0;padding:0;}</style>
+<style>html,body{background:#0a0a0a;margin:0;padding:0;}
+/* Boot flash fix: during the first moment after load the app re-renders several
+   times (cached state, then multiple Firestore snapshots, then role-UI toggles).
+   Killing entrance animations + transitions until things settle stops the rapid
+   flashing. The class is removed shortly after load so normal in-app animations
+   return. */
+html.booting *,html.booting *::before,html.booting *::after{animation:none!important;transition:none!important;}
+html.booting #login-screen{transition:none!important;}</style>
+<script>
+  // Remove the boot-suppression class once the app has had a chance to settle:
+  // after window 'load' plus a short delay, or a hard cap so it never sticks.
+  (function(){
+    var done=false;
+    function unboot(){ if(done)return; done=true; try{ document.documentElement.classList.remove('booting'); }catch(e){} }
+    window.addEventListener('load', function(){ setTimeout(unboot, 700); });
+    setTimeout(unboot, 2500);
+  })();
+</script>
 <link rel="manifest" href="/cobc-dispatch/manifest.json"/>
 <link rel="apple-touch-icon" sizes="180x180" href="/cobc-dispatch/apple-touch-icon.png"/>
 <title>COBC — Bergen Chaverim</title>
