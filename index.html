@@ -3196,10 +3196,13 @@ textarea.input{min-height:80px;resize:vertical;}
     bar.dataset.magBound = '1';
 
     bar.addEventListener('touchstart', function(e){
+      // If the bar scrolls horizontally, don't magnify — let it scroll freely.
+      if (bar.scrollWidth > bar.clientWidth + 4) return;
       applyMag(bar, e.touches[0].clientX);
     }, {passive:true});
 
     bar.addEventListener('touchmove', function(e){
+      if (bar.scrollWidth > bar.clientWidth + 4) { resetMag(bar); return; }
       applyMag(bar, e.touches[0].clientX);
     }, {passive:true});
 
@@ -16656,13 +16659,15 @@ function _renderShiftSlots(compactHtml, largeHtml) {
   var mem=document.getElementById('shiftSlotMembers');
   var adm=document.getElementById('shiftSlotAdmin');
   if(compactChanged){
-    if(h){ h.innerHTML=compactHtml; h.style.display='block'; }
-    if(d){ d.innerHTML=compactHtml; d.style.display='block'; }
+    // Shift banner (Start / Return Car) shows ONLY on the Equipment tab — not Home/Dispatch.
+    if(h){ h.innerHTML=''; h.style.display='none'; }
+    if(d){ d.innerHTML=''; d.style.display='none'; }
   }
   if(largeChanged){
     if(eq){ eq.innerHTML=largeHtml; eq.style.display='block'; }
-    if(mem){ mem.innerHTML=largeHtml; mem.style.display='block'; }
-    if(adm){ adm.innerHTML=largeHtml; adm.style.display='block'; }
+    // Members/Admin sub-pages: don't duplicate the banner there either.
+    if(mem){ mem.innerHTML=''; mem.style.display='none'; }
+    if(adm){ adm.innerHTML=''; adm.style.display='none'; }
   }
   if(c){ c.innerHTML=''; c.style.display='none'; }
   var old=document.getElementById('global-shift-banner'); if(old){ old.style.display='none'; old.innerHTML=''; }
