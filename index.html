@@ -1275,7 +1275,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <div id="chkAlertsWrap" style="display:none;margin-bottom:8px;"><div class="section-label">Alerts at this location</div><div id="chkAlertsList"></div></div>
         <div class="eq-acc" style="margin-bottom:10px;background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(18,18,22,.5));border-color:rgba(37,99,235,.4);">
           <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderChecklistHistoryFS()">
-            <span>📋 Checklist History (Firebase)</span>
+            <span>📋 Checklist History</span>
             <span class="eq-acc-arrow">▾</span>
           </button>
           <div class="eq-acc-body">
@@ -3694,6 +3694,13 @@ async function sendPush(payload) {
   }
 
   try {
+    // Shared WhatsApp dedupe: if this same WA text was just sent (by either the
+    // sendPush-waText path OR sendWA()), drop the WA piece so the group doesn't get
+    // the identical message twice. The push notification itself still goes out.
+    if (payload.waText && _waDedupeHit(payload.waText)) {
+      const { waText, waChat, ...noWa } = payload;
+      payload = noWa;
+    }
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -3719,16 +3726,24 @@ function formatPhone(raw) {
 const WA_GROUP_ID = '120363429005503944@g.us'; // test group
 
 // Send a WhatsApp message via keepalive fetch — survives iOS PWA navigation
-let _waLastSent = {}; // dedupe: same exact message fired twice in quick succession is suppressed
+let _waLastSent = {}; // dedupe: same exact WA text fired twice in quick succession is suppressed
+// Shared dedupe used by BOTH sendWA() and the sendPush({waText}) path. Returns true
+// if this exact text was sent within the window (i.e. caller should SKIP the WA send).
+function _waDedupeHit(text){
+  const now = Date.now();
+  // prune old entries so the map can't grow forever
+  for (const k in _waLastSent){ if (now - _waLastSent[k] > 30000) delete _waLastSent[k]; }
+  if (_waLastSent[text] && (now - _waLastSent[text]) < 8000){
+    console.log('[WA] duplicate suppressed (shared dedupe)');
+    return true;
+  }
+  _waLastSent[text] = now;
+  return false;
+}
 function sendWA(payload) {
   const { target, message } = payload;
   if (!message || target !== 'all') return;
-  const _waNow = Date.now();
-  if (_waLastSent[message] && (_waNow - _waLastSent[message]) < 4000) {
-    console.log('[WA] duplicate suppressed within 4s');
-    return;
-  }
-  _waLastSent[message] = _waNow;
+  if (_waDedupeHit(message)) return;
   try {
     const url = PUSH_SEND_URL
       + '?action=sendWA'
