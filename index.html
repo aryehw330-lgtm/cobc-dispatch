@@ -3374,6 +3374,7 @@ async function initFirebaseApp() {
       _syncStarted = true;
       try { initFirestore(); } catch(e){ console.warn('initFirestore:', e); }
       try { subscribeScheduleFromFirestore(); } catch(e){ console.warn('subscribeSchedule:', e); }
+      try { subscribeSchedOverridesFromFirestore(); } catch(e){ console.warn('subscribeSchedOverrides:', e); }
       try { subscribeNumbersFromFirestore(); } catch(e){ console.warn('subscribeNumbers:', e); }
       try { subscribeEquipmentHistoryFromFirestore(); } catch(e){ console.warn('subscribeEqHist:', e); }
       try { subscribeCobc4HistoryFromFirestore(); } catch(e){ console.warn('subscribeCobc4Hist:', e); }
@@ -11428,6 +11429,26 @@ function subscribeScheduleFromFirestore() {
     }, err => console.warn('schedule snapshot error:', err));
   } catch(e) { console.warn('subscribeScheduleFromFirestore failed:', e); }
 }
+// ── Firestore sync: one-time schedule fill-ins (shared across all devices) ──
+// Mirrors subscribeScheduleFromFirestore() above but for STATE.schedOverrides,
+// which previously had no remote listener at all (see pushSchedOverridesToFirestore).
+let _schedOverridesRemoteApplied = false;
+function subscribeSchedOverridesFromFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return;
+    firebase.firestore().collection('config').doc('schedOverrides').onSnapshot(doc => {
+      if(!doc.exists) return;
+      const data = doc.data();
+      if(!data || typeof data.overrides !== 'object' || data.overrides === null) return;
+      STATE.schedOverrides = data.overrides;
+      try { save&&save(); } catch(e){}
+      _schedOverridesRemoteApplied = true;
+      if(typeof renderSchedule==='function') renderSchedule();
+      if(typeof renderSchedCalGrid==='function') renderSchedCalGrid();
+      if(typeof updateOnDutyBanner==='function') updateOnDutyBanner();
+    }, err => console.warn('schedOverrides snapshot error:', err));
+  } catch(e) { console.warn('subscribeSchedOverridesFromFirestore failed:', e); }
+}
 // ── Telzio live caller ID ──
 // Uses the shared Cloudflare worker on the same dev account as the EZ-Spare proxy
 // and the BC-Dispatch app (same Telzio phone account). The worker takes plain
@@ -12023,6 +12044,22 @@ function pushScheduleToFirestore() {
     });
   } catch(e) { console.warn('pushScheduleToFirestore failed:', e); }
 }
+// Push one-time schedule fill-ins (STATE.schedOverrides) to Firestore so every
+// device — and the Cloudflare Worker that sends shift reminders — sees them.
+// This was previously missing entirely: takeScheduleSlot()/_assignSlot(),
+// _applyScheduleEdit()'s one-time branch, and clearSlotOverride() only ever
+// called pushScheduleToFirestore() (which writes the recurring template, not
+// overrides), so fill-ins never left the device that created them.
+function pushSchedOverridesToFirestore() {
+  try {
+    if(typeof firebase === 'undefined') return Promise.resolve();
+    return firebase.firestore().collection('config').doc('schedOverrides').set({
+      overrides: STATE.schedOverrides || {},
+      updatedAt: Date.now(),
+      updatedBy: (typeof SESSION!=='undefined' && SESSION) ? SESSION.unit : null
+    });
+  } catch(e) { console.warn('pushSchedOverridesToFirestore failed:', e); }
+}
 // ── Important Numbers sync (shared across all devices) ──
 function pushNumbersToFirestore() {
   try {
@@ -12224,7 +12261,7 @@ function _pruneSchedOverrides(){
   if(!STATE.schedOverrides) return;
   const today=_dateStrOf(new Date()); let changed=false;
   for(const k of Object.keys(STATE.schedOverrides)){ if(k<today){ delete STATE.schedOverrides[k]; changed=true; } }
-  if(changed) save();
+  if(changed){ save(); try{ pushSchedOverridesToFirestore(); }catch(e){} }
 }
 // Admin: wipe ALL one-time schedule fill-ins (e.g. to clear test data). Does not
 // touch the recurring weekly template.
@@ -12233,7 +12270,7 @@ function clearAllSchedOverrides(){
   if(!confirm('Clear ALL one-time schedule fill-ins? This cannot be undone.')) return;
   STATE.schedOverrides={};
   save();
-  try{ pushScheduleToFirestore(); }catch(e){}
+  try{ pushSchedOverridesToFirestore(); }catch(e){}
   try{ renderSchedule(); }catch(e){}
   try{ renderSchedCalGrid(); }catch(e){}
   showToast('✅ Schedule fill-ins cleared');
@@ -12284,7 +12321,7 @@ function _assignSlot(shiftIdx, dayIdx, mode){
     STATE.schedOverrides[dateStr][shiftIdx]={ p:myLabel, s:curS, by:SESSION.unit, at:Date.now() };
     showToast('✅ Primary for '+_schedDateLabel(dayIdx));
   }
-  save(); pushScheduleToFirestore(); renderSchedule();
+  save(); pushSchedOverridesToFirestore(); renderSchedule();
 }
 // Remove a temporary fill-in (revert that date back to the recurring schedule).
 function clearSlotOverride(shiftIdx, dayIdx){
@@ -12292,7 +12329,7 @@ function clearSlotOverride(shiftIdx, dayIdx){
   if(STATE.schedOverrides && STATE.schedOverrides[dateStr]){
     delete STATE.schedOverrides[dateStr][shiftIdx];
     if(Object.keys(STATE.schedOverrides[dateStr]).length===0) delete STATE.schedOverrides[dateStr];
-    save(); pushScheduleToFirestore(); renderSchedule();
+    save(); pushSchedOverridesToFirestore(); renderSchedule();
     showToast('Fill-in removed');
   }
 }
@@ -12371,7 +12408,7 @@ function _applyScheduleEdit(shiftIdx, dayIdx, primary, secondary, mode) {
     STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
     STATE.schedOverrides[dateStr][shiftIdx]={ p:primary, s:secondary, by:SESSION.unit, at:Date.now() };
     save();
-    pushScheduleToFirestore();
+    pushSchedOverridesToFirestore();
     hideModal('schedEditModal');
     renderSchedule();
     showToast('✅ One-time change saved for '+((typeof _schedDateLabel==='function')?_schedDateLabel(dayIdx):'this date'));
