@@ -918,9 +918,11 @@ textarea.input{min-height:80px;resize:vertical;}
       }, 300);
     }
     window._hideBootCover = hideCover;
-    // Keep the cover up until the cached paint AND first Firestore snapshot land, then fade.
-    window.addEventListener('load', function(){ setTimeout(hideCover, 550); });
-    setTimeout(hideCover, 3000);   // hard cap so it can never stick
+    // The cover is lifted by finishLogin once real session data has rendered (see the
+    // requestAnimationFrame call there). These are only fallbacks so it can never stick
+    // if the verify is offline/slow.
+    window.addEventListener('load', function(){ setTimeout(hideCover, 2500); });
+    setTimeout(hideCover, 4000);   // hard cap
   })();
 </script>
 
@@ -5459,6 +5461,10 @@ setTimeout(()=>{
   if(dateEl)dateEl.textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   renderHome&&renderHome();
   renderCalls&&renderCalls();
+  updateOnDutyBanner&&updateOnDutyBanner();
+  // Cover is safe to lift now — real session data has rendered (this runs after the
+  // Firestore verify, so the home isn't in its "No dispatcher set" half-state).
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ try{ window._hideBootCover&&window._hideBootCover(); }catch(e){} }); });
   startAutoETA(); // silently start GPS watcher for card ETAs
   startShiftBannerTimer&&startShiftBannerTimer(); // start shift banner after login
   // Show admin-only UI elements that depend on SESSION being set
