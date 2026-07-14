@@ -461,7 +461,7 @@ textarea.input{min-height:80px;resize:vertical;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 /* ── LOGIN ── */
-#login-screen{position:fixed;inset:0;z-index:2000;background:radial-gradient(ellipse at top,#1c1814 0%,#0a0a0a 50%,#000 100%);display:flex;flex-direction:column;align-items:center;justify-content:safe center;padding:calc(14px + env(safe-area-inset-top)) 24px calc(14px + env(safe-area-inset-bottom));overflow:hidden;overscroll-behavior:none;touch-action:none;}
+#login-screen{position:fixed;inset:0;z-index:2000;background:radial-gradient(ellipse at 50% 35%,#4a3714 0%,#2a1f0c 40%,#120d05 75%,#0a0a0a 100%);display:flex;flex-direction:column;align-items:center;justify-content:safe center;padding:calc(14px + env(safe-area-inset-top)) 24px calc(14px + env(safe-area-inset-bottom));overflow:hidden;overscroll-behavior:none;touch-action:none;}
 #login-screen::before{content:'';position:absolute;inset:-20%;background:radial-gradient(circle at 50% 30%,rgba(212,169,58,.08) 0%,transparent 55%);pointer-events:none;}
 #login-screen::after{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,transparent,var(--gold) 30%,var(--gold-light) 50%,var(--gold) 70%,transparent);opacity:.6;}
 #login-screen > *{position:relative;z-index:1;}
@@ -910,7 +910,7 @@ textarea.input{min-height:80px;resize:vertical;}
     try{ var _ss=JSON.parse(localStorage.getItem('cobc_session')||'null'); hasSession=!!(_ss&&_ss.unit&&_ss.role); }catch(e){}
     if(!hasSession) return;   // first-time user → normal login form
     document.documentElement.classList.add('session-boot');
-    var _bootStart=Date.now(), _MIN_COVER=1200;
+    var _bootStart=Date.now(), _MIN_COVER=650;
     function hideCover(){
       var s=document.getElementById('login-screen');
       if(!s || s._booted) return;
