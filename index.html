@@ -15545,41 +15545,43 @@ function renderReports() {
 
 async function submitReport(){
   const btn = document.querySelector('#eq-reports .btn-primary') || document.querySelector('[onclick="submitReport()"]');
-  const unlock = _btnLock(btn, 'Submitting…');
   const itemName=(document.getElementById('reportItem')?.value||'');
   const member=(document.getElementById('reportMember')?.value||SESSION?.unit||'').trim();
   const notes=(document.getElementById('reportNotes')?.value||'').trim();
-  if(!itemName||!notes){showToast('Select item and describe issue');unlock();return;}
-  if(!rptCurType){showToast('Select a report type first');unlock();return;}
-  const item=STATE.equipment.find(e=>e.name===itemName);
-  const location=item?.location||'';
-  try{
-    const _res=await sheetPOST({action:'submitReport',item:itemName,location,type:rptCurType,note:notes,member});
-    if(!_res || _res.success===false || _res.error){
-      showToast('❌ Report not saved: '+((_res&&_res.error)||'server did not accept it'));
-      unlock(); return;
-    }
-    // If it's a status issue, also update col K on the sheet
-    if(item&&['Missing','Damaged','Need More'].includes(rptCurType)){
-      await sheetPOST({action:'updateEquipmentStatus',row:item.row,status:rptCurType,note:notes});
-      item.equipStatus=rptCurType;item.equipNote=notes;
-    }
-    // Add to local STATE.reports for immediate display
-    STATE.reports=STATE.reports||[];
-    const reportId='RPT-'+Date.now();
-    STATE.reports.push({id:reportId,item:itemName,location,type:rptCurType,notes,member,time:Date.now(),resolved:false});
-    const notesEl=document.getElementById('reportNotes');if(notesEl)notesEl.value='';
-    const memberEl=document.getElementById('reportMember');if(memberEl)memberEl.value='';
-    rptCurType='';
-    document.querySelectorAll('#rptTypeBtns button').forEach(b=>{b.style.borderColor='var(--border)';b.style.color='var(--text2)';b.style.background='#fff';});
-    // Show success modal immediately — report already added to list
-    _showSuccessModal('📋','Report Submitted', itemName + (rptCurType?' · '+rptCurType:''));
-    rptCurType='';
-    renderReports&&renderReports();
-    renderInventory&&renderInventory();
-    save();
-    unlock();
-  }catch(e){showToast('Error submitting report');console.error(e);unlock();}
+  // Mirror the equipment app's proven flow: validate up-front with guaranteed
+  // feedback, then fire postJ with .then/.catch/.finally so the button always
+  // unlocks and the user always gets a result (no silent hang).
+  if(!rptCurType){ showToast('Select a report type first'); return; }
+  if(!itemName){ showToast('Select an item'); return; }
+  if(!notes){ showToast('Describe the issue'); return; }
+  const item=(STATE.equipment||[]).find(e=>e.name===itemName);
+  const loc=item?(item.location||item.homeLocation||''):'';
+  const savedType=rptCurType;
+  const cncNote = notes ? ('CNC - '+savedType+': '+notes) : ('CNC - '+savedType);
+  const unlock = _btnLock(btn, 'Submitting…');
+  sheetPOST({action:'submitReport',type:savedType,item:itemName,location:loc,note:notes,member,cncNote,row:item?item.row:null})
+    .then(function(data){
+      if(data && data.success!==false && !data.error){
+        // Status issues also flag the item on the sheet (col H/K), same as equipment app
+        if(item && ['Missing','Damaged','Need More'].includes(savedType)){
+          try{ sheetPOST({action:'updateCNCNote',row:item.row,cncNote:cncNote,member:member}); item.ccnc=cncNote; item.isCNC=true; item.equipStatus=savedType; item.equipNote=notes; }catch(e){}
+        }
+        STATE.reports=STATE.reports||[];
+        STATE.reports.push({id:'RPT-'+Date.now(),item:itemName,location:loc,type:savedType,notes,member,time:Date.now(),resolved:false});
+        const notesEl=document.getElementById('reportNotes');if(notesEl)notesEl.value='';
+        const memberEl=document.getElementById('reportMember');if(memberEl)memberEl.value='';
+        rptCurType='';
+        document.querySelectorAll('#rptTypeBtns button').forEach(b=>{b.style.borderColor='var(--border)';b.style.color='var(--text2)';b.style.background='#fff';});
+        _showSuccessModal('📋','Report Submitted', itemName + (savedType?' · '+savedType:''));
+        renderReports&&renderReports();
+        renderInventory&&renderInventory();
+        save();
+      } else {
+        showToast('❌ Report not saved: '+((data&&data.error)||'server did not accept it'));
+      }
+    })
+    .catch(function(e){ showToast('❌ Network error — report not saved'); console.error(e); })
+    .finally(function(){ unlock(); });
 }
 
 function resolveReport(reportId){
