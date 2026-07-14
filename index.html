@@ -16233,6 +16233,10 @@ function submitCarBooking() {
   if (!memberId) { showToast('No member logged in'); return; }
   var btn = document.getElementById('car-submit-btn');
   if (btn) { btn.textContent='...'; btn.disabled=true; }
+  // Watchdog: never let the button hang on "..." — if the request doesn't settle
+  // within 15s, re-enable it and tell the user.
+  var _settled=false;
+  var _watchdog=setTimeout(function(){ if(!_settled && btn){ btn.disabled=false; btn.textContent='Request Shift'; showToast('⚠️ Still working… check your connection and try again'); } }, 15000);
   postJ('bookCarShift', {memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, needsApproval:true, bookedBy:bookedByVal||null})
     .then(function(d) {
       if (d.success) {
@@ -16248,7 +16252,8 @@ function submitCarBooking() {
             url:'/cobc-dispatch/?page=equipment' });
         } catch(e){}
       } else { showToast('Error: '+(d.error||'Unknown')); if(btn){btn.disabled=false;btn.textContent='Request Shift';} }
-    }).catch(function(){ showToast('Network error'); if(btn){btn.disabled=false;btn.textContent='Request Shift';} });
+    }).catch(function(){ showToast('Network error — booking not saved'); if(btn){btn.disabled=false;btn.textContent='Request Shift';} })
+    .finally(function(){ _settled=true; clearTimeout(_watchdog); if(btn){btn.disabled=false; if(btn.textContent==='...') btn.textContent='Request Shift';} });
 }
 
 function showCarBookingSuccess(startTime, endTime, date, memberName, note) {
@@ -16710,20 +16715,51 @@ function _doUpdateGlobalShiftBanner() {
     return b.status === 'active' && parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10) === myId;
   });
 
-  // Safety net: if shift is marked active but the car is physically IN, the shift
-  // ended (car signed in without using the Return Car banner). Mark it done locally
-  // AND persist to the backend — otherwise the next server sync resurrects it as
-  // 'active' and it keeps showing as car-out.
+  // Track shifts where the car was actually taken OUT (persisted across reloads),
+  // so we can tell a genuine return from a "tapped Start Shift but never took the car".
+  var _sawOut = {};
+  try { _sawOut = JSON.parse(localStorage.getItem('cobc_shift_sawout')||'{}')||{}; } catch(e){ _sawOut={}; }
+  if (activeShift && carIsOut && activeShift.id && !_sawOut[activeShift.id]) {
+    _sawOut[activeShift.id] = 1;
+    try { localStorage.setItem('cobc_shift_sawout', JSON.stringify(_sawOut)); } catch(e){}
+  }
+
+  // Safety net: shift is 'active' but the car is physically IN. Two cases:
+  //  (a) car WAS taken out earlier this shift → it was returned → mark done + persist.
+  //  (b) car was NEVER taken out (Start Shift tapped by mistake) → DO NOTHING. Leave the
+  //      shift active so the day view shows "Not signed out yet" with Sign Out / Reset —
+  //      never force the shift over or cancel it.
   if (activeShift && !carIsOut) {
     var _autoSid = activeShift.id;
-    activeShift.status = 'done';
-    activeShift.actualSignIn = activeShift.actualSignIn || new Date().toISOString();
-    try { localStorage.removeItem(CAR_SCHED_CACHE_KEY); } catch(e){}
-    if (_autoSid && !window['_autoEnded_'+_autoSid]) {
-      window['_autoEnded_'+_autoSid] = true;
-      try { postJ('endCarShift', {id:_autoSid, member:(SESSION&&SESSION.unit)||''}); } catch(e){}
+    if (_autoSid && _sawOut[_autoSid]) {
+      activeShift.status = 'done';
+      activeShift.actualSignIn = activeShift.actualSignIn || new Date().toISOString();
+      try { localStorage.removeItem(CAR_SCHED_CACHE_KEY); } catch(e){}
+      if (!window['_autoEnded_'+_autoSid]) {
+        window['_autoEnded_'+_autoSid] = true;
+        try { postJ('endCarShift', {id:_autoSid, member:(SESSION&&SESSION.unit)||''}); } catch(e){}
+      }
+      try { delete _sawOut[_autoSid]; localStorage.setItem('cobc_shift_sawout', JSON.stringify(_sawOut)); } catch(e){}
+      activeShift = null; // genuinely completed
+    } else {
+      // Car was NEVER taken out. Leave it active during the shift window so the driver
+      // can still sign the car out. But once the shift END time has passed, treat it as
+      // a no-show: cancel it (kept in history 30 days) with a note — don't linger active.
+      if (_autoSid && activeShift.endTime && activeShift.date && !window['_autoCancelled_'+_autoSid]) {
+        var _endDt = new Date(activeShift.date+'T'+parse12to24C(activeShift.endTime)+':00');
+        var _startDt = new Date(activeShift.date+'T'+parse12to24C(activeShift.startTime)+':00');
+        if (_endDt <= _startDt) _endDt.setDate(_endDt.getDate()+1); // overnight shift
+        if (now > _endDt) {
+          window['_autoCancelled_'+_autoSid] = true;
+          var _noShowNote = ((activeShift.note?activeShift.note+' · ':'')+'Car never taken out').trim();
+          activeShift.status = 'cancelled';
+          activeShift.note = _noShowNote;
+          try { localStorage.removeItem(CAR_SCHED_CACHE_KEY); } catch(e){}
+          try { postJ('cancelCarShift', {id:_autoSid}); postJ('updateCarShiftNote', {id:_autoSid, note:_noShowNote}); } catch(e){}
+          activeShift = null;
+        }
+      }
     }
-    activeShift = null; // treat as no active shift for banner purposes
   }
 
   // Fire 20/10-min reminders to the driver every refresh
