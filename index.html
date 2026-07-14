@@ -910,7 +910,7 @@ textarea.input{min-height:80px;resize:vertical;}
     try{ var _ss=JSON.parse(localStorage.getItem('cobc_session')||'null'); hasSession=!!(_ss&&_ss.unit&&_ss.role); }catch(e){}
     if(!hasSession) return;   // first-time user → normal login form
     document.documentElement.classList.add('session-boot');
-    var _bootStart=Date.now(), _MIN_COVER=1700;
+    var _bootStart=Date.now(), _MIN_COVER=1200;
     function hideCover(){
       var s=document.getElementById('login-screen');
       if(!s || s._booted) return;
@@ -929,8 +929,8 @@ textarea.input{min-height:80px;resize:vertical;}
     // The cover is lifted by finishLogin once real session data has rendered (see the
     // requestAnimationFrame call there). These are only fallbacks so it can never stick
     // if the verify is offline/slow.
-    window.addEventListener('load', function(){ setTimeout(hideCover, 2500); });
-    setTimeout(hideCover, 4000);   // hard cap
+    window.addEventListener('load', function(){ setTimeout(hideCover, 1600); });
+    setTimeout(hideCover, 3500);   // hard cap
   })();
 </script>
 
@@ -1898,7 +1898,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="more-schedule" style="display:none;">
         <!-- On-Duty Now banner -->
         <div id="schedOnDutyNow" style="background:linear-gradient(160deg,rgba(212,169,58,.24),rgba(18,15,9,.7));-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);border:1px solid rgba(230,196,99,.42);border-radius:var(--radius);padding:14px;margin-bottom:12px;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.16);">
-          <div style="font-size:12px;font-weight:700;color:var(--gold-light,#e6c463);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;text-shadow:0 1px 2px rgba(0,0,0,.4);">Now On Duty</div>
+          <div style="font-size:12px;font-weight:700;color:var(--gold-light,#e6c463);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;text-shadow:0 1px 2px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Now On Duty<span id="schedNowTime" style="font-weight:600;color:rgba(255,255,255,.7);text-transform:none;letter-spacing:0;"></span></div>
           <div id="schedNowContent"></div>
         </div>
         <!-- Next shift -->
@@ -5091,6 +5091,11 @@ function _tryRestoreSession() {
       const topSub = document.getElementById('topbarSub'); if (topSub) topSub.textContent = s.name+' · '+(s.unit||'');
       _applyRoleUI(s.role);
       renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner();
+      // Cached app is now fully painted — lift the cover as soon as the minimum
+      // on-screen time is met. We do NOT wait for the (slow) REST verify below;
+      // waiting made the cover linger for seconds after the app was already visible,
+      // which read as "app appears, loader comes back".
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ try{ window._hideBootCover&&window._hideBootCover(); }catch(e){} }); });
     } catch(e){}
     // Re-verify against Firestore via REST (SDK hangs on iOS ITP; REST is plain HTTPS).
     // If the fetch fails or times out, the cached paint above already stands.
@@ -12626,17 +12631,24 @@ function renderSchedule() {
     const phone=isOpen||isChiefs?null:getDispatcherPhone(curSlot.p);
     const secPhone=curSlot.s&&curSlot.s!=='OPEN'&&curSlot.s!==curSlot.p?getDispatcherPhone(curSlot.s):null;
     nowEl.innerHTML=`
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:700;line-height:1.3;text-wrap:balance;">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <div style="flex:1;min-width:0;font-size:15px;font-weight:700;line-height:1.3;text-wrap:balance;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             ${isOpen?'No dispatcher assigned':isChiefs?'Chiefs on Duty':curSlot.p}
+            ${isOpen?'<span style="font-size:11px;font-weight:700;color:#fde68a;background:rgba(253,224,71,.15);border:1px solid rgba(253,224,71,.35);border-radius:6px;padding:2px 7px;white-space:nowrap;">Open — needs coverage</span>':'<span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.5px;">Primary</span>'}
           </div>
-          <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,.6);margin-top:2px;">${curShift.shift} · ${SCHED_DAYS_FULL[dow]}</div>
-          ${curSlot.s&&curSlot.s!=='OPEN'&&curSlot.s!==curSlot.p?`<div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px;">Secondary: ${curSlot.s}${secPhone?` · <a href="tel:${secPhone.replace(/\D/g,'')}" style="color:rgba(255,255,255,.85);">📞</a>`:''}</div>`:''}
-          ${isOpen?'<div style="font-size:12px;color:#fde68a;margin-top:4px;font-weight:600;">Shift is open — needs coverage</div>':''}
+          ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none;flex-shrink:0;white-space:nowrap;">Call</a>`:''}
         </div>
-        ${phone?`<a href="tel:${phone.replace(/\D/g,'')}" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none;flex-shrink:0;white-space:nowrap;">Call</a>`:''}
+        ${curSlot.s&&curSlot.s!=='OPEN'&&curSlot.s!==curSlot.p?`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid rgba(255,255,255,.12);padding-top:8px;">
+          <div style="flex:1;min-width:0;font-size:14px;font-weight:700;color:rgba(255,255,255,.9);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${curSlot.s}<span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.5px;">Secondary</span></div>
+          ${secPhone?`<a href="tel:${secPhone.replace(/\D/g,'')}" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none;flex-shrink:0;white-space:nowrap;">Call</a>`:''}
+        </div>`:''}
       </div>`;
+    const _tEl=document.getElementById('schedNowTime');
+    if(_tEl) _tEl.textContent='· '+curShift.shift+' · '+SCHED_DAYS_FULL[dow];
+  } else {
+    const _tEl=document.getElementById('schedNowTime');
+    if(_tEl) _tEl.textContent='';
   }
 
   // Day chips — show day-of-week + actual date for the selected week (today + schedWeekOffset weeks)
