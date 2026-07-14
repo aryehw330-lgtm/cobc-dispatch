@@ -22,8 +22,8 @@ html.booting #login-screen{transition:none!important;}</style>
   (function(){
     var done=false;
     function unboot(){ if(done)return; done=true; try{ document.documentElement.classList.remove('booting'); }catch(e){} }
-    window.addEventListener('load', function(){ setTimeout(unboot, 700); });
-    setTimeout(unboot, 2500);
+    window.addEventListener('load', function(){ setTimeout(unboot, 2000); });
+    setTimeout(unboot, 3800);
   })();
 </script>
 <link rel="manifest" href="/cobc-dispatch/manifest.json"/>
@@ -908,9 +908,15 @@ textarea.input{min-height:80px;resize:vertical;}
     try{ var _ss=JSON.parse(localStorage.getItem('cobc_session')||'null'); hasSession=!!(_ss&&_ss.unit&&_ss.role); }catch(e){}
     if(!hasSession) return;   // first-time user → normal login form
     document.documentElement.classList.add('session-boot');
+    var _bootStart=Date.now(), _MIN_COVER=1700;
     function hideCover(){
       var s=document.getElementById('login-screen');
-      if(!s || s._booted) return; s._booted=true;
+      if(!s || s._booted) return;
+      // Enforce a minimum on-screen time so the cover always spans the whole ~1.5s
+      // launch-glitch window, even if finishLogin fires very early on a warm cache.
+      var elapsed=Date.now()-_bootStart;
+      if(elapsed<_MIN_COVER){ setTimeout(hideCover, _MIN_COVER-elapsed); return; }
+      s._booted=true;
       s.style.transition='opacity .28s ease'; s.style.opacity='0';
       setTimeout(function(){
         try{ s.style.display='none'; s.style.pointerEvents='none'; s.style.visibility='hidden'; s.style.zIndex='-1'; s.classList.add('hidden'); }catch(e){}
