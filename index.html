@@ -888,6 +888,37 @@ textarea.input{min-height:80px;resize:vertical;}
 </head>
 <body>
 
+<!-- Boot splash: a branded dark cover shown from the first paint until the app has
+     fully rendered once. It hides the launch sequence's two flashes — the black
+     empty shell and the half-rendered home ("No dispatcher set" before data lands).
+     Only used for RETURNING users (a saved session); first-time users go straight
+     to the login screen. -->
+<div id="boot-splash" style="position:fixed;inset:0;z-index:99998;background:radial-gradient(ellipse at top,#1c1814 0%,#0a0a0a 55%,#000 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;">
+  <div style="width:82px;height:82px;border-radius:20px;background:linear-gradient(160deg,#2a2a2a,#000);border:1px solid rgba(212,169,58,.5);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 30px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08);">
+    <span style="font:800 26px/1 -apple-system,system-ui,sans-serif;letter-spacing:1px;color:#d4a93a;">COBC</span>
+  </div>
+</div>
+<script>
+  // Decide the splash's fate as early as possible.
+  (function(){
+    function hideSplash(){
+      var s=document.getElementById('boot-splash');
+      if(!s || s._gone) return; s._gone=true;
+      s.style.transition='opacity .22s ease'; s.style.opacity='0';
+      setTimeout(function(){ try{ s.remove(); }catch(e){} }, 240);
+    }
+    window._hideBootSplash = hideSplash;
+    var hasSession=false;
+    try{ var _ss=JSON.parse(localStorage.getItem('cobc_session')||'null'); hasSession=!!(_ss&&_ss.unit&&_ss.role); }catch(e){}
+    if(!hasSession){ hideSplash(); return; }   // first-time user → show login, no splash
+    // Returning user: keep the splash up briefly so the cached paint AND the first
+    // Firestore snapshot (dispatcher on duty, etc.) land before it fades. Hard cap
+    // ensures it can never stick.
+    window.addEventListener('load', function(){ setTimeout(hideSplash, 550); });
+    setTimeout(hideSplash, 3000);
+  })();
+</script>
+
 <!-- LOGIN -->
 <div id="login-screen">
   <canvas id="loginShader" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;display:block;" aria-hidden="true"></canvas>
