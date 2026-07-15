@@ -665,6 +665,13 @@ textarea.input{min-height:80px;resize:vertical;}
 .alltime-banner{background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%);border-radius:var(--radius);padding:16px;margin-bottom:14px;color:#fff;text-align:center;}
 .alltime-num{font-size:40px;font-weight:700;letter-spacing:-2px;}
 .alltime-lbl{font-size:12px;color:rgba(255,255,255,.6);font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;}
+.alltime-mini{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;justify-content:center;background:var(--border2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;margin-top:14px;text-align:center;}
+.alltime-mini-num{font-size:15px;font-weight:800;color:var(--navy);}
+.alltime-mini-lbl{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
+.alltime-mini-sub{font-size:11px;color:var(--text3);}
+.chart-card .acc-body{display:none;}
+.chart-card.open .acc-body{display:block;}
+.chart-card.open .acc-caret{transform:rotate(180deg);}
 .alltime-sub{font-size:11px;color:rgba(255,255,255,.4);margin-top:6px;}
 
 
@@ -1750,12 +1757,6 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <div id="more-stats" style="display:none;">
         <div id="more-stats-legacy">
-        <!-- App calls banner -->
-        <div class="alltime-banner" id="alltimeBanner">
-          <div class="alltime-num" id="st-alltime-num">0</div>
-          <div class="alltime-lbl">Calls Dispatched via App</div>
-          <div class="alltime-sub" id="st-alltime-sub">Loading…</div>
-        </div>
         <!-- Year selector — app data only -->
         <div class="stats-year-strip" id="stYearStrip">
           <button class="yr-btn active" data-yr="2026" onclick="setStatsYear('2026',this)">This Year</button>
@@ -1866,6 +1867,12 @@ textarea.input{min-height:80px;resize:vertical;}
           <div id="lbYearSel" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
           <div id="lbList"></div>
         </div>
+        <!-- App calls total — compact footer box -->
+        <div class="alltime-mini" id="alltimeBanner">
+          <span class="alltime-mini-num" id="st-alltime-num">0</span>
+          <span class="alltime-mini-lbl">calls dispatched via app</span>
+          <span class="alltime-mini-sub" id="st-alltime-sub"></span>
+        </div>
         </div><!-- /more-stats-legacy -->
       </div>
       <!-- ADMIN STATS (admin-only): live stats site + detailed per-call log -->
@@ -1893,6 +1900,11 @@ textarea.input{min-height:80px;resize:vertical;}
         <input id="adminMemberSearch" type="text" placeholder="Search by BC # or name…" oninput="adminSearchMember(this.value)" style="width:100%;padding:11px 14px;border:1px solid rgba(230,196,99,.3);border-radius:10px;background:rgba(255,255,255,.06);color:#fff;font-size:14px;font-family:inherit;margin-bottom:8px;box-sizing:border-box;"/>
         <div id="adminMemberResults" style="margin-bottom:8px;"></div>
         <div id="adminMemberCard" style="margin-bottom:20px;"></div>
+        <!-- Year selector — controls all Admin Stats info -->
+        <div id="adminStatsYearWrap" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
+        <!-- Admin-only stats sub-tabs (Dispatch/Members/Search/Compare sections are moved here at runtime) -->
+        <div class="sub-tabs" id="adminStatsSubNav" style="margin-bottom:14px;overflow-x:auto;display:flex;gap:2px;"></div>
+        <div id="adminStatsSections"></div>
       </div>
       <div id="more-schedule" style="display:none;">
         <!-- On-Duty Now banner -->
@@ -10787,14 +10799,70 @@ function goAdmin(subtab) {
   if(btn && typeof setAdminTab === 'function') setAdminTab(subtab||'members', btn);
   else if(typeof setAdminTab==='function') setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
 }
+let _adminStatsRelocated=false;
+// Set the Admin Stats year and re-render whichever admin section is active.
+function setAdminStatsYear(yr){
+  stYear=yr; stMonth=null;
+  if(!_archiveLoaded){ try{ ensureFullCallHistory().then(()=>{ try{ setAdminStatsYear(stYear); }catch(e){} }); }catch(e){} }
+  try{ _renderStatsYear(yr); }catch(e){ console.warn('adminStatsYear:',e); }
+}
+// Admins: move only the admin-only stats sections (Dispatch/Members/Search/Compare)
+// out of the My Stats dashboard and into the Admin Stats tab. Overview/Monthly/
+// Leaderboard + the personal card stay in My Stats for everyone. IDs are preserved
+// so setStatsSub/renderStatsSub keep working. Runs once, admins only.
+function _ensureAdminStatsLayout(){
+  if(_adminStatsRelocated || !isAdminRole()) return;
+  const holder=document.getElementById('adminStatsSections');
+  if(!holder) return;
+  ['st-overview','st-dispatch','st-members','st-search','st-compare'].forEach(id=>{
+    const sec=document.getElementById(id); if(sec) holder.appendChild(sec);
+  });
+  const nav=document.getElementById('adminStatsSubNav');
+  if(nav){
+    const tabs=[['overview','📊 Overview'],['dispatch','📡 Dispatch'],['members','🏆 Members'],['search','🔍 Search'],['compare','⚔️ Compare']];
+    nav.innerHTML=tabs.map(([sub,label],i)=>`<button class="sub-tab${i===0?' active':''}" onclick="setStatsSub('${sub}',this)" style="white-space:nowrap;font-size:12px;">${label}</button>`).join('');
+  }
+  // Year selector at the top of Admin Stats — controls every section below it.
+  const yw=document.getElementById('adminStatsYearWrap');
+  if(yw){
+    const yset=new Set();
+    try{ Object.keys(HIST).forEach(y=>yset.add(String(y))); }catch(e){}
+    try{ (_allCalls()||[]).forEach(c=>{ if(c.createdAt) yset.add(String(new Date(c.createdAt).getFullYear())); }); }catch(e){}
+    const curYr=String(new Date().getFullYear()); yset.add(curYr);
+    const years=[...yset].sort((a,b)=>b-a);
+    yw.innerHTML=`<span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.5px;">Year</span>`
+      +`<select id="adminStatsYearSel" onchange="setAdminStatsYear(this.value)" style="flex:1;min-width:120px;padding:9px 12px;border-radius:10px;border:1px solid rgba(230,196,99,.35);background:rgba(255,255,255,.06);color:#fff;font-size:14px;font-weight:700;font-family:inherit;">`
+      +`<option value="all"${stYear==='all'?' selected':''} style="background:#12233a;color:#fff;">All Time</option>`
+      +years.map(y=>`<option value="${y}"${String(stYear)===String(y)?' selected':''} style="background:#12233a;color:#fff;">${y===curYr?y+' (YTD)':y}</option>`).join('')
+      +`</select>`;
+  }
+  // Move the org KPI grid (Total Calls/Active Members/Avg-Min/Top Type) to the BOTTOM
+  // of Admin Stats, under a clear "in-app stats only" heading — these count only calls
+  // handled through the new app (no old-site history).
+  const adm=document.getElementById('more-adminstats');
+  const kpis=document.getElementById('st-kpis');
+  const ynote=document.getElementById('st-year-note');
+  if(adm && kpis){
+    if(ynote) adm.appendChild(ynote);
+    if(!document.getElementById('inAppStatsLabel')){
+      const lbl=document.createElement('div');
+      lbl.id='inAppStatsLabel';
+      lbl.style.cssText='margin:22px 0 8px;font-size:11px;font-weight:800;color:var(--gold-light,#d4a93a);letter-spacing:.6px;text-transform:uppercase;';
+      lbl.textContent='📱 In-App Stats Only — since app launch';
+      adm.appendChild(lbl);
+    }
+    adm.appendChild(kpis);
+  }
+  _adminStatsRelocated=true;
+}
 function setMoreTab(tab,el) {
   ['numbers','stats','adminstats','settings','schedule','equipment','vehicles','history'].forEach(t=>{
     const e=document.getElementById(`more-${t}`); if(e) e.style.display=t===tab?'':'none';
   });
   document.querySelectorAll('#page-more .sub-tab').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
-  if(tab==='stats')    initStats();
-  if(tab==='adminstats') renderAdminStats();
+  if(tab==='stats'){ _ensureAdminStatsLayout(); initStats(); }
+  if(tab==='adminstats'){ renderAdminStats(); if(isAdminRole()){ _ensureAdminStatsLayout(); setStatsSub('overview', document.querySelector('#adminStatsSubNav .sub-tab')); setAdminStatsYear(stYear||String(new Date().getFullYear())); } }
   if(tab==='schedule') renderSchedule();
   if(tab==='vehicles') renderVehicles();
   if(tab==='numbers')  renderNumbers();
@@ -13187,8 +13255,13 @@ function calcLiveStats(yr) {
       respMap[u]=(respMap[u]||{cnt:0,name:r.name||''});
       respMap[u].cnt++;
     });
-    // dispatcher
-    if(c.dispatcher){ dispMap[c.dispatcher]=(dispMap[c.dispatcher]||0)+1; (dispMonth[c.dispatcher]=dispMonth[c.dispatcher]||Array(12).fill(0))[d.getMonth()]++; }
+    // dispatcher — calls store this as createdBy (unit #); resolve to a display name
+    const _dispU = c.dispatcher || c.createdBy;
+    if(_dispU && String(_dispU).trim()){
+      const _u=String(_dispU).replace(/^BC-?/i,'').trim();
+      const dn=(getMemberNameD&&getMemberNameD(_u))||('BC-'+_u);
+      dispMap[dn]=(dispMap[dn]||0)+1; (dispMonth[dn]=dispMonth[dn]||Array(12).fill(0))[d.getMonth()]++;
+    }
   });
 
   const top_cities=Object.entries(townMap).sort((a,b)=>b[1]-a[1]);
@@ -13312,10 +13385,10 @@ const isMemberOnly = ()=>['member','observer','equipment'].includes(SESSION.role
 
 function buildStatsSubNav() {
   const nav=document.getElementById('statsSubNav');
-  let tabs=[];
-  if (isMemberOnly())          tabs=[['mine','⭐ My Stats'],['overview','📊 Overview']];
-  else if (SESSION.role==='dispatch') tabs=[['mine','⭐ My Stats'],['overview','📊 Overview'],['dispatch','📡 Dispatch']];
-  else                         tabs=[['mine','⭐ My Stats'],['overview','📊 Overview'],['dispatch','📡 Dispatch'],['monthly','📅 Monthly'],['members','🏆 Members'],['search','🔍 Search'],['compare','⚔️ Compare'],['leaderboard','🏆 Leaderboard']];
+  // Admins: Overview lives in the Admin Stats tab (org-wide). Members/dispatch keep it here.
+  let tabs = isAdminRole()
+    ? [['mine','⭐ My Stats'],['monthly','📅 Monthly'],['leaderboard','🏆 Leaderboard']]
+    : [['mine','⭐ My Stats'],['overview','📊 Overview'],['monthly','📅 Monthly'],['leaderboard','🏆 Leaderboard']];
   nav.innerHTML=tabs.map(([sub,label],i)=>`<button class="sub-tab${i===0?' active':''}" onclick="setStatsSub('${sub}',this)" style="white-space:nowrap;font-size:12px;">${label}</button>`).join('');
   return tabs[0][0];
 }
@@ -13378,22 +13451,20 @@ function _renderStatsYear(yr){
     renderStatsSub();
     return;
   }
-  const topDispName = d.top_disp?.[0]?.[0]||'—';
+  const topDispName = d.top_disp?.[0]?.[0]||'';
   const topDispCnt  = d.top_disp?.[0]?.[1]||0;
+  const topDispShort = topDispName ? (topDispName.split(' ')[0]||'—') : '—';
   const yrLabel = yr==='all' ? 'All Time' : yr+' YTD';
   if (isAdminRole()) {
     document.getElementById('st-kpis').innerHTML=`
       <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Total Calls — ${yrLabel}</div><div class="kpi-sub">${d.cancelled} cancelled</div></div>
       <div class="kpi-card kpi-green"><div class="kpi-num">${d.members}</div><div class="kpi-lbl">Active Members</div><div class="kpi-sub">Responded via app</div></div>
       <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg||'—'}</div><div class="kpi-lbl">Avg Min/Call</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>
-      <div class="kpi-card kpi-purple"><div class="kpi-num">${d.top_r_cnt||'—'}</div><div class="kpi-lbl">Top Responder</div><div class="kpi-sub">${d.top_r_bc?'BC-'+d.top_r_bc+' '+d.top_r_name:'—'}</div></div>
-      <div class="kpi-card kpi-teal"><div class="kpi-num">${topDispCnt||'—'}</div><div class="kpi-lbl">Top Dispatcher</div><div class="kpi-sub">${topDispName.split(' ')[0]}</div></div>
       <div class="kpi-card kpi-red"><div class="kpi-num">${d.top_type_cnt||'—'}</div><div class="kpi-lbl">Top Call Type</div><div class="kpi-sub">${(d.top_type||'').replace('/',' / ')}</div></div>`;
   } else if (SESSION.role==='dispatch') {
     document.getElementById('st-kpis').innerHTML=`
       <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Total Calls — ${yrLabel}</div><div class="kpi-sub">${d.cancelled} cancelled</div></div>
       <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg||'—'}</div><div class="kpi-lbl">Avg Min/Call</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>
-      <div class="kpi-card kpi-teal"><div class="kpi-num">${topDispCnt||'—'}</div><div class="kpi-lbl">Top Dispatcher</div><div class="kpi-sub">${topDispName.split(' ')[0]}</div></div>
       <div class="kpi-card kpi-red"><div class="kpi-num">${d.top_type_cnt||'—'}</div><div class="kpi-lbl">Top Call Type</div><div class="kpi-sub">${(d.top_type||'').replace('/',' / ')}</div></div>`;
   } else {
     document.getElementById('st-kpis').innerHTML=`
@@ -13408,7 +13479,7 @@ function setStatsSub(sub,el) {
   ['mine','overview','dispatch','monthly','members','search','compare','leaderboard'].forEach(s=>{
     const e=document.getElementById(`st-${s}`); if(e) e.style.display=s===sub?'':'none';
   });
-  document.querySelectorAll('#statsSubNav .sub-tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('#statsSubNav .sub-tab, #adminStatsSubNav .sub-tab').forEach(x=>x.classList.remove('active'));
   if(el) el.classList.add('active');
   // Paint the tab selection first, then run the heavy chart rebuild as a macrotask.
   clearTimeout(_statsSubT);
@@ -13502,7 +13573,7 @@ function renderMyStats(bcArg, opts) {
   } else {
     // 4 KPIs
     html+=`<div class="stats-kpi-grid" style="margin-bottom:14px;">
-      <div class="kpi-card kpi-blue"><div class="kpi-num">${grandTotal}</div><div class="kpi-lbl">All-Time Calls</div><div class="kpi-sub">${liveCount>0?`+${liveCount} live`:''}</div></div>
+      <div class="kpi-card kpi-blue"><div class="kpi-num">${grandTotal}</div><div class="kpi-lbl">All-Time Calls</div></div>
       <div class="kpi-card kpi-green"><div class="kpi-num">${bestYr?bestYr.tot:liveCount}</div><div class="kpi-lbl">Best Year${bestYr?` (${bestYr.yr})`:''}</div></div>
       <div class="kpi-card kpi-amber"><div class="kpi-num">${totalP}</div><div class="kpi-lbl">Primary</div><div class="kpi-sub">${totalP?Math.round(totalP/grandTotal*100)+'%':''} of total</div></div>
       <div class="kpi-card kpi-teal"><div class="kpi-num">${totalB}</div><div class="kpi-lbl">Backup</div><div class="kpi-sub">${totalB?Math.round(totalB/grandTotal*100)+'%':''} of total</div></div>
@@ -13556,7 +13627,6 @@ function renderMyStats(bcArg, opts) {
             <td style="padding:8px;text-align:right;color:var(--amber);">${s.mb}</td>
             <td style="padding:8px;text-align:right;color:var(--teal);">${s.mo||'—'}</td>
           </tr>`).join('')}
-        ${liveCount?`<tr style="border-bottom:1px solid var(--border2);background:#eff6ff;"><td style="padding:8px;font-weight:700;">Live</td><td style="padding:8px;text-align:right;font-weight:700;color:var(--blue);">${liveCount}</td><td colspan="3" style="padding:8px;text-align:right;font-size:11px;color:var(--text3);">this session</td></tr>`:''}
         <tr style="background:var(--border2);font-weight:700;">
           <td style="padding:8px;">Total</td>
           <td style="padding:8px;text-align:right;">${grandTotal}</td>
@@ -13660,9 +13730,11 @@ function renderMyStats(bcArg, opts) {
     // Call History — per-call detail (type, date, call #), scoped to the year picker above.
     if(_detRows){
       html+=`<div class="chart-card" style="margin-bottom:12px;">
-        <div class="chart-title">📋 Call History</div>
-        <div>${_detRows}</div>
-        ${_scopeCalls.length>50?`<div style="font-size:11px;color:var(--text3);text-align:center;padding-top:8px;">Showing latest 50 of ${_scopeCalls.length}</div>`:''}
+        <div class="chart-title" onclick="this.parentElement.classList.toggle('open')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">📋 Call History<span class="acc-caret" style="font-size:13px;color:var(--text3);transition:transform .2s;">▾</span></div>
+        <div class="acc-body">
+          <div>${_detRows}</div>
+          ${_scopeCalls.length>50?`<div style="font-size:11px;color:var(--text3);text-align:center;padding-top:8px;">Showing latest 50 of ${_scopeCalls.length}</div>`:''}
+        </div>
       </div>`;
     }
     // Member Diary — private free-write notes (this device only; doesn't sync elsewhere).
@@ -13673,6 +13745,13 @@ function renderMyStats(bcArg, opts) {
     html+=buildMyDispatchBlock();
   }
 
+  html+=`<a href="https://aryehw330-lgtm.github.io/Chaverim-Statistics/" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,var(--navy),var(--navy3));border-radius:var(--radius);padding:13px 15px;margin-top:6px;text-decoration:none;color:#fff;">
+    <div style="min-width:0;">
+      <div style="font-size:11px;font-weight:700;color:var(--gold-light,#d4a93a);letter-spacing:1.2px;text-transform:uppercase;">Full History</div>
+      <div style="font-size:13px;font-weight:700;margin-top:2px;">View all-time stats on the website →</div>
+    </div>
+    <span style="font-size:18px;flex-shrink:0;">📊</span>
+  </a>`;
   html+=`</div>`;
   el.innerHTML=html;
 
@@ -13745,7 +13824,7 @@ function renderStatsOverview() {
   const d=getYearData(stYear);
   const isAll=stYear==='all';
   const _mtEl=document.getElementById('ch-monthly-total');
-  if(_mtEl) _mtEl.textContent = isAll ? '' : `Total: ${d.total.toLocaleString()} call${d.total===1?'':'s'}`;
+  if(_mtEl) _mtEl.textContent = `Total: ${d.total.toLocaleString()} call${d.total===1?'':'s'}${isAll?' (all time)':''}`;
   const _mtTitle=document.getElementById('ch-monthly-title');
   if(_mtTitle) _mtTitle.textContent = isAll ? '📅 Calls by Year' : '📅 Calls by Month';
   // Monthly / Year chart
