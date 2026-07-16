@@ -8444,6 +8444,10 @@ async function submitRadioResponders() {
   if (window._radioAssignLock[id] && Date.now()-window._radioAssignLock[id] < 10000) return;
   window._radioAssignLock[id] = Date.now();
 
+  // Only members NOT already responding are genuinely new — used to gate the
+  // WhatsApp/push so re-assigning someone already on the call announces nothing.
+  const _newMembers = radioSelectedMembers.filter(m=>!(call.responders||[]).find(r=>String(r.unit)===String(m.unit)));
+
   radioSelectedMembers.forEach(m=>{
     call.responders=call.responders||[];
     // Remove from pending if they were there
@@ -8458,18 +8462,20 @@ async function submitRadioResponders() {
   save(); firestoreUpsertCall(call); hideModal('radioModal');
   renderCalls(); renderHome(); showTab('dispatch');
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
-  // Single clean push to all with call number
+  // Nobody genuinely new (all were already responding) → no announcement at all.
+  if(!_newMembers.length){ return; }
+  // Single clean push to all with call number — only the newly-added members
   const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
+  const _rNames=_newMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
   setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
-  // WA: one consolidated message for all responders (not one per member)
+  // WA: one consolidated message for the newly-added responders (not one per member)
   setTimeout(() => {
     let waMsg;
-    if (radioSelectedMembers.length === 1) {
-      waMsg = _waMsgResponderUpdate(call, radioSelectedMembers[0]);
+    if (_newMembers.length === 1) {
+      waMsg = _waMsgResponderUpdate(call, _newMembers[0]);
     } else {
       const callNumTxt = call.callNum ? ` to call #${call.callNum}` : '';
-      const respList = radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-?/i,'')}`).join(', ');
+      const respList = _newMembers.map(m=>`BC-${String(m.unit).replace(/^BC-?/i,'')}`).join(', ');
       const onCall = (call.responders||[]).map(r=>`BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
       waMsg = `*Multiple BC members responding${callNumTxt}: ${respList}*`;
       if (onCall) waMsg += `\nOn call: ${onCall}`;
