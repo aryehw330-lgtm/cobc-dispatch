@@ -3475,6 +3475,7 @@ async function initFirebaseApp() {
       _syncStarted = true;
       try { initFirestore(); } catch(e){ console.warn('initFirestore:', e); }
       try { subscribeScheduleFromFirestore(); } catch(e){ console.warn('subscribeSchedule:', e); }
+      try { _subscribeDeletedCalls(); } catch(e){ console.warn('subscribeDeletedCalls:', e); }
       try { subscribeSchedOverridesFromFirestore(); } catch(e){ console.warn('subscribeSchedOverrides:', e); }
       try { subscribeNumbersFromFirestore(); } catch(e){ console.warn('subscribeNumbers:', e); }
       try { subscribeEquipmentHistoryFromFirestore(); } catch(e){ console.warn('subscribeEqHist:', e); }
@@ -4865,7 +4866,41 @@ let STATE = load();
 // ── Firestore real-time sync ──────────────────────────────
 let _db = null;
 let _unsubscribeCalls = null;
-const _deletedCallIds = new Set();
+// Deleted-call tombstones. Persisted locally AND to Firestore (config/deletedCalls)
+// so a delete sticks across devices — otherwise another open session that still has
+// the call in its STATE re-uploads it and it "comes back".
+const _deletedCallIds = new Set((function(){ try{ return JSON.parse(localStorage.getItem('cobc_deleted_calls')||'[]'); }catch(e){ return []; } })());
+function _persistDeletedCallIds(){ try{ localStorage.setItem('cobc_deleted_calls', JSON.stringify([..._deletedCallIds])); }catch(e){} }
+// Add a tombstone everywhere: local set, localStorage, and the shared Firestore list.
+function _tombstoneCall(id){
+  _deletedCallIds.add(String(id));
+  _persistDeletedCallIds();
+  try{
+    if(typeof firebase!=='undefined'){
+      firebase.firestore().collection('config').doc('deletedCalls')
+        .set({ ids: firebase.firestore.FieldValue.arrayUnion(String(id)) }, {merge:true})
+        .catch(e=>console.warn('tombstone write:',e));
+    }
+  }catch(e){}
+}
+// Every device watches the shared tombstone list and purges matching calls so a
+// deletion propagates and never gets re-created.
+function _subscribeDeletedCalls(){
+  try{
+    if(typeof firebase==='undefined') return;
+    firebase.firestore().collection('config').doc('deletedCalls').onSnapshot(doc=>{
+      const ids=(doc.exists&&Array.isArray((doc.data()||{}).ids))?doc.data().ids:[];
+      let changed=false;
+      ids.forEach(i=>{ if(!_deletedCallIds.has(String(i))){ _deletedCallIds.add(String(i)); changed=true; } });
+      if(changed){
+        _persistDeletedCallIds();
+        const before=(STATE.calls||[]).length;
+        STATE.calls=(STATE.calls||[]).filter(c=>!_deletedCallIds.has(String(c.id)));
+        if((STATE.calls||[]).length!==before){ try{ save(); renderCalls&&renderCalls(); renderHome&&renderHome(); }catch(e){} }
+      }
+    }, e=>console.warn('deletedCalls listener:',e));
+  }catch(e){ console.warn('_subscribeDeletedCalls:',e); }
+}
 // ── Synced reset marker ──────────────────────────────────────────────────────
 // A device that resets writes config/appReset = {resetAt}. Every device obeys it:
 // purge calls predating the reset, refuse to re-upload them, and reset the call-
@@ -8829,7 +8864,7 @@ function deleteCall(id) {
   overlay.querySelector('#__dc_yes').onclick=function(){
     document.body.removeChild(overlay);
     // Optimistic: remove instantly
-    _deletedCallIds.add(String(id));
+    _tombstoneCall(id);
     STATE.calls=(STATE.calls||[]).filter(c=>c.id!==id);
     save(); renderCalls(); renderHome();
     firebase.firestore().collection('calls').doc(String(id)).delete()
