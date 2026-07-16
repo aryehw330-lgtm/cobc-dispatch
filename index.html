@@ -5117,7 +5117,7 @@ function initFirestore(){
   // If either scoped listener errors (e.g. a missing index), we automatically
   // fall back to the original full-collection listener so the board never goes dark.
   const _recentStart=_recentWindowStartMs();
-  let _bufRecent=null, _bufOpen=null, _unsubRecent=null, _unsubOpen=null, _fellBack=false;
+  let _bufRecent=null, _bufOpen=null, _unsubRecent=null, _unsubOpen=null, _fellBack=false, _lastCallsSig='';
   function _snapDocs(snap){
     if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
     if(!snap.metadata.fromCache)clearSyncError();
@@ -5150,6 +5150,12 @@ function initFirestore(){
     });
     localOnly.forEach(call=>firestoreUpsertCall(call));
     STATE.calls=[...firestoreCalls,...localOnly];
+    // Skip redundant re-renders: both the recent + open listeners (and Firestore's
+    // cache/server snapshot pairs) fire in quick succession. Re-rendering the call
+    // list on every one caused visible flicker. Only redraw when the set changed.
+    const _sig=STATE.calls.map(c=>c.id+':'+(c.status||'')+':'+(c.updatedAt||c.createdAt||0)+':'+(c.responders?c.responders.length:0)).sort().join('|');
+    if(_sig===_lastCallsSig){ save(); return; }
+    _lastCallsSig=_sig;
     save();renderCalls&&renderCalls();renderHome&&renderHome();
     try{syncLocationWatchers&&syncLocationWatchers();}catch(e){}
     try{maybePromptLiveShare&&maybePromptLiveShare();}catch(e){}
