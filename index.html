@@ -7899,16 +7899,9 @@ function confirmRespond() {
   const pushTitle = `📲 Response Request — BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${fmtLoc(call)} · ETA ${eta} min${notes?' · '+notes:''}`;
 
-  // 1) All on-duty dispatchers — ?page=dispatch so tapping opens the Dispatch tab (not Open Calls)
+  // on-duty dispatchers + admins in one shot — 'dispatchers' already covers admins,
+  // so no separate per-admin loop (that caused duplicate notifications).
   setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
-
-  // 2) Every admin individually (target:'unit' — proven reliable). Runs unconditionally.
-  (STATE.members||[]).forEach(function(m){
-    if ((m.role||'').toLowerCase()==='admin') {
-      var adminUnit = String(m.unit||m.id||'').replace(/^BC-?/i,'');
-      if (adminUnit) sendPush({ target:'unit', unit:adminUnit, title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' });
-    }
-  });
 
   showToast('Response request sent to on-duty dispatchers & admin');
 }
@@ -8238,8 +8231,8 @@ function submitBackup() {
   const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
   const _bTitle='🆘 Backup Request — needs approval';
   const _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} on ${_bLabel} — ${fmtLoc(call)}`;
+  // 'dispatchers' already reaches admins — one push, no per-admin loop (avoids duplicates).
   setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
-  (STATE.members||[]).forEach(function(m){ if((m.role||'').toLowerCase()==='admin'){ var au=String(m.unit||m.id||'').replace(/^BC-?/i,''); if(au){ try{ sendPush({target:'unit',unit:au,title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} } } });
 }
 
 // ── Dispatcher APPROVES a backup request → broadcasts to all (push + WhatsApp) ──
