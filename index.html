@@ -3776,6 +3776,25 @@ function _waDedupeHit(text){
   _waLastSent[text] = now;
   return false;
 }
+// Caller contact: let dispatcher/responder choose phone call or WhatsApp via a
+// clear two-button sheet (native confirm's OK/Cancel was unclear).
+function callCaller(phone){
+  const digits=String(phone||'').replace(/[^\d]/g,'');
+  if(!digits){ showToast('No phone number'); return; }
+  const wa = digits.length===10 ? '1'+digits : digits;
+  const old=document.getElementById('callCallerSheet'); if(old) old.remove();
+  const ov=document.createElement('div');
+  ov.id='callCallerSheet';
+  ov.style.cssText='position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:460px;padding:18px 16px calc(16px + env(safe-area-inset-bottom));">
+    <div style="font-size:13px;font-weight:700;color:var(--text3);text-align:center;margin-bottom:14px;">Contact caller</div>
+    <button onclick="window.open('https://wa.me/${wa}','_blank');document.getElementById('callCallerSheet').remove();" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:#25d366;color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:10px;">💬 WhatsApp</button>
+    <button onclick="window.location='tel:${phone}';document.getElementById('callCallerSheet').remove();" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--navy);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:10px;">📞 Phone Call</button>
+    <button onclick="document.getElementById('callCallerSheet').remove();" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:15px;font-weight:700;padding:8px;cursor:pointer;font-family:inherit;">Cancel</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
 function sendWA(payload) {
   const { target, message } = payload;
   if (!message || target !== 'all') return;
@@ -6913,7 +6932,7 @@ function callCardHTML(call, mini=false) {
       <div style="display:flex;gap:5px;">
         <button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
         ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}
-        ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}
+        ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();callCaller('${call.phone}')">📞 Call Caller</button>`:''}
       </div>
     </div>
     </div>
