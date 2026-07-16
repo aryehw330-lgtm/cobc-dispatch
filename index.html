@@ -6800,7 +6800,7 @@ function callCardHTML(call, mini=false) {
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
   // Boost calls: show the vehicle inline next to the call type after a small dash
   const isBoostCard = (call.type==='jump_start');
-  const typeLabelDisp = (isBoostCard && carInfo) ? `${typeLabel} <span style="font-weight:600;font-size:.78em;opacity:.85;">– ${carInfo}</span>` : typeLabel;
+  const typeLabelDisp = (isBoostCard && carInfo) ? `<span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${typeLabel} <span style="font-weight:600;font-size:.72em;opacity:.85;">– ${carInfo}</span></span>` : typeLabel;
   const carInfoLine = (isBoostCard && carInfo) ? '' : carInfo;
   const floodBadge = (call.floodNeeds&&call.floodNeeds.length) ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${call.floodNeeds.map(n=>`<span style="font-size:12px;font-weight:800;color:#fff;background:rgba(37,99,235,.85);border:1px solid rgba(255,255,255,.25);padding:2px 9px;border-radius:8px;text-shadow:0 1px 2px rgba(0,0,0,.4);">${n}</span>`).join('')}</div>` : '';
 
