@@ -8378,10 +8378,20 @@ async function submitRadioResponders() {
   const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const _rNames=radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
   setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
-  // WA: radio responders
-  radioSelectedMembers.forEach((m, i) => {
-    setTimeout(() => sendWA({ target:'all', message: _waMsgResponderUpdate(call, m) }), 400 + i * 600);
-  });
+  // WA: one consolidated message for all responders (not one per member)
+  setTimeout(() => {
+    let waMsg;
+    if (radioSelectedMembers.length === 1) {
+      waMsg = _waMsgResponderUpdate(call, radioSelectedMembers[0]);
+    } else {
+      const callNumTxt = call.callNum ? ` to call #${call.callNum}` : '';
+      const respList = radioSelectedMembers.map(m=>`BC-${String(m.unit).replace(/^BC-?/i,'')}`).join(', ');
+      const onCall = (call.responders||[]).map(r=>`BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
+      waMsg = `*Multiple BC members responding${callNumTxt}: ${respList}*`;
+      if (onCall) waMsg += `\nOn call: ${onCall}`;
+    }
+    sendWA({ target:'all', message: waMsg });
+  }, 400);
 }
 
 function addRadioResponder() { /* legacy — use openRadioModal */ }
