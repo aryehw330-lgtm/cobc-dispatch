@@ -8359,6 +8359,11 @@ async function submitRadioResponders() {
   if(!radioSelectedMembers.length){showToast('Select at least one member');return;}
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
+  // Re-entry guard: block repeat submits for the same call within 10s so the group
+  // message (and push) can't fire 2–3× from a double/triple tap or re-invocation.
+  window._radioAssignLock = window._radioAssignLock || {};
+  if (window._radioAssignLock[id] && Date.now()-window._radioAssignLock[id] < 10000) return;
+  window._radioAssignLock[id] = Date.now();
 
   radioSelectedMembers.forEach(m=>{
     call.responders=call.responders||[];
