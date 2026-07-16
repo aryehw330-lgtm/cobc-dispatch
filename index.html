@@ -5131,6 +5131,14 @@ function initFirestore(){
     const map=new Map();
     (_bufOpen||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
     (_bufRecent||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+    // Drop any tombstoned (deleted) call even if it's still present in Firestore —
+    // and re-issue the delete so the lingering doc actually goes away.
+    for(const delId of _deletedCallIds){
+      if(map.has(delId)){
+        map.delete(delId);
+        try{ db.collection('calls').doc(String(delId)).delete().catch(()=>{}); }catch(e){}
+      }
+    }
     const firestoreCalls=[...map.values()];
     const firestoreIds=new Set(map.keys());
     // Keep (and upload) only genuinely-unsynced calls that belong IN the window —
