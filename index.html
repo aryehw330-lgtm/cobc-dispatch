@@ -3783,6 +3783,26 @@ function _openScheme(url){
   try{ window.location.href = url; }
   catch(e){ try{ window.open(url,'_blank'); }catch(_){} }
 }
+// Direct-dial with a caller-name banner shown at the same time as the native iOS
+// "Call [number]?" prompt. The banner clears when you return to the app (call placed
+// or cancelled — via focus/visibility) or after a short timeout.
+function dialWithName(phone, name){
+  const nm=(name||'').toString().trim();
+  const old=document.getElementById('dialNameBanner'); if(old) old.remove();
+  if(nm){
+    const b=document.createElement('div');
+    b.id='dialNameBanner';
+    b.style.cssText='position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:100000;background:var(--navy,#0f2540);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:12px 20px;box-shadow:0 8px 26px rgba(0,0,0,.5);text-align:center;max-width:90vw;';
+    b.innerHTML=`<div style="font-size:11px;font-weight:700;color:var(--gold-light,#e6c463);letter-spacing:.6px;text-transform:uppercase;">Calling</div><div style="font-size:18px;font-weight:800;margin-top:2px;">${nm}</div>`;
+    document.body.appendChild(b);
+    const clear=()=>{ const el=document.getElementById('dialNameBanner'); if(el) el.remove(); window.removeEventListener('focus',clear); document.removeEventListener('visibilitychange',onVis); };
+    const onVis=()=>{ if(!document.hidden) clear(); };
+    window.addEventListener('focus',clear);
+    document.addEventListener('visibilitychange',onVis);
+    setTimeout(clear, 12000);
+  }
+  window.location='tel:'+phone;
+}
 // Caller contact: let dispatcher/responder choose phone call or WhatsApp via a
 // clear two-button sheet (native confirm's OK/Cancel was unclear).
 function callCaller(phone, name){
@@ -6888,7 +6908,7 @@ function callCardHTML(call, mini=false) {
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:0 13px 0 0;margin:2px 0 4px;">${_respNumBadges(call)?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">${_respNumBadges(call)}</div>`:`<span></span>`}${etaWrap}</div>
       ${cornerMeta}
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
+      ${(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();dialWithName('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
     </div>`;
   }
 
@@ -6943,7 +6963,7 @@ function callCardHTML(call, mini=false) {
       <div style="display:flex;gap:5px;">
         <button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
         ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}
-        ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}
+        ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();dialWithName('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Call Caller</button>`:''}
       </div>
     </div>
     </div>
