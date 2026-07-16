@@ -8928,6 +8928,17 @@ function saveCallEdit() {
         const clash=STATE.calls.find(c=>c.id!==id && String(c.callNum||'')===String(newNum));
         if(clash){ showToast('Call #'+newNum+' is already used by another call'); return; }
         call.callNum=newNum;
+        // Reconcile the persistent counter so a CORRECTION carries forward. Without this,
+        // an accidental high number (e.g. an extra zero → 1230) that bumped the stored
+        // counter would keep the next call at 1231 even after you fix this one back down.
+        try{
+          const _yr=new Date().getFullYear(), _key='cobc_callnum_'+_yr;
+          const _trueMax=(STATE.calls||[]).reduce((m,c)=>{
+            const y=c.createdAt?new Date(c.createdAt).getFullYear():0;
+            return y===_yr?Math.max(m,parseInt(c.callNum,10)||0):m;
+          },0);
+          localStorage.setItem(_key,String(_trueMax)); // next call = _trueMax + 1
+        }catch(e){}
       }
     }
   }
