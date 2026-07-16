@@ -1101,7 +1101,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-          <button id="telzioSignInBtn" onclick="window.open('https://telzio.com/login','_blank')" title="Sign in to Telzio" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.55),rgba(37,99,235,.2));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(147,197,253,.6);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 8px rgba(0,0,0,.15);">📞 Telzio</button>
+          <button id="telzioSignInBtn" onclick="_openScheme('https://app.telzio.com/')" title="Open Telzio" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.55),rgba(37,99,235,.2));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(147,197,253,.6);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 8px rgba(0,0,0,.15);">📞 Telzio</button>
           <button id="newCallBtn" class="metal-gold" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;display:none">+ New Call</button>
         </div>
       </div>
