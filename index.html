@@ -8712,7 +8712,7 @@ function openCallDetail(id) {
     if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" onclick="reopenCall('${id}');renderCallDetail('${id}')">🔄 Re-open</button>`;
     if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-danger" onclick="cancelCall('${id}')">🚫 Cancel Call</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
-    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">Share call info on WhatsApp</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">Share call info</button>`;
     html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
 
     // Vehicle assignment
