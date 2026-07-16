@@ -5074,15 +5074,39 @@ function initFirestore(){
     }catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},
     e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
   }
+  const MAX_SCOPED_RETRY = 2, SCOPED_RETRY_DELAY_MS = 1500;
+  let _recentErrCount = 0, _openErrCount = 0;
+  function _attachRecentListener(){
+    try{
+      _unsubRecent=db.collection('calls').where('createdAt','>=',_recentStart).onSnapshot(snap=>{
+        _recentErrCount=0;
+        try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufRecent=d;} _applyCallsMerge(); }
+        catch(e){console.warn('calls recent snap:',e);}
+      }, e=>{
+        console.warn('calls recent listener error:',e);
+        _recentErrCount++;
+        if(_recentErrCount<=MAX_SCOPED_RETRY) setTimeout(_attachRecentListener, SCOPED_RETRY_DELAY_MS);
+        else _attachFullListener();
+      });
+    }catch(e){ console.warn('calls recent listener attach failed:',e); _attachFullListener(); }
+  }
+  function _attachOpenListener(){
+    try{
+      _unsubOpen=db.collection('calls').where('status','in',['open','active','draft']).onSnapshot(snap=>{
+        _openErrCount=0;
+        try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufOpen=d;} _applyCallsMerge(); }
+        catch(e){console.warn('calls open snap:',e);}
+      }, e=>{
+        console.warn('calls open listener error:',e);
+        _openErrCount++;
+        if(_openErrCount<=MAX_SCOPED_RETRY) setTimeout(_attachOpenListener, SCOPED_RETRY_DELAY_MS);
+        else _attachFullListener();
+      });
+    }catch(e){ console.warn('calls open listener attach failed:',e); _attachFullListener(); }
+  }
   try{
-    _unsubRecent=db.collection('calls').where('createdAt','>=',_recentStart).onSnapshot(snap=>{
-      try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufRecent=d;} _applyCallsMerge(); }
-      catch(e){console.warn('calls recent snap:',e);}
-    }, e=>{console.warn('calls recent listener error:',e); _attachFullListener();});
-    _unsubOpen=db.collection('calls').where('status','in',['open','active','draft']).onSnapshot(snap=>{
-      try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufOpen=d;} _applyCallsMerge(); }
-      catch(e){console.warn('calls open snap:',e);}
-    }, e=>{console.warn('calls open listener error:',e); _attachFullListener();});
+    _attachRecentListener();
+    _attachOpenListener();
   }catch(e){ console.warn('calls scoped listeners failed:',e); _attachFullListener(); }
   // Members loaded from Google Sheet (loadMembersFromSheet) — Sheet is source of truth.
   // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
