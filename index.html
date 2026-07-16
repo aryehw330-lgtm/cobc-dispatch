@@ -3776,6 +3776,17 @@ function _waDedupeHit(text){
   _waLastSent[text] = now;
   return false;
 }
+// Fire an external URL scheme (tel:, whatsapp://) WITHOUT navigating the app's own
+// window — otherwise the PWA lands on a blank page when you return. A hidden iframe
+// hands the scheme to iOS; the app stays put.
+function _openScheme(url){
+  try{
+    const f=document.createElement('iframe');
+    f.style.display='none'; f.src=url;
+    document.body.appendChild(f);
+    setTimeout(()=>{ try{ f.remove(); }catch(e){} }, 1500);
+  }catch(e){ try{ window.location=url; }catch(_){} }
+}
 // Caller contact: let dispatcher/responder choose phone call or WhatsApp via a
 // clear two-button sheet (native confirm's OK/Cancel was unclear).
 function callCaller(phone){
@@ -3789,8 +3800,8 @@ function callCaller(phone){
   ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML=`<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:460px;padding:18px 16px calc(16px + env(safe-area-inset-bottom));">
     <div style="font-size:13px;font-weight:700;color:var(--text3);text-align:center;margin-bottom:14px;">Contact caller</div>
-    <button onclick="window.open('https://wa.me/${wa}','_blank');document.getElementById('callCallerSheet').remove();" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:#25d366;color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:10px;">💬 WhatsApp</button>
-    <button onclick="window.location='tel:${phone}';document.getElementById('callCallerSheet').remove();" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--navy);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:10px;">📞 Phone Call</button>
+    <button onclick="_openScheme('whatsapp://send?phone=${wa}');document.getElementById('callCallerSheet').remove();" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:#25d366;color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:10px;">💬 WhatsApp</button>
+    <button onclick="_openScheme('tel:${phone}');document.getElementById('callCallerSheet').remove();" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--navy);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:10px;">📞 Phone Call</button>
     <button onclick="document.getElementById('callCallerSheet').remove();" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:15px;font-weight:700;padding:8px;cursor:pointer;font-family:inherit;">Cancel</button>
   </div>`;
   document.body.appendChild(ov);
@@ -6932,7 +6943,7 @@ function callCardHTML(call, mini=false) {
       <div style="display:flex;gap:5px;">
         <button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>
         ${call.address && !isDispatch && iAmApproved?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef3c7;color:var(--amber);" onclick="event.stopPropagation();openLiveDirections('${call.id}')">🗺️ Navigate</button>`:''}
-        ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();callCaller('${call.phone}')">📞 Call Caller</button>`:''}
+        ${call.phone && (isDispatch || iAmApproved)?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();window.location='tel:${call.phone}'">📞 Call Caller</button>`:''}
       </div>
     </div>
     </div>
@@ -8498,7 +8509,7 @@ function openCallDetail(id) {
     <div class="detail-row" style="align-items:center;gap:10px;"><span class="detail-key">Address</span><a class="detail-addr-fit" onclick="event.preventDefault();event.stopPropagation();openAddressPreviewById('${call.id}')" style="color:var(--blue);text-decoration:none;cursor:pointer;display:block;white-space:nowrap;overflow:hidden;text-align:right;font-weight:700;flex:1;min-width:0;">${call.address}</a></div>
     <div class="detail-row"><span class="detail-key">Time</span><span class="detail-val">${timeStr}</span></div>
     ${call.caller?`<div class="detail-row"><span class="detail-key">Caller</span><span class="detail-val">${call.caller}</span></div>`:''}
-    ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="tel:${call.phone}" style="color:var(--blue);text-decoration:none;">${formatPhone(call.phone)}</a></span></div>`:''}
+    ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="javascript:void(0)" onclick="callCaller('${call.phone}')" style="color:var(--blue);text-decoration:none;">${formatPhone(call.phone)}</a></span></div>`:''}
     ${call.carMake?`<div class="detail-row"><span class="detail-key">Vehicle</span><span class="detail-val">${[call.carYear,call.carMake?.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ')}</span></div>`:''}
     ${(call.floodNeeds&&call.floodNeeds.length)?`<div class="detail-row"><span class="detail-key">Needs</span><span class="detail-val">${call.floodNeeds.join(', ')}</span></div>`:''}
     ${call.noSpareAction==='plug'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--orange);font-weight:700;">🔧 Plug Kit</span></div>`:''}
@@ -8608,7 +8619,7 @@ function openCallDetail(id) {
   const _myU=String(SESSION.unit||'').replace(/^BC-?/i,'').trim();
   const _iAmOnCall=(call.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
   const _canActOnCall = isDispatch || (call.status==='active' && _iAmOnCall);
-  if(call.phone && _canActOnCall) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="window.location='tel:${call.phone}'">📞 Caller</button>`;
+  if(call.phone && _canActOnCall) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="callCaller('${call.phone}')">📞 Caller</button>`;
   if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
