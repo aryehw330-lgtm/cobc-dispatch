@@ -1569,33 +1569,8 @@ textarea.input{min-height:80px;resize:vertical;}
           <div id="settings-loc-status" style="margin-top:8px;font-size:12px;color:var(--text3);display:none;"></div>
         </div>
 
-        <!-- Sound -->
-        <div class="card" style="margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-            <div style="flex:1;min-width:0;">
-              <div class="card-title">🔊 Sound Alerts</div>
-              <div class="card-desc">Play a sound when an urgent call comes in.</div>
-            </div>
-            <label class="toggle" style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;">
-              <input id="settings-sound" type="checkbox" style="opacity:0;width:0;height:0;" onchange="saveSetting('sound',this.checked)"/>
-              <span style="position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:26px;transition:.2s;" class="toggle-track"></span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Vibration -->
-        <div class="card" style="margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-            <div style="flex:1;min-width:0;">
-              <div class="card-title">📳 Vibration</div>
-              <div class="card-desc">Vibrate phone on urgent calls (mobile only).</div>
-            </div>
-            <label class="toggle" style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;">
-              <input id="settings-vibrate" type="checkbox" style="opacity:0;width:0;height:0;" onchange="saveSetting('vibrate',this.checked)"/>
-              <span style="position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:26px;transition:.2s;" class="toggle-track"></span>
-            </label>
-          </div>
-        </div>
+        <!-- Sound + Vibration toggles removed: iOS ignores web-app notification sound/vibration
+             (controlled by the phone's per-app settings), so neither had any effect for iPhone users. -->
 
         <div class="section-label">App Info</div>
 
@@ -8294,6 +8269,11 @@ function openBackupModal(id) {
 
 function submitBackup() {
   const id=document.getElementById('backupCallId').value;
+  // Re-entry guard: block repeat submits for the same call within 10s so a double/
+  // triple tap can't fire the backup push + WhatsApp more than once.
+  window._backupLock = window._backupLock || {};
+  if (id && window._backupLock[id] && Date.now()-window._backupLock[id] < 10000) return;
+  if (id) window._backupLock[id] = Date.now();
   const type='general';
   const equipment=document.getElementById('backupEquipment').value.trim();
   const notes=document.getElementById('backupNotes').value.trim();
@@ -11157,12 +11137,6 @@ function renderAdminStats() {
 // ── Settings tab ──
 function renderSettingsTab() {
   const settings = JSON.parse(localStorage.getItem('cobc_settings')||'{}');
-  // Sound
-  const soundEl = document.getElementById('settings-sound');
-  if(soundEl) soundEl.checked = settings.sound !== false; // default on
-  // Vibrate
-  const vibrateEl = document.getElementById('settings-vibrate');
-  if(vibrateEl) vibrateEl.checked = settings.vibrate !== false; // default on
   // Notification state
   const notifDesc = document.getElementById('settings-notif-desc');
   const notifBtn = document.getElementById('settings-notif-btn');
