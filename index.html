@@ -8712,7 +8712,7 @@ function openCallDetail(id) {
     if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" onclick="reopenCall('${id}');renderCallDetail('${id}')">🔄 Re-open</button>`;
     if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-danger" onclick="cancelCall('${id}')">🚫 Cancel Call</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
-    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">WhatsApp</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">Share call info on WhatsApp</button>`;
     html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
 
     // Vehicle assignment
@@ -10052,7 +10052,7 @@ function resendCallAlert(id, btn) {
   const _waitMin = call.createdAt ? Math.max(0, Math.round((Date.now()-call.createdAt)/60000)) : null;
   const _waitStr = _waitMin==null ? '' : (_waitMin>=60 ? Math.floor(_waitMin/60)+'h '+(_waitMin%60)+'m' : _waitMin+' min');
   const _waitTag = _waitStr ? ` · waiting ${_waitStr}` : '';
-  const _waMsg = buildDispatchWhatsApp(call) + (_waitStr ? `\n\n⏳ Waiting ${_waitStr} — still needs a unit` : '');
+  const _waMsg = `Any units available? Call #${call.callNum||''}${_waitStr?` waiting ${_waitStr}`:''}`;
   if(btn){ btn.disabled=true; const _o=btn.innerHTML; btn.innerHTML='📢 Sent'; setTimeout(()=>{ btn.disabled=false; btn.innerHTML=_o; }, 2500); }
   setTimeout(()=>sendPush({
     target:'all',
