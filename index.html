@@ -1101,7 +1101,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-          <button id="telzioSignInBtn" onclick="_openScheme('https://app.telzio.com/')" title="Open Telzio" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.55),rgba(37,99,235,.2));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(147,197,253,.6);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 8px rgba(0,0,0,.15);">📞 Telzio</button>
+          <button id="telzioSignInBtn" onclick="window.open('https://app.telzio.com/','_blank','noopener')" title="Open Telzio" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.55),rgba(37,99,235,.2));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(147,197,253,.6);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 8px rgba(0,0,0,.15);">📞 Telzio</button>
           <button id="newCallBtn" class="metal-gold" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;display:none">+ New Call</button>
         </div>
       </div>
@@ -1714,7 +1714,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="numPhone" placeholder="201-555-0000"/></div>
             <div class="input-group"><label class="input-label">Category</label>
               <select class="input" id="numCat">
-                <option>Police</option><option>Dispatch</option><option>Ambulance</option><option>Roadside</option><option>Hospital</option><option>Internal</option><option>Other</option>
+                <option>Police</option><option>Dispatch</option><option>Ambulance</option><option>Roadside</option><option>Hospital</option><option>Chaverims</option><option>Internal</option><option>Other</option>
               </select>
             </div>
             <div class="input-group"><label class="input-label">Or new section</label><input class="input" id="numNewCat" placeholder="e.g. Chaverims, Tow Companies"/></div>
@@ -2405,6 +2405,18 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn" onclick="selectCallType('needs_ac',this)">❄️ Needs A/C<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
       <button class="qtype-btn" onclick="selectCallType('needs_heat',this)">🔥 Needs Heater<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
       <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
+      <select id="callTypeMore" onchange="if(this.value){selectCallType(this.value,null);highlightMoreType(this);}" class="qtype-btn" style="display:none;font-family:inherit;font-size:12px;font-weight:600;text-align:center;cursor:pointer;-webkit-appearance:none;appearance:none;">
+        <option value="">More…</option>
+        <option value="needs_fan">💨 Needs Fans</option>
+        <option value="generator">🔌 Generator</option>
+        <option value="transport">🚗 Transport</option>
+        <option value="welfare">🏥 Welfare Check</option>
+        <option value="stuck_snow">❄️ Stuck in Snow/Ice</option>
+        <option value="vehicle_stalled">🚗 Vehicle Stalled</option>
+        <option value="vehicle_pullout">🚙 Vehicle Pull Out</option>
+        <option value="bumper_hanging">🚗 Bumper Hanging</option>
+        <option value="plastic_hanging">🚗 Plastic Hanging</option>
+      </select>
     </div>
     <input type="hidden" id="callType" value=""/>
 
@@ -6514,6 +6526,7 @@ const CALL_TYPE_LABELS = {
   flat_tire_spare:'Flat Tire - Has Spare',flat_tire_no_spare:'Flat Tire - No Spare',lockout:'House Lockout',car_lockout:'Car Lockout',child_lockout:'Child Locked in Car',missing_person:'Missing Person',jump_start:'⚡ Boost',
   flood:'Flood',ac_heat:'A/C or Heat',generator:'Generator',
   needs_ac:'Needs A/C',needs_fan:'Needs Fans',needs_heat:'Needs Heater',out_of_gas:'Out Of Gas',
+  vehicle_stalled:'Vehicle Stalled',vehicle_pullout:'Vehicle Pull Out',transport:'Transport',welfare:'Welfare Check',stuck_snow:'Stuck in Snow/Ice',bumper_hanging:'Bumper Hanging',plastic_hanging:'Plastic Hanging',
   'needs_ac:qty1':'Needs A/C — Quantity: 1','needs_ac:qty2':'Needs A/Cs — Quantity: 2','needs_ac:qty3':'Needs A/Cs — Quantity: 3','needs_ac:qty4':'Needs A/Cs — Quantity: 4','needs_ac:qty5':'Needs A/Cs — Quantity: 5','needs_ac:qty6+':'Needs A/Cs — Quantity: 6+',
   'needs_fan:qty1':'Needs Fan — Quantity: 1','needs_fan:qty2':'Needs Fans — Quantity: 2','needs_fan:qty3':'Needs Fans — Quantity: 3','needs_fan:qty4':'Needs Fans — Quantity: 4','needs_fan:qty5':'Needs Fans — Quantity: 5','needs_fan:qty6+':'Needs Fans — Quantity: 6+',
   'needs_heat:qty1':'Needs Heater — Quantity: 1','needs_heat:qty2':'Needs Heaters — Quantity: 2','needs_heat:qty3':'Needs Heaters — Quantity: 3','needs_heat:qty4':'Needs Heaters — Quantity: 4','needs_heat:qty5':'Needs Heaters — Quantity: 5','needs_heat:qty6+':'Needs Heaters — Quantity: 6+',
@@ -7464,12 +7477,21 @@ function resetCallTypeGrid() {
   const ci=document.getElementById('carInfoSection'); if(ci) ci.style.display='none';
   const og=document.getElementById('otherTypeGroup'); if(og) og.style.display='none';
   const eq=document.getElementById('eqQtySection'); if(eq) eq.style.display='none';
+  const _more=document.getElementById('callTypeMore'); if(_more){ _more.value=''; _more.classList.remove('active'); _more.style.display='none'; }
+}
+function highlightMoreType(sel){
+  // Mark the More… dropdown as the active choice; clear grid button highlights.
+  document.querySelectorAll('#callTypeGrid .qtype-btn').forEach(b=>b.classList.remove('active','urgent-active'));
+  if(sel) sel.classList.add('active');
 }
 function selectCallType(type, btn) {
+  // Picking from a grid button clears the More… dropdown's active state + selection.
+  if(btn){ const _m=document.getElementById('callTypeMore'); if(_m){ _m.classList.remove('active'); _m.value=''; } }
   const _grid=document.getElementById('callTypeGrid');
   // Tapping the already-selected button (grid collapsed) → re-expand to change type
   if(_grid && btn && btn.classList.contains('active') && _grid.dataset.collapsed==='1'){
     _grid.querySelectorAll('.qtype-btn').forEach(b=>{ b.style.display=''; });
+    const _mR=document.getElementById('callTypeMore'); if(_mR) _mR.style.display='none';
     _grid.dataset.collapsed='';
     return;
   }
@@ -7477,7 +7499,7 @@ function selectCallType(type, btn) {
   document.getElementById('callType').value = type;
   document.querySelectorAll('.qtype-btn:not(.ns-btn)').forEach(b=>b.classList.remove('active','urgent-active'));
   if(btn) btn.classList.add('active');
-  const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas'];
+  const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas','vehicle_stalled','vehicle_pullout','stuck_snow','transport','bumper_hanging','plastic_hanging'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
   // Flood → show equipment-needed multi-select
@@ -7512,7 +7534,7 @@ function selectCallType(type, btn) {
     else if(URGENT_TYPES.includes(prevType) && pri.value==='urgent') { if(typeof setUrgentToggle==='function') setUrgentToggle(false); else pri.value='normal'; }
   }
   // Collapse the grid to just the chosen type (tap it again to change)
-  if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn) b.style.display='none'; }); _grid.dataset.collapsed='1'; }
+  if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn && b.id!=='callTypeMore') b.style.display='none'; }); const _mS=document.getElementById('callTypeMore'); if(_mS) _mS.style.display=''; _grid.dataset.collapsed='1'; }
 }
 
 // Flood equipment-needed multi-select toggle + per-item quantity steppers
@@ -10963,7 +10985,7 @@ function renderNumbers() {
   list.forEach(n=>{ groups[n.category]=groups[n.category]||[]; groups[n.category].push(n); });
 
   let html='';
-  const _numCatColors={Police:'37,99,235',Dispatch:'124,58,237',Ambulance:'220,38,38',Roadside:'234,88,12',Hospital:'13,148,136',Internal:'100,116,139',Other:'8,145,178'};
+  const _numCatColors={Police:'37,99,235',Dispatch:'124,58,237',Ambulance:'220,38,38',Roadside:'234,88,12',Hospital:'13,148,136',Chaverims:'202,138,4',Internal:'100,116,139',Other:'8,145,178'};
   Object.keys(groups).sort().forEach(cat=>{
     const c=_numCatColors[cat]||'100,116,139';
     const safeId='numcat-'+cat.replace(/[^a-z0-9]/gi,'');
@@ -10999,7 +11021,7 @@ function editNumber(id) {
   // Build inline edit modal
   const existing = document.getElementById('editNumberModal');
   if(existing) existing.remove();
-  const cats = ['Police','Dispatch','Ambulance','Roadside','Hospital','Internal','Other'];
+  const cats = ['Police','Dispatch','Ambulance','Roadside','Hospital','Chaverims','Internal','Other'];
   const catOpts = cats.map(c=>`<option${c===n.category?' selected':''}>${c}</option>`).join('');
   const modal = document.createElement('div');
   modal.id = 'editNumberModal';
