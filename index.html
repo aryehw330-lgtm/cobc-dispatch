@@ -1212,7 +1212,7 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
         <!-- Equipment Activity History — synced from Firestore (Apps Script writes events) -->
         <div class="eq-acc" style="margin-top:4px;">
-          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderEqActivityHistory()">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);_ensureEqActivityHistorySub();renderEqActivityHistory()">
             <span>📋 Activity History</span>
             <span class="eq-acc-arrow">▾</span>
           </button>
@@ -1281,7 +1281,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="filter-chips" id="eqLocTabs"></div>
         <div id="chkAlertsWrap" style="display:none;margin-bottom:8px;"><div class="section-label">Alerts at this location</div><div id="chkAlertsList"></div></div>
         <div class="eq-acc" style="margin-bottom:10px;background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(18,18,22,.5));border-color:rgba(37,99,235,.4);">
-          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderChecklistHistoryFS()">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);_ensureChecklistHistorySub();renderChecklistHistoryFS()">
             <span>📋 Checklist History</span>
             <span class="eq-acc-arrow">▾</span>
           </button>
@@ -1324,7 +1324,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="section-label" style="margin-top:16px;">Open Reports</div>
         <div id="reportsList"></div>
         <div class="eq-acc" style="margin-top:14px;background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(18,18,22,.5));border-color:rgba(37,99,235,.4);">
-          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderReportHistoryFS()">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);_ensureReportHistorySub();renderReportHistoryFS()">
             <span>📋 Report History</span>
             <span class="eq-acc-arrow">▾</span>
           </button>
@@ -1340,7 +1340,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <div id="car-live-status" style="display:none;margin-bottom:12px;"></div>
         <!-- COBC 4 trip history — synced from Firestore (Apps Script writes departures/returns) -->
         <div class="eq-acc" style="margin-bottom:10px;background:linear-gradient(160deg,rgba(8,145,178,.18),rgba(18,18,22,.5));border-color:rgba(8,145,178,.4);">
-          <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderCobc4History()">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this);_ensureCobc4HistorySub();renderCobc4History()">
             <span>🚗 COBC 4 History</span>
             <span class="eq-acc-arrow">▾</span>
           </button>
@@ -3468,10 +3468,8 @@ async function initFirebaseApp() {
       try { _subscribeDeletedCalls(); } catch(e){ console.warn('subscribeDeletedCalls:', e); }
       try { subscribeSchedOverridesFromFirestore(); } catch(e){ console.warn('subscribeSchedOverrides:', e); }
       try { subscribeNumbersFromFirestore(); } catch(e){ console.warn('subscribeNumbers:', e); }
-      try { subscribeEquipmentHistoryFromFirestore(); } catch(e){ console.warn('subscribeEqHist:', e); }
-      try { subscribeCobc4HistoryFromFirestore(); } catch(e){ console.warn('subscribeCobc4Hist:', e); }
-      try { subscribeChecklistHistoryFromFirestore(); } catch(e){ console.warn('subscribeChecklistHist:', e); }
-      try { subscribeReportHistoryFromFirestore(); } catch(e){ console.warn('subscribeReportHist:', e); }
+      // History listeners are attached lazily when their accordion is first expanded
+      // (see _ensure*HistorySub) — not at boot — to avoid unnecessary Firestore reads.
       try { subscribeCustomCarDataFromFirestore(); } catch(e){ console.warn('subscribeCustomCar:', e); }
       try { subscribeTelzioRecentList(); } catch(e){ console.warn('subscribeTelzioRecent:', e); }
       try { subscribeTelzioFromFirestore(); } catch(e){ console.warn('subscribeTelzioWebhook:', e); }
@@ -5275,18 +5273,20 @@ function initFirestore(){
     try{tryOpenPendingDeepLink&&tryOpenPendingDeepLink();}catch(e){}
     try{refreshStatsIfVisible&&refreshStatsIfVisible();}catch(e){}
   }
+  const FULL_FALLBACK_WINDOW_MS = 7*24*60*60*1000; // 7 days
   function _attachFullListener(){
     if(_fellBack)return; _fellBack=true;
     try{ _unsubRecent&&_unsubRecent(); }catch(e){}
     try{ _unsubOpen&&_unsubOpen(); }catch(e){}
-    console.warn('calls: falling back to full-collection listener');
-    db.collection('calls').onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
+    console.warn('calls: falling back to bounded (7-day) listener');
+    db.collection('calls').where('createdAt','>=',Date.now()-FULL_FALLBACK_WINDOW_MS).onSnapshot(snap=>{try{if(typeof SESSION==='undefined')return;
       const docs=_snapDocs(snap); if(docs===null)return;
       _bufRecent=docs; _bufOpen=[]; _applyCallsMerge();
     }catch(e){console.warn('calls snapshot error:',e);showSyncError('calls snapshot',e);}},
     e=>{console.warn('calls listener error:',e);showSyncError('calls listener',e);});
   }
-  const MAX_SCOPED_RETRY = 2, SCOPED_RETRY_DELAY_MS = 1500;
+  const MAX_SCOPED_RETRY = 5, SCOPED_RETRY_DELAY_MS = 1500;
+  function _scopedRetryDelay(n){ return SCOPED_RETRY_DELAY_MS * Math.pow(2, n-1); }
   let _recentErrCount = 0, _openErrCount = 0;
   function _attachRecentListener(){
     try{
@@ -5297,7 +5297,7 @@ function initFirestore(){
       }, e=>{
         console.warn('calls recent listener error:',e);
         _recentErrCount++;
-        if(_recentErrCount<=MAX_SCOPED_RETRY) setTimeout(_attachRecentListener, SCOPED_RETRY_DELAY_MS);
+        if(_recentErrCount<=MAX_SCOPED_RETRY) setTimeout(_attachRecentListener, _scopedRetryDelay(_recentErrCount));
         else _attachFullListener();
       });
     }catch(e){ console.warn('calls recent listener attach failed:',e); _attachFullListener(); }
@@ -5311,7 +5311,7 @@ function initFirestore(){
       }, e=>{
         console.warn('calls open listener error:',e);
         _openErrCount++;
-        if(_openErrCount<=MAX_SCOPED_RETRY) setTimeout(_attachOpenListener, SCOPED_RETRY_DELAY_MS);
+        if(_openErrCount<=MAX_SCOPED_RETRY) setTimeout(_attachOpenListener, _scopedRetryDelay(_openErrCount));
         else _attachFullListener();
       });
     }catch(e){ console.warn('calls open listener attach failed:',e); _attachFullListener(); }
@@ -12634,6 +12634,11 @@ function subscribeNumbersFromFirestore() {
 }
 
 // ── Equipment + COBC 4 activity history (written by the Apps Script into Firestore) ──
+let _eqActHistSubscribed=false, _cobc4HistSubscribed=false, _checklistHistSubscribed=false, _reportHistSubscribed=false;
+function _ensureEqActivityHistorySub(){ if(_eqActHistSubscribed) return; _eqActHistSubscribed=true; try{ subscribeEquipmentHistoryFromFirestore(); }catch(e){ console.warn('subscribeEqHist:', e); } }
+function _ensureCobc4HistorySub(){ if(_cobc4HistSubscribed) return; _cobc4HistSubscribed=true; try{ subscribeCobc4HistoryFromFirestore(); }catch(e){ console.warn('subscribeCobc4Hist:', e); } }
+function _ensureChecklistHistorySub(){ if(_checklistHistSubscribed) return; _checklistHistSubscribed=true; try{ subscribeChecklistHistoryFromFirestore(); }catch(e){ console.warn('subscribeChecklistHist:', e); } }
+function _ensureReportHistorySub(){ if(_reportHistSubscribed) return; _reportHistSubscribed=true; try{ subscribeReportHistoryFromFirestore(); }catch(e){ console.warn('subscribeReportHist:', e); } }
 function subscribeEquipmentHistoryFromFirestore() {
   try {
     if(typeof firebase === 'undefined') return;
