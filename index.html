@@ -4075,6 +4075,13 @@ async function _reconcileFirestoreMembers(sheetMembers){
     if(!Array.isArray(sheetMembers)||sheetMembers.length<20) return;
     if(Date.now()-_lastMemberReconcile<60000) return;
     _lastMemberReconcile=Date.now();
+    // Persisted (not just in-memory) throttle: this does a full unscoped read of
+    // /members to find orphans, which gets expensive at scale. Orphan cleanup isn't
+    // time-sensitive, so once a day per device is plenty — avoids paying this cost
+    // on every single reload (iOS PWAs reload constantly).
+    const lastRun = parseInt(localStorage.getItem('cobc_lastMemberReconcile')||'0', 10) || 0;
+    if(Date.now()-lastRun<24*60*60*1000) return;
+    localStorage.setItem('cobc_lastMemberReconcile', String(Date.now()));
     const sheetIds=new Set(sheetMembers.map(m=>_fsMemberDocId(m.unit)).filter(Boolean));
     const fsMembers=await _fsRestFetch('members');
     const orphans=fsMembers.filter(m=>{const id=_fsMemberDocId(m.unit||m.id);return id&&!sheetIds.has(id);});
@@ -5626,15 +5633,32 @@ async function loadMembersFromSheet(){
       // Merge callTypes from Firestore into STATE.members (callTypes live in Firestore, not Sheet)
       try{
         if(window.firebase&&_firebaseReady){
-          firebase.firestore().collection('members').get().then(function(snap){
-            snap.forEach(function(doc){
-              const d=doc.data();
-              if(!d||!Array.isArray(d.callTypes)||!d.callTypes.length) return;
-              const docUnit=_normUnit(d.unit||doc.id||'');
-              const m=(STATE.members||[]).find(function(x){ return _normUnit(x.unit||x.id||'')=== docUnit; });
-              if(m) m.callTypes=d.callTypes;
+          const _CT_CACHE_KEY='cobc_callTypesCache_v1';
+          const _CT_CACHE_TTL_MS=24*60*60*1000; // 24 hours
+          let _ctCache=null;
+          try{ _ctCache=JSON.parse(localStorage.getItem(_CT_CACHE_KEY)||'null'); }catch(e){}
+          const _applyCallTypes=(map)=>{
+            (STATE.members||[]).forEach(function(x){
+              const u=_normUnit(x.unit||x.id||'');
+              if(map[u]) x.callTypes=map[u];
             });
-          }).catch(function(){});
+          };
+          if(_ctCache && _ctCache.savedAt && (Date.now()-_ctCache.savedAt)<_CT_CACHE_TTL_MS && _ctCache.map){
+            // Cache still fresh — apply it immediately, no Firestore read this reload.
+            _applyCallTypes(_ctCache.map);
+          } else {
+            // Cache missing or stale — pay the full read once, then cache the result.
+            firebase.firestore().collection('members').get().then(function(snap){
+              const map={};
+              snap.forEach(function(doc){
+                const d=doc.data();
+                if(!d||!Array.isArray(d.callTypes)||!d.callTypes.length) return;
+                map[_normUnit(d.unit||doc.id||'')]=d.callTypes;
+              });
+              _applyCallTypes(map);
+              try{ localStorage.setItem(_CT_CACHE_KEY, JSON.stringify({map, savedAt:Date.now()})); }catch(e){}
+            }).catch(function(){});
+          }
         }
       }catch(e){}
       // Sheet is source of truth for carAccess — refresh SESSION whenever sheet loads
