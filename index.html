@@ -2498,10 +2498,9 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <!-- ADDRESS + TOWN in one row -->
     <div class="input-group" style="position:relative;">
-      <label class="input-label">Address</label>
+      <label class="input-label" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;">Address <span id="callZoneBadge" style="display:none;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;white-space:nowrap;"></span></label>
       <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>{document.getElementById('callAddressSuggest').style.display='none';geocodeCallAddressForZone();},200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
       <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
-      <div id="callZoneBadge" style="display:none;margin-top:7px;font-size:12.5px;font-weight:700;padding:6px 11px;border-radius:8px;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
       <button type="button" onclick="pasteMapsLink()" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📋 Paste Maps link</button>
@@ -3750,6 +3749,18 @@ function _waDedupeHit(text){
     console.log('[WA] duplicate suppressed (shared dedupe)');
     return true;
   }
+  // Persistent cross-context guard: a keepalive fetch replayed after a PWA
+  // navigation/cold-start would otherwise re-post the same group message. Key on
+  // the exact text in localStorage with a 60s window so a replay is dropped even
+  // if the in-memory map above was reset.
+  try{
+    const key='cobc_wa_sent';
+    const store=JSON.parse(localStorage.getItem(key)||'{}');
+    for(const k in store){ if(now-store[k]>120000) delete store[k]; }
+    const h='h'+[...text].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,7).toString(36);
+    if(store[h] && (now-store[h])<60000){ console.log('[WA] duplicate suppressed (persistent)'); localStorage.setItem(key,JSON.stringify(store)); return true; }
+    store[h]=now; localStorage.setItem(key,JSON.stringify(store));
+  }catch(e){}
   _waLastSent[text] = now;
   return false;
 }
@@ -4241,9 +4252,9 @@ function _pointInRing(lng,lat,ring){
 }
 // Classify by geocoded coords. Returns {level,label,note,bg,fg}.
 function classifyZoneByLatLng(lat,lng){
-  if(_pointInRing(lng,lat,ZONE_PRIMARY)) return {level:'primary',label:'✓ In Territory',note:'Bergen County NJ Chaverim',bg:'rgba(22,163,74,.15)',fg:'#16a34a'};
-  if(_pointInRing(lng,lat,ZONE_SECONDARY)) return {level:'secondary',label:'● Secondary Zone',note:'Interstate dispatches only if requested',bg:'rgba(212,169,58,.18)',fg:'#b8902a'};
-  return {level:'outside',label:'✕ Out of Area',note:'Outside coverage — confirm before dispatching',bg:'rgba(220,38,38,.14)',fg:'#dc2626'};
+  if(_pointInRing(lng,lat,ZONE_PRIMARY)) return {level:'primary',label:'✓ In Territory',note:'',bg:'rgba(22,163,74,.15)',fg:'#16a34a'};
+  if(_pointInRing(lng,lat,ZONE_SECONDARY)) return {level:'secondary',label:'● Secondary — Interstate dispatches only if requested',note:'',bg:'rgba(212,169,58,.18)',fg:'#b8902a'};
+  return {level:'outside',label:'✕ Out of Bergen Coverage area',note:'',bg:'rgba(220,38,38,.14)',fg:'#dc2626'};
 }
 let _lastCallLatLng=null;
 // Geocode the current New Call address text and update the zone badge. Runs on
