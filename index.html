@@ -2373,7 +2373,10 @@ textarea.input{min-height:80px;resize:vertical;}
         <span>New Dispatch Call</span>
         <input id="newCallNumInput" type="number" inputmode="numeric" onchange="_onEditExpectedNum(this)" style="width:64px;font-size:18px;font-weight:700;color:var(--text);font-family:inherit;background:transparent;border:none;border-bottom:1.5px dashed var(--border2);padding:0 2px;text-align:center;"/>
       </div>
-      <button onclick="hideModal('newCallModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">x</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="clearNewCallForm()" title="Clear all fields" style="background:var(--border2);border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;color:var(--text2);font-family:inherit;display:flex;align-items:center;gap:5px;">↻ Clear Call</button>
+        <button onclick="hideModal('newCallModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">x</button>
+      </div>
     </div>
 
     <!-- URGENT toggle (replaces priority dropdown) -->
@@ -2439,7 +2442,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <!-- CAR INFO (shown for tire/lockout/jump) -->
-    <div id="carInfoSection">
+    <div id="carInfoSection" style="display:none;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div class="input-group" style="margin-bottom:0;">
           <label class="input-label">Make</label>
@@ -7440,8 +7443,21 @@ function populateModels() {
 }
 
 
+function clearNewCallForm() {
+  ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther','callTown','callTownText'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const _cm=document.getElementById('carMake'); if(_cm){_cm.value=''; _cm.dataset.populated='';}
+  const _cmo=document.getElementById('carMakeOther'); if(_cmo)_cmo.style.display='none';
+  const _md=document.getElementById('carModel'); if(_md){_md.innerHTML='<option value="">Select make first</option>';_md.disabled=true;}
+  const _mdo=document.getElementById('carModelOther'); if(_mdo)_mdo.style.display='none';
+  const zb=document.getElementById('callZoneBadge'); if(zb){zb.style.display='none';zb.textContent='';}
+  _lastCallLatLng=null;
+  if(typeof resetCallTypeGrid==='function') resetCallTypeGrid();
+  if(typeof populateCarMakeSelect==='function') populateCarMakeSelect();
+  if(typeof setUrgentToggle==='function') setUrgentToggle(false);
+  try{ document.getElementById('callAddressSuggest').style.display='none'; }catch(e){}
+  showToast('Call form cleared');
+}
 function resetCallTypeGrid() {
-  // No call type pre-selected — every button white until one is chosen
   document.querySelectorAll('#callTypeGrid .qtype-btn').forEach(b=>{b.classList.remove('active','urgent-active');b.style.display='';});
   const _g=document.getElementById('callTypeGrid'); if(_g) _g.dataset.collapsed='';
   const ct=document.getElementById('callType'); if(ct) ct.value='';
