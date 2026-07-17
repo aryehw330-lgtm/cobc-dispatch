@@ -4225,6 +4225,38 @@ const KNOWN_TOWNS_LC = {
   'tenafly':'Other','dumont':'Other','elmwood park':'Other','ridgewood':'Other'
 };
 let _addrTimer=null, _addrCache={}, _sessionToken=null;
+// ── Dispatch territory zones (geofenced from Bergen Dispatch Map.kml) ────────
+// Real coverage polygons. Primary (red) = core area; Secondary (orange) =
+// interstate zone dispatched only if requested. Coordinates are [lng,lat].
+const ZONE_PRIMARY=[[-74.0344763,40.9038942],[-74.0373013,40.9030386],[-74.0387022,40.9011974],[-74.0372547,40.8973529],[-74.0417404,40.8938154],[-74.0436928,40.8909594],[-74.0423515,40.8887529],[-74.0399214,40.8881364],[-74.0418889,40.884543],[-74.0442855,40.8817932],[-74.0111374,40.8698672],[-73.9871874,40.9005629],[-73.9835002,40.9304979],[-74.0361936,40.9305771],[-74.0390168,40.9236826],[-74.0399411,40.9196857],[-74.0363158,40.9144894],[-74.034632,40.9139019],[-74.033635,40.9140278],[-74.0313704,40.9082575],[-74.0335359,40.9070627],[-74.0344763,40.9038942]];
+const ZONE_SECONDARY=[[-74.0291089,41.0376667],[-74.1219972,41.0423333],[-74.1727379,41.1160838],[-74.234309,41.1428502],[-74.3015898,40.9851222],[-74.2703464,40.9119992],[-74.174704,40.9536278],[-74.147373,40.9493056],[-74.1477267,40.9426809],[-74.1429933,40.9414829],[-74.1380456,40.9341255],[-74.1410543,40.9295969],[-74.1405229,40.9255398],[-74.13846,40.9239759],[-74.1357105,40.9242926],[-74.1297317,40.9226961],[-74.1289322,40.9199123],[-74.1293344,40.9172582],[-74.1322669,40.9135901],[-74.1325427,40.9121643],[-74.1301353,40.9062249],[-74.1293344,40.9028581],[-74.11583,40.9055696],[-74.0935995,40.904989],[-74.0721446,40.8974147],[-74.0484876,40.8714289],[-74.0425641,40.870096],[-74.0322484,40.8582694],[-74.023837,40.8463236],[-74.0210049,40.8413818],[-74.0272965,40.8175847],[-73.9883497,40.8011421],[-73.969129,40.8301545],[-73.968569,40.8399332],[-73.9586825,40.8523749],[-73.9630543,40.8532758],[-73.9627322,40.854339],[-73.9584188,40.85341],[-73.930558,40.9052],[-73.8997328,40.9961672],[-74.0291089,41.0376667]];
+function _pointInRing(lng,lat,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if(((yi>lat)!==(yj>lat)) && (lng < (xj-xi)*(lat-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+// Classify by geocoded coords. Returns {level,label,note,bg,fg}.
+function classifyZoneByLatLng(lat,lng){
+  if(_pointInRing(lng,lat,ZONE_PRIMARY)) return {level:'primary',label:'✓ In Territory',note:'Bergen County NJ Chaverim',bg:'rgba(22,163,74,.15)',fg:'#16a34a'};
+  if(_pointInRing(lng,lat,ZONE_SECONDARY)) return {level:'secondary',label:'● Secondary Zone',note:'Interstate dispatches only if requested',bg:'rgba(212,169,58,.18)',fg:'#b8902a'};
+  return {level:'outside',label:'✕ Out of Area',note:'Outside coverage — confirm before dispatching',bg:'rgba(220,38,38,.14)',fg:'#dc2626'};
+}
+let _lastCallLatLng=null;
+// Update the badge next to the New Call "Address" label from the geocoded point.
+function updateCallZoneBadge(){
+  const badge=document.getElementById('callZoneBadge');
+  if(!badge) return;
+  const addr=(document.getElementById('callAddress')||{}).value||'';
+  if(!addr.trim() || !_lastCallLatLng){ badge.style.display='none'; badge.textContent=''; return; }
+  const z=classifyZoneByLatLng(_lastCallLatLng.lat,_lastCallLatLng.lng);
+  badge.style.display='inline-block';
+  badge.style.background=z.bg; badge.style.color=z.fg;
+  badge.textContent = z.note ? `${z.label} — ${z.note}` : z.label;
+  badge.title = z.note || z.label;
+}
 // Town for the card chip: use call.town, else parse a town out of the address.
 function cardTown(call){
   if(call&&call.town) return call.town;
@@ -4327,6 +4359,7 @@ function addrAutoLookup(inputEl, townSelId, townTextId) {
   const q = (inputEl.value||'').trim();
   const suggestId = inputEl.id + 'Suggest';
   const box = document.getElementById(suggestId);
+  if(inputEl.id==='callAddress'){ _lastCallLatLng=null; try{ updateCallZoneBadge(); }catch(e){} }
   if(!box) return;
   if(_addrTimer) clearTimeout(_addrTimer);
   if(q.length < 3) { box.style.display='none'; box.innerHTML=''; return; }
@@ -4414,6 +4447,7 @@ function addrPickSuggestion(idx, boxId, inputId, townSelId, townTextId) {
       const key = `${inputEl.value}|${town}`;
       _geocodeCache[key] = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
       _geoCache[(street+','+town).toLowerCase()] = _geocodeCache[key];
+      if(inputEl.id==='callAddress'){ _lastCallLatLng={lat:place.geometry.location.lat(),lng:place.geometry.location.lng()}; try{ updateCallZoneBadge(); }catch(e){} }
     }
 
     if(town && townSelId) {
@@ -5011,13 +5045,64 @@ function _fsRestFetchCallsScoped(){
 // REST — works even through iOS ITP) the first time those views open, then
 // merge with the live set.
 function _recentWindowStartMs(){ return Date.now() - 7*86400000; }
+const _ARCHIVE_CACHE_KEY = 'cobc_archiveCalls_v1';
+const _ARCHIVE_CACHE_META_KEY = 'cobc_archiveMeta_v1';
 let _archiveCalls=[], _archiveLoaded=false, _archiveLoading=null;
+
+// Load whatever's cached from localStorage synchronously (fast, no network).
+// Returns the cached max createdAt seen (0 if nothing cached / cache unusable).
+function _loadArchiveCacheSync(){
+  try{
+    const meta = JSON.parse(localStorage.getItem(_ARCHIVE_CACHE_META_KEY)||'null');
+    const raw  = localStorage.getItem(_ARCHIVE_CACHE_KEY);
+    if(!meta || !raw) return 0;
+    const arr = JSON.parse(raw);
+    if(!Array.isArray(arr)) return 0;
+    _archiveCalls = arr;
+    return meta.maxCreatedAt || 0;
+  }catch(e){ console.warn('archive cache load failed:', e); return 0; }
+}
+function _saveArchiveCacheAsync(){
+  try{
+    let maxTs = 0;
+    _archiveCalls.forEach(c=>{ if(c && c.createdAt > maxTs) maxTs = c.createdAt; });
+    localStorage.setItem(_ARCHIVE_CACHE_KEY, JSON.stringify(_archiveCalls));
+    localStorage.setItem(_ARCHIVE_CACHE_META_KEY, JSON.stringify({maxCreatedAt:maxTs, savedAt:Date.now()}));
+  }catch(e){
+    // Quota exceeded or storage unavailable — non-fatal, just means next reload
+    // pays the full-fetch cost again instead of an incremental one.
+    console.warn('archive cache save skipped:', e);
+  }
+}
+
 function ensureFullCallHistory(){
   if(_archiveLoaded) return Promise.resolve();
   if(_archiveLoading) return _archiveLoading;
+  const cachedMax = _loadArchiveCacheSync();
+  if(cachedMax > 0){
+    // We have a cache — trust it immediately (no UI wait), then top up with
+    // anything created since the cache was last saved, in the background.
+    _archiveLoaded = true;
+    _archiveLoading = _fsRunQuery('calls', {fieldFilter:{field:{fieldPath:'createdAt'}, op:'GREATER_THAN', value:{integerValue:String(Math.floor(cachedMax))}}})
+      .then(newCalls=>{
+        if(Array.isArray(newCalls) && newCalls.length){
+          const map = new Map();
+          _archiveCalls.forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+          newCalls.forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+          _archiveCalls = [...map.values()];
+          _saveArchiveCacheAsync();
+          try{ refreshStatsIfVisible&&refreshStatsIfVisible(); }catch(e){}
+        }
+        _archiveLoading = null;
+      })
+      .catch(e=>{ _archiveLoading = null; console.warn('archive top-up failed:', e); });
+    return Promise.resolve(); // don't make callers wait on the top-up
+  }
+  // No usable cache — first time on this device, pay the full cost once.
   _archiveLoading=_fsRestFetch('calls').then(all=>{
     _archiveCalls=Array.isArray(all)?all:[];
     _archiveLoaded=true; _archiveLoading=null;
+    _saveArchiveCacheAsync();
   }).catch(e=>{ _archiveLoading=null; console.warn('history archive load failed:',e); });
   return _archiveLoading;
 }
@@ -5789,7 +5874,7 @@ function unlockAdmin(){
 }
 function initApp() {
   // Initialize new call modal
-  document.getElementById('carInfoSection').style.display='block'; // flat tire is default
+  document.getElementById('carInfoSection').style.display='none'; // hidden until a car-related call type is chosen
 
   document.getElementById('roleLabel').textContent = ({admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'}[(SESSION.role||'member')]||(SESSION.role||'Member')).toUpperCase();
   document.getElementById('topbarSub').textContent = SESSION.name;
@@ -13364,7 +13449,7 @@ function calcLiveStats(yr) {
   }).length;
   if(!done.length && !cancelled) return null;
 
-  const call_types={}, monthly_total=Array(13).fill(0), dow=Array(7).fill(0), hours=Array(24).fill(0), townMap={};
+  const call_types={}, type_by_month={}, monthly_total=Array(13).fill(0), dow=Array(7).fill(0), hours=Array(24).fill(0), townMap={};
   const respMap={}, dispMap={}, dispMonth={};
 
   done.forEach(c=>{
@@ -13374,6 +13459,8 @@ function calcLiveStats(yr) {
     // time
     const d=new Date(c.createdAt||0);
     monthly_total[d.getMonth()+1]++;
+    // per-type per-month (13-len, [0] unused) so the Monthly drill-down has live data
+    (type_by_month[rawType]=type_by_month[rawType]||Array(13).fill(0))[d.getMonth()+1]++;
     dow[d.getDay()]++;
     hours[d.getHours()]++;
     // town
@@ -13413,6 +13500,7 @@ function calcLiveStats(yr) {
   return {
     total:done.length, cancelled, members:responderUnits.size,
     call_types, monthly_total, dow, hours, top_cities,
+    type_by_month,
     top_type:topType?.[0]||'', top_type_cnt:topType?.[1]||0,
     top_r_bc:top25[0]?.[0]||'', top_r_name:top25[0]?.[5]||'', top_r_cnt:top25[0]?.[1]||0,
     top25, top_disp, top8_disp:top_disp.slice(0,8).map(x=>x[0]), disp_by_month:top_disp.slice(0,8).map(([n])=>dispMonth[n]||Array(12).fill(0)),
@@ -13450,6 +13538,12 @@ function mergeWithLive(base, live, yr) {
   Object.entries(live.call_types).forEach(([t,n])=>{ m.call_types[t]=(m.call_types[t]||0)+n; });
   // monthly
   live.monthly_total.forEach((n,i)=>{ m.monthly_total[i]=(m.monthly_total[i]||0)+n; });
+  // per-type per-month — needed for the Monthly drill-down to show live months
+  m.type_by_month=m.type_by_month||{};
+  Object.entries(live.type_by_month||{}).forEach(([t,arr])=>{
+    if(!m.type_by_month[t]) m.type_by_month[t]=Array(13).fill(0);
+    arr.forEach((v,i)=>{ m.type_by_month[t][i]=(m.type_by_month[t][i]||0)+v; });
+  });
   // dow / hours
   live.dow.forEach((n,i)=>{ m.dow[i]=(m.dow[i]||0)+n; });
   live.hours.forEach((n,i)=>{ m.hours[i]=(m.hours[i]||0)+n; });
@@ -13460,6 +13554,14 @@ function mergeWithLive(base, live, yr) {
   live.top_disp.forEach(([d,cnt])=>{const f=m.top_disp.find(x=>x[0]===d);if(f)f[1]+=cnt;else m.top_disp.push([d,cnt]);});
   m.top_disp.sort((a,b)=>b[1]-a[1]);
   m.top8_disp=m.top_disp.slice(0,8).map(x=>x[0]);
+  // disp_by_month — re-align to the merged top8 order (by dispatcher name)
+  const _dispMonthMap={};
+  (base.top8_disp||[]).forEach((n,i)=>{ _dispMonthMap[n]=(base.disp_by_month&&base.disp_by_month[i])||Array(12).fill(0); });
+  (live.top8_disp||[]).forEach((n,i)=>{
+    const lm=(live.disp_by_month&&live.disp_by_month[i])||Array(12).fill(0);
+    _dispMonthMap[n]=(_dispMonthMap[n]||Array(12).fill(0)).map((v,mi)=>v+(lm[mi]||0));
+  });
+  m.disp_by_month=m.top8_disp.map(n=>_dispMonthMap[n]||Array(12).fill(0));
   // top type
   const sortedTypes=Object.entries(m.call_types).sort((a,b)=>b[1]-a[1]);
   m.top_type=sortedTypes[0]?.[0]||m.top_type;
@@ -14000,7 +14102,7 @@ function renderStatsOverview() {
   // Monthly / Year chart
   if(isAll) {
     const yrs=Object.keys(HIST);
-    mkChart('ch-monthly',{type:'bar',data:{labels:yrs,datasets:[{label:'Calls',data:yrs.map(y=>HIST[y].total),backgroundColor:['#64748b','#7c3aed','#d97706','#16a34a','#2563eb','#0891b2'],borderRadius:4}]},options:{...OPTS_BAR,plugins:{legend:{display:false}}}});
+    mkChart('ch-monthly',{type:'bar',data:{labels:yrs,datasets:[{label:'Calls',data:yrs.map(y=>getYearData(y).total),backgroundColor:['#64748b','#7c3aed','#d97706','#16a34a','#2563eb','#0891b2'],borderRadius:4}]},options:{...OPTS_BAR,plugins:{legend:{display:false}}}});
   } else {
     const avail=d.monthly_total.map((v,i)=>i>0&&v>0?i:null).filter(Boolean);
     mkChart('ch-monthly',{type:'bar',data:{
@@ -14069,7 +14171,7 @@ function renderStatsDispatch() {
     const yrs=Object.keys(HIST);
     mkChart('ch-disp-monthly',{type:'bar',data:{
       labels:yrs,
-      datasets:top4.map((name,si)=>({label:name.split(' ')[0],data:yrs.map(yr=>{const f=(HIST[yr].top_disp||[]).find(x=>x[0]===name);return f?f[1]:0;}),backgroundColor:DISP_COLORS[si],borderRadius:2}))
+      datasets:top4.map((name,si)=>({label:name.split(' ')[0],data:yrs.map(yr=>{const f=(getYearData(yr).top_disp||[]).find(x=>x[0]===name);return f?f[1]:0;}),backgroundColor:DISP_COLORS[si],borderRadius:2}))
     },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'#f8fafc'}}}}});
   }
   // Pie / doughnut share
@@ -14386,8 +14488,8 @@ function buildCompareResult() {
   setTimeout(()=>{
     const yrs=Object.keys(HIST);
     mkChart('ch-compare',{type:'line',data:{labels:yrs,datasets:[
-      {label:cmpSelA.name.split(' ')[0],data:yrs.map(yr=>{const r=HIST[yr].top25.find(x=>x[0]===cmpSelA.bc);return r?r[1]:0;}),borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.1)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#2563eb'},
-      {label:cmpSelB.name.split(' ')[0],data:yrs.map(yr=>{const r=HIST[yr].top25.find(x=>x[0]===cmpSelB.bc);return r?r[1]:0;}),borderColor:'#16a34a',backgroundColor:'rgba(22,163,74,.1)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#16a34a'},
+      {label:cmpSelA.name.split(' ')[0],data:yrs.map(yr=>{const r=getYearData(yr).top25.find(x=>x[0]===cmpSelA.bc);return r?r[1]:0;}),borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.1)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#2563eb'},
+      {label:cmpSelB.name.split(' ')[0],data:yrs.map(yr=>{const r=getYearData(yr).top25.find(x=>x[0]===cmpSelB.bc);return r?r[1]:0;}),borderColor:'#16a34a',backgroundColor:'rgba(22,163,74,.1)',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#16a34a'},
     ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11}}}},scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'#f8fafc'}}}}});
   },100);
 }
