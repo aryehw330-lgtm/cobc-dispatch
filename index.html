@@ -2499,7 +2499,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- ADDRESS + TOWN in one row -->
     <div class="input-group" style="position:relative;">
       <label class="input-label">Address</label>
-      <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>document.getElementById('callAddressSuggest').style.display='none',200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
+      <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>{document.getElementById('callAddressSuggest').style.display='none';geocodeCallAddressForZone();},200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
       <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
@@ -4245,6 +4245,24 @@ function classifyZoneByLatLng(lat,lng){
   return {level:'outside',label:'✕ Out of Area',note:'Outside coverage — confirm before dispatching',bg:'rgba(220,38,38,.14)',fg:'#dc2626'};
 }
 let _lastCallLatLng=null;
+// Geocode the current New Call address text and update the zone badge. Runs on
+// blur / after a Maps-link paste so the badge appears even when the dispatcher
+// doesn't pick an autocomplete suggestion.
+async function geocodeCallAddressForZone(){
+  const input=document.getElementById('callAddress'); if(!input) return;
+  const addr=(input.value||'').trim();
+  if(addr.length<5){ _lastCallLatLng=null; try{updateCallZoneBadge();}catch(e){} return; }
+  try{
+    await loadGoogleMapsAPI();
+    const geo=new google.maps.Geocoder();
+    geo.geocode({address:addr, region:'us'},(res,st)=>{
+      if(st==='OK'&&res&&res[0]&&res[0].geometry&&res[0].geometry.location){
+        _lastCallLatLng={lat:res[0].geometry.location.lat(),lng:res[0].geometry.location.lng()};
+        try{updateCallZoneBadge();}catch(e){}
+      }
+    });
+  }catch(e){}
+}
 // Update the badge next to the New Call "Address" label from the geocoded point.
 function updateCallZoneBadge(){
   const badge=document.getElementById('callZoneBadge');
@@ -4338,13 +4356,14 @@ async function pasteMapsLink(){
   if(!text){ showToast('Clipboard empty — copy a Maps link first'); return; }
   const input=document.getElementById('callAddress'); if(!input) return;
   const placeM=text.match(/\/place\/([^\/@?]+)/);
-  if(placeM){ const addr=decodeURIComponent(placeM[1].replace(/\+/g,' ')).trim(); if(addr){ input.value=addr; addrAutoLookup(input,'callTown','callTownText'); showToast('📍 Address pasted'); return; } }
+  if(placeM){ const addr=decodeURIComponent(placeM[1].replace(/\+/g,' ')).trim(); if(addr){ input.value=addr; addrAutoLookup(input,'callTown','callTownText'); geocodeCallAddressForZone(); showToast('📍 Address pasted'); return; } }
   const coordM=text.match(/[@=\/](-?\d{1,3}\.\d{3,}),(-?\d{1,3}\.\d{3,})/);
   if(coordM){
     const lat=coordM[1], lng=coordM[2];
     input.value=lat+', '+lng;
     showToast('📍 Location pasted — resolving…');
     try{ await loadGoogleMapsAPI(); const geo=new google.maps.Geocoder(); geo.geocode({location:{lat:parseFloat(lat),lng:parseFloat(lng)}},(res,st)=>{ if(st==='OK'&&res&&res[0]){ input.value=res[0].formatted_address; addrAutoLookup(input,'callTown','callTownText'); } }); }catch(e){}
+    _lastCallLatLng={lat:parseFloat(lat),lng:parseFloat(lng)}; try{updateCallZoneBadge();}catch(e){}
     return;
   }
   if(!/^https?:/i.test(text)){ input.value=text; addrAutoLookup(input,'callTown','callTownText'); showToast('📍 Pasted'); return; }
