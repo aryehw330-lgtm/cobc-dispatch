@@ -2148,6 +2148,11 @@ textarea.input{min-height:80px;resize:vertical;}
             <input id="resetConfirmInput" class="input" type="text" placeholder='Type RESET to confirm' style="text-align:center;margin-bottom:12px;border-color:#fca5a5;"/>
             <button class="btn-full" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;" onclick="resetAllAppData()">🗑️ Delete All Test Data & Go Live</button>
           </div>
+          <div style="background:var(--card,#fff);border:1.5px solid var(--border2);border-radius:14px;padding:18px;text-align:center;">
+            <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">Clear History Cache</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">Clears the locally-stored call history cache on this device so History reloads fresh from the database. Does not delete any calls or touch stats.</div>
+            <button class="btn-full" style="background:var(--border2);color:var(--text);border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;" onclick="clearHistoryCache()">↻ Clear History Cache</button>
+          </div>
         </div>
       </div>
     </div>
@@ -15831,6 +15836,16 @@ async function resetAllCallsQuick(){
     console.error('Quick reset failed:', e);
     showToast('Error: ' + (e.message||'Reset failed'));
   }
+}
+
+// Clear ONLY the local history archive cache on this device — History reloads fresh
+// from the database. Does not delete any calls and does not touch stats.
+function clearHistoryCache(){
+  if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Admin only'); return; }
+  try{ localStorage.removeItem(_ARCHIVE_CACHE_KEY); localStorage.removeItem(_ARCHIVE_CACHE_META_KEY); }catch(e){}
+  _archiveCalls=[]; _archiveLoaded=false; _archiveLoading=null;
+  try{ renderHistory&&renderHistory(); }catch(e){}
+  showToast('↻ History cache cleared — will reload from database');
 }
 
 async function resetAllAppData() {
