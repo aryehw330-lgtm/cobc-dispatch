@@ -5326,6 +5326,7 @@ function initFirestore(){
     // window are intentionally not re-kept here; they reload on demand for History/Stats.
     const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>{
       if(!c.id||firestoreIds.has(c.id)||_deletedCallIds.has(c.id)||_isResetPurged(c))return false;
+      if((Date.now()-(c.createdAt||0)) > 2*60*1000) return false; // older than 2 min and missing from Firestore -> deleted elsewhere, don't resurrect
       return (c.createdAt||0)>=_recentStart || ['open','active','draft'].includes(c.status);
     });
     localOnly.forEach(call=>firestoreUpsertCall(call));
