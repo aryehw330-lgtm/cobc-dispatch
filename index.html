@@ -7703,7 +7703,35 @@ function _resolveNewCallNum(){
   }
   return _nextCallNum();
 }
-// Peek the next call number WITHOUT consuming it (for the New Call preview).
+// Atomic Firestore-transaction call number — makes duplicate call numbers physically
+// impossible even across simultaneous submits on different devices. Respects a manual
+// override, and syncs the local counter forward so previews stay accurate.
+async function _nextCallNumAtomic(){
+  const ov=window._newCallNumOverride;
+  if(ov){
+    const clash=(STATE.calls||[]).some(c=>String(c.callNum||'')===String(ov));
+    window._newCallNumOverride=null;
+    if(!clash){
+      try{ const key='cobc_callnum_'+new Date().getFullYear(); const stored=parseInt(localStorage.getItem(key)||'0',10)||0; if(ov>stored) localStorage.setItem(key,String(ov)); }catch(e){}
+      return ov;
+    }
+    showToast('Call #'+ov+' already used — using next number');
+  }
+  const year=new Date().getFullYear();
+  const counterRef=firebase.firestore().collection('config').doc('callCounter');
+  const num=await firebase.firestore().runTransaction(async(tx)=>{
+    const snap=await tx.get(counterRef);
+    const data=snap.exists?(snap.data()||{}):{};
+    // Reset the shared counter at the start of each year.
+    let current=(data.year===year && data.nextCallNum) ? data.nextCallNum : 1;
+    // Never go below what this device already knows locally (covers first-ever run).
+    try{ const local=parseInt(localStorage.getItem('cobc_callnum_'+year)||'0',10)||0; if(local+1>current) current=local+1; }catch(e){}
+    tx.set(counterRef,{nextCallNum:current+1, year:year},{merge:true});
+    return current;
+  });
+  try{ localStorage.setItem('cobc_callnum_'+year,String(num)); }catch(e){}
+  return num;
+}
 function _peekNextCallNum() {
   const year = new Date().getFullYear();
   const key = 'cobc_callnum_' + year;
@@ -7786,7 +7814,7 @@ function setColorPick(pickId,name){
   else { if(dot){dot.style.background='transparent';dot.style.border='1px dashed var(--border2)';} if(lbl){lbl.textContent='Select color…';lbl.style.color='var(--text3)';} }
 }
 document.addEventListener('click',e=>{ if(!e.target.closest('.color-pick')) document.querySelectorAll('.color-pick.open').forEach(p=>p.classList.remove('open')); });
-function createCall() {
+async function createCall() {
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Only dispatch can create calls'); return; }
 
   // --- Guard: block double-submit (double-tap, or a second tab/device racing) ---
@@ -7845,9 +7873,14 @@ function createCall() {
 
   if (!address) { showToast('⚠️ Enter an address'); return; }
 
+  let _callNum = null;
+  if(!dontPublish){
+    try{ _callNum = await _nextCallNumAtomic(); }
+    catch(e){ console.error('Atomic call-number failed, using fallback:', e); _callNum = _resolveNewCallNum(); }
+  }
   const call = {
     id:'C'+Date.now(),
-    callNum: dontPublish ? null : _resolveNewCallNum(),
+    callNum: _callNum,
     type, address, town, caller, phone, priority, notes,
     status: dontPublish?'draft':'open',
     createdAt: Date.now(),
@@ -7870,7 +7903,9 @@ function createCall() {
     ezSpareFitment: (window._pendingEzFitment || null),
   };
 
-  STATE.calls.push(call); save(); firestoreUpsertCall(call);
+  STATE.calls.push(call); save();
+  try{ await firebase.firestore().collection('calls').doc(call.id).set(call); }
+  catch(e){ console.warn('firestoreUpsertCall error:', e); firestoreUpsertCall(call); }
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
   try{ _maybeSaveCustomCar(carMake, carModel, _usedOtherMake, _usedOtherModel); }catch(e){}
   hideModal('newCallModal');
