@@ -6755,6 +6755,7 @@ function renderHistoryDay() {
         <div style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;">
           <div style="font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;background:${statusColor}22;color:${statusColor};text-transform:uppercase;">${c.status}</div>
           ${reopenBtn}
+          ${delBtn}
         </div>
       </div>
     </div>`;
@@ -7786,6 +7787,31 @@ function setColorPick(pickId,name){
 document.addEventListener('click',e=>{ if(!e.target.closest('.color-pick')) document.querySelectorAll('.color-pick.open').forEach(p=>p.classList.remove('open')); });
 function createCall() {
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Only dispatch can create calls'); return; }
+
+  // --- Guard: block double-submit (double-tap, or a second tab/device racing) ---
+  if (window._creatingCall) return;
+  window._creatingCall = true;
+  const _submitBtn = document.getElementById('callSubmitBtn');
+  if (_submitBtn) _submitBtn.disabled = true;
+  setTimeout(() => { window._creatingCall = false; if (_submitBtn) _submitBtn.disabled = false; }, 1500);
+
+  // --- Guard: block a call that duplicates one just made for the same phone/address ---
+  // _nextCallNum() reads the local cache, so two near-simultaneous submits can compute
+  // the same number before either write lands (that's how two #127 docs happened).
+  const _dupPhone = (document.getElementById('callPhone').value||'').trim();
+  const _dupAddress = (document.getElementById('callAddress').value||'').trim();
+  const _dupExisting = (STATE.calls||[]).find(c =>
+    c.status !== 'done' && c.status !== 'cancelled' &&
+    _dupPhone && c.phone === _dupPhone &&
+    _dupAddress && c.address === _dupAddress &&
+    (Date.now() - (c.createdAt||0)) < 20000
+  );
+  if (_dupExisting) {
+    window._creatingCall = false;
+    if (_submitBtn) _submitBtn.disabled = false;
+    showToast('⚠️ Call #' + (_dupExisting.callNum||'') + ' for this phone/address was just created — check the list first');
+    return;
+  }
   let type=document.getElementById('callType').value;
   if(!type){ showToast('Please choose a call type'); return; }
   if(type==='other') {
