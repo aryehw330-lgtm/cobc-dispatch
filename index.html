@@ -2519,7 +2519,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
       <button type="button" onclick="pasteMapsLink()" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📋 Paste Maps link</button>
-      <button type="button" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
+      <button type="button" id="i911Btn" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
     </div>
     <!-- Town is auto-detected from the address; hidden from the UI but still stored for color-coding, maps & ETA -->
     <div style="display:none;">
@@ -4401,10 +4401,79 @@ async function pasteMapsLink(){
   if(!/^https?:/i.test(text)){ input.value=text; addrAutoLookup(input,'callTown','callTownText'); showToast('📍 Pasted'); return; }
   showToast('Could not read that Maps link — paste the address instead');
 }
-// Open the i911 portal where dispatch requests the caller's location (result comes
-// back as a Maps link → paste it with "Paste Maps link").
-function requestViaI911(){
-  window.open('https://i911.com/', '_blank', 'noopener');
+// ── i911 live location request ───────────────────────────────────────────────
+// Real i911 Location API flow (replaces the old "just open i911.com" behavior):
+//   1. POST the caller's phone to the Worker (which adds the secret x-api-key and
+//      calls i911's triggerSMSLocationService) → i911 texts the caller.
+//   2. Worker returns a { webSocketURL } with a session token.
+//   3. We open a Socket.IO connection to that URL and wait for the 'location-update'
+//      event (fires once the caller taps "share location").
+//   4. Reverse-geocode the lat/long to a street address (Google) and drop it into the
+//      Address field + zone badge; if geocoding fails, fall back to raw coordinates.
+// The Worker route must exist and I911_PROXY_URL must point at it (see co-worker doc).
+var I911_PROXY_URL = 'https://cobc.shmueleidelman-work.workers.dev/i911'; // ← co-worker sets this to your worker's /i911 route
+let _i911Socket=null;
+function _setI911Btn(txt, disabled){
+  const b=document.getElementById('i911Btn'); if(!b) return;
+  b.innerHTML=txt; b.disabled=!!disabled; b.style.opacity=disabled?'0.7':'1';
+}
+async function _loadSocketIO(){
+  if(window.io) return;
+  await new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.socket.io/4.7.5/socket.io.min.js';
+    s.onload=res; s.onerror=()=>rej(new Error('socket.io load failed'));
+    document.head.appendChild(s);
+  });
+}
+async function requestViaI911(){
+  const phoneRaw=(document.getElementById('callPhone')||{}).value||'';
+  const phone=phoneRaw.replace(/[^\d]/g,'');
+  if(phone.length<10){ showToast('Enter the caller phone number first'); return; }
+  const e164='+'+(phone.length===10?'1'+phone:phone);
+  try{ if(_i911Socket){ _i911Socket.disconnect(); _i911Socket=null; } }catch(e){}
+  _setI911Btn('⏳ Requesting…', true);
+  try{
+    const r=await fetch(I911_PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phonenumber:e164})});
+    if(!r.ok) throw new Error('i911 request failed ('+r.status+')');
+    const d=await r.json();
+    const wsUrl=d.webSocketURL||d.websocketURL||d.url;
+    if(!wsUrl) throw new Error('no socket URL returned');
+    await _loadSocketIO();
+    _setI911Btn('📲 Waiting for caller…', true);
+    // The token is embedded in the returned wss URL (…?token=…) — connect directly.
+    _i911Socket=io(wsUrl,{transports:['websocket'],reconnection:true});
+    let _got=false;
+    const _timeout=setTimeout(()=>{ if(!_got){ _setI911Btn('➤ Request via i911', false); showToast('No location yet — caller hasn\'t shared'); try{_i911Socket.disconnect();}catch(e){} } }, 120000);
+    _i911Socket.on('connect_error',()=>{ if(!_got){ _setI911Btn('➤ Request via i911', false); showToast('i911 connection error'); } });
+    _i911Socket.on('location-update', async (data)=>{
+      if(!data || typeof data.latitude!=='number') return;
+      _got=true; clearTimeout(_timeout);
+      const lat=data.latitude, lng=data.longitude;
+      const input=document.getElementById('callAddress');
+      _lastCallLatLng={lat,lng};
+      _setI911Btn('✓ Location received', true);
+      showToast('📍 Caller location received');
+      // Try reverse-geocode to a street address; fall back to coordinates.
+      let filled=false;
+      try{
+        await loadGoogleMapsAPI();
+        const geo=new google.maps.Geocoder();
+        geo.geocode({location:{lat,lng}},(res,st)=>{
+          if(st==='OK'&&res&&res[0]){ if(input){ input.value=res[0].formatted_address; addrAutoLookup(input,'callTown','callTownText'); } }
+          else if(input){ input.value=lat.toFixed(6)+', '+lng.toFixed(6); }
+          try{updateCallZoneBadge();}catch(e){}
+        });
+        filled=true;
+      }catch(e){}
+      if(!filled && input){ input.value=lat.toFixed(6)+', '+lng.toFixed(6); try{updateCallZoneBadge();}catch(e){} }
+      setTimeout(()=>_setI911Btn('➤ Request via i911', false), 4000);
+    });
+  }catch(e){
+    console.warn('i911:',e);
+    _setI911Btn('➤ Request via i911', false);
+    showToast('i911 request failed — '+(e.message||'try again'));
+  }
 }
 function addrAutoLookup(inputEl, townSelId, townTextId) {
   const q = (inputEl.value||'').trim();
@@ -6672,6 +6741,9 @@ function renderHistoryDay() {
     const _isClosed = c.status==='done'||c.status==='cancelled';
     const reopenBtn = (_isDispatch && _isClosed)
       ? `<button onclick="event.stopPropagation();reopenCall('${c.id}')" style="margin-top:6px;background:linear-gradient(180deg,rgba(230,196,99,.95),rgba(212,169,58,.95));color:#3a2c05;border:none;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">🔄 Re-open</button>`
+      : '';
+    const delBtn = (SESSION.role==='admin')
+      ? `<button onclick="event.stopPropagation();deleteCall('${c.id}')" style="margin-top:6px;background:transparent;color:#dc2626;border:1px solid rgba(220,38,38,.4);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">🗑 Delete</button>`
       : '';
     return `<div onclick="hideModal('historyModal');setTimeout(()=>openCallDetail('${c.id}'),200)" style="background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:6px;box-shadow:var(--shadow);cursor:pointer;border-left:3px solid ${statusColor};">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
