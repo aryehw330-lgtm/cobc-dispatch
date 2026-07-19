@@ -7558,7 +7558,7 @@ function selectCallType(type, btn) {
     else if(URGENT_TYPES.includes(prevType) && pri.value==='urgent') { if(typeof setUrgentToggle==='function') setUrgentToggle(false); else pri.value='normal'; }
   }
   // Collapse the grid to just the chosen type (tap it again to change)
-  if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn && b.id!=='callTypeMore') b.style.display='none'; }); const _mS=document.getElementById('callTypeMore'); if(_mS) _mS.style.display=''; _grid.dataset.collapsed='1'; }
+  if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn && b.id!=='callTypeMore') b.style.display='none'; }); const _mS=document.getElementById('callTypeMore'); if(_mS) _mS.style.display=((type==='other'||_mS.value===type) && type)?'':'none'; _grid.dataset.collapsed='1'; }
 }
 
 // Flood equipment-needed multi-select toggle + per-item quantity steppers
@@ -8151,9 +8151,16 @@ function confirmRespond() {
   const pushTitle = `📲 Response Request — BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${fmtLoc(call)} · ETA ${eta} min${notes?' · '+notes:''}`;
 
-  // on-duty dispatchers + admins in one shot — 'dispatchers' already covers admins,
-  // so no separate per-admin loop (that caused duplicate notifications).
-  setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
+  // On-duty (current-shift) dispatchers + all admins. Admins ride the broad
+  // 'dispatchers' push when no one's on duty so none is missed.
+  const _dutyUnits=_onDutyDispatchUnits();
+  if(_dutyUnits.length){
+    setTimeout(()=>sendPush({ target:'admins', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
+    _dutyUnits.forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
+  } else {
+    setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
+    setTimeout(()=>sendPush({ target:'admins', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
+  }
 
   showToast('Response request sent to on-duty dispatchers & admin');
 }
@@ -8488,8 +8495,16 @@ function submitBackup() {
   const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
   const _bTitle='🆘 Backup Request — needs approval';
   const _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} on ${_bLabel} — ${fmtLoc(call)}`;
-  // 'dispatchers' already reaches admins — one push, no per-admin loop (avoids duplicates).
-  setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
+  // On-duty (current-shift) dispatchers + all admins; fall back to all dispatchers if OPEN.
+  const _bpUnits=_onDutyDispatchUnits();
+  if(_bpUnits.length){
+    setTimeout(()=>{ try{ sendPush({target:'admins',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
+    _bpUnits.forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
+  } else {
+    // Both slots OPEN or CHIEFS → all dispatchers + all admins.
+    setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendPush({target:'admins',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
+  }
 }
 
 // ── Dispatcher APPROVES a backup request → broadcasts to all (push + WhatsApp) ──
@@ -9380,8 +9395,19 @@ function submitMemberCompletion(){
   showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
   showToast('📋 Sent to dispatch for approval');
   const _tl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  // Notify dispatchers + admins (target:'dispatchers' covers both — no need for separate admin loop)
-  sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
+  // Notify ADMINS (always) + the dispatchers on the CURRENT shift only. If nobody is
+  // scheduled on duty, fall back to all dispatchers so the request never reaches no one.
+  const _dutyUnits=_onDutyDispatchUnits();
+  if(_dutyUnits.length){
+    // Admins always (kept on the broad dispatchers push so no admin is missed even
+    // if the server has no dedicated 'admins' mode), plus each on-duty dispatcher.
+    sendPush({target:'admins',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
+    _dutyUnits.forEach(u=>sendPush({target:'unit',unit:String(u),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'}));
+  } else {
+    // No one scheduled on duty (OPEN or CHIEFS) → all dispatchers + all admins.
+    sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
+    sendPush({target:'admins',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
+  }
 }
 function approveCallCompletion(id){
   const call=STATE.calls.find(c=>c.id===id);
@@ -10418,6 +10444,26 @@ function renderTelzioRoster(){
   el.innerHTML = rowHTML('Primary', slot.p) + rowHTML('Secondary', slot.s);
 }
 function checkWaitingEscalation() { /* now SERVER-SIDE — see cobc-waiting-escalation-appscript.js. No-op on the client to avoid duplicate alerts. */ }
+
+// Units (BC numbers) of the dispatchers ON THE CURRENT SHIFT right now — Primary +
+// Secondary, respecting one-time schedOverrides. Empty array if the slot is OPEN/unset.
+function _onDutyDispatchUnits(){
+  try{
+    if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length) return [];
+    const shiftIdx=getShiftIndexNow();
+    const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return [];
+    const today=new Date(); today.setHours(0,0,0,0);
+    const dateStr=_dateStrOf(today);
+    const ov=STATE.schedOverrides && STATE.schedOverrides[dateStr] && STATE.schedOverrides[dateStr][shiftIdx];
+    const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[today.getDay()]||{p:'OPEN',s:'OPEN'});
+    const units=[];
+    [slot.p, slot.s].forEach(nm=>{
+      if(!nm || nm==='OPEN' || nm==='CHIEFS') return;
+      const u=_shiftUnitOf(nm); if(u) units.push(String(u).replace(/^BC-?/i,''));
+    });
+    return [...new Set(units)];
+  }catch(e){ return []; }
+}
 
 // ── Telzio sign-in / sign-out shift reminders (local per-device) ──
 // Each dispatcher's own device watches the schedule and reminds THEM (locally —
