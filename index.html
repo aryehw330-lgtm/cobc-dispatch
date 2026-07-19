@@ -5233,11 +5233,11 @@ function ensureFullCallHistory(){
 }
 // Live calls ∪ archived calls, deduped (the live copy always wins — it's freshest).
 function _allCalls(){
-  if(!_archiveLoaded || !_archiveCalls.length) return STATE.calls||[];
+  if(!_archiveLoaded || !_archiveCalls.length) return (STATE.calls||[]).filter(c=>!_isResetPurged(c));
   const map=new Map();
   _archiveCalls.forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
   (STATE.calls||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
-  return [...map.values()];
+  return [...map.values()].filter(c=>!_isResetPurged(c));
 }
 
 function initFirestore(){
@@ -13720,12 +13720,13 @@ function getYearData(yr) {
 // mirrors the HIST structure, so it can be merged with historical data.
 function calcLiveStats(yr) {
   const yrStr = String(yr);
-  const done = (_allCalls()).filter(c => {
+  const _statCalls = (_allCalls());
+  const done = _statCalls.filter(c => {
     if(c.status!=='done') return false;
     const d = new Date(c.completedAt||c.createdAt||0);
     return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
   });
-  const cancelled = (_allCalls()).filter(c => {
+  const cancelled = _statCalls.filter(c => {
     if(c.status!=='cancelled') return false;
     const d = new Date(c.completedAt||c.cancelledAt||c.createdAt||0);
     return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
