@@ -8653,23 +8653,48 @@ function submitBackup() {
   // Mirrors the responder flow: backup request goes to dispatch for approval first,
   // then dispatch approves to alert all.
   const _backupReq = {type,equipment,notes,unit:SESSION.unit,name:SESSION.name,time:Date.now(),status:'pending'};
-  call.pendingBackups=call.pendingBackups||[];
-  call.pendingBackups.push(_backupReq);
-  try{ logCallEvent(call,'backup_pending',{by:SESSION.unit}); }catch(e){}
-  save(); firestoreUpsertCall(call); hideModal('backupModal');
-  renderCalls(); renderHome();
-  try{ renderPendingRespondersBanner(document.getElementById('pendingRespondersBanner')); }catch(e){}
-  showToast('🆘 Backup request sent — awaiting dispatch approval');
-  // Notify dispatchers + every admin ONLY (the all-members alert fires after approval)
-  const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
-  const _bTitle='🆘 Backup Request — needs approval';
-  const _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} on ${_bLabel} — ${fmtLoc(call)}`;
-  // On-duty (current-shift) dispatchers + all admins; fall back to all dispatchers if OPEN.
+  // Atomic single-claim: only ONE pending backup per call. If another unit already has
+  // one in Firestore, this loses and shows a rejection popup instead of stacking.
+  const _bRef=firebase.firestore().collection('calls').doc(call.id);
+  firebase.firestore().runTransaction(async(tx)=>{
+    const snap=await tx.get(_bRef);
+    const d=snap.exists?(snap.data()||{}):{};
+    const existing=Array.isArray(d.pendingBackups)?d.pendingBackups:[];
+    const already=Array.isArray(d.backupRequests)&&d.backupRequests.some(b=>b&&b.status==='approved');
+    if(existing.length>0 || already) throw {code:'BACKUP_TAKEN'};
+    tx.update(_bRef,{ pendingBackups: firebase.firestore.FieldValue.arrayUnion(_backupReq) });
+  }).then(()=>{
+    call.pendingBackups=call.pendingBackups||[]; if(!call.pendingBackups.find(b=>Number(b.time)===Number(_backupReq.time))) call.pendingBackups.push(_backupReq);
+    try{ logCallEvent(call,'backup_pending',{by:SESSION.unit}); }catch(e){}
+    save(); hideModal('backupModal'); renderCalls(); renderHome();
+    _submitBackupNotify(call,_backupReq,id);
+  }).catch(err=>{
+    hideModal('backupModal');
+    if(err&&err.code==='BACKUP_TAKEN'){ _requestTakenPopup('Backup already requested','Another unit already requested backup for this call — dispatch is handling it.'); }
+    else { console.warn('backup tx:',err); call.pendingBackups=call.pendingBackups||[]; call.pendingBackups.push(_backupReq); save(); firestoreUpsertCall(call); renderCalls(); renderHome(); _submitBackupNotify(call,_backupReq,id); }
+  });
+  return;
+}
+// Shared: rejection popup when a single-claim request (backup/completion) is lost.
+function _requestTakenPopup(title, msg){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10002;display:flex;align-items:center;justify-content:center;';
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:#1c1c1e;border:2px solid rgba(251,191,36,.5);border-radius:18px;padding:24px 20px;max-width:310px;width:90%;text-align:center;">
+    <div style="font-size:32px;margin-bottom:10px;">⚠️</div>
+    <div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:8px;">${title}</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.7);line-height:1.5;margin-bottom:18px;">${msg}</div>
+    <button onclick="this.closest('div').parentElement.remove()" style="width:100%;padding:12px;background:var(--navy,#0f2540);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">OK</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _submitBackupNotify(call,_approved,id){
+  showToast('🆘 Backup request sent to dispatch');
+  const _bTitle=`🆘 Backup Requested — Call #${call.callNum||''}`, _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} needs backup — ${fmtLoc(call)}`;
   const _bpUnits=_onDutyDispatchUnits();
   if(_bpUnits.length){
     [..._bpUnits, ..._adminUnits()].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
   } else {
-    // Both slots OPEN or CHIEFS → all dispatchers + all admins.
     setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
     _adminUnits().forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
   }
@@ -9558,18 +9583,29 @@ function submitMemberCompletion(){
   if(!call) return;
   const outcome=document.getElementById('memberCompleteOutcome').value;
   const note=outcome==='CNC'?document.getElementById('memberCompleteNote').value.trim():'';
-  call.completionRequest={
-    by: SESSION.unit,
-    name: SESSION.name||SESSION.firstName||'',
-    outcome: outcome,
-    note: note,
-    at: Date.now()
-  };
-  logCallEvent(call,'completion_requested',{by:SESSION.unit,outcome,note});
-  save(); firestoreUpsertCall(call);
-  hideModal('memberCompleteModal');
-  renderHome(); renderCalls();
-  // Go to main area — not the call card
+  const _crReq={ by: SESSION.unit, name: SESSION.name||SESSION.firstName||'', outcome: outcome, note: note, at: Date.now() };
+  // Atomic single-claim: only ONE completion request per call. If another unit already
+  // submitted one, this loses and shows a rejection popup.
+  const _crRef=firebase.firestore().collection('calls').doc(call.id);
+  firebase.firestore().runTransaction(async(tx)=>{
+    const snap=await tx.get(_crRef);
+    const d=snap.exists?(snap.data()||{}):{};
+    if(d.completionRequest) throw {code:'COMPLETION_TAKEN'};
+    tx.update(_crRef,{ completionRequest:_crReq });
+  }).then(()=>{
+    call.completionRequest=_crReq;
+    logCallEvent(call,'completion_requested',{by:SESSION.unit,outcome,note});
+    save(); hideModal('memberCompleteModal'); renderHome(); renderCalls();
+    _submitCompletionNotify(call);
+  }).catch(err=>{
+    hideModal('memberCompleteModal');
+    if(err&&err.code==='COMPLETION_TAKEN'){ _requestTakenPopup('Completion already requested','Another responder already submitted a completion for this call — dispatch is reviewing it.'); }
+    else { console.warn('completion tx:',err); call.completionRequest=_crReq; save(); firestoreUpsertCall(call); renderHome(); renderCalls(); _submitCompletionNotify(call); }
+  });
+  return;
+}
+function _submitCompletionNotify(call){
+  const id=call.id;
   showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
   showToast('📋 Sent to dispatch for approval');
   const _tl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
