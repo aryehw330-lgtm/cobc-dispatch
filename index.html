@@ -5336,6 +5336,13 @@ function initFirestore(){
     });
     localOnly.forEach(call=>firestoreUpsertCall(call));
     STATE.calls=[...firestoreCalls,...localOnly];
+    // De-dupe responders per call: a raced approve+assign can arrayUnion two entries
+    // for the same unit (different fields), so collapse to the first per unit.
+    STATE.calls.forEach(c=>{
+      if(Array.isArray(c.responders) && c.responders.length>1){
+        const seen=new Set(); c.responders=c.responders.filter(r=>{ const u=String(r&&r.unit||'').replace(/^BC-?/i,''); if(!u) return true; if(seen.has(u)) return false; seen.add(u); return true; });
+      }
+    });
     // Skip redundant re-renders: both the recent + open listeners (and Firestore's
     // cache/server snapshot pairs) fire in quick succession. Re-rendering the call
     // list on every one caused visible flicker. Only redraw when the set changed.
@@ -8280,7 +8287,15 @@ function confirmRespond() {
   const _pendReq = {unit:SESSION.unit,name:SESSION.name,phone:SESSION.phone||'',eta,notes,vehicles,isObserver,observerOnly:(isObserver && !isAllowedForObserver(call.type, SESSION.unit)),time:Date.now(),status:'pending'};
   call.pendingResponders.push(_pendReq);
   logCallEvent(call, 'responder_pending', {responder:SESSION.unit, eta});
-  save(); firestoreUpsertCall(call); hideModal('respondModal');
+  save();
+  // Atomic add so two members requesting at the same time don't clobber each other
+  // (a full-doc upsert is last-write-wins and drops the other person's request).
+  try{
+    firebase.firestore().collection('calls').doc(call.id).update({
+      pendingResponders: firebase.firestore.FieldValue.arrayUnion(_pendReq)
+    }).catch(()=>{ firestoreUpsertCall(call); });
+  }catch(e){ firestoreUpsertCall(call); }
+  hideModal('respondModal');
   renderCalls(); renderHome();
   // WA: notify dispatchers/admins that this member wants to respond
   // individual WA messages disabled — group only
@@ -8525,7 +8540,17 @@ function _doApproveResponder(callId, unit, call, req) {
   call.status='active';
   call.activatedAt=call.activatedAt||Date.now();
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
-  save(); firestoreUpsertCall(call); renderCalls(); renderHome();
+  save();
+  // Atomic move: remove from pending + add to responders without overwriting the whole
+  // doc, so a simultaneous assign/approve on another device can't clobber it.
+  try{
+    const _ref=firebase.firestore().collection('calls').doc(call.id);
+    const _upd={ responders: firebase.firestore.FieldValue.arrayUnion(_approvedEntry), status:'active', activatedAt:call.activatedAt };
+    if(req) _upd.pendingResponders = firebase.firestore.FieldValue.arrayRemove(req);
+    if(call.callNum) _upd.callNum=call.callNum;
+    _ref.update(_upd).catch(()=>{ firestoreUpsertCall(call); });
+  }catch(e){ firestoreUpsertCall(call); }
+  renderCalls(); renderHome();
   showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} approved`);
   // WA: group update — "BC-X is responding to call #X"
   setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }); } catch(e){} }, 800);
@@ -8777,19 +8802,29 @@ async function submitRadioResponders() {
   // Only members NOT already responding are genuinely new — used to gate the
   // WhatsApp/push so re-assigning someone already on the call announces nothing.
   const _newMembers = radioSelectedMembers.filter(m=>!(call.responders||[]).find(r=>String(r.unit)===String(m.unit)));
+  const _radioAdded=[];
 
   radioSelectedMembers.forEach(m=>{
     call.responders=call.responders||[];
     // Remove from pending if they were there
     call.pendingResponders=(call.pendingResponders||[]).filter(r=>String(r.unit)!==String(m.unit));
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
-      call.responders.push({unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:'radio',status:'approved',time:Date.now()});
+      const _entry={unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:'radio',status:'approved',time:Date.now()};
+      call.responders.push(_entry); _radioAdded.push(_entry);
     }
   });
   if(!call.callNum) call.callNum = _nextCallNum();
   call.status='active';
   call.activatedAt=call.activatedAt||Date.now();
-  save(); firestoreUpsertCall(call); hideModal('radioModal');
+  save();
+  // Atomic add so a simultaneous approve on another device isn't clobbered.
+  try{
+    const _upd={ status:'active', activatedAt:call.activatedAt };
+    if(call.callNum) _upd.callNum=call.callNum;
+    if(_radioAdded.length) _upd.responders=firebase.firestore.FieldValue.arrayUnion(..._radioAdded);
+    firebase.firestore().collection('calls').doc(call.id).update(_upd).catch(()=>{ firestoreUpsertCall(call); });
+  }catch(e){ firestoreUpsertCall(call); }
+  hideModal('radioModal');
   renderCalls(); renderHome(); showTab('dispatch');
   showToast(`📻 ${radioSelectedMembers.length} responder${radioSelectedMembers.length>1?'s':''} added`);
   // Nobody genuinely new (all were already responding) → no announcement at all.
