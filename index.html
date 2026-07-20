@@ -2956,9 +2956,9 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <div id="coModalForNote" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 11px;margin-bottom:10px;font-size:12px;font-weight:700;color:#b45309;line-height:1.4;"></div>
     <input type="hidden" id="coModalMember"/>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-      <button class="btn-full btn-green" onclick="submitCO('IN')">✓ Check IN All</button>
-      <button class="btn-full btn-danger" onclick="submitCO('OUT')">↓ Check OUT All</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;" id="coModalBtnRow">
+      <button id="coModalBtnIn" class="btn-full btn-green" onclick="submitCO('IN')">✓ Check IN All</button>
+      <button id="coModalBtnOut" class="btn-full btn-danger" onclick="submitCO('OUT')">↓ Check OUT All</button>
     </div>
     <button class="btn-full btn-ghost" style="margin-top:8px;" onclick="hideModal('checkoutModal')">Cancel</button>
   </div>
@@ -15472,9 +15472,8 @@ function openCheckout(row, defaultAction) {
   }
   // ── end COBC 4 guard ─────────────────────────────────────────────────────
 
-  // Warn if item is already in the intended state
-  if(it && defaultAction==='IN'  && it.status==='in')  { showEqConflictWarning(it,'IN');  return; }
-  if(it && defaultAction==='OUT' && it.status==='out' && !it.isCNC) { showEqConflictWarning(it,'OUT'); return; }
+  // Open the modal regardless of current state — the modal shows only the valid action
+  // button for the selected item(s) (see updateCoModalButtons), so there's no dead-end.
   if(!document.getElementById('checkoutModal').classList.contains('hidden')){
     // Modal already open — just add item
     if(it&&!coModalItems.find(m=>m.row===row)) { coModalItems.push(it); renderCOModalList(); }
@@ -15526,6 +15525,25 @@ function renderCOModalList() {
       <div><div style="font-size:13px;font-weight:600;">${it.name}</div><div style="font-size:11px;color:var(--text3);">${it.location}</div></div>
       <button onclick="coModalItems.splice(${i},1);renderCOModalList()" style="background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;padding:0 4px;">×</button>
     </div>`).join('');
+  updateCoModalButtons();
+}
+// Show only the valid action button based on item state (avoids tap-then-blocked confusion).
+// CNC or currently-IN items → OUT only. Currently-OUT items → IN only. COBC 4 (car) or a
+// mixed selection → show both. Mirrors the QR form behavior.
+function updateCoModalButtons(){
+  const bIn=document.getElementById('coModalBtnIn'), bOut=document.getElementById('coModalBtnOut'), row=document.getElementById('coModalBtnRow');
+  if(!bIn||!bOut) return;
+  const nonCar=coModalItems.filter(it=>!isCarItem(it.name));
+  const hasCar=coModalItems.some(it=>isCarItem(it.name));
+  let show='both';
+  if(nonCar.length && !hasCar){
+    const allOutOnly=nonCar.every(it=>it.isCNC||it.status!=='out'); // CNC or IN → out
+    const allInOnly=nonCar.every(it=>!it.isCNC&&it.status==='out'); // OUT & not CNC → in
+    if(allOutOnly) show='out'; else if(allInOnly) show='in';
+  }
+  bIn.style.display  = show==='out' ? 'none' : 'block';
+  bOut.style.display = show==='in'  ? 'none' : 'block';
+  if(row) row.style.gridTemplateColumns = (show==='both') ? '1fr 1fr' : '1fr';
 }
 function renderCOSearch() {
   const q=document.getElementById('coModalSearch').value.toLowerCase().trim();
@@ -15557,7 +15575,7 @@ async function submitCO(action){
   // ── Conflict guard: warn if an item is already in the state you're setting it to ──
   // e.g. tapping "Check OUT All" when an item is already OUT. (COBC 4 has its own flow below.)
   const _conflict = coModalItems.find(it => !isCarItem(it.name) && (
-    (action==='OUT' && it.status==='out' && ccnc!=='CNC') ||
+    (action==='OUT' && it.status==='out' && ccnc!=='CNC' && !it.isCNC) ||
     (action==='IN'  && it.status==='in')
   ));
   if (_conflict) { showEqConflictWarning(_conflict, action); return; }
