@@ -15166,42 +15166,54 @@ function renderEquipmentDashboard() {
   const aw=document.getElementById('eq-alerts-wrap');
   if(aw) aw.style.display='block';
   const al=document.getElementById('eq-alerts-list');
-  if(al) al.innerHTML=alerts.length?alerts.map(e=>{
-    const cls=(['Missing','Damaged'].includes(e.equipStatus))?'alert-red':'alert-amber';
-    return `<div class="alert ${cls}" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:13px;">${e.name}</div>
-        <div style="font-size:12px;margin-top:2px;">${e.location}${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}</div>
-        ${e.equipStatus&&e.equipStatus!=='OK'?`<div style="font-size:11px;font-weight:700;margin-top:3px;">${e.equipStatus}${e.equipNote?' — '+e.equipNote.replace(/^[A-Z ]+\s*-\s*/i,''):''}</div>`:''}
-        ${e.isCNC?`<div style="font-size:11px;color:var(--amber);margin-top:2px;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
-      </div>
-      ${e.lastUpdated?`<div style="font-size:10.5px;font-weight:600;opacity:.7;text-align:right;flex-shrink:0;white-space:nowrap;">🕒 ${fmtEqTime(e.lastUpdated)}</div>`:''}
-    </div>`;
-  }).join(''):'<div style="display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:12px;background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(18,24,18,.5));border:1px solid rgba(34,197,94,.3);"><div style="width:34px;height:34px;border-radius:50%;background:rgba(34,197,94,.22);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">✅</div><div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:#86efac;">All equipment OK</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:1px;">No missing, damaged, or misplaced items</div></div></div>';
+  if(al){
+    if(alerts.length){
+      al.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px;';
+      al.innerHTML=alerts.map(e=>{
+        const cls=(['Missing','Damaged'].includes(e.equipStatus))?'alert-red':'alert-amber';
+        return `<div class="alert ${cls}" style="margin-bottom:0;display:block;min-width:0;">
+          <div style="font-weight:700;font-size:13px;line-height:1.25;">${e.name}</div>
+          <div style="font-size:11px;margin-top:2px;line-height:1.35;"><b style="font-weight:800;">${e.location}</b>${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}</div>
+          ${e.equipStatus&&e.equipStatus!=='OK'?`<div style="font-size:11px;font-weight:700;margin-top:3px;line-height:1.3;">${e.equipStatus}${e.equipNote?' — '+e.equipNote.replace(/^[A-Z ]+\s*-\s*/i,''):''}</div>`:''}
+          ${e.isCNC?`<div style="font-size:11px;color:var(--amber);margin-top:2px;line-height:1.3;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+          ${e.lastUpdated?`<div style="font-size:10px;font-weight:600;opacity:.7;margin-top:4px;white-space:nowrap;">🕒 ${fmtEqTime(e.lastUpdated)}</div>`:''}
+        </div>`;
+      }).join('');
+    } else {
+      al.style.cssText='';
+      al.innerHTML='<div style="display:flex;align-items:center;gap:11px;padding:13px 15px;border-radius:12px;background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(18,24,18,.5));border:1px solid rgba(34,197,94,.3);"><div style="width:34px;height:34px;border-radius:50%;background:rgba(34,197,94,.22);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">✅</div><div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:#86efac;">All equipment OK</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:1px;">No missing, damaged, or misplaced items</div></div></div>';
+    }
+  }
 
   // Out items
   const outItems=STATE.equipment.filter(e=>(e.status||'').toUpperCase()==='OUT');
   const ow=document.getElementById('eq-out-wrap');
   if(ow) ow.style.display='block'; // always show so dashboard isn't empty
   const ol=document.getElementById('eq-out-list');
-  if(ol) ol.innerHTML=outItems.length?outItems.map(e=>{
-    let _callPhone='';
-    if(e.callNum){ const _c=(_allCalls()||[]).find(x=>String(x.callNum)===String(e.callNum)); _callPhone=_c?(_c.phone||_c.callerPhone||''):''; }
-    const _callTag=e.callNum?` · Call #${e.callNum}`+(_callPhone?` <a href="tel:${_callPhone}" onclick="event.stopPropagation();" style="color:#e6c463;font-weight:800;text-decoration:none;white-space:nowrap;">📞 ${formatPhone(_callPhone)}</a>`:''):'';
-    return `
-    <div style="background:linear-gradient(160deg,rgba(212,169,58,.16),rgba(18,16,12,.62));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(230,196,99,.34);border-left:3px solid var(--gold,#d4a93a);border-radius:12px;padding:11px 13px;margin-bottom:8px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;" onclick="openCheckout(${e.row||0})">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:700;color:#fff;">${e.name}</div>
-        <div style="font-size:12px;color:rgba(255,255,255,.62);margin-top:2px;">${e.location}${e.checkedOutBy?' · '+fmtEqHolder(e):''}${_callTag}</div>
-        ${e.isCNC?`<div style="font-size:12px;color:var(--gold-light,#e6c463);margin-top:2px;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
-      </div>
-      <div style="text-align:right;flex-shrink:0;">
-        <span class="badge badge-red">OUT</span>
-        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;">${fmtEqTime(e.lastUpdated)}</div>
-      </div>
-    </div>`;
-  }).join(''):
-    '<div style="background:linear-gradient(160deg,rgba(34,197,94,.20),rgba(8,20,12,.66));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(74,222,128,.38);border-left:3px solid var(--green,#16a34a);border-radius:12px;padding:13px 15px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;align-items:center;gap:12px;"><span style="font-size:24px;">✅</span><div><div style="font-size:14px;font-weight:700;color:#fff;">All equipment checked in</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Everything is home and accounted for</div></div></div>';
+  if(ol){
+    if(outItems.length){
+      ol.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px;';
+      ol.innerHTML=outItems.map(e=>{
+        let _callPhone='';
+        if(e.callNum){ const _c=(_allCalls()||[]).find(x=>String(x.callNum)===String(e.callNum)); _callPhone=_c?(_c.phone||_c.callerPhone||''):''; }
+        const _callTag=e.callNum?`Call #${e.callNum}`+(_callPhone?` <a href="tel:${_callPhone}" onclick="event.stopPropagation();" style="color:#e6c463;font-weight:800;text-decoration:none;white-space:nowrap;">📞</a>`:''):'';
+        const _meta=[`<b style="color:#fff;font-weight:800;">${e.location}</b>`, e.checkedOutBy?fmtEqHolder(e):'', _callTag].filter(Boolean).join(' · ');
+        return `
+        <div style="background:linear-gradient(160deg,rgba(212,169,58,.16),rgba(18,16,12,.62));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(230,196,99,.34);border-top:3px solid var(--gold,#d4a93a);border-radius:12px;padding:10px 11px;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer;min-width:0;" onclick="openCheckout(${e.row||0})">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+            <span class="badge badge-red" style="font-size:10px;">OUT</span>
+            <span style="font-size:10px;color:rgba(255,255,255,.5);">${fmtEqTime(e.lastUpdated)}</span>
+          </div>
+          <div style="font-size:13.5px;font-weight:700;color:#fff;margin-top:6px;line-height:1.25;">${e.name}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.62);margin-top:2px;line-height:1.35;">${_meta}</div>
+          ${e.isCNC?`<div style="font-size:11px;color:var(--gold-light,#e6c463);margin-top:3px;line-height:1.3;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+        </div>`;
+      }).join('');
+    } else {
+      ol.style.cssText='';
+      ol.innerHTML='<div style="background:linear-gradient(160deg,rgba(34,197,94,.20),rgba(8,20,12,.66));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(74,222,128,.38);border-left:3px solid var(--green,#16a34a);border-radius:12px;padding:13px 15px;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;align-items:center;gap:12px;"><span style="font-size:24px;">✅</span><div><div style="font-size:14px;font-weight:700;color:#fff;">All equipment checked in</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Everything is home and accounted for</div></div></div>';
+    }
+  }
 
   // 🎉 Confetti when everything JUST came back in (transition from some-out → all-in)
   if (typeof _prevEqOutCount === 'number' && _prevEqOutCount > 0 && outItems.length === 0) {
@@ -15218,19 +15230,27 @@ function renderEquipmentDashboard() {
     .slice(0,10)
     .map(x=>x.e);
   const rl=document.getElementById('eq-recent-list');
-  if(rl) rl.innerHTML=recent.length?recent.map(e=>{
-    const isOut=e.status==='out';
-    const who=e.checkedOutBy?('BC-'+String(e.checkedOutBy).replace(/^BC-?/i,'')):'';
-    return `
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:7px;border-radius:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);">
-      <div style="width:9px;height:9px;border-radius:50%;background:${isOut?'#ef4444':'#22c55e'};flex-shrink:0;box-shadow:0 0 8px ${isOut?'rgba(239,68,68,.6)':'rgba(34,197,94,.6)'};"></div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;color:#fff;">${e.name}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.62);">${isOut?'Checked OUT':'Checked IN'}${who?' · '+who:''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
-      </div>
-      <span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:8px;background:${isOut?'rgba(239,68,68,.2)':'rgba(34,197,94,.2)'};color:${isOut?'#fca5a5':'#86efac'};">${isOut?'OUT':'IN'}</span>
-    </div>`;}).join(''):
-    '<div style="font-size:13px;color:rgba(255,255,255,.5);padding:8px 0;">No recent activity</div>';
+  if(rl){
+    if(recent.length){
+      rl.style.cssText='';
+      rl.innerHTML=recent.map(e=>{
+        const isOut=e.status==='out';
+        const who=e.checkedOutBy?('BC-'+String(e.checkedOutBy).replace(/^BC-?/i,'')):'';
+        return `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:7px;border-radius:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);">
+          <div style="width:9px;height:9px;border-radius:50%;background:${isOut?'#ef4444':'#22c55e'};flex-shrink:0;box-shadow:0 0 8px ${isOut?'rgba(239,68,68,.6)':'rgba(34,197,94,.6)'};"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:700;color:#fff;">${e.name}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.62);">${isOut?'Checked OUT':'Checked IN'}${who?' · '+who:''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
+          </div>
+          <span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:8px;background:${isOut?'rgba(239,68,68,.2)':'rgba(34,197,94,.2)'};color:${isOut?'#fca5a5':'#86efac'};">${isOut?'OUT':'IN'}</span>
+        </div>`;
+      }).join('');
+    } else {
+      rl.style.cssText='';
+      rl.innerHTML='<div style="font-size:13px;color:rgba(255,255,255,.5);padding:8px 0;">No recent activity</div>';
+    }
+  }
 }
 
 function fmtEqTime(s) {
@@ -15327,7 +15347,7 @@ function renderInventory() {
         <div style="font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
         <div style="display:flex;gap:4px;flex-shrink:0;">${statusBadge}${equipBadge}${cncBadge}</div>
       </div>
-      <div style="font-size:12px;color:var(--text3);">${e.location}${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
+      <div style="font-size:12px;color:var(--text3);"><b style="color:#fff;font-weight:800;">${e.location}</b>${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
       ${e.isCNC?`<div style="font-size:12px;color:var(--amber);background:#fff3e0;border-radius:6px;padding:4px 8px;margin-top:6px;">${e.cncNote||e.ccnc}</div>`:''}
       ${canEdit?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
         <button style="padding:11px;background:var(--navy);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'IN')">Check IN</button>
@@ -15344,7 +15364,6 @@ let coModalItems=[];
 
 function showEqConflictWarning(it, intendedAction) {
   const alreadyOut = it.status==='out';
-  const contactStr = 'Contact equipment team for help.';
 
   const banner = document.getElementById('eqConflictBanner');
   const icon   = document.getElementById('eqConflictIcon');
@@ -15358,14 +15377,16 @@ function showEqConflictWarning(it, intendedAction) {
     title.textContent='Already Checked Out';
     const callPart = it.callNum ? ` on Call #${it.callNum}` : '';
     const holder = fmtEqHolder(it);
-    sub.innerHTML = `${it.name} is already OUT${callPart}.${holder?'<br>Held by '+holder:''}`;
+    const homePart = it.location ? `<br>Home: <b>${it.location}</b>` : '';
+    sub.innerHTML = `${it.name} is already OUT${callPart}.${holder?'<br>Held by '+holder:''}${homePart}`;
+    help.innerHTML = `<b>Moving this item from one call to another?</b><br>Sign the item <b>IN</b> with the call # you are on, then sign it back <b>OUT</b> with that same call #. This keeps the record accurate.<br><br>Still stuck? Contact the equipment team for help.`;
   } else {
     banner.style.background='#f0fdf4'; banner.style.color='#166534';
     icon.textContent='✅';
     title.textContent='Already Checked In';
     sub.textContent = `${it.name} is already IN at ${it.location||'home location'}.`;
+    help.textContent = 'Contact equipment team for help.';
   }
-  help.textContent = contactStr;
   showModal('eqConflictModal');
 }
 
@@ -15453,7 +15474,7 @@ function openCheckout(row, defaultAction) {
 
   // Warn if item is already in the intended state
   if(it && defaultAction==='IN'  && it.status==='in')  { showEqConflictWarning(it,'IN');  return; }
-  if(it && defaultAction==='OUT' && it.status==='out') { showEqConflictWarning(it,'OUT'); return; }
+  if(it && defaultAction==='OUT' && it.status==='out' && !it.isCNC) { showEqConflictWarning(it,'OUT'); return; }
   if(!document.getElementById('checkoutModal').classList.contains('hidden')){
     // Modal already open — just add item
     if(it&&!coModalItems.find(m=>m.row===row)) { coModalItems.push(it); renderCOModalList(); }
@@ -15525,10 +15546,18 @@ async function submitCO(action){
   const cncNote=(document.getElementById('coModalCNCNote')?.value||'').trim();
   if(!coModalItems.length){showToast('No items selected');return;}
 
+  // ── CNC guard: an item flagged CNC (wrong location) may be signed OUT (it's in a
+  // member's possession, just misplaced) but must NOT be signed IN — signing IN would
+  // wrongly mark it as returned to its correct home location.
+  if(action==='IN' && ccnc==='CNC'){
+    alert('⚠️ CNC items can\'t be checked IN.\n\nThe item is in the wrong location — it\'s still in a member\'s possession, just misplaced. Sign it OUT, or select "CC — Correct location" once it\'s back at its correct home.');
+    return;
+  }
+
   // ── Conflict guard: warn if an item is already in the state you're setting it to ──
   // e.g. tapping "Check OUT All" when an item is already OUT. (COBC 4 has its own flow below.)
   const _conflict = coModalItems.find(it => !isCarItem(it.name) && (
-    (action==='OUT' && it.status==='out') ||
+    (action==='OUT' && it.status==='out' && ccnc!=='CNC') ||
     (action==='IN'  && it.status==='in')
   ));
   if (_conflict) { showEqConflictWarning(_conflict, action); return; }
