@@ -7916,8 +7916,14 @@ async function createCall() {
   };
 
   STATE.calls.push(call); save();
-  try{ await firebase.firestore().collection('calls').doc(call.id).set(call); }
+  // Write to Firestore in the background — never block the UI on the network.
+  try{ firebase.firestore().collection('calls').doc(call.id).set(call).catch(e=>{ console.warn('call set error:', e); firestoreUpsertCall(call); }); }
   catch(e){ console.warn('firestoreUpsertCall error:', e); firestoreUpsertCall(call); }
+  // Reconcile the call number atomically after the fact so simultaneous creates on
+  // two devices can't share a number — updates in place if the atomic value differs.
+  if(!dontPublish){
+    (async()=>{ try{ const _atomic=await _nextCallNumAtomic(); if(_atomic && _atomic!==call.callNum){ call.callNum=_atomic; save(); try{ firebase.firestore().collection('calls').doc(call.id).update({callNum:_atomic}); }catch(e){} try{ renderCalls&&renderCalls(); renderHome&&renderHome(); }catch(e){} } }catch(e){ console.warn('atomic callNum reconcile:', e); } })();
+  }
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
   try{ _maybeSaveCustomCar(carMake, carModel, _usedOtherMake, _usedOtherModel); }catch(e){}
   hideModal('newCallModal');
