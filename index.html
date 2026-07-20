@@ -2939,6 +2939,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <option value="">-- Select --</option>
         <option value="CC">CC — Correct location</option>
         <option value="CNC">CNC — Wrong location</option>
+        <option value="MOVE">🔄 Bringing equipment from one call to another</option>
       </select>
     </div>
     <div id="coModalCNCGroup" style="display:none;" class="input-group">
@@ -15538,8 +15539,8 @@ function updateCoModalButtons(){
   const ccncSel=(document.getElementById('coModalCCNC')||{}).value;
   let show='both';
   if(nonCar.length && !hasCar){
-    // CNC selected → force OUT-only (CNC can never be checked IN).
-    if(ccncSel==='CNC'){ show='out'; }
+    // CNC or MOVE selected → force OUT-only (can't check IN).
+    if(ccncSel==='CNC'||ccncSel==='MOVE'){ show='out'; }
     else {
       const allOutOnly=nonCar.every(it=>it.isCNC||it.status!=='out'); // CNC or IN → out
       const allInOnly=nonCar.every(it=>!it.isCNC&&it.status==='out'); // OUT & not CNC → in
@@ -15565,9 +15566,14 @@ function renderCOSearch() {
 // ═══════════════════════════════════════════════════════════════════════════
 async function submitCO(action){
   const call=(document.getElementById('coModalCall')?.value||'').trim();
-  const ccnc=(document.getElementById('coModalCCNC')?.value||'CC');
+  let ccnc=(document.getElementById('coModalCCNC')?.value||'CC');
+  // MOVE = "bringing equipment from one call to another": allow OUT even when already OUT,
+  // and store as a normal CC checkout (item stays out, just gets the new call #).
+  const isMove = (ccnc==='MOVE');
+  if(isMove) ccnc='CC';
   const cncNote=(document.getElementById('coModalCNCNote')?.value||'').trim();
   if(!coModalItems.length){showToast('No items selected');return;}
+  if(isMove && action!=='OUT'){ showToast('"Bringing from one call to another" is a check-OUT — tap Check OUT.'); return; }
 
   // ── CNC guard: an item flagged CNC (wrong location) may be signed OUT (it's in a
   // member's possession, just misplaced) but must NOT be signed IN — signing IN would
@@ -15580,7 +15586,7 @@ async function submitCO(action){
   // ── Conflict guard: warn if an item is already in the state you're setting it to ──
   // e.g. tapping "Check OUT All" when an item is already OUT. (COBC 4 has its own flow below.)
   const _conflict = coModalItems.find(it => !isCarItem(it.name) && (
-    (action==='OUT' && it.status==='out' && ccnc!=='CNC' && !it.isCNC) ||
+    (action==='OUT' && it.status==='out' && ccnc!=='CNC' && !it.isCNC && !isMove) ||
     (action==='IN'  && it.status==='in')
   ));
   if (_conflict) { showEqConflictWarning(_conflict, action); return; }
