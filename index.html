@@ -5339,7 +5339,7 @@ function initFirestore(){
     // Skip redundant re-renders: both the recent + open listeners (and Firestore's
     // cache/server snapshot pairs) fire in quick succession. Re-rendering the call
     // list on every one caused visible flicker. Only redraw when the set changed.
-    const _sig=STATE.calls.map(c=>c.id+':'+(c.status||'')+':'+(c.updatedAt||c.createdAt||0)+':'+(c.responders?c.responders.length:0)+':'+(c.pendingResponders?c.pendingResponders.length:0)+':'+(c.rejectedResponders?c.rejectedResponders.length:0)).sort().join('|');
+    const _sig=STATE.calls.map(c=>c.id+':'+(c.status||'')+':'+(c.updatedAt||c.createdAt||0)+':'+(c.responders?c.responders.length:0)+':'+(c.pendingResponders?c.pendingResponders.length:0)+':'+(c.rejectedResponders?c.rejectedResponders.length:0)+':'+(c.pendingBackups?c.pendingBackups.length:0)+':'+(c.backupRequests?c.backupRequests.length:0)+':'+(c.completionRequest?1:0)).sort().join('|');
     if(_sig===_lastCallsSig){ save(); return; }
     _lastCallsSig=_sig;
     save();renderCalls&&renderCalls();renderHome&&renderHome();
