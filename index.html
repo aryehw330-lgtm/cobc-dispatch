@@ -2518,7 +2518,7 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <!-- ADDRESS + TOWN in one row -->
     <div class="input-group" style="position:relative;">
-      <label class="input-label" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;">Address <span id="callZoneBadge" style="display:none;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;white-space:nowrap;"></span></label>
+      <label class="input-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Address <span id="callZoneBadge" style="display:none;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;white-space:nowrap;"></span></label>
       <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>{document.getElementById('callAddressSuggest').style.display='none';geocodeCallAddressForZone();},200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
       <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
     </div>
@@ -2939,7 +2939,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <option value="">-- Select --</option>
         <option value="CC">CC — Correct location</option>
         <option value="CNC">CNC — Wrong location</option>
-        <option value="MOVE">🔄 Bringing equipment from one call to another</option>
+        <option value="MOVE" id="coModalMoveOpt">🔄 Moving item between calls</option>
       </select>
     </div>
     <div id="coModalCNCGroup" style="display:none;" class="input-group">
@@ -4276,10 +4276,13 @@ function _pointInRing(lng,lat,ring){
   }
   return inside;
 }
+// Core in-territory towns — always treated as In Territory even if the drawn polygon
+// clips them (e.g. Bergenfield). Lowercase; matched against town field or address text.
+const CORE_TOWNS=['bergenfield','teaneck','new milford','dumont','tenafly','englewood','bogota','river edge','oradell','haworth','cresskill','demarest','closter','leonia','palisades park','ridgefield park','maywood','hackensack','fair lawn','paramus','elmwood park','fort lee','englewood cliffs','emerson','harrington park','northvale','norwood','old tappan','rockleigh','alpine'];
 // Classify by geocoded coords. Returns {level,label,note,bg,fg}.
 function classifyZoneByLatLng(lat,lng){
   if(_pointInRing(lng,lat,ZONE_PRIMARY)) return {level:'primary',label:'✓ In Territory',note:'',bg:'rgba(22,163,74,.15)',fg:'#16a34a'};
-  if(_pointInRing(lng,lat,ZONE_SECONDARY)) return {level:'secondary',label:'● Secondary — Interstate dispatches only if requested',note:'',bg:'rgba(212,169,58,.18)',fg:'#b8902a'};
+  if(_pointInRing(lng,lat,ZONE_SECONDARY)) return {level:'secondary',label:'● Secondary — request only',note:'',bg:'rgba(212,169,58,.18)',fg:'#b8902a'};
   return {level:'outside',label:'✕ Out of Bergen Coverage area',note:'',bg:'rgba(220,38,38,.14)',fg:'#dc2626'};
 }
 let _lastCallLatLng=null;
@@ -4307,7 +4310,16 @@ function updateCallZoneBadge(){
   if(!badge) return;
   const addr=(document.getElementById('callAddress')||{}).value||'';
   if(!addr.trim() || !_lastCallLatLng){ badge.style.display='none'; badge.textContent=''; return; }
-  const z=classifyZoneByLatLng(_lastCallLatLng.lat,_lastCallLatLng.lng);
+  // Core-town safety net: some in-territory towns (e.g. Bergenfield) can fall just outside
+  // the drawn polygon. If the address names a known covered town, always treat as in-territory.
+  const townEl=document.getElementById('callTown'), townTxt=document.getElementById('callTownText');
+  const townStr=((townEl&&townEl.value)||(townTxt&&townTxt.value)||addr).toLowerCase();
+  let z;
+  if(CORE_TOWNS.some(t=>townStr.includes(t))){
+    z={level:'primary',label:'✓ In Territory',note:'',bg:'rgba(22,163,74,.15)',fg:'#16a34a'};
+  } else {
+    z=classifyZoneByLatLng(_lastCallLatLng.lat,_lastCallLatLng.lng);
+  }
   badge.style.display='inline-block';
   badge.style.background=z.bg; badge.style.color=z.fg;
   badge.textContent = z.note ? `${z.label} — ${z.note}` : z.label;
@@ -15536,6 +15548,11 @@ function updateCoModalButtons(){
   if(!bIn||!bOut) return;
   const nonCar=coModalItems.filter(it=>!isCarItem(it.name));
   const hasCar=coModalItems.some(it=>isCarItem(it.name));
+  // "Moving item between calls" only makes sense if an item is already OUT.
+  const anyOut=nonCar.some(it=>it.status==='out');
+  const moveOpt=document.getElementById('coModalMoveOpt');
+  const ccncSelEl=document.getElementById('coModalCCNC');
+  if(moveOpt){ moveOpt.style.display=anyOut?'':'none'; if(!anyOut&&ccncSelEl&&ccncSelEl.value==='MOVE') ccncSelEl.value=''; }
   const ccncSel=(document.getElementById('coModalCCNC')||{}).value;
   let show='both';
   if(nonCar.length && !hasCar){
