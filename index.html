@@ -15550,9 +15550,16 @@ function updateCoModalButtons(){
   const hasCar=coModalItems.some(it=>isCarItem(it.name));
   // "Moving item between calls" only makes sense if an item is already OUT.
   const anyOut=nonCar.some(it=>it.status==='out');
-  const moveOpt=document.getElementById('coModalMoveOpt');
   const ccncSelEl=document.getElementById('coModalCCNC');
-  if(moveOpt){ moveOpt.style.display=anyOut?'':'none'; if(!anyOut&&ccncSelEl&&ccncSelEl.value==='MOVE') ccncSelEl.value=''; }
+  // Remove/re-insert the option (display:none on <option> is ignored by iOS).
+  let moveOpt=document.getElementById('coModalMoveOpt');
+  if(!anyOut){
+    if(moveOpt){ if(ccncSelEl&&ccncSelEl.value==='MOVE') ccncSelEl.value=''; moveOpt.remove(); }
+  } else if(!moveOpt && ccncSelEl){
+    moveOpt=document.createElement('option');
+    moveOpt.id='coModalMoveOpt'; moveOpt.value='MOVE'; moveOpt.textContent='🔄 Moving item between calls';
+    ccncSelEl.appendChild(moveOpt);
+  }
   const ccncSel=(document.getElementById('coModalCCNC')||{}).value;
   let show='both';
   if(nonCar.length && !hasCar){
