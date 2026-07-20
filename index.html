@@ -8294,11 +8294,10 @@ function confirmRespond() {
   // 'dispatchers' push when no one's on duty so none is missed.
   const _dutyUnits=_onDutyDispatchUnits();
   if(_dutyUnits.length){
-    setTimeout(()=>sendPush({ target:'admins', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
-    _dutyUnits.forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
+    [..._dutyUnits, ..._adminUnits()].forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
   } else {
     setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
-    setTimeout(()=>sendPush({ target:'admins', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
+    _adminUnits().forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
   }
 
   showToast('Response request sent to on-duty dispatchers & admin');
@@ -8637,12 +8636,11 @@ function submitBackup() {
   // On-duty (current-shift) dispatchers + all admins; fall back to all dispatchers if OPEN.
   const _bpUnits=_onDutyDispatchUnits();
   if(_bpUnits.length){
-    setTimeout(()=>{ try{ sendPush({target:'admins',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
-    _bpUnits.forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
+    [..._bpUnits, ..._adminUnits()].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
   } else {
     // Both slots OPEN or CHIEFS → all dispatchers + all admins.
     setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
-    setTimeout(()=>{ try{ sendPush({target:'admins',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
+    _adminUnits().forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
   }
 }
 
@@ -9538,14 +9536,12 @@ function submitMemberCompletion(){
   // scheduled on duty, fall back to all dispatchers so the request never reaches no one.
   const _dutyUnits=_onDutyDispatchUnits();
   if(_dutyUnits.length){
-    // Admins always (kept on the broad dispatchers push so no admin is missed even
-    // if the server has no dedicated 'admins' mode), plus each on-duty dispatcher.
-    sendPush({target:'admins',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
-    _dutyUnits.forEach(u=>sendPush({target:'unit',unit:String(u),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'}));
+    // On-duty dispatchers + admins, each reached by unit (no server 'admins' mode).
+    [..._dutyUnits, ..._adminUnits()].forEach(u=>sendPush({target:'unit',unit:String(u),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'}));
   } else {
     // No one scheduled on duty (OPEN or CHIEFS) → all dispatchers + all admins.
     sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
-    sendPush({target:'admins',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
+    _adminUnits().forEach(u=>sendPush({target:'unit',unit:String(u),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'}));
   }
 }
 function approveCallCompletion(id){
@@ -10584,6 +10580,16 @@ function renderTelzioRoster(){
 }
 function checkWaitingEscalation() { /* now SERVER-SIDE — see cobc-waiting-escalation-appscript.js. No-op on the client to avoid duplicate alerts. */ }
 
+// Units (BC numbers) of all ADMIN members — used to reach admins by unit since the
+// push server has no dedicated 'admins' target mode.
+function _adminUnits(){
+  try{
+    return [...new Set((STATE.members||[])
+      .filter(m=>String(m.role||'').toLowerCase()==='admin')
+      .map(m=>String(m.unit||m.id||'').replace(/^BC-?/i,''))
+      .filter(Boolean))];
+  }catch(e){ return []; }
+}
 // Units (BC numbers) of the dispatchers ON THE CURRENT SHIFT right now — Primary +
 // Secondary, respecting one-time schedOverrides. Empty array if the slot is OPEN/unset.
 function _onDutyDispatchUnits(){
