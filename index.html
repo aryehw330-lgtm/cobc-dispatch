@@ -2935,7 +2935,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <div class="input-group" id="coModalCallGroup"><label class="input-label">Call Number</label><input class="input" type="text" inputmode="numeric" id="coModalCall" placeholder="Dispatched call #"/></div>
     <div class="input-group"><label class="input-label">Status</label>
-      <select class="input" id="coModalCCNC" onchange="document.getElementById('coModalCNCGroup').style.display=this.value==='CNC'?'block':'none'">
+      <select class="input" id="coModalCCNC" onchange="document.getElementById('coModalCNCGroup').style.display=this.value==='CNC'?'block':'none';updateCoModalButtons()">
         <option value="">-- Select --</option>
         <option value="CC">CC — Correct location</option>
         <option value="CNC">CNC — Wrong location</option>
@@ -15535,11 +15535,16 @@ function updateCoModalButtons(){
   if(!bIn||!bOut) return;
   const nonCar=coModalItems.filter(it=>!isCarItem(it.name));
   const hasCar=coModalItems.some(it=>isCarItem(it.name));
+  const ccncSel=(document.getElementById('coModalCCNC')||{}).value;
   let show='both';
   if(nonCar.length && !hasCar){
-    const allOutOnly=nonCar.every(it=>it.isCNC||it.status!=='out'); // CNC or IN → out
-    const allInOnly=nonCar.every(it=>!it.isCNC&&it.status==='out'); // OUT & not CNC → in
-    if(allOutOnly) show='out'; else if(allInOnly) show='in';
+    // CNC selected → force OUT-only (CNC can never be checked IN).
+    if(ccncSel==='CNC'){ show='out'; }
+    else {
+      const allOutOnly=nonCar.every(it=>it.isCNC||it.status!=='out'); // CNC or IN → out
+      const allInOnly=nonCar.every(it=>!it.isCNC&&it.status==='out'); // OUT & not CNC → in
+      if(allOutOnly) show='out'; else if(allInOnly) show='in';
+    }
   }
   bIn.style.display  = show==='out' ? 'none' : 'block';
   bOut.style.display = show==='in'  ? 'none' : 'block';
@@ -15552,7 +15557,7 @@ function renderCOSearch() {
   const matches=STATE.equipment.filter(e=>e.equipStatus!=='Not Active'&&e.name.toLowerCase().includes(q)&&!coModalItems.find(m=>m.row===e.row)).slice(0,8);
   if(!matches.length){res.style.display='none';return;}
   res.style.display='block';
-  res.innerHTML=matches.map(e=>`<div onclick="coModalItems.push(STATE.equipment.find(x=>x.row===${e.row}));renderCOModalList();document.getElementById('coModalSearch').value='';document.getElementById('coModalSearchResults').style.display='none';" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--navy);">${e.name} <span style="color:var(--text3);font-weight:400;">— ${e.location}</span></div>`).join('');
+  res.innerHTML=matches.map(e=>{const _o=e.status==='out';const _b=`<span class="badge ${_o?'badge-red':'badge-green'}" style="font-size:9px;padding:1px 6px;margin-left:6px;">${_o?'OUT':'IN'}</span>`;return `<div onclick="coModalItems.push(STATE.equipment.find(x=>x.row===${e.row}));renderCOModalList();document.getElementById('coModalSearch').value='';document.getElementById('coModalSearchResults').style.display='none';" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--navy);display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="min-width:0;">${e.name} <span style="color:var(--text3);font-weight:400;">— ${e.location}</span></span>${_b}</div>`;}).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
