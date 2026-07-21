@@ -15975,7 +15975,11 @@ function setChkStatus(key,status){
   }
   renderChkItems&&renderChkItems();
   const reporter=String(SESSION.unit||'').replace(/^BC-?/i,'');
-  sheetPOST({action:'updateEquipmentStatus',row:eq.row,status,note:chkNotes[key]||'',member:reporter}).catch(e=>console.warn('setChkStatus err:',e));
+  const _payload={action:'updateEquipmentStatus',row:eq.row,status,note:chkNotes[key]||'',member:reporter};
+  if(status==='OK') _payload.passcode='cobc2026';
+  sheetPOST(_payload).then(r=>{
+    if(r && r.success===false){ showToast('❌ Sheet not updated: '+(r.error||'unknown')); console.warn('setChkStatus failed:',r); }
+  }).catch(e=>{ showToast('❌ Network error — status not saved'); console.warn('setChkStatus err:',e); });
 }
 function saveChkNote(key){
   const note=(chkNotes[key]||'').trim();
