@@ -1101,7 +1101,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-          <button id="telzioSignInBtn" onclick="window.open('https://app.telzio.com/','_blank','noopener')" title="Open Telzio" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.55),rgba(37,99,235,.2));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(147,197,253,.6);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 8px rgba(0,0,0,.15);">📞 Telzio</button>
+          <button id="telzioSignInBtn" onclick="openTelzio()" title="Open Telzio" style="display:none;background:linear-gradient(160deg,rgba(37,99,235,.55),rgba(37,99,235,.2));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(147,197,253,.6);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 2px 8px rgba(0,0,0,.15);">📞 Telzio</button>
           <button id="newCallBtn" class="metal-gold" onclick="showModal('newCallModal')" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-.2px;display:none">+ New Call</button>
         </div>
       </div>
@@ -1109,7 +1109,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- Filter chips — own scrollable row -->
       <div class="filter-chips" id="dispatchFilters" style="overflow-x:auto;flex-wrap:nowrap;margin-bottom:12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
         <div class="chip active" data-filter="active" onclick="setDispatchFilter('active',this)">Active</div>
-        <div class="chip" id="historyChip" onclick="openHistoryModal()" style="background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700;">📅 History</div>
+        <div class="chip" id="historyChip" onclick="openHistoryModal()" style="background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700;">🗂️ History</div>
         <div class="chip" data-filter="draft" onclick="setDispatchFilter('draft',this)" id="draftFilterChip">Draft</div>
         <button id="schedFromDispatchBtn" onclick="goToDispatchSchedule()" title="Dispatch Schedule" style="background:linear-gradient(160deg,rgba(255,255,255,.45),rgba(255,255,255,.15));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 2px 8px rgba(0,0,0,.15);flex-shrink:0;">📅 Schedule</button>
       </div>
@@ -1542,9 +1542,15 @@ textarea.input{min-height:80px;resize:vertical;}
         <div class="section-label">Telzio Phone Number History</div>
         <div class="card" style="margin-bottom:10px;">
           <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="telzioHistSearch" placeholder="Search by number or name..." oninput="renderTelzioHistory()"/></div>
+          <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:120px;"><label style="font-size:11px;font-weight:600;color:rgba(255,255,255,.7);display:block;margin-bottom:3px;">From</label><input type="date" id="telzioHistFrom" onchange="applyTelzioDateRange()" style="width:100%;padding:8px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;font-size:13px;"/></div>
+            <div style="flex:1;min-width:120px;"><label style="font-size:11px;font-weight:600;color:rgba(255,255,255,.7);display:block;margin-bottom:3px;">To</label><input type="date" id="telzioHistTo" onchange="applyTelzioDateRange()" style="width:100%;padding:8px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;font-size:13px;"/></div>
+            <button onclick="clearTelzioDateRange()" class="btn-ghost" style="padding:8px 12px;font-size:12px;border-radius:9px;">Clear</button>
+          </div>
+          <div id="telzioHistTotal" style="font-size:13px;font-weight:700;color:#fff;margin-bottom:8px;"></div>
           <div id="telzioHistList" style="font-size:13px;"></div>
           <button id="telzioHistMore" onclick="loadTelzioHistory(true)" class="btn-full btn-ghost" style="margin-top:8px;display:none;">Load more</button>
-          <div style="font-size:10px;color:var(--text3);margin-top:6px;">Every inbound Telzio call, newest first. Read-only.</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;">Every inbound Telzio call, newest first. Read-only · kept 13 months.</div>
         </div>
       </div>
       <!-- SETTINGS (notifications, location, app prefs) -->
@@ -7983,10 +7989,10 @@ async function createCall() {
       const urg = (priority === 'high' || priority === 'urgent');
       let m = urg ? `🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `*COBC Call #${call.callNum||''}*\n\n`;
       m += `*Call Type:* ${_typeLabel}\n\n`;
-      m += `${urg?'📍 ':''}${fmtLoc(call)}\n`;
-      if(call.floodNeeds&&call.floodNeeds.length) m += `${urg?'🧰 ':''}${call.floodNeeds.join(', ')}\n`;
+      m += `${fmtLoc(call)}\n`;
+      if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
       m += `\n`;
-      if (call.caller||call.phone) m += `${urg?'👤 ':''}${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
+      if (call.caller||call.phone) m += `${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
       m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
       m += `${'tinyurl.com/cobc-dispatch'}`;
       return m;
@@ -9172,8 +9178,8 @@ function publishCall(id) {
     const urg = (call.priority === 'high' || call.priority === 'urgent');
     let m = urg ? `🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `*COBC Call #${call.callNum||''}*\n\n`;
     m += `*Call Type:* ${_typeLabel}\n\n`;
-    m += `${urg?'📍 ':''}${fmtLoc(call)}\n`;
-    if(call.floodNeeds&&call.floodNeeds.length) m += `${urg?'🧰 ':''}${call.floodNeeds.join(', ')}\n`;
+    m += `${fmtLoc(call)}\n`;
+    if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
     m += `\n`;
     if (call.caller) m += `Caller: ${call.caller}`;
     if (call.phone)  m += ` · ${call.phone}`;
@@ -10805,6 +10811,18 @@ function _myTelzioShiftStatus(){
 // Update the Telzio button's label/color to reflect shift status (sign in / on shift /
 // sign out). Tapping it still just opens Telzio — this is a status label, not a
 // remote toggle (no Telzio API connection exists to change your real status).
+function openTelzio(){
+  // Try the native Telzio app first, fall back to the web app if it doesn't open.
+  const webUrl='https://app.telzio.com/';
+  let hidden=false;
+  const onHide=()=>{ hidden=true; };
+  document.addEventListener('visibilitychange', onHide, {once:true});
+  try{ window.location.href='telzio://'; }catch(e){}
+  setTimeout(()=>{
+    document.removeEventListener('visibilitychange', onHide);
+    if(!hidden && !document.hidden) window.open(webUrl,'_blank','noopener');
+  }, 700);
+}
 function updateTelzioBtnStatus(){
   const btn=document.getElementById('telzioSignInBtn');
   if(!btn || btn.style.display==='none') return;
@@ -12334,7 +12352,42 @@ function subscribeTelzioCallsFromFirestore() {
 // ── Telzio Phone Number History (admin/dispatch): paginated read-only view of telzioCalls ──
 const _TELZIO_HIST_PAGE = 40;
 let _telzioHist = [], _telzioHistCursor = null, _telzioHistDone = false, _telzioHistLoading = false;
+let _telzioRangeMode = false; // true when a date range is active (loads the whole range at once)
+function _telzioDateBounds(){
+  const fromEl=document.getElementById('telzioHistFrom'), toEl=document.getElementById('telzioHistTo');
+  const fromV=fromEl?.value, toV=toEl?.value;
+  let fromMs=null, toMs=null;
+  if(fromV){ const d=new Date(fromV+'T00:00:00'); if(!isNaN(d)) fromMs=d.getTime(); }
+  if(toV){ const d=new Date(toV+'T23:59:59.999'); if(!isNaN(d)) toMs=d.getTime(); }
+  return {fromMs,toMs};
+}
+async function applyTelzioDateRange(){
+  const {fromMs,toMs}=_telzioDateBounds();
+  if(fromMs==null && toMs==null){ return clearTelzioDateRange(); }
+  if(typeof firebase==='undefined') return;
+  _telzioRangeMode=true; _telzioHistLoading=true;
+  const list=document.getElementById('telzioHistList'); if(list) list.innerHTML='<div style="color:rgba(255,255,255,.7);padding:10px 2px;">Loading…</div>';
+  try{
+    let q=firebase.firestore().collection('telzioCalls').orderBy('at','desc');
+    if(fromMs!=null) q=q.where('at','>=',fromMs);
+    if(toMs!=null)   q=q.where('at','<=',toMs);
+    const snap=await q.limit(3000).get();
+    _telzioHist=[];
+    snap.forEach(d=>{ const x=d.data()||{}; _telzioHist.push({name:x.name||'', phone:String(x.phone||''), at:Number(x.at||0)}); });
+    _telzioHistDone=true; // range fully loaded
+  }catch(e){ console.warn('applyTelzioDateRange:', e); }
+  _telzioHistLoading=false;
+  renderTelzioHistory();
+}
+function clearTelzioDateRange(){
+  const f=document.getElementById('telzioHistFrom'), t=document.getElementById('telzioHistTo');
+  if(f) f.value=''; if(t) t.value='';
+  _telzioRangeMode=false;
+  loadTelzioHistory(false); // back to paginated newest-first
+}
 async function loadTelzioHistory(more){
+  if(_telzioRangeMode && more===false) _telzioRangeMode=false;
+  if(_telzioLoadingGuardSkip){} // no-op
   if(_telzioHistLoading) return;
   if(typeof firebase === 'undefined') return;
   if(!more){ _telzioHist=[]; _telzioHistCursor=null; _telzioHistDone=false; }
@@ -12351,28 +12404,42 @@ async function loadTelzioHistory(more){
   _telzioHistLoading = false;
   renderTelzioHistory();
 }
+var _telzioLoadingGuardSkip=false;
 function renderTelzioHistory(){
   const list = document.getElementById('telzioHistList');
   const moreBtn = document.getElementById('telzioHistMore');
+  const totalEl = document.getElementById('telzioHistTotal');
   if(!list) return;
   const q = (document.getElementById('telzioHistSearch')?.value||'').trim().toLowerCase();
   const qd = q.replace(/\D+/g,'');
   let rows = _telzioHist;
   if(q){ rows = rows.filter(c => (c.name||'').toLowerCase().includes(q) || (qd && String(c.phone).replace(/\D+/g,'').includes(qd))); }
+  // Total line
+  if(totalEl){
+    const {fromMs,toMs}=_telzioDateBounds();
+    if(_telzioRangeMode && (fromMs!=null||toMs!=null)){
+      const fmt=ms=>new Date(ms).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const label = (fromMs!=null&&toMs!=null) ? `${fmt(fromMs)} – ${fmt(toMs)}`
+        : (fromMs!=null ? `since ${fmt(fromMs)}` : `through ${fmt(toMs)}`);
+      totalEl.textContent = `${rows.length} call${rows.length===1?'':'s'} · ${label}`;
+    } else {
+      totalEl.textContent = q ? `${rows.length} match${rows.length===1?'':'es'} (loaded)` : `${_telzioHist.length} loaded${_telzioHistDone?'':'+'}`;
+    }
+  }
   if(!rows.length){
-    list.innerHTML = '<div style="color:var(--text3);padding:8px 2px;">'+(_telzioHist.length?'No matches':'No calls yet')+'</div>';
+    list.innerHTML = '<div style="color:rgba(255,255,255,.7);padding:10px 2px;font-weight:600;">'+(_telzioHist.length?'No matches':'No calls yet')+'</div>';
   } else {
     list.innerHTML = rows.map(c=>{
       const when = c.at ? new Date(c.at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
       const nm = (c.name||'').trim() || 'Unknown';
       const ph = formatPhone(c.phone) || c.phone || '';
-      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border2);">
-        <div style="min-width:0;"><div style="font-weight:700;color:var(--text);">${ph}</div><div style="font-size:12px;color:var(--text3);">${nm}</div></div>
-        <div style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0;">${when}</div>
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid rgba(255,255,255,.14);">
+        <div style="min-width:0;"><div style="font-weight:800;font-size:15px;color:#fff;">${ph}</div><div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.82);margin-top:1px;">${nm}</div></div>
+        <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,.72);white-space:nowrap;flex-shrink:0;">${when}</div>
       </div>`;
     }).join('');
   }
-  if(moreBtn) moreBtn.style.display = (!q && !_telzioHistDone && _telzioHist.length) ? '' : 'none';
+  if(moreBtn) moreBtn.style.display = (!q && !_telzioRangeMode && !_telzioHistDone && _telzioHist.length) ? '' : 'none';
 }
 // Config lives in Firestore config/zello: { enabled, network, channel, username,
 // password, authToken }. Connects to the Zello Work WebSocket and shows a live
@@ -12761,31 +12828,40 @@ function renderTelzioRecentList(calls){
   if(!panel || !list) return;
   // Dispatch/admin only
   if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) { panel.style.display='none'; return; }
-  // Persist to localStorage so panel survives app restart
-  if(calls && calls.length) {
-    try { localStorage.setItem('cobc_telzio_recent', JSON.stringify(calls)); } catch(e){}
-  }
-  // Use cached data if no fresh data
-  if(!calls || !calls.length) {
-    try {
-      var cached = JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null');
-      if(cached && cached.length) calls = cached;
-    } catch(e){}
-  }
+  // MERGE the two feeds (Firestore telzioCalls + live Telzio /calls/log poll) so a
+  // short response from one never clobbers a longer list from the other. Dedupe by
+  // phone (+minute), keep the 5 newest. Persist the merged set for restart.
+  try{
+    window._telzioMergedRecent = window._telzioMergedRecent || [];
+    if(!(calls&&calls.length)){
+      try{ const cached=JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null'); if(cached&&cached.length) window._telzioMergedRecent=cached; }catch(e){}
+    } else {
+      const merged=[...window._telzioMergedRecent];
+      calls.forEach(c=>{
+        const cp=String(c.phone||'').replace(/\D+/g,'');
+        const idx=merged.findIndex(m=>String(m.phone||'').replace(/\D+/g,'')===cp && Math.abs((m.at||0)-(c.at||0))<60000);
+        if(idx>=0){ if((c.at||0)>=(merged[idx].at||0)) merged[idx]=c; } else merged.push(c);
+      });
+      merged.sort((a,b)=>(b.at||0)-(a.at||0));
+      window._telzioMergedRecent = merged.slice(0,5);
+    }
+    calls = window._telzioMergedRecent;
+    if(calls&&calls.length){ try{ localStorage.setItem('cobc_telzio_recent', JSON.stringify(calls)); }catch(e){} }
+  }catch(e){ console.warn('telzio recent merge:', e); }
   if(!calls || !calls.length){ panel.style.display='none'; return; }
   panel.style.display='block';
   if(sub) sub.textContent = 'last '+calls.length;
   list.innerHTML = calls.map(c=>{
     const pretty=_telzioFmtPhone(c.phone);
     const label=c.name||pretty||'Unknown';
-    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:10px;margin-bottom:6px;">'
+    return '<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.28);border-radius:10px;margin-bottom:7px;">'
       +'<div style="font-size:16px;">📞</div>'
       +'<div style="flex:1;min-width:0;">'
-      +  '<div style="font-size:14px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+label+'</div>'
-      +  (c.name&&pretty?'<div style="font-size:12px;color:rgba(255,255,255,.65);">'+pretty+'</div>':'')
+      +  '<div style="font-size:15px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+label+'</div>'
+      +  (c.name&&pretty?'<div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.9);margin-top:1px;">'+pretty+'</div>':'')
       +'</div>'
-      +'<div style="font-size:11px;color:rgba(255,255,255,.6);white-space:nowrap;">'+_telzioFmtWhen(c.at)+'</div>'
-      +(c.phone?'<button onclick="_newCallFromRecent(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+c.phone+'\')" style="background:var(--navy,#0f2540);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Call</button>':'')
+      +'<div style="font-size:12px;font-weight:600;color:rgba(255,255,255,.82);white-space:nowrap;">'+_telzioFmtWhen(c.at)+'</div>'
+      +(c.phone?'<button onclick="_newCallFromRecent(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+c.phone+'\')" style="background:var(--navy,#0f2540);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Call</button>':'')
       +'</div>';
   }).join('');
 }
@@ -13703,7 +13779,7 @@ async function _autoPruneOldHistory(){
     }
     // Telzio phone-number history: prune older than 1 year (own cutoff).
     try{
-      const telzioCutoff = Date.now() - 365*24*60*60*1000;
+      const telzioCutoff = Date.now() - 395*24*60*60*1000; // 13 months
       const tsnap = await db.collection('telzioCalls').where('at','<',telzioCutoff).limit(450).get();
       if(!tsnap.empty){
         const tbatch = db.batch();
@@ -14505,7 +14581,7 @@ function renderMyStats(bcArg, opts) {
 
   html+=`<a href="https://aryehw330-lgtm.github.io/Chaverim-Statistics/" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,var(--navy),var(--navy3));border-radius:var(--radius);padding:13px 15px;margin-top:6px;text-decoration:none;color:#fff;">
     <div style="min-width:0;">
-      <div style="font-size:11px;font-weight:700;color:var(--gold-light,#d4a93a);letter-spacing:1.2px;text-transform:uppercase;">Full History</div>
+      <div style="font-size:11px;font-weight:700;color:var(--gold-light,#d4a93a);letter-spacing:1.2px;text-transform:uppercase;">Archived History</div>
       <div style="font-size:13px;font-weight:700;margin-top:2px;">View all-time stats on the website →</div>
     </div>
     <span style="font-size:18px;flex-shrink:0;">📊</span>
@@ -15281,7 +15357,8 @@ function renderEquipmentDashboard() {
 
   // Alerts — Missing / Damaged / CNC items. Always show the section (with an
   // "all clear" state when empty) so it's visible/discoverable on the dashboard.
-  const alerts=STATE.equipment.filter(e=>e.isCNC||['Missing','Damaged','Need More'].includes(e.equipStatus));
+  const alerts=STATE.equipment.filter(e=>e.isCNC||['Missing','Damaged','Need More'].includes(e.equipStatus))
+    .sort((a,b)=>{ const ta=a.lastUpdated?new Date(a.lastUpdated).getTime():0, tb=b.lastUpdated?new Date(b.lastUpdated).getTime():0; return tb-ta; }); // newest first
   const aw=document.getElementById('eq-alerts-wrap');
   if(aw) aw.style.display='block';
   const al=document.getElementById('eq-alerts-list');
@@ -15305,7 +15382,8 @@ function renderEquipmentDashboard() {
   }
 
   // Out items
-  const outItems=STATE.equipment.filter(e=>(e.status||'').toUpperCase()==='OUT');
+  const outItems=STATE.equipment.filter(e=>(e.status||'').toUpperCase()==='OUT')
+    .sort((a,b)=>{ const ta=a.lastUpdated?new Date(a.lastUpdated).getTime():Infinity, tb=b.lastUpdated?new Date(b.lastUpdated).getTime():Infinity; return ta-tb; }); // oldest out first (longest-out at top)
   const ow=document.getElementById('eq-out-wrap');
   if(ow) ow.style.display='block'; // always show so dashboard isn't empty
   const ol=document.getElementById('eq-out-list');
@@ -15317,6 +15395,26 @@ function renderEquipmentDashboard() {
         if(e.callNum){ const _c=(_allCalls()||[]).find(x=>String(x.callNum)===String(e.callNum)); _callPhone=_c?(_c.phone||_c.callerPhone||''):''; }
         const _callTag=e.callNum?`Call #${e.callNum}`+(_callPhone?` <a href="tel:${_callPhone}" onclick="event.stopPropagation();" style="color:#e6c463;font-weight:800;text-decoration:none;white-space:nowrap;">📞</a>`:''):'';
         const _meta=[`<b style="color:#fff;font-weight:800;">${e.location}</b>`, e.checkedOutBy?fmtEqHolder(e):'', _callTag].filter(Boolean).join(' · ');
+        // Overdue: out longer than 2 days → surface who to call.
+        // CNC → the member who signed it out; CC/moved-to-another-call → the call's phone.
+        const _outSince = e.lastUpdated ? new Date(e.lastUpdated).getTime() : 0;
+        const _overdue = _outSince && (Date.now()-_outSince > 2*24*60*60*1000);
+        let _overdueBanner='';
+        if(_overdue){
+          let _phone='', _who='';
+          if(e.isCNC){
+            const _u=String(e.checkedOutBy||'').replace(/^BC-?/i,'');
+            const _m=(STATE.members||[]).find(x=>String(x.unit).replace(/^BC-?/i,'')===_u);
+            _phone=_m?(_m.phone||''):''; _who='BC-'+_u;
+          } else {
+            _phone=_callPhone; _who=e.callNum?('Call #'+e.callNum):'';
+          }
+          const _days=Math.floor((Date.now()-_outSince)/(24*60*60*1000));
+          const _phoneLine = _phone
+            ? `<a href="tel:${_phone}" onclick="event.stopPropagation();" style="display:inline-flex;align-items:center;gap:5px;margin-top:3px;background:rgba(255,255,255,.16);border-radius:7px;padding:4px 9px;color:#fff;font-weight:800;font-size:12px;text-decoration:none;">📞 ${formatPhone(_phone)||_phone}</a>${_who?`<div style="font-size:10px;opacity:.8;margin-top:2px;">${_who}</div>`:''}`
+            : `<div style="font-size:10.5px;font-weight:600;margin-top:2px;opacity:.9;">No phone on file${_who?` · ${_who}`:''}</div>`;
+          _overdueBanner=`<div style="margin-top:7px;background:rgba(220,38,38,.28);border:1px solid rgba(248,113,113,.6);border-radius:9px;padding:7px 9px;color:#fecaca;"><div style="font-size:10.5px;font-weight:800;letter-spacing:.2px;display:flex;align-items:center;gap:4px;">⏰ OUT ${_days} DAYS</div>${_phoneLine}</div>`;
+        }
         return `
         <div style="background:linear-gradient(160deg,rgba(212,169,58,.16),rgba(18,16,12,.62));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(230,196,99,.34);border-top:3px solid var(--gold,#d4a93a);border-radius:12px;padding:10px 11px;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer;min-width:0;" onclick="openCheckout(${e.row||0})">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
@@ -15326,6 +15424,7 @@ function renderEquipmentDashboard() {
           <div style="font-size:13.5px;font-weight:700;color:#fff;margin-top:6px;line-height:1.25;">${e.name}</div>
           <div style="font-size:11px;color:rgba(255,255,255,.62);margin-top:2px;line-height:1.35;">${_meta}</div>
           ${e.isCNC?`<div style="font-size:11px;color:var(--gold-light,#e6c463);margin-top:3px;line-height:1.3;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+          ${_overdueBanner}
         </div>`;
       }).join('');
     } else {
