@@ -7137,7 +7137,7 @@ function callCardHTML(call, mini=false) {
   const myUnit   = String(SESSION.unit);
   const iAmApproved = (call.responders||[]).some(r=>String(r.unit)===myUnit);
   const iAmPending  = (call.pendingResponders||[]).some(r=>String(r.unit)===myUnit);
-  const isDispatch  = ['admin','dispatch'].includes(SESSION.role);
+  const isDispatch  = isDispatchRole();
 
   // Status color
   const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
@@ -7252,7 +7252,9 @@ function callCardHTML(call, mini=false) {
     ${cornerMeta}
     <div class="call-card-footer" style="flex-direction:column;gap:5px;align-items:stretch;">
       <div style="display:flex;gap:5px;">
-        ${isDispatch?`<button class="call-action metal-gold" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#e8c24e!important;box-shadow:none!important;text-shadow:none!important;" onclick="event.stopPropagation();openRadioModal('${call.id}')">Assign Unit</button>`:''}
+        ${(isDispatch && isDraft)?`<button class="call-action metal-gold" style="flex:1;padding:9px 6px;font-size:12px;font-weight:800;background:#e8c24e!important;box-shadow:none!important;text-shadow:none!important;color:#3a2c05;" onclick="event.stopPropagation();publishCall('${call.id}')">📢 Make Real Call</button>`:''}
+        ${(isDispatch && isDraft)?`<button class="call-action" style="flex:0 0 auto;padding:9px 12px;font-size:12px;font-weight:700;background:rgba(220,38,38,.15);color:#fca5a5;border:1px solid rgba(248,113,113,.4);" onclick="event.stopPropagation();deleteCall('${call.id}')">🗑️</button>`:''}
+        ${(isDispatch && !isDraft)?`<button class="call-action metal-gold" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#e8c24e!important;box-shadow:none!important;text-shadow:none!important;" onclick="event.stopPropagation();openRadioModal('${call.id}')">Assign Unit</button>`:''}
         ${(isDispatch && call.status==='active')?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}
         ${(isDispatch && call.status==='active')?`<button class="call-action" style="flex:1;padding:9px 6px;font-size:12px;font-weight:700;background:#dcfce7;color:var(--green);" onclick="event.stopPropagation();openCompleteModal('${call.id}')">✅ Complete</button>`:''}
         ${respondBtn}
@@ -8960,7 +8962,7 @@ function openCallDetail(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   window._openDetailId=id; // track for live re-render while the card is left open
-  const isDispatch=['admin','dispatch'].includes(SESSION.role);
+  const isDispatch=isDispatchRole();
   const _onDispatchTab = isDispatch && (typeof currentTab!=='undefined' && currentTab==='dispatch');
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const timeStr=new Date(call.createdAt).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
@@ -8977,9 +8979,9 @@ function openCallDetail(id) {
 
   // Call number (left) · town (right)
   html+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
-    <span class="call-num" style="flex-shrink:0;${(['admin','dispatch'].includes(SESSION.role))?'cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;':''}" ${(['admin','dispatch'].includes(SESSION.role))?`onclick="openCallEdit('${call.id}')" title="Tap to edit call #"`:''}>#${call.callNum||call.id.slice(-5)}</span>
+    <span class="call-num" style="flex-shrink:0;${(isDispatchRole())?'cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;':''}" ${(isDispatchRole())?`onclick="openCallEdit('${call.id}')" title="Tap to edit call #"`:''}>${call.callNum?('#'+call.callNum):(call.status==='draft'?'<span style="font-size:13px;font-weight:700;opacity:.85;">Number assigned when made real</span>':('#'+call.id.slice(-5)))}</span>
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-      ${call.createdBy?`<span class="cd-town" style="font-size:12px;font-weight:800;white-space:nowrap;">Dispatched by ${getMemberNameD(call.createdBy)||('BC-'+String(call.createdBy).replace(/^BC-?/i,''))}</span>`:''}
+      ${(call.createdBy && call.status!=='draft')?`<span class="cd-town" style="font-size:12px;font-weight:800;white-space:nowrap;">Dispatched by ${getMemberNameD(call.createdBy)||('BC-'+String(call.createdBy).replace(/^BC-?/i,''))}</span>`:''}
       <div style="display:flex;align-items:center;gap:6px;">
         <div style="width:10px;height:10px;border-radius:50%;background:${townColor};"></div>
         <span class="cd-town" style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap;">${call.town||''}</span>
@@ -9104,10 +9106,10 @@ function openCallDetail(id) {
   const _canActOnCall = isDispatch || (call.status==='active' && _iAmOnCall);
   if(call.phone && _canActOnCall) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="callCaller('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Caller</button>`;
   if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
-  if(isDispatch && call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
+  if(isDispatch && call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
   if(isDispatch && (call.status==='open'||call.status==='active')) html+=`<button class="btn-sm" style="background:linear-gradient(135deg,#047857,#059669);color:#fff;font-weight:700;" onclick="sendCallToInterstate('${id}')">🌐 Send to Interstate</button>`;
-  if(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
+  if(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch' && call.status!=='draft') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled'){
     const _myResp=(call.responders||[]).find(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
     if(_myResp){
@@ -9126,16 +9128,16 @@ function openCallDetail(id) {
   if(_iAmApprovedDetail && call.status!=='done') html+=`<button class="btn-sm" style="background:#25d366;color:#fff;border:none;" onclick="shareMyLocationOnCall('${id}')">📍 Send Live Location</button>`;
 
   if(isDispatch) {
-    if(['flat_tire_spare','flat_tire_no_spare'].includes(call.type)) html+=`<button class="btn-sm" style="background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#0f2540;border:none;font-weight:800;" onclick="openEzSpareFitment('${id}')">🛞 EZ Spare Fit</button>`;
-    if(call.status==='draft') html+=`<button class="btn-sm btn-primary" onclick="publishCall('${id}')">📢 Publish</button>`;
+    if(['flat_tire_spare','flat_tire_no_spare'].includes(call.type) && call.status!=='draft') html+=`<button class="btn-sm" style="background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#0f2540;border:none;font-weight:800;" onclick="openEzSpareFitment('${id}')">🛞 EZ Spare Fit</button>`;
+    if(call.status==='draft') html+=``;
     // ▶ Active button removed — calls go active automatically when a responder is approved/radio-assigned
     if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" onclick="reopenCall('${id}');renderCallDetail('${id}')">🔄 Re-open</button>`;
-    if(call.status!=='done'&&call.status!=='cancelled') html+=`<button class="btn-sm btn-danger" onclick="cancelCall('${id}')">🚫 Cancel Call</button>`;
+    if(call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-danger" onclick="cancelCall('${id}')">🚫 Cancel Call</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">Share call info</button>`;
-    html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
+    if(call.status!=='draft') html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
 
-    // Vehicle assignment
+    // Vehicle assignment (not for drafts)
     if(STATE.vehicles?.length) {
       html+=`</div><div class="section-label">Assign Fleet Vehicle</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">`;
       STATE.vehicles.forEach(v=>{
@@ -9155,7 +9157,16 @@ function openCallDetail(id) {
       html+=`<button class="btn-sm btn-ghost" onclick="hideModal('callDetailModal');showTab('equipment');setTimeout(()=>setEqTab('inventory',document.querySelector('#eqSubTabs .sub-tab:nth-child(2)')),60)">📦 ${assignedEq.length?'Add / Manage':'Check In/Out Equipment'}</button>`;
     }
   }
-  html+=`</div><div style="margin-top:12px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
+  // Bottom row: drafts get Make Real Call + Delete + Close side by side; others just Close.
+  if(call.status==='draft' && isDispatch){
+    html+=`</div><div style="margin-top:12px;display:flex;gap:8px;">`
+      +`<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#e6c463,#d4a93a);color:#3a2c05;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="publishCall('${id}');hideModal('callDetailModal')">📢 Make Real Call</button>`
+      +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="deleteCall('${id}')">🗑️ Delete Draft</button>`
+      +`</div>`
+      +`<div style="margin-top:8px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
+  } else {
+    html+=`</div><div style="margin-top:12px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
+  }
 
   document.getElementById('callDetailContent').innerHTML=html;
   // Glassy status tint: orange when open, green when active
@@ -9167,11 +9178,18 @@ function openCallDetail(id) {
 
 function renderCallDetail(id) { openCallDetail(id); } // alias for re-render after status change
 
-function publishCall(id) {
+async function publishCall(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
-  if(!call.callNum) call.callNum = _nextCallNum();
+  // Atomic call number — same collision-proof path as the New Call button, so two
+  // dispatchers publishing at the same moment can never land on the same number.
+  if(!call.callNum){
+    try{ call.callNum = await _nextCallNumAtomic(); }
+    catch(e){ console.error('Atomic call-number (publish) failed, fallback:', e); call.callNum = _nextCallNum(); }
+  }
   call.status='open'; call.rrLastSent=Date.now();
+  // The dispatcher who makes the draft real becomes the call's dispatcher (not the draft author).
+  call.createdBy = SESSION.unit;
 
   const _typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const _waMsg = (()=>{
@@ -14172,9 +14190,9 @@ function refreshStatsIfVisible() {
 }
 
 // ── Role helpers ──
-const isAdminRole = ()=>SESSION.role==='admin';
-const isDispatchRole = ()=>['admin','dispatch'].includes(SESSION.role);
-const isMemberOnly = ()=>['member','observer','equipment'].includes(SESSION.role);
+const isAdminRole = ()=>(SESSION.role||'').includes('admin');
+const isDispatchRole = ()=>(SESSION.role||'').includes('admin')||(SESSION.role||'').includes('dispatch');
+const isMemberOnly = ()=>!isDispatchRole();
 
 function buildStatsSubNav() {
   const nav=document.getElementById('statsSubNav');
