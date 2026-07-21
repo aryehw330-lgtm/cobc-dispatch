@@ -15867,7 +15867,9 @@ async function resetEqStatus(rowOrId){
   if(pw===null) return;
   if(pw !== 'cobc2026') { showToast('❌ Incorrect passcode'); return; }
   try{
-    await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:'OK',note:''});
+    const reporter=String(SESSION.unit||'').replace(/^BC-?/i,'');
+    const r=await sheetPOST({action:'updateEquipmentStatus',row:eq.row,status:'OK',note:'',member:reporter,passcode:'cobc2026'});
+    if(r && r.success===false){ showToast('❌ Sheet did not update: '+(r.error||'unknown')); console.warn('resetEqStatus failed:',r); return; }
     eq.equipStatus='OK';eq.equipNote='';eq.lastUpdated=new Date().toLocaleString();
     showToast('✅ Status reset');
     renderInventory&&renderInventory();renderChkItems&&renderChkItems();save();
@@ -16491,9 +16493,15 @@ async function submitReport(){
   sheetPOST({action:'submitReport',type:savedType,item:itemName,location:loc,note:notes,member,cncNote,row:item?item.row:null})
     .then(function(data){
       if(data && data.success!==false && !data.error){
-        // Status issues also flag the item on the sheet (col H/K), same as equipment app
+        // Status issues also flag the item on the sheet: col K (Equipment Status) via
+        // updateEquipmentStatus, AND col H (CC/CNC note) via updateCNCNote — so the report
+        // actually changes the item's status, not just logs it.
         if(item && ['Missing','Damaged','Need More'].includes(savedType)){
-          try{ sheetPOST({action:'updateCNCNote',row:item.row,cncNote:cncNote,member:member}); item.ccnc=cncNote; item.isCNC=true; item.equipStatus=savedType; item.equipNote=notes; }catch(e){}
+          try{
+            sheetPOST({action:'updateEquipmentStatus',row:item.row,status:savedType,note:notes,member:member});
+            sheetPOST({action:'updateCNCNote',row:item.row,cncNote:cncNote,member:member});
+            item.ccnc=cncNote; item.isCNC=true; item.equipStatus=savedType; item.equipNote=notes;
+          }catch(e){}
         }
         STATE.reports=STATE.reports||[];
         STATE.reports.push({id:'RPT-'+Date.now(),item:itemName,location:loc,type:savedType,notes,member,time:Date.now(),resolved:false});
