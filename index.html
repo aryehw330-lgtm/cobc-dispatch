@@ -4441,7 +4441,7 @@ async function pasteMapsLink(){
 //   4. Reverse-geocode the lat/long to a street address (Google) and drop it into the
 //      Address field + zone badge; if geocoding fails, fall back to raw coordinates.
 // The Worker route must exist and I911_PROXY_URL must point at it (see co-worker doc).
-var I911_PROXY_URL = 'https://cobc.shmueleidelman-work.workers.dev/i911'; // ← co-worker sets this to your worker's /i911 route
+var I911_PROXY_URL = 'https://cobc-i911.aryehw330.workers.dev/i911'; // your own Cloudflare Worker (i911 relay)
 let _i911Socket=null;
 function _setI911Btn(txt, disabled){
   const b=document.getElementById('i911Btn'); if(!b) return;
