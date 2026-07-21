@@ -3978,7 +3978,7 @@ const _RETRY_IDEMPOTENT = new Set([
   'checkInOut','checkInByName','updateEquipmentStatus','startCarShift','endCarShift',
   'cancelCarShift','approveCarShift','deleteCarShift','setCarAccess','updateMember',
   'updateCNCNote','updateLocation','updateHomeLocation','setAlertRecipient',
-  'setMemberEmail','deleteMember','logInventoryEvent','submitReport'
+  'setMemberEmail','deleteMember','logInventoryEvent','submitReport','submitChecklist'
 ]);
 const _RETRY_STORE_KEY = 'cobc_retry_queue';
 const _RETRY_MAX = 4;         // give up after 4 attempts
@@ -5552,7 +5552,7 @@ function _applyRoleUI(role) {
     b.style.display = (role==='admin') ? '' : 'none';
   });
   const chkSubmitBtn = document.getElementById('chkSubmitBtn');
-  if (chkSubmitBtn) chkSubmitBtn.style.display = (role==='admin'||role==='equipment') ? 'block' : 'none';
+  if (chkSubmitBtn) chkSubmitBtn.style.display = (role.includes('admin')||role.includes('equipment')) ? 'block' : 'none';
   const settingsResetCard = document.getElementById('settingsResetCard');
   if (settingsResetCard) settingsResetCard.style.display = (role==='admin') ? '' : 'none';
   const alltimeBanner1 = document.getElementById('alltimeBanner');
@@ -5565,9 +5565,9 @@ function _applyRoleUI(role) {
   if (adminFreezeRow) adminFreezeRow.style.display = (role==='admin') ? '' : 'none';
   const chkTab = document.getElementById('eqChecklistTab');
   const eqAdmTab = document.getElementById('eqAdminTab');
-  const priv = ['admin','equipment'].includes(role);
+  const priv = (role.includes('admin')||role.includes('equipment'));
   if (chkTab) chkTab.style.display = priv ? '' : 'none';
-  if (eqAdmTab) eqAdmTab.style.display = (role==='admin'||role==='equipment') ? '' : 'none';
+  if (eqAdmTab) eqAdmTab.style.display = (role.includes('admin')) ? '' : 'none';
   // New Call button — dispatch and admin only
   const homeNew = document.getElementById('homeNewCallBtn');
   const dispNew = document.getElementById('newCallBtn');
@@ -5862,7 +5862,7 @@ const mgmtBtn=document.getElementById('adminMgmtBtnWrap');if(mgmtBtn)mgmtBtn.sty
 const draftChip=document.getElementById('draftFilterChip');if(draftChip)draftChip.style.display=['admin','dispatch'].includes(role)?'':'none';
 const alltimeBanner2=document.getElementById('alltimeBanner');if(alltimeBanner2)alltimeBanner2.style.display=(role==='admin')?'':'none';
 // Show submit checklist button for equipment/admin
-const chkSubmitBtn=document.getElementById('chkSubmitBtn');if(chkSubmitBtn)chkSubmitBtn.style.display=(role==='admin'||role==='equipment')?'block':'none';
+const chkSubmitBtn=document.getElementById('chkSubmitBtn');if(chkSubmitBtn)chkSubmitBtn.style.display=(role.includes('admin')||role.includes('equipment'))?'block':'none';
 // New Call button — dispatch and admin only
 const _isDispatch=['admin','dispatch'].includes(role);
 const homeNew=document.getElementById('homeNewCallBtn');const dispNew=document.getElementById('newCallBtn');
@@ -7980,14 +7980,15 @@ async function createCall() {
     // PUSH HOOK #1 — new call → all members (WA dispatch piggybacked server-side)
     const _typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const _waDispatch = (()=>{
-      let m = `📢 *COBC Call #${call.callNum||''}*\n\n`;
+      const urg = (priority === 'high' || priority === 'urgent');
+      let m = urg ? `🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `*COBC Call #${call.callNum||''}*\n\n`;
       m += `*Call Type:* ${_typeLabel}\n\n`;
-      m += `📍 ${fmtLoc(call)}\n`;
-      if(call.floodNeeds&&call.floodNeeds.length) m += `🧰 ${call.floodNeeds.join(', ')}\n`;
+      m += `${urg?'📍 ':''}${fmtLoc(call)}\n`;
+      if(call.floodNeeds&&call.floodNeeds.length) m += `${urg?'🧰 ':''}${call.floodNeeds.join(', ')}\n`;
       m += `\n`;
-      if (call.caller||call.phone) m += `👤 ${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
+      if (call.caller||call.phone) m += `${urg?'👤 ':''}${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
       m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
-      m += `📱 ${'tinyurl.com/cobc-dispatch'}`;
+      m += `${'tinyurl.com/cobc-dispatch'}`;
       return m;
     })();
 setTimeout(() => {
@@ -9168,16 +9169,17 @@ function publishCall(id) {
 
   const _typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const _waMsg = (()=>{
-    let m = `📢 *COBC Call #${call.callNum||''}*\n\n`;
+    const urg = (call.priority === 'high' || call.priority === 'urgent');
+    let m = urg ? `🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `*COBC Call #${call.callNum||''}*\n\n`;
     m += `*Call Type:* ${_typeLabel}\n\n`;
-    m += `📍 ${fmtLoc(call)}\n`;
-    if(call.floodNeeds&&call.floodNeeds.length) m += `🧰 ${call.floodNeeds.join(', ')}\n`;
+    m += `${urg?'📍 ':''}${fmtLoc(call)}\n`;
+    if(call.floodNeeds&&call.floodNeeds.length) m += `${urg?'🧰 ':''}${call.floodNeeds.join(', ')}\n`;
     m += `\n`;
     if (call.caller) m += `Caller: ${call.caller}`;
     if (call.phone)  m += ` · ${call.phone}`;
     if (call.caller||call.phone) m += `\n\n`;
     m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
-    m += `📱 Open COBC Dispatch: tinyurl.com/cobc-dispatch`;
+    m += `Open COBC Dispatch: tinyurl.com/cobc-dispatch`;
     return m;
   })();
 
@@ -11864,6 +11866,23 @@ function _saveChkHistEntry(entry) {
     // Keep last 500 submissions
     localStorage.setItem(CHK_HIST_KEY, JSON.stringify(existing.slice(0,500)));
   } catch(e) {}
+  // Mirror to Firestore (reliable record + live in-app history across devices),
+  // same pattern as reports. Sheet stays the readable log; Firestore is the source
+  // of truth for the app's history panel.
+  try {
+    if(typeof firebase !== 'undefined'){
+      firebase.firestore().collection('checklistHistory').add({
+        at: Date.now(),
+        timestamp: entry.timestamp||new Date().toISOString(),
+        location: entry.location||'',
+        bc: String(entry.bc||'').replace(/^BC-?/i,''),
+        checked: entry.checked||0,
+        total: entry.total||0,
+        issues: entry.issues||0,
+        issueDetails: entry.issueDetails||[]
+      }).catch(err=>console.warn('checklistHistory Firestore mirror failed:', err));
+    }
+  } catch(e){ console.warn('checklistHistory mirror err:', e); }
 }
 
 async function loadChecklistHistory() {
@@ -15934,7 +15953,7 @@ function renderChkItems() {
   const cc=document.getElementById('chkChecked'); if(cc) cc.textContent=`${done}/${li.length}`;
   const ci=document.getElementById('chkIssues'); if(ci) ci.textContent=issues;
   const wb=document.getElementById('chkWaBtn'); if(wb) wb.style.display=li.length?'block':'none';
-  const sb=document.getElementById('chkSubmitBtn'); if(sb&&(SESSION.role==='admin'||SESSION.role==='equipment')) sb.style.display=li.length?'block':'none';
+  const sb=document.getElementById('chkSubmitBtn'); if(sb&&(SESSION.role.includes('admin')||SESSION.role.includes('equipment'))) sb.style.display=li.length?'block':'none';
   const STATUS_COLORS={OK:'#2e7d32',Missing:'var(--red)',Damaged:'var(--amber)','Need More':'var(--blue)','Not Active':'#888'};
   const el=document.getElementById('chkList');
   if(!el) return;
@@ -16180,40 +16199,52 @@ async function submitChecklist(){
     status:chkStatus[e.row||e.id]||'',
     note:  (chkNotes[e.row||e.id]||e.equipNote||'').replace(/^[A-Z ]+\s*-\s*/i,'').trim()
   }));
-  // Send any pending status updates first
+  // Send any pending status updates first (idempotent — auto-retried on failure)
   const pending=issues.filter(e=>chkStatus[e.row||e.id]);
+  const _histEntry={
+    timestamp: new Date().toISOString(),
+    location: chkCurLoc,
+    bc: String(SESSION.unit||'').replace(/^BC-?/i,''),
+    checked: checked.length,
+    total: li.length,
+    issues: issues.length,
+    issueDetails
+  };
+  // Save the record FIRST (local + Firestore mirror) so a Sheet failure never
+  // loses the submission. The Sheet write is then best-effort with auto-retry.
+  _saveChkHistEntry(_histEntry);
+  li.forEach(e=>{delete chkStatus[e.row||e.id];delete chkNotes[e.row||e.id];});
+  renderChkItems&&renderChkItems();
   try{
     if(pending.length){
       await Promise.all(pending.map(e=>sheetPOST({action:'updateEquipmentStatus',row:e.row,status:chkStatus[e.row||e.id],note:chkNotes[e.row||e.id]||''})));
     }
     const rows=li.map(e=>e.row).filter(Boolean);
-    const result=await sheetPOST({
+    const _sheetBody={
       action:'submitChecklist',
       rows,
       bc: SESSION.unit||'?',
       location: chkCurLoc,
-      timestamp: new Date().toISOString(),
+      timestamp: _histEntry.timestamp,
       total: li.length,
       checked: checked.length,
       issueCount: issues.length,
-      issueDetails  // [{name, status, note}] — only Missing/Damaged/Need More
-    });
+      issueDetails
+    };
+    const result=await sheetPOST(_sheetBody);
     if(result&&result.success){
       showToast('✅ Checklist submitted!');
-      // Save a local history entry with full issue details
-      _saveChkHistEntry({
-        timestamp: new Date().toISOString(),
-        location: chkCurLoc,
-        bc: String(SESSION.unit||'').replace(/^BC-?/i,''),
-        checked: checked.length,
-        total: li.length,
-        issues: issues.length,
-        issueDetails  // richer than old issueItems
-      });
-      li.forEach(e=>{delete chkStatus[e.row||e.id];delete chkNotes[e.row||e.id];});
-      renderChkItems&&renderChkItems();
-    } else { showToast('Error: '+(result?.error||'Unknown')); }
-  }catch(e){showToast('Error saving checklist');console.error(e);}
+    } else {
+      // Sheet rejected it — record is safe in Firestore; queue the Sheet write for retry.
+      _enqueueRetry(_sheetBody);
+      showToast('⚠️ Saved to app — Sheet sync pending (will retry): '+(result?.error||'unknown'));
+    }
+  }catch(e){
+    // Network/Apps Script hiccup — record is safe in Firestore; queue for retry.
+    try{ _enqueueRetry({action:'submitChecklist',rows:li.map(e=>e.row).filter(Boolean),bc:SESSION.unit||'?',location:chkCurLoc,timestamp:_histEntry.timestamp,total:li.length,checked:checked.length,issueCount:issues.length,issueDetails}); }catch(_){}
+    showToast('⚠️ Saved to app — Sheet sync will retry when online');
+    console.error('submitChecklist sheet error:',e);
+  }
 }
 
 function setAdminTab(tab, btn) {
@@ -17082,7 +17113,7 @@ function renderCarDay(dateStr) {
   var now = new Date();
   var todayStr = now.getFullYear()+'-'+pad2C(now.getMonth()+1)+'-'+pad2C(now.getDate());
   var canBook = SESSION && SESSION.unit && SESSION.carAccess;
-  var isAdmin2 = SESSION && (SESSION.role==='admin'||SESSION.role==='equipment');
+  var isAdmin2 = SESSION && (SESSION.role.includes('admin'));
   if (!wrap) return;
   if (dateStr < todayStr) { wrap.innerHTML='<div style="color:#aaa;font-size:12px;text-align:center;padding:6px;">Past date — booking not available.</div>'; return; }
   if (canBook || isAdmin2) {
