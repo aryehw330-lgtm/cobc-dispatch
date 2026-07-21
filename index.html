@@ -13682,6 +13682,17 @@ async function _autoPruneOldHistory(){
         console.log('Pruned '+snap.docs.length+' old '+coll+' docs (older than '+PRUNE_KEEP_DAYS+'d)');
       }catch(e){ console.warn('prune '+coll+' failed:', e); }
     }
+    // Telzio phone-number history: prune older than 1 year (own cutoff).
+    try{
+      const telzioCutoff = Date.now() - 365*24*60*60*1000;
+      const tsnap = await db.collection('telzioCalls').where('at','<',telzioCutoff).limit(450).get();
+      if(!tsnap.empty){
+        const tbatch = db.batch();
+        tsnap.docs.forEach(d=>tbatch.delete(d.ref));
+        await tbatch.commit();
+        console.log('Pruned '+tsnap.docs.length+' old telzioCalls docs (older than 1 year)');
+      }
+    }catch(e){ console.warn('prune telzioCalls failed:', e); }
   }catch(e){ console.warn('autoPruneOldHistory:', e); }
 }
 // Auto year-end freeze: admin-only, runs on load. Freezes any fully-ended year that
