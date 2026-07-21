@@ -4480,12 +4480,17 @@ async function requestViaI911(){
     // The token is embedded in the returned wss URL (…?token=…) — connect directly.
     _i911Socket=io(wsUrl,{transports:['websocket'],reconnection:true});
     let _got=false;
+    // DIAGNOSTIC: log every event i911 emits so we can confirm the exact event
+    // name + payload shape (some accounts send 'location' not 'location-update').
+    try{ _i911Socket.onAny((ev,...args)=>{ console.log('[i911 socket event]', ev, JSON.stringify(args)); }); }catch(e){}
     const _timeout=setTimeout(()=>{ if(!_got){ _setI911Btn('➤ Request via i911', false); showToast('No location yet — caller hasn\'t shared'); try{_i911Socket.disconnect();}catch(e){} } }, 120000);
     _i911Socket.on('connect_error',()=>{ if(!_got){ _setI911Btn('➤ Request via i911', false); showToast('i911 connection error'); } });
     _i911Socket.on('location-update', async (data)=>{
-      if(!data || typeof data.latitude!=='number') return;
+      if(!data) return;
+      let lat = (typeof data.latitude==='number')?data.latitude:(typeof data.lat==='number'?data.lat:(data.location&&typeof data.location.latitude==='number'?data.location.latitude:(Array.isArray(data)?data[0]:undefined)));
+      let lng = (typeof data.longitude==='number')?data.longitude:(typeof data.lng==='number'?data.lng:(typeof data.lon==='number'?data.lon:(data.location&&typeof data.location.longitude==='number'?data.location.longitude:(Array.isArray(data)?data[1]:undefined))));
+      if(typeof lat!=='number' || typeof lng!=='number') return;
       _got=true; clearTimeout(_timeout);
-      const lat=data.latitude, lng=data.longitude;
       const input=document.getElementById('callAddress');
       _lastCallLatLng={lat,lng};
       _setI911Btn('✓ Location received', true);
