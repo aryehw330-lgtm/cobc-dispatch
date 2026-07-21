@@ -12682,7 +12682,13 @@ function subscribeTelzioFromFirestore() {
       _lastTelzioCall = { name: d.name||d.FromCnam||'', phone: phone, at: at };
       // Live-fill the New Call modal if it's open with empty fields
       const modal = document.getElementById('newCallModal');
-      if(modal && !modal.classList.contains('hidden')) _applyTelzioToForm(false);
+      if(modal && !modal.classList.contains('hidden')){
+        // Name (CNAM) often arrives a beat after the number via a follow-up update.
+        // Force-fill the name field if it's still empty but we now have a name.
+        const _nm=document.getElementById('callCaller');
+        if(_nm && !_nm.value && _lastTelzioCall.name) _nm.value=_lastTelzioCall.name;
+        _applyTelzioToForm(false);
+      }
       // Pop the incoming-call banner (skip the very first snapshot on load)
       if(_telzioFirstSnap){ _telzioFirstSnap=false; return; }
       if(isNew && (Date.now()-at) < 60*1000) showIncomingCallBanner(_lastTelzioCall);
@@ -13052,7 +13058,15 @@ function _dismissIncomingBanner(cardId){
 }
 function _startCallFromBanner(cardId){
   const rec = _incomingBannerCalls[cardId];
-  if(rec && rec.call) _lastTelzioCall = rec.call; // pre-fill from THIS caller
+  if(rec && rec.call){
+    // Prefer the freshest snapshot for this caller — the banner may have captured the
+    // number before the name (CNAM) resolved, so merge in a newer name if we have one.
+    let call = rec.call;
+    if(_lastTelzioCall && String(_lastTelzioCall.phone||'').replace(/\D/g,'')===String(call.phone||'').replace(/\D/g,'')){
+      call = { phone: call.phone, name: call.name || _lastTelzioCall.name || '', at: Math.max(call.at||0,_lastTelzioCall.at||0) };
+    }
+    _lastTelzioCall = call;
+  }
   _dismissIncomingBanner(cardId);
   if(typeof showModal==='function') showModal('newCallModal'); // showModal auto-fills from _lastTelzioCall
 }
