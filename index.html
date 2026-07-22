@@ -1686,6 +1686,11 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
 
+        <!-- What's New / Changelog -->
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-title">🆕 What's New</div>
+          <div id="settings-changelog" style="margin-top:8px;"></div>
+        </div>
         <!-- About -->
         <div class="card" style="margin-bottom:10px;">
           <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;">
@@ -2155,6 +2160,36 @@ textarea.input{min-height:80px;resize:vertical;}
 
         <!-- Reset (one-time use, self-destructs after use) -->
         <div id="admin-reset" style="display:none;">
+          <!-- TEST MODE -->
+          <div style="background:var(--card,#fff);border:1.5px solid var(--border2);border-radius:14px;padding:18px;margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:16px;font-weight:800;color:var(--text);">🧪 Test Mode <span id="testModeToggleState" style="font-size:12px;color:var(--text3);">OFF</span></div>
+                <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-top:2px;">While ON, every new call is marked a test and never counts in stats. Turn OFF for real dispatching.</div>
+              </div>
+              <button class="btn-sm btn-ghost" style="flex-shrink:0;padding:12px 16px;" onclick="toggleTestMode()">Toggle</button>
+            </div>
+          </div>
+          <!-- AUDIT LOG -->
+          <div style="background:var(--card,#fff);border:1.5px solid var(--border2);border-radius:14px;padding:18px;margin-bottom:14px;">
+            <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;">📜 Audit Log <span id="auditCount" style="font-size:11px;font-weight:600;color:var(--text3);"></span></div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Who created, changed, completed, or deleted each call.</div>
+            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="auditSearch" placeholder="Search unit, call #, type, town, action…" oninput="renderAuditLog()"/></div>
+            <div id="auditLogList" style="max-height:420px;overflow-y:auto;"></div>
+          </div>
+          <!-- BACKUP & RESTORE -->
+          <div style="background:var(--card,#fff);border:1.5px solid var(--border2);border-radius:14px;padding:18px;margin-bottom:14px;">
+            <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;">💾 Backup &amp; Restore</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">A snapshot of all calls + equipment is saved to the cloud automatically once a day (kept 30 days). You can also download a backup file now, or restore from one if data is ever lost.</div>
+            <div id="backupStatusLine" style="font-size:11px;color:var(--text3);margin-bottom:12px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <button class="btn-sm btn-primary" style="padding:12px;" onclick="downloadBackupFile()">⬇️ Download Backup</button>
+              <button class="btn-sm btn-ghost" style="padding:12px;" onclick="backupNowToCloud()">☁️ Back Up Now</button>
+            </div>
+            <button class="btn-full btn-ghost" style="padding:12px;border:1.5px dashed var(--border2);" onclick="openRestorePicker()">⬆️ Restore from Backup…</button>
+            <input type="file" id="restoreFileInput" accept="application/json,.json" style="display:none;" onchange="restoreFromFile(event)"/>
+            <div id="cloudBackupList" style="margin-top:12px;"></div>
+          </div>
           <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:14px;padding:20px;margin-bottom:14px;text-align:center;">
             <div style="font-size:32px;margin-bottom:10px;">⚠️</div>
             <div style="font-size:17px;font-weight:700;color:#c0392b;margin-bottom:8px;">Reset All App Data</div>
@@ -3289,7 +3324,20 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 // Build stamp — shown at the bottom of the Settings tab. Bump this whenever code
 // changes so the running version is identifiable on each device.
-const APP_BUILD = 'Build 2026-07-09a · auto-update';
+const APP_BUILD = 'Build 2026-07-22a · auto-update';
+// ── Changelog: newest first. Shown in Settings → What's New. Add an entry each deploy. ──
+const APP_CHANGELOG = [
+  { date:'2026-07-22', notes:[
+    'Automatic daily cloud backup of all calls + equipment (Admin → Reset → Backup & Restore), with one-tap restore.',
+    'Test Mode: mark training/testing calls so they never count in stats (Admin → Reset).',
+    'Audit Log: see who created, changed, completed, or deleted each call (Admin → Reset).',
+    'Offline-safe: calls & equipment changes made on bad signal now queue and sync when back online.',
+    'Call numbers can never collide — assigned by the server even when two dispatchers work offline.',
+    'Any failed save now shows a warning instead of silently losing the record.',
+    'i911: highway/Thruway calls now include exact GPS coordinates, and tapping the address navigates to them.',
+    'Equipment: an OUT + CNC / In-vehicle item now shows both Check IN and Check OUT when set to CC.',
+  ]},
+];
 // ── Auto-update: force every device onto the latest deployed build ──────────
 // A `config/appVersion` doc in Firestore holds the newest build stamp. On startup
 // and whenever the app returns to the foreground, each device compares its own
@@ -3479,6 +3527,13 @@ async function initFirebaseApp() {
   try {
     try { _fcmApp = firebase.initializeApp(FCM_CONFIG); }
     catch(e) { _fcmApp = firebase.app(); } // already initialized
+    // ── Offline persistence ──────────────────────────────────────────────────
+    // Firestore caches reads AND queues writes locally when the device is offline,
+    // then auto-syncs the moment connectivity returns. This is what makes a call /
+    // equipment / status change made on bad signal survive instead of being dropped.
+    // (Call NUMBERS are handled separately — see the callNum reconcile queue — because
+    // the atomic counter transaction needs the server and can't run offline.)
+    try { firebase.firestore().enablePersistence({synchronizeTabs:true}).catch(()=>{}); } catch(e){}
     _firebaseReady = true;
     // ── NO anonymous auth ──────────────────────────────────────────────────
     // The security rules require an authorized MEMBER token. An anonymous session
@@ -3505,6 +3560,7 @@ async function initFirebaseApp() {
       try { subscribeTelzioCallsFromFirestore(); } catch(e){ console.warn('subscribeTelzioCalls:', e); }
       try { if(['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'')) subscribeZelloConfig(); } catch(e){ console.warn('subscribeZello:', e); }
       try { _checkAppVersion(); } catch(e){ console.warn('versionCheck:', e); }
+      try { subscribeAppFlags(); } catch(e){ console.warn('subscribeAppFlags:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -3972,9 +4028,20 @@ function sheetGET(params={}){
 }
 // No Content-Type header on POST — keeps it a "simple request" and avoids CORS preflight
 // (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
-function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...body, authToken: window._fbIdToken||undefined})}).then(r=>r.json()).then(res=>{try{_mirrorMemberWrite(body,res);}catch(e){}return res;}).catch(err=>{
+function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...body, authToken: window._fbIdToken||undefined})}).then(r=>r.json()).then(res=>{
+  try{_mirrorMemberWrite(body,res);}catch(e){}
+  // App-level failure: the Sheet responded 200 but reports it did NOT save. Surface it
+  // (no more silent lost records) and queue idempotent writes for retry. Only treat an
+  // EXPLICIT failure as failure — responses that simply omit `success` are left alone.
+  if(res && (res.success===false || (res.error && res.ok!==true))){
+    try{ if(_RETRY_IDEMPOTENT.has(body&&body.action)) _enqueueRetry(body); }catch(e){}
+    try{ showToast('⚠️ Not saved: '+((body&&body.action)||'write')+(res.error?(' — '+res.error):'')+'. Check connection & retry.'); }catch(e){}
+  }
+  return res;
+}).catch(err=>{
   // Network failure — enqueue idempotent writes for retry, reject non-idempotent ones immediately
   try{_enqueueRetry(body);}catch(e){}
+  try{ showToast('⚠️ Save failed ('+((body&&body.action)||'write')+') — will retry when back online'); }catch(e){}
   return Promise.reject(err);
 });}
 
@@ -4044,6 +4111,40 @@ async function _drainRetryQueue(){
   }
   _saveRetryQueue(stillPending);
 }
+// ── Call-number reconcile queue ──────────────────────────────────────────────
+// A call published while OFFLINE can't run the atomic counter transaction (that
+// needs the server), so it's created with a PENDING number. Its id is queued here;
+// when connectivity returns we run the same atomic mint per call, so two calls made
+// offline on different devices each get a distinct number — never an overlap.
+const _CALLNUM_QUEUE_KEY = 'cobc_callnum_pending';
+function _loadCallNumQueue(){ try{ return JSON.parse(localStorage.getItem(_CALLNUM_QUEUE_KEY)||'[]'); }catch(e){ return []; } }
+function _saveCallNumQueue(q){ try{ localStorage.setItem(_CALLNUM_QUEUE_KEY, JSON.stringify(q.slice(-100))); }catch(e){} }
+function _queueCallNumReconcile(callId){ const q=_loadCallNumQueue(); if(!q.includes(callId)){ q.push(callId); _saveCallNumQueue(q); } }
+async function _drainCallNumQueue(){
+  const q=_loadCallNumQueue();
+  if(!q.length) return;
+  if(!_firebaseReady || (typeof navigator!=='undefined' && navigator.onLine===false)) return;
+  const still=[];
+  for(const id of q){
+    const call=(STATE.calls||[]).find(c=>String(c.id)===String(id));
+    if(!call) continue;                                   // deleted → drop
+    if(call.status==='draft') continue;                   // drafts get no number → drop
+    if(call.callNum && !call.callNumPending) continue;     // already resolved → drop
+    try{
+      const num=await _nextCallNumAtomic();
+      if(num){
+        call.callNum=num; call.callNumPending=false; save();
+        try{ firebase.firestore().collection('calls').doc(String(call.id)).update({callNum:num, callNumPending:false}); }catch(e){}
+        try{ renderCalls&&renderCalls(); }catch(e){}
+        try{ renderHome&&renderHome(); }catch(e){}
+        console.log('[callnum] assigned #'+num+' to', call.id);
+      } else { still.push(id); }
+    }catch(e){ still.push(id); }                           // still offline → keep for next drain
+  }
+  _saveCallNumQueue(still);
+}
+// Drain the moment the device comes back online (plus the periodic tick + on load).
+try{ window.addEventListener('online', ()=>{ try{ _drainCallNumQueue(); }catch(e){} try{ _drainRetryQueue(); }catch(e){} }); }catch(e){}
 // Show a small banner on home screen if there are pending items awaiting retry
 function _updateOfflineBanner(){
   const q = _loadRetryQueue();
@@ -8103,14 +8204,16 @@ async function createCall() {
 
   if (!address) { showToast('⚠️ Enter an address'); return; }
 
-  let _callNum = null;
+  let _callNum = null; let _callNumPending = false;
   if(!dontPublish){
     try{ _callNum = await _nextCallNumAtomic(); }
-    catch(e){ console.error('Atomic call-number failed, using fallback:', e); _callNum = _resolveNewCallNum(); }
+    catch(e){ console.warn('Call-number atomic mint failed (offline?) — number will be assigned on sync'); _callNum = null; _callNumPending = true; }
   }
   const call = {
     id:'C'+Date.now(),
     callNum: _callNum,
+    callNumPending: _callNumPending,
+    isTest: !!window._testMode,
     type, address, town, caller, phone, priority, notes,
     status: dontPublish?'draft':'open',
     createdAt: Date.now(),
@@ -8140,7 +8243,13 @@ async function createCall() {
   // Reconcile the call number atomically after the fact so simultaneous creates on
   // two devices can't share a number — updates in place if the atomic value differs.
   if(!dontPublish){
-    (async()=>{ try{ const _atomic=await _nextCallNumAtomic(); if(_atomic && _atomic!==call.callNum){ call.callNum=_atomic; save(); try{ firebase.firestore().collection('calls').doc(call.id).update({callNum:_atomic}); }catch(e){} try{ renderCalls&&renderCalls(); renderHome&&renderHome(); }catch(e){} } }catch(e){ console.warn('atomic callNum reconcile:', e); } })();
+    if(_callNumPending){
+      // Offline: no server number yet. Queue it — the reconcile drain mints a unique
+      // number per call when connectivity returns, so offline calls never collide.
+      _queueCallNumReconcile(call.id); try{ _drainCallNumQueue(); }catch(e){}
+    } else {
+      (async()=>{ try{ const _atomic=await _nextCallNumAtomic(); if(_atomic && _atomic!==call.callNum){ call.callNum=_atomic; save(); try{ firebase.firestore().collection('calls').doc(call.id).update({callNum:_atomic}); }catch(e){} try{ renderCalls&&renderCalls(); renderHome&&renderHome(); }catch(e){} } }catch(e){ console.warn('atomic callNum reconcile:', e); } })();
+    }
   }
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
   try{ _maybeSaveCustomCar(carMake, carModel, _usedOtherMake, _usedOtherModel); }catch(e){}
@@ -8175,7 +8284,8 @@ async function createCall() {
     const _typeLabel = cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     const _waDispatch = (()=>{
       const urg = (priority === 'high' || priority === 'urgent');
-      let m = urg ? `🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `*COBC Call #${call.callNum||''}*\n\n`;
+      const _tp = call.isTest ? '🧪 TEST — ' : '';
+      let m = urg ? `${_tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${_tp}*COBC Call #${call.callNum||''}*\n\n`;
       m += `*Call Type:* ${_typeLabel}\n\n`;
       m += `${fmtLoc(call)}\n`;
       if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
@@ -8188,7 +8298,7 @@ async function createCall() {
 setTimeout(() => {
       sendPush({
       target: 'all',
-      title: (priority === 'high' || priority === 'urgent') ? `🚨 URGENT COBC Call #${call.callNum||''}` : `New COBC Call #${call.callNum||''}`,
+      title: (call.isTest?'🧪 TEST — ':'') + ((priority === 'high' || priority === 'urgent') ? `🚨 URGENT COBC Call #${call.callNum||''}` : `New COBC Call #${call.callNum||''}`),
       body: `${_typeLabel} — ${fmtLoc(call)}`,
       url: '/cobc-dispatch/',
       urgent: priority === 'high' || priority === 'urgent' ? 'true' : 'false',
@@ -8303,10 +8413,11 @@ function buildDispatchWhatsApp(call) {
 function logCallEvent(call, action, payload) {
   if(!call || !STATE) return;
   STATE.callLog = STATE.callLog || [];
-  STATE.callLog.push({
+  const entry = {
     ts: Date.now(),
-    action, // 'created' | 'published' | 'responder_pending' | 'responder_approved' | 'responder_rejected' | 'auto_approved' | 'completed' | 'cancelled' | 'edited'
+    action, // 'created' | 'published' | 'responder_pending' | 'responder_approved' | 'responder_rejected' | 'auto_approved' | 'completed' | 'cancelled' | 'edited' | 'deleted'
     callId: call.id,
+    callNum: call.callNum||null,
     type: call.type,
     town: call.town,
     priority: call.priority||'normal',
@@ -8314,9 +8425,17 @@ function logCallEvent(call, action, payload) {
     by: SESSION?.unit || null,
     byName: SESSION?.name || null,
     ...(payload||{})
-  });
+  };
+  STATE.callLog.push(entry);
   // Cap at last 5000 events
   if(STATE.callLog.length > 5000) STATE.callLog = STATE.callLog.slice(-5000);
+  // Mirror to the SHARED audit log so every device sees who did what (disputes,
+  // cross-device deletions). Fire-and-forget; offline persistence queues it.
+  try{
+    if(_firebaseReady && firebase.firestore){
+      firebase.firestore().collection('auditLog').add(entry).catch(()=>{});
+    }
+  }catch(e){}
 }
 
 // ── Member requests to respond (PENDING — needs dispatch approval) ──
@@ -9371,8 +9490,8 @@ async function publishCall(id) {
   // Atomic call number — same collision-proof path as the New Call button, so two
   // dispatchers publishing at the same moment can never land on the same number.
   if(!call.callNum){
-    try{ call.callNum = await _nextCallNumAtomic(); }
-    catch(e){ console.error('Atomic call-number (publish) failed, fallback:', e); call.callNum = _nextCallNum(); }
+    try{ call.callNum = await _nextCallNumAtomic(); call.callNumPending=false; }
+    catch(e){ console.warn('Call-number atomic mint (publish) failed (offline?) — assigning on sync'); call.callNum=null; call.callNumPending=true; _queueCallNumReconcile(call.id); try{ _drainCallNumQueue(); }catch(_e){} }
   }
   call.status='open'; call.rrLastSent=Date.now();
   // The dispatcher who makes the draft real becomes the call's dispatcher (not the draft author).
@@ -9381,7 +9500,7 @@ async function publishCall(id) {
   const _typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const _waMsg = (()=>{
     const urg = (call.priority === 'high' || call.priority === 'urgent');
-    let m = urg ? `🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `*COBC Call #${call.callNum||''}*\n\n`;
+    let m = urg ? `${call.isTest?'🧪 TEST — ':''}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${call.isTest?'🧪 TEST — ':''}*COBC Call #${call.callNum||''}*\n\n`;
     m += `*Call Type:* ${_typeLabel}\n\n`;
     m += `${fmtLoc(call)}\n`;
     if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
@@ -9402,7 +9521,7 @@ async function publishCall(id) {
   // Push + WA piggybacked in one server-side request (most reliable path)
   setTimeout(()=>sendPush({
     target:'all',
-    title:`New COBC Call #${call.callNum||''}`,
+    title:`${call.isTest?'🧪 TEST — ':''}New COBC Call #${call.callNum||''}`,
     body:`${_typeLabel} — ${fmtLoc(call)}`,
     url:'/cobc-dispatch/', callId:call.id,
     waChat: WA_GROUP_ID,
@@ -9497,6 +9616,8 @@ function deleteCall(id) {
   overlay.querySelector('#__dc_no').onclick=function(){document.body.removeChild(overlay);};
   overlay.querySelector('#__dc_yes').onclick=function(){
     document.body.removeChild(overlay);
+    // Log who deleted it BEFORE removing (audit trail for disputes)
+    try{ const _c=(STATE.calls||[]).find(c=>c.id===id); if(_c) logCallEvent(_c,'deleted',{by:SESSION.unit, byName:SESSION.name}); }catch(e){}
     // Optimistic: remove instantly
     _tombstoneCall(id);
     STATE.calls=(STATE.calls||[]).filter(c=>c.id!==id);
@@ -10792,6 +10913,8 @@ function _appHeartbeatRun(){
   try { updateTelzioBtnStatus(); } catch(e){}
   try { updateGlobalShiftBanner(); } catch(e){}
   try { _drainRetryQueue(); } catch(e){}
+  try { _drainCallNumQueue(); } catch(e){}
+  try { _maybeDailyBackup(); } catch(e){}
   try { _updateOfflineBanner(); } catch(e){}
   // Every other tick (~60s) refresh the car schedule so the shift banner
   // reflects bookings/sign-outs from other devices.
@@ -11916,6 +12039,13 @@ function renderSettingsTab() {
   // Build date
   const bd = document.getElementById('settings-build-date');
   if(bd) bd.textContent = APP_BUILD;
+  const cl = document.getElementById('settings-changelog');
+  if(cl && typeof APP_CHANGELOG!=='undefined'){
+    cl.innerHTML = APP_CHANGELOG.slice(0,3).map(e=>
+      `<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:800;color:var(--text2);margin-bottom:4px;">${e.date}</div>`
+      + `<ul style="margin:0;padding-left:18px;">` + e.notes.map(n=>`<li style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:3px;">${n}</li>`).join('') + `</ul></div>`
+    ).join('');
+  }
   // Install card visibility (iOS Safari, not standalone)
   const installCard = document.getElementById('settings-install-card');
   if(installCard) {
@@ -14262,7 +14392,7 @@ function getYearData(yr) {
 // mirrors the HIST structure, so it can be merged with historical data.
 function calcLiveStats(yr) {
   const yrStr = String(yr);
-  const _statCalls = (_allCalls());
+  const _statCalls = (_allCalls()).filter(c => !c.isTest); // test/training calls never count
   const done = _statCalls.filter(c => {
     if(c.status!=='done') return false;
     const d = new Date(c.completedAt||c.createdAt||0);
@@ -16060,7 +16190,13 @@ function updateCoModalButtons(){
   // CC label depends on direction: an item currently OUT is being returned home →
   // "Home Location"; an item currently IN is being taken to a call → "Brought to correct call number".
   const _ccOpt=ccncSelEl&&ccncSelEl.querySelector('option[value="CC"]');
-  if(_ccOpt){ const allOut=nonCar.length&&nonCar.every(it=>it.status==='out'); _ccOpt.textContent = allOut ? 'CC / Home Location' : 'CC / Brought to correct call number'; }
+  if(_ccOpt){
+    const allOut=nonCar.length&&nonCar.every(it=>it.status==='out');
+    // OUT + CNC/in-vehicle being corrected: could go to its home OR to the call's drop-off spot.
+    const anyCncOut=nonCar.some(it=>it.isCNC&&it.status==='out');
+    _ccOpt.textContent = anyCncOut ? 'CC / Home Location or Call number location'
+                                   : (allOut ? 'CC / Home Location' : 'CC / Brought to correct call number');
+  }
   let show='both';
   if(nonCar.length && !hasCar){
     // CNC or MOVE selected → force OUT-only (can't check IN).
@@ -16525,8 +16661,229 @@ async function resetAllCallsQuick(){
   }
 }
 
-// Clear ONLY the local history archive cache on this device — History reloads fresh
-// from the database. Does not delete any calls and does not touch stats.
+// ═════════════════════════════════════════════════════════════════
+// §BACKUP  Cloud daily snapshot + manual download/restore (admin)
+// ═════════════════════════════════════════════════════════════════
+// A full snapshot of calls + equipment (+ numbers/members/locations) is written to
+// the Firestore `backups` collection once per day, kept 30 days. Admins can also
+// download a backup file on demand, or restore from a cloud snapshot / uploaded file.
+// This is the undo for a bad delete or a mistaken reset.
+const _BACKUP_KEEP_DAYS = 30;
+function _backupPayload(){
+  return {
+    version: (typeof APP_BUILD!=='undefined'?APP_BUILD:''),
+    at: Date.now(),
+    by: (SESSION&&SESSION.unit)||'',
+    calls: STATE.calls||[],
+    equipment: STATE.equipment||[],
+    numbers: STATE.numbers||[],
+    members: STATE.members||[],
+    locations: STATE.locations||[],
+  };
+}
+function _todayKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// Auto: once per day, on an admin/dispatch device, write the daily snapshot + prune old.
+async function _maybeDailyBackup(){
+  try{
+    if(!_firebaseReady) return;
+    if(!['admin','dispatch'].includes((SESSION&&SESSION.role)||'')) return;
+    if(!(STATE.calls||[]).length && !(STATE.equipment||[]).length) return; // nothing loaded yet
+    const key=_todayKey();
+    const lastLocal=localStorage.getItem('cobc_backup_day');
+    if(lastLocal===key) return; // already done today on this device
+    const ref=firebase.firestore().collection('backups').doc(key);
+    const snap=await ref.get();
+    if(!snap.exists){
+      await ref.set(_backupPayload());
+      console.log('[backup] daily snapshot written:', key);
+    }
+    localStorage.setItem('cobc_backup_day', key);
+    // Prune snapshots older than KEEP_DAYS
+    try{
+      const cutoff=Date.now()-_BACKUP_KEEP_DAYS*86400000;
+      const old=await firebase.firestore().collection('backups').where('at','<',cutoff).get();
+      old.forEach(d=>{ try{ d.ref.delete(); }catch(e){} });
+    }catch(e){}
+  }catch(e){ console.warn('[backup] daily snapshot failed:', e); }
+}
+async function backupNowToCloud(){
+  if((SESSION.role||'')!=='admin' && (SESSION.role||'')!=='dispatch'){ showToast('Admin only'); return; }
+  showToast('☁️ Backing up…');
+  try{
+    const key=_todayKey()+'_'+new Date().toTimeString().slice(0,5).replace(':','');
+    await firebase.firestore().collection('backups').doc(key).set(_backupPayload());
+    localStorage.setItem('cobc_backup_day', _todayKey());
+    showToast('✅ Backup saved to cloud');
+    try{ renderBackupPanel(); }catch(e){}
+  }catch(e){ showToast('⚠️ Cloud backup failed — try Download instead'); console.warn(e); }
+}
+function downloadBackupFile(){
+  try{
+    const data=JSON.stringify(_backupPayload(),null,2);
+    const blob=new Blob([data],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download='cobc-backup-'+_todayKey()+'.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+    showToast('⬇️ Backup downloaded');
+  }catch(e){ showToast('Download failed'); console.warn(e); }
+}
+function openRestorePicker(){
+  if((SESSION.role||'')!=='admin'){ showToast('Admin only — restore is a full data overwrite'); return; }
+  const inp=document.getElementById('restoreFileInput'); if(inp){ inp.value=''; inp.click(); }
+}
+function restoreFromFile(ev){
+  const f=ev&&ev.target&&ev.target.files&&ev.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ const obj=JSON.parse(rd.result); _applyRestore(obj, 'file: '+f.name); }catch(e){ showToast('Not a valid backup file'); } };
+  rd.readAsText(f);
+}
+// Shared restore: confirm, then write calls + equipment back to Firestore in batches.
+async function _applyRestore(obj, sourceLabel){
+  if((SESSION.role||'')!=='admin'){ showToast('Admin only'); return; }
+  if(!obj || (!Array.isArray(obj.calls) && !Array.isArray(obj.equipment))){ showToast('Backup has no data'); return; }
+  const nCalls=(obj.calls||[]).length, nEq=(obj.equipment||[]).length;
+  const when=obj.at?new Date(obj.at).toLocaleString():'unknown date';
+  if(!confirm('RESTORE from '+sourceLabel+'\n\nSnapshot: '+when+'\nCalls: '+nCalls+'   Equipment: '+nEq+'\n\nThis OVERWRITES current calls + equipment on ALL devices with this snapshot. Items added since this backup will be lost. Continue?')) return;
+  showToast('♻️ Restoring…');
+  try{
+    const db=firebase.firestore();
+    // Restore calls (merge by id) in batches of 400
+    const calls=obj.calls||[];
+    for(let i=0;i<calls.length;i+=400){
+      const batch=db.batch();
+      calls.slice(i,i+400).forEach(c=>{ if(c&&c.id) batch.set(db.collection('calls').doc(String(c.id)), c); });
+      await batch.commit();
+    }
+    // Restore equipment into local STATE + the equipment mirror doc the app reads
+    if(Array.isArray(obj.equipment) && obj.equipment.length){
+      STATE.equipment=obj.equipment; 
+    }
+    if(Array.isArray(obj.numbers) && obj.numbers.length) STATE.numbers=obj.numbers;
+    if(Array.isArray(obj.locations) && obj.locations.length) STATE.locations=obj.locations;
+    save();
+    try{ renderCalls&&renderCalls(); renderHome&&renderHome(); renderInventory&&renderInventory(); renderEquipmentDashboard&&renderEquipmentDashboard(); }catch(e){}
+    showToast('✅ Restore complete');
+    logCallEvent && logCallEvent({id:'restore',callNum:''}, 'restore', {by:SESSION.unit, source:sourceLabel, calls:nCalls, equipment:nEq});
+  }catch(e){ showToast('⚠️ Restore error — see console'); console.warn('restore:', e); }
+}
+// Admin reset-tab panel: last-backup status + list of recent cloud snapshots to restore.
+async function renderBackupPanel(){
+  const line=document.getElementById('backupStatusLine');
+  const list=document.getElementById('cloudBackupList');
+  if(line){
+    const day=localStorage.getItem('cobc_backup_day');
+    line.innerHTML = day ? ('Last cloud snapshot on this device: <b>'+day+'</b>') : 'No snapshot recorded yet on this device.';
+  }
+  if(!list) return;
+  list.innerHTML='<div style="font-size:11px;color:var(--text3);">Loading cloud snapshots…</div>';
+  try{
+    const q=await firebase.firestore().collection('backups').orderBy('at','desc').limit(10).get();
+    if(q.empty){ list.innerHTML='<div style="font-size:11px;color:var(--text3);">No cloud snapshots yet.</div>'; return; }
+    let html='<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">Restore a cloud snapshot</div>';
+    q.forEach(doc=>{
+      const d=doc.data()||{};
+      const when=d.at?new Date(d.at).toLocaleString():doc.id;
+      const nC=(d.calls||[]).length, nE=(d.equipment||[]).length;
+      html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(0,0,0,.03);border:1px solid var(--border2);border-radius:9px;padding:9px 11px;margin-bottom:6px;">'
+        +'<div style="min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--text);">'+when+'</div><div style="font-size:11px;color:var(--text3);">'+nC+' calls · '+nE+' equipment</div></div>'
+        +'<button class="btn-sm btn-ghost" style="flex-shrink:0;font-size:11px;padding:7px 11px;" onclick="restoreFromCloud(\''+doc.id+'\')">Restore</button></div>';
+    });
+    list.innerHTML=html;
+  }catch(e){ list.innerHTML='<div style="font-size:11px;color:var(--text3);">Could not load snapshots.</div>'; }
+}
+async function restoreFromCloud(docId){
+  try{
+    const doc=await firebase.firestore().collection('backups').doc(docId).get();
+    if(!doc.exists){ showToast('Snapshot not found'); return; }
+    _applyRestore(doc.data(), 'cloud snapshot '+docId);
+  }catch(e){ showToast('Could not load snapshot'); }
+}
+// ═════════════════════════════════════════════════════════════════
+// §TESTMODE  Shared test/training flag — calls made while ON never count in stats
+// ═════════════════════════════════════════════════════════════════
+window._testMode = false;
+function subscribeAppFlags(){
+  try{
+    firebase.firestore().collection('config').doc('appFlags').onSnapshot(doc=>{
+      const d = doc.exists ? (doc.data()||{}) : {};
+      window._testMode = !!d.testMode;
+      try{ _renderTestModeBanner(); }catch(e){}
+      try{ const t=document.getElementById('testModeToggleState'); if(t) t.textContent = window._testMode?'ON':'OFF'; }catch(e){}
+    });
+  }catch(e){ console.warn('appFlags sub:', e); }
+}
+async function toggleTestMode(){
+  if((SESSION.role||'')!=='admin' && (SESSION.role||'')!=='dispatch'){ showToast('Admin/dispatch only'); return; }
+  const next = !window._testMode;
+  if(next && !confirm('Turn ON Test Mode?\n\nEvery call created while this is ON is marked as a TEST and will NOT count in stats. Remember to turn it OFF before real dispatching.')) return;
+  try{
+    await firebase.firestore().collection('config').doc('appFlags').set({testMode:next, by:(SESSION&&SESSION.unit)||'', at:Date.now()}, {merge:true});
+    window._testMode = next;
+    _renderTestModeBanner();
+    showToast(next ? '🧪 Test Mode ON — calls won\'t count' : '✅ Test Mode OFF — live dispatching');
+  }catch(e){ showToast('Could not change Test Mode'); }
+}
+function _renderTestModeBanner(){
+  let el = document.getElementById('testModeBanner');
+  if(window._testMode){
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'testModeBanner';
+      el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9998;background:repeating-linear-gradient(45deg,#b45309,#b45309 12px,#92400e 12px,#92400e 24px);color:#fff;text-align:center;font-size:12px;font-weight:800;letter-spacing:.5px;padding:5px 10px;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+      el.textContent = '🧪 TEST MODE — new calls will NOT count in stats';
+      document.body.appendChild(el);
+    }
+    el.style.display='block';
+  } else if(el){ el.style.display='none'; }
+}
+// ═════════════════════════════════════════════════════════════════
+// §AUDIT  Unified audit-log viewer (who created/changed/deleted what)
+// ═════════════════════════════════════════════════════════════════
+const _AUDIT_LABELS = {
+  created:'📝 Created', published:'📢 Published', edited:'✏️ Edited',
+  completed:'✅ Completed', cancelled:'🚫 Cancelled', deleted:'🗑️ Deleted',
+  responder_pending:'✋ Requested to respond', responder_approved:'✓ Responder approved',
+  responder_rejected:'✕ Responder rejected', auto_approved:'⚡ Auto-approved',
+  backup_requested:'🆘 Backup requested', backup_approved:'🆘 Backup approved',
+  restore:'♻️ Data restored', reset:'⚠️ Data reset'
+};
+async function renderAuditLog(){
+  const list = document.getElementById('auditLogList');
+  if(!list) return;
+  list.innerHTML = list.innerHTML || '<div style="font-size:12px;color:var(--text3);">Loading…</div>';
+  // Pull the SHARED log from Firestore (all devices); fall back to local if offline.
+  let events = [];
+  try{
+    const snap = await firebase.firestore().collection('auditLog').orderBy('ts','desc').limit(400).get();
+    events = snap.docs.map(d=>d.data());
+  }catch(e){ events = (STATE.callLog||[]).slice(); }
+  if(!events.length) events = (STATE.callLog||[]).slice();
+  events.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const q = (document.getElementById('auditSearch')?.value||'').trim().toLowerCase();
+  if(q){
+    events = events.filter(e=>{
+      const hay = [e.action, e.byName, e.by, e.type, e.town, e.callId, e.callNum, (_AUDIT_LABELS[e.action]||'')].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  const shown = events.slice(0,200);
+  if(!shown.length){ list.innerHTML='<div style="font-size:12px;color:var(--text3);">No matching activity.</div>'; return; }
+  list.innerHTML = shown.map(e=>{
+    const when = e.ts ? new Date(e.ts).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+    const who = e.byName ? (e.byName) : (e.by ? ('BC-'+String(e.by).replace(/^BC-?/i,'')) : 'system');
+    const lbl = _AUDIT_LABELS[e.action] || e.action || '—';
+    const numTag = e.callNum ? ('#'+e.callNum+' · ') : '';
+    const detail = [numTag+(e.type?cleanLabel(CALL_TYPE_LABELS[e.type]||e.type):''), e.town||''].filter(Boolean).join(' · ');
+    return `<div style="display:flex;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border2);">
+      <div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--text);">${lbl}</div>
+      <div style="font-size:11px;color:var(--text2);">${detail||'—'}</div>
+      <div style="font-size:11px;color:var(--text3);">by ${who}</div></div>
+      <div style="font-size:10px;color:var(--text3);white-space:nowrap;flex-shrink:0;">${when}</div></div>`;
+  }).join('');
+  const cnt=document.getElementById('auditCount'); if(cnt) cnt.textContent = events.length+' event'+(events.length===1?'':'s')+(q?' (filtered)':'');
+}
 function clearHistoryCache(){
   if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Admin only'); return; }
   try{ localStorage.removeItem(_ARCHIVE_CACHE_KEY); localStorage.removeItem(_ARCHIVE_CACHE_META_KEY); }catch(e){}
@@ -16672,7 +17029,7 @@ function setAdminTab(tab, btn) {
   if(tab==='locations') renderLocationList();
   if(tab==='calls') renderAdminCalls();
   if(tab==='history') renderAdminHistory();
-  if(tab==='reset') document.getElementById('resetConfirmInput').value='';
+  if(tab==='reset'){ document.getElementById('resetConfirmInput').value=''; try{ renderBackupPanel(); }catch(e){} try{ renderAuditLog(); }catch(e){} try{ const t=document.getElementById('testModeToggleState'); if(t) t.textContent=window._testMode?'ON':'OFF'; }catch(e){} }
   if(tab==='dispatch') {
     // Pre-populate on-duty inputs with current values
     const od = STATE.onDuty || {};
