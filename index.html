@@ -3561,6 +3561,7 @@ async function initFirebaseApp() {
       try { if(['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'')) subscribeZelloConfig(); } catch(e){ console.warn('subscribeZello:', e); }
       try { _checkAppVersion(); } catch(e){ console.warn('versionCheck:', e); }
       try { subscribeAppFlags(); } catch(e){ console.warn('subscribeAppFlags:', e); }
+      try { subscribeVehiclesFromFirestore(); } catch(e){ console.warn('subscribeVehicles:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -15496,12 +15497,12 @@ function checkOutVehicle(id) {
   const v=STATE.vehicles?.find(x=>x.id===id);
   if(!v) return;
   const unit=prompt('Your BC Unit #:',SESSION.unit)||SESSION.unit;
-  v.checkedOut=true; v.checkedOutBy=unit; save(); renderVehicles(); showToast(`🚐 ${v.name} checked out`);
+  v.checkedOut=true; v.checkedOutBy=unit; save(); pushVehiclesToFirestore(); renderVehicles(); showToast(`🚐 ${v.name} checked out`);
 }
 function checkInVehicle(id) {
   const v=STATE.vehicles?.find(x=>x.id===id);
   if(!v) return;
-  v.checkedOut=false; v.checkedOutBy=null; save(); renderVehicles(); showToast(`🚐 ${v.name} returned`);
+  v.checkedOut=false; v.checkedOutBy=null; save(); pushVehiclesToFirestore(); renderVehicles(); showToast(`🚐 ${v.name} returned`);
 }
 function addVehicle() {
   const name=document.getElementById('vehName').value.trim();
@@ -15512,14 +15513,29 @@ function addVehicle() {
   STATE.vehicles.push({id:'V'+Date.now(),name,type,plate,checkedOut:false,checkedOutBy:null});
   save(); pushVehiclesToFirestore(); renderVehicles(); document.getElementById('vehName').value=''; document.getElementById('vehPlate').value=''; showToast('✅ Vehicle added');
 }
-// Sync the fleet-vehicle list to Firestore so the equipment form (form.html) can
-// populate its "In vehicle" picker from the same list.
+// Sync the fleet vehicles to Firestore so ALL devices share both the list AND each
+// vehicle's out/in status. form.html reads name/type off each entry for its "In
+// vehicle" picker; the extra fields carry the shared checkout state.
 function pushVehiclesToFirestore(){
   try{ if(typeof firebase==='undefined'||!_firebaseReady) return;
     firebase.firestore().collection('config').doc('vehicles').set({
-      list:(STATE.vehicles||[]).map(v=>({name:v.name,type:v.type||''})), updatedAt:Date.now()
+      list:(STATE.vehicles||[]).map(v=>({id:v.id||'',name:v.name,type:v.type||'',plate:v.plate||'',checkedOut:!!v.checkedOut,checkedOutBy:v.checkedOutBy||''})), updatedAt:Date.now()
     }).catch(e=>console.warn('pushVehicles:',e));
   }catch(e){ console.warn('pushVehicles:',e); }
+}
+// Live-sync the fleet (list + out/in status) FROM Firestore so a checkout on one
+// device shows on every device.
+function subscribeVehiclesFromFirestore(){
+  try{
+    firebase.firestore().collection('config').doc('vehicles').onSnapshot(doc=>{
+      if(!doc.exists) return;
+      const list=(doc.data()||{}).list;
+      if(!Array.isArray(list)) return;
+      STATE.vehicles=list.map(v=>({id:v.id||('V'+Math.random().toString(36).slice(2)),name:v.name||'',type:v.type||'',plate:v.plate||'',checkedOut:!!v.checkedOut,checkedOutBy:v.checkedOutBy||null}));
+      save();
+      try{ renderVehicles&&renderVehicles(); }catch(e){}
+    });
+  }catch(e){ console.warn('subscribeVehicles:',e); }
 }
 
 // ──────────────────────────────────────────────
