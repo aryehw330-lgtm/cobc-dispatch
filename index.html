@@ -10986,17 +10986,9 @@ function _myTelzioShiftStatus(){
 // sign out). Tapping it still just opens Telzio — this is a status label, not a
 // remote toggle (no Telzio API connection exists to change your real status).
 function openTelzio(){
-  // Open the Telzio web app in a NEW tab (never navigate this page away — that's what
-  // left a bare "website background" when returning). Try the native app via a hidden
-  // iframe so this app stays intact underneath.
-  const webUrl='https://app.telzio.com/';
-  try{
-    const f=document.createElement('iframe');
-    f.style.display='none'; f.src='telzio://';
-    document.body.appendChild(f);
-    setTimeout(()=>{ try{ f.remove(); }catch(e){} }, 1500);
-  }catch(e){}
-  window.open(webUrl,'_blank','noopener');
+  // Open the Telzio web app directly in a new tab. (Dropped the hidden-iframe
+  // telzio:// attempt — when the app wasn't installed it left a blank Safari page.)
+  window.open('https://app.telzio.com/','_blank','noopener');
 }
 function updateTelzioBtnStatus(){
   const btn=document.getElementById('telzioSignInBtn');
