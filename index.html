@@ -12837,8 +12837,12 @@ function subscribeTelzioFromFirestore() {
         // Name (CNAM) often arrives a beat after the number via a follow-up update.
         // Force-fill the name field if it's still empty but we now have a name.
         const _nm=document.getElementById('callCaller');
-        if(_nm && !_nm.value && _lastTelzioCall.name) _nm.value=_lastTelzioCall.name;
-        _applyTelzioToForm(false);
+        const _phEl=document.getElementById('callPhone');
+        const _pinDigits=String((_phEl&&_phEl.value)||'').replace(/\D/g,'').replace(/^1/,'');
+        const _snapDigits=String(_lastTelzioCall.phone||'').replace(/\D/g,'').replace(/^1/,'');
+        // Only fill the late-arriving name if this snapshot is the SAME caller now in the form.
+        if(_nm && !_nm.value && _lastTelzioCall.name && (!_pinDigits || _pinDigits===_snapDigits)) _nm.value=_lastTelzioCall.name;
+        if(!window._i911BannerPinned) _applyTelzioToForm(false);
       }
       // Pop the incoming-call banner (skip the very first snapshot on load)
       if(_telzioFirstSnap){ _telzioFirstSnap=false; return; }
@@ -13126,6 +13130,7 @@ async function autofillFromLastCall(){
 // Auto-runs when the New Call modal OPENS — fills caller silently, no button tap needed.
 // 1) Use live webhook data instantly (Option A).  2) If none, quietly pull via Telzio (Option B).
 async function autoPullCallerOnOpen(){
+  if(window._i911BannerPinned) return; // opened from a banner — fields already pinned to that caller
   // Option A: instant live data already in memory
   if(_applyTelzioToForm(false)) return;
   // Option B: silent background pull (no toasts, no button spinner)
@@ -13219,8 +13224,19 @@ function _startCallFromBanner(cardId){
     _lastTelzioCall = call;
   }
   _dismissIncomingBanner(cardId);
-  if(typeof showModal==='function') showModal('newCallModal'); // showModal auto-fills from _lastTelzioCall
+  if(typeof showModal==='function') showModal('newCallModal');
+  // Explicit intent: this exact caller. Clear any leftover values and force-fill,
+  // and suppress the on-open auto-pull so an older /calls/log entry can't override.
+  try{
+    window._i911BannerPinned = true;
+    const nameEl=document.getElementById('callCaller');
+    const phoneEl=document.getElementById('callPhone');
+    if(nameEl) nameEl.value = (_lastTelzioCall&&_lastTelzioCall.name)||'';
+    if(phoneEl) phoneEl.value = (_lastTelzioCall&&_lastTelzioCall.phone)?_fmtPhoneInput(_lastTelzioCall.phone):'';
+    setTimeout(()=>{ window._i911BannerPinned = false; }, 4000);
+  }catch(e){}
 }
+function _fmtPhoneInput(p){ const d=String(p||'').replace(/\D/g,''); return d.length===10?('('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6)):String(p||''); }
 function pushScheduleToFirestore() {
   try {
     if(typeof firebase === 'undefined') return Promise.resolve();
