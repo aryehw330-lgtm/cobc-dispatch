@@ -4632,6 +4632,9 @@ async function requestViaI911(){
             }
           }
           else if(input){ input.value=coordStr; }
+          // Always classify by the EXACT i911 coordinates (addrAutoLookup just nulled
+          // _lastCallLatLng) so the in/out-territory badge is right even on a highway.
+          _lastCallLatLng={lat,lng};
           try{updateCallZoneBadge();}catch(e){}
         });
         filled=true;
@@ -10651,8 +10654,15 @@ function openResponderContact(callId, unitRaw){
   document.body.appendChild(el);
 }
 
+function navQuery(addr, town){
+  // If i911 appended exact GPS ("… — 📍 lat, lng"), navigate straight to the
+  // coordinates — a highway address alone drops the pin at the wrong spot.
+  const m=String(addr||'').match(/(-?\d{1,3}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);
+  if(m) return m[1]+','+m[2];
+  return (addr||'')+(town?' '+town:'')+' NJ';
+}
 function openMaps(addr) {
-  const enc=encodeURIComponent(addr);
+  const enc=encodeURIComponent(navQuery(addr));
   const wazeUrl='https://waze.com/ul?q='+enc+'&navigate=yes';
   const gmapsUrl='https://maps.google.com/?q='+enc;
   const amapsUrl='https://maps.apple.com/?daddr='+enc+'&dirflg=d';
