@@ -15310,6 +15310,7 @@ function renderVehicles() {
   const el=document.getElementById('vehicleList');
   if(!el) return;
   const vehicles=STATE.vehicles||[];
+  try{ if(!window._vehSeeded){ window._vehSeeded=true; pushVehiclesToFirestore(); } }catch(e){}
   const isAdmin=['admin'].includes(SESSION.role);
   const isDispatch=['admin','dispatch'].includes(SESSION.role);
   // Ensure the Add Vehicle form is visible for admin/dispatch whenever this tab opens
@@ -15339,7 +15340,7 @@ function deleteVehicle(id) {
   if(!v) return;
   if(!confirm(`Delete vehicle "${v.name}"? This cannot be undone.`)) return;
   STATE.vehicles=(STATE.vehicles||[]).filter(x=>x.id!==id);
-  save(); renderVehicles(); showToast(`🗑 ${v.name} deleted`);
+  save(); pushVehiclesToFirestore(); renderVehicles(); showToast(`🗑 ${v.name} deleted`);
 }
 
 function checkOutVehicle(id) {
@@ -15360,7 +15361,16 @@ function addVehicle() {
   if(!name) { showToast('Enter vehicle name'); return; }
   STATE.vehicles=STATE.vehicles||[];
   STATE.vehicles.push({id:'V'+Date.now(),name,type,plate,checkedOut:false,checkedOutBy:null});
-  save(); renderVehicles(); document.getElementById('vehName').value=''; document.getElementById('vehPlate').value=''; showToast('✅ Vehicle added');
+  save(); pushVehiclesToFirestore(); renderVehicles(); document.getElementById('vehName').value=''; document.getElementById('vehPlate').value=''; showToast('✅ Vehicle added');
+}
+// Sync the fleet-vehicle list to Firestore so the equipment form (form.html) can
+// populate its "In vehicle" picker from the same list.
+function pushVehiclesToFirestore(){
+  try{ if(typeof firebase==='undefined'||!_firebaseReady) return;
+    firebase.firestore().collection('config').doc('vehicles').set({
+      list:(STATE.vehicles||[]).map(v=>({name:v.name,type:v.type||''})), updatedAt:Date.now()
+    }).catch(e=>console.warn('pushVehicles:',e));
+  }catch(e){ console.warn('pushVehicles:',e); }
 }
 
 // ──────────────────────────────────────────────
@@ -16024,7 +16034,7 @@ function updateCoModalButtons(){
   let show='both';
   if(nonCar.length && !hasCar){
     // CNC or MOVE selected → force OUT-only (can't check IN).
-    if(ccncSel==='CNC'||ccncSel==='MOVE'){ show='out'; }
+    if(ccncSel==='CNC'||ccncSel==='MOVE'||ccncSel==='TRUCK'){ show='out'; }
     else {
       const allOutOnly=nonCar.every(it=>it.isCNC||it.status!=='out'); // CNC or IN → out
       const allInOnly=nonCar.every(it=>!it.isCNC&&it.status==='out'); // OUT & not CNC → in
