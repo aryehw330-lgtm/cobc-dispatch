@@ -2953,16 +2953,21 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <div class="input-group" id="coModalCallGroup"><label class="input-label">Call Number</label><input class="input" type="text" inputmode="numeric" id="coModalCall" placeholder="Dispatched call #"/></div>
     <div class="input-group"><label class="input-label">Status</label>
-      <select class="input" id="coModalCCNC" onchange="document.getElementById('coModalCNCGroup').style.display=this.value==='CNC'?'block':'none';updateCoModalButtons()">
+      <select class="input" id="coModalCCNC" onchange="coModalStatusChange()">
         <option value="">-- Select --</option>
         <option value="CC">CC — Correct location</option>
         <option value="CNC">CNC — Wrong location</option>
+        <option value="TRUCK">🚛 In vehicle</option>
         <option value="MOVE" id="coModalMoveOpt">🔄 Moving item between calls</option>
       </select>
     </div>
     <div id="coModalCNCGroup" style="display:none;" class="input-group">
       <label class="input-label">Where is the item?</label>
       <input class="input" id="coModalCNCNote" placeholder="e.g. Left at Teaneck Garage"/>
+    </div>
+    <div id="coModalTruckGroup" style="display:none;" class="input-group">
+      <label class="input-label">Which vehicle?</label>
+      <select class="input" id="coModalTruckSel"><option value="">-- Select vehicle --</option></select>
     </div>
     <div class="input-label" style="margin-bottom:6px;">Items Selected</div>
     <div id="coModalItemList" style="margin-bottom:10px;max-height:160px;overflow-y:auto;"></div>
@@ -4592,7 +4597,9 @@ async function requestViaI911(){
       let lat = (typeof data.latitude==='number')?data.latitude:(typeof data.lat==='number'?data.lat:(data.location&&typeof data.location.latitude==='number'?data.location.latitude:(Array.isArray(data)?data[0]:undefined)));
       let lng = (typeof data.longitude==='number')?data.longitude:(typeof data.lng==='number'?data.lng:(typeof data.lon==='number'?data.lon:(data.location&&typeof data.location.longitude==='number'?data.location.longitude:(Array.isArray(data)?data[1]:undefined))));
       if(typeof lat!=='number' || typeof lng!=='number') return;
+      if(_got) return; // ignore repeat/reconnect events — never overwrite an already-filled address
       _got=true; clearTimeout(_timeout);
+      try{ _i911Socket.disconnect(); _i911Socket=null; }catch(e){} // one-and-done: close so no later update overwrites
       const input=document.getElementById('callAddress');
       _lastCallLatLng={lat,lng};
       _setI911Btn('📍 Location being sent…', true);
@@ -9276,7 +9283,7 @@ function openCallDetail(id) {
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
   if(isDispatch && (call.status==='open'||call.status==='active')) html+=`<button class="btn-sm" style="background:linear-gradient(135deg,#047857,#059669);color:#fff;font-weight:700;" onclick="sendCallToInterstate('${id}')">🌐 Send to Interstate</button>`;
-  if(isDispatch && typeof currentTab!=='undefined' && currentTab==='dispatch' && call.status!=='draft') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
+  if(isDispatch && call.status!=='draft') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled'){
     const _myResp=(call.responders||[]).find(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
     if(_myResp){
@@ -9302,6 +9309,7 @@ function openCallDetail(id) {
     if(call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-danger" onclick="cancelCall('${id}')">🚫 Cancel Call</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
     html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">Share call info</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="window.open('https://www.i911.com/','_blank','noopener')">🌐 Open i911 site</button>`;
     if(call.status!=='draft') html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
 
     // Vehicle assignment (not for drafts)
@@ -15945,6 +15953,10 @@ function openCheckout(row, defaultAction) {
   document.getElementById('coModalCCNC').value='';
   document.getElementById('coModalCNCNote').value='';
   document.getElementById('coModalCNCGroup').style.display='none';
+  var _tg=document.getElementById('coModalTruckGroup'); if(_tg) _tg.style.display='none';
+  // Populate the truck/vehicle picker from fleet vehicles.
+  var _ts=document.getElementById('coModalTruckSel');
+  if(_ts){ _ts.innerHTML='<option value="">-- Select vehicle --</option>'+(STATE.vehicles||[]).map(function(v){return '<option value="'+String(v.name).replace(/"/g,'&quot;')+'">'+v.name+'</option>';}).join(''); }
   document.getElementById('coModalSearch').value='';
   document.getElementById('coModalSearchResults').style.display='none';
   // Logged-in badge
@@ -15985,6 +15997,12 @@ function renderCOModalList() {
 // Show only the valid action button based on item state (avoids tap-then-blocked confusion).
 // CNC or currently-IN items → OUT only. Currently-OUT items → IN only. COBC 4 (car) or a
 // mixed selection → show both. Mirrors the QR form behavior.
+function coModalStatusChange(){
+  const v=(document.getElementById('coModalCCNC')||{}).value;
+  const cg=document.getElementById('coModalCNCGroup'); if(cg) cg.style.display=(v==='CNC')?'block':'none';
+  const tg=document.getElementById('coModalTruckGroup'); if(tg) tg.style.display=(v==='TRUCK')?'block':'none';
+  updateCoModalButtons();
+}
 function updateCoModalButtons(){
   const bIn=document.getElementById('coModalBtnIn'), bOut=document.getElementById('coModalBtnOut'), row=document.getElementById('coModalBtnRow');
   if(!bIn||!bOut) return;
@@ -16033,11 +16051,20 @@ function renderCOSearch() {
 async function submitCO(action){
   const call=(document.getElementById('coModalCall')?.value||'').trim();
   let ccnc=(document.getElementById('coModalCCNC')?.value||'CC');
+  // TRUCK = "items in truck": behaves like CNC (wrong location, in a member's
+  // possession — can be checked OUT but not IN) and writes through the SAME columns,
+  // with the note recording which truck/vehicle it's on.
+  let cncNote=(document.getElementById('coModalCNCNote')?.value||'').trim();
+  if(ccnc==='TRUCK'){
+    const truck=(document.getElementById('coModalTruckSel')?.value||'').trim();
+    if(action==='OUT' && !truck){ showToast('Select which vehicle the items are on'); return; }
+    cncNote='In vehicle: '+truck;
+    ccnc='CNC';
+  }
   // MOVE = "bringing equipment from one call to another": allow OUT even when already OUT,
   // and store as a normal CC checkout (item stays out, just gets the new call #).
   const isMove = (ccnc==='MOVE');
   if(isMove) ccnc='CC';
-  const cncNote=(document.getElementById('coModalCNCNote')?.value||'').trim();
   if(!coModalItems.length){showToast('No items selected');return;}
   if(isMove && action!=='OUT'){ showToast('"Bringing from one call to another" is a check-OUT — tap Check OUT.'); return; }
 
