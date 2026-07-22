@@ -2543,7 +2543,6 @@ textarea.input{min-height:80px;resize:vertical;}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
       <button type="button" onclick="pasteMapsLink()" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📋 Paste Maps link</button>
       <button type="button" id="i911Btn" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
-      <button type="button" id="i911ResendBtn" onclick="requestViaI911()" style="display:none;grid-column:1/3;padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;align-items:center;justify-content:center;gap:7px;font-family:inherit;">🔁 Resend i911 text</button>
     </div>
     <!-- Town is auto-detected from the address; hidden from the UI but still stored for color-coding, maps & ETA -->
     <div style="display:none;">
@@ -4571,7 +4570,6 @@ async function requestViaI911(){
   if(phone.length<10){ showToast('Enter the caller phone number first'); return; }
   const e164='+'+(phone.length===10?'1'+phone:phone);
   try{ if(_i911Socket){ _i911Socket.disconnect(); _i911Socket=null; } }catch(e){}
-  try{ const rb=document.getElementById('i911ResendBtn'); if(rb) rb.style.display='flex'; }catch(e){}
   _setI911Btn('⏳ Requesting…', true);
   try{
     const r=await fetch(I911_PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phonenumber:e164})});
@@ -4597,7 +4595,7 @@ async function requestViaI911(){
       _got=true; clearTimeout(_timeout);
       const input=document.getElementById('callAddress');
       _lastCallLatLng={lat,lng};
-      _setI911Btn('✓ Location received', true);
+      _setI911Btn('📍 Location being sent…', true);
       showToast('📍 Caller location received');
       // Try reverse-geocode to a street address; fall back to coordinates.
       let filled=false;
