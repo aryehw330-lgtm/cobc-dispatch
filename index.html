@@ -16047,9 +16047,15 @@ function updateCoModalButtons(){
     // CNC or MOVE selected → force OUT-only (can't check IN).
     if(ccncSel==='CNC'||ccncSel==='MOVE'||ccncSel==='TRUCK'){ show='out'; }
     else {
-      const allOutOnly=nonCar.every(it=>it.isCNC||it.status!=='out'); // CNC or IN → out
-      const allInOnly=nonCar.every(it=>!it.isCNC&&it.status==='out'); // OUT & not CNC → in
-      if(allOutOnly) show='out'; else if(allInOnly) show='in';
+      // Item currently OUT & flagged CNC/in-vehicle, being returned as CC:
+      // both are valid — IN (back to home) or OUT (on to the correct call #).
+      const anyCncOut=nonCar.some(it=>it.isCNC&&it.status==='out');
+      if(anyCncOut){ show='both'; }
+      else {
+        const allOutOnly=nonCar.every(it=>it.status!=='out'); // all IN → out
+        const allInOnly=nonCar.every(it=>it.status==='out'); // all OUT (not CNC) → in
+        if(allOutOnly) show='out'; else if(allInOnly) show='in';
+      }
     }
   }
   bIn.style.display  = show==='out' ? 'none' : 'block';
