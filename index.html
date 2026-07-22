@@ -2955,8 +2955,8 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="input-group"><label class="input-label">Status</label>
       <select class="input" id="coModalCCNC" onchange="coModalStatusChange()">
         <option value="">-- Select --</option>
-        <option value="CC">CC — Correct location</option>
-        <option value="CNC">CNC — Wrong location</option>
+        <option value="CC">CC / Home Location</option>
+        <option value="CNC">CNC / Wrong Location</option>
         <option value="TRUCK">🚛 In vehicle</option>
         <option value="MOVE" id="coModalMoveOpt">🔄 Moving item between calls</option>
       </select>
@@ -15626,7 +15626,7 @@ function renderEquipmentDashboard() {
           <div style="font-weight:700;font-size:13px;line-height:1.25;">${e.name}</div>
           <div style="font-size:11px;margin-top:2px;line-height:1.35;"><b style="font-weight:800;">${e.location}</b>${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}</div>
           ${e.equipStatus&&e.equipStatus!=='OK'?`<div style="font-size:11px;font-weight:700;margin-top:3px;line-height:1.3;">${e.equipStatus}${e.equipNote?' — '+e.equipNote.replace(/^[A-Z ]+\s*-\s*/i,''):''}</div>`:''}
-          ${e.isCNC?`<div style="font-size:11px;color:var(--amber);margin-top:2px;line-height:1.3;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+          ${e.isCNC?`<div style="font-size:11px;color:var(--amber);margin-top:2px;line-height:1.3;">CNC — wrong location — ${(e.cncNote||e.ccnc||'').replace(/^in vehicle:\s*/i,'in vehicle ')}</div>`:''}
           ${e.lastUpdated?`<div style="font-size:10px;font-weight:600;opacity:.7;margin-top:4px;white-space:nowrap;">🕒 ${fmtEqTime(e.lastUpdated)}</div>`:''}
         </div>`;
       }).join('');
@@ -15673,12 +15673,12 @@ function renderEquipmentDashboard() {
         return `
         <div style="background:linear-gradient(160deg,rgba(212,169,58,.16),rgba(18,16,12,.62));-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border:1px solid rgba(230,196,99,.34);border-top:3px solid var(--gold,#d4a93a);border-radius:12px;padding:10px 11px;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer;min-width:0;" onclick="openCheckout(${e.row||0})">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
-            <span class="badge badge-red" style="font-size:10px;">OUT</span>
+            <div style="display:flex;align-items:center;gap:4px;"><span class="badge badge-red" style="font-size:10px;">OUT</span>${e.isCNC?`<span class="badge badge-amber" style="font-size:10px;">${/^in vehicle/i.test(e.cncNote||'')?'IN VEHICLE '+(e.cncNote||'').replace(/^in vehicle:\s*/i,''):'CNC'}</span>`:''}</div>
             <span style="font-size:10px;color:rgba(255,255,255,.5);">${fmtEqTime(e.lastUpdated)}</span>
           </div>
           <div style="font-size:13.5px;font-weight:700;color:#fff;margin-top:6px;line-height:1.25;">${e.name}</div>
           <div style="font-size:11px;color:rgba(255,255,255,.62);margin-top:2px;line-height:1.35;">${_meta}</div>
-          ${e.isCNC?`<div style="font-size:11px;color:var(--gold-light,#e6c463);margin-top:3px;line-height:1.3;">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+          ${e.isCNC?`<div style="font-size:11px;color:var(--gold-light,#e6c463);margin-top:3px;line-height:1.3;">CNC — wrong location — ${(e.cncNote||e.ccnc||'').replace(/^in vehicle:\s*/i,'in vehicle ')}</div>`:''}
           ${_overdueBanner}
         </div>`;
       }).join('');
@@ -15805,7 +15805,8 @@ function renderInventory() {
     const isOut=e.status==='out';
     const statusBadge=isOut?'<span class="badge badge-red">OUT</span>':'<span class="badge badge-green">IN</span>';
     const equipBadge=e.equipStatus&&e.equipStatus!=='OK'?`<span class="badge ${e.equipStatus==='Missing'?'badge-red':e.equipStatus==='Damaged'?'badge-amber':e.equipStatus==='Need More'?'badge-blue':'badge-blue'}" style="font-size:10px;">${e.equipStatus}</span>`:'';
-    const cncBadge=e.isCNC?'<span class="badge badge-amber" style="font-size:10px;">CNC</span>':'';
+    const _inVeh=/^in vehicle/i.test(e.cncNote||'');
+    const cncBadge=e.isCNC?`<span class="badge badge-amber" style="font-size:10px;">${_inVeh?'IN VEHICLE':'CNC'}</span>`:'';
     // Card background tint by status
     const _bg = e.equipStatus==='Missing'   ? 'background:linear-gradient(135deg,rgba(220,38,38,.22),rgba(10,0,0,.88));border-left:4px solid rgba(239,68,68,.85);'
       : e.equipStatus==='Damaged'            ? 'background:linear-gradient(135deg,rgba(217,119,6,.22),rgba(10,5,0,.88));border-left:4px solid rgba(251,191,36,.85);'
@@ -15821,7 +15822,7 @@ function renderInventory() {
         <div style="display:flex;gap:4px;flex-shrink:0;">${statusBadge}${equipBadge}${cncBadge}</div>
       </div>
       <div style="font-size:12px;color:var(--text3);"><b style="color:#fff;font-weight:800;">${e.location}</b>${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
-      ${e.isCNC?`<div style="font-size:12px;color:var(--amber);background:#fff3e0;border-radius:6px;padding:4px 8px;margin-top:6px;">${e.cncNote||e.ccnc}</div>`:''}
+      ${e.isCNC?`<div style="font-size:12px;color:var(--amber);background:#fff3e0;border-radius:6px;padding:4px 8px;margin-top:6px;">CNC — wrong location — ${(e.cncNote||e.ccnc||'').replace(/^in vehicle:\s*/i,'in vehicle ')}</div>`:''}
       ${canEdit?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
         <button style="padding:11px;background:var(--navy);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'IN')">Check IN</button>
         <button style="padding:11px;background:var(--red);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'OUT')">Check OUT</button>
@@ -16031,6 +16032,10 @@ function updateCoModalButtons(){
     ccncSelEl.appendChild(moveOpt);
   }
   const ccncSel=(document.getElementById('coModalCCNC')||{}).value;
+  // CC label depends on direction: an item currently OUT is being returned home →
+  // "Home Location"; an item currently IN is being taken to a call → "Brought to correct call number".
+  const _ccOpt=ccncSelEl&&ccncSelEl.querySelector('option[value="CC"]');
+  if(_ccOpt){ const allOut=nonCar.length&&nonCar.every(it=>it.status==='out'); _ccOpt.textContent = allOut ? 'CC / Home Location' : 'CC / Brought to correct call number'; }
   let show='both';
   if(nonCar.length && !hasCar){
     // CNC or MOVE selected → force OUT-only (can't check IN).
@@ -16304,7 +16309,7 @@ function renderChkItems() {
     <div class="alert ${['Missing','Damaged'].includes(e.equipStatus)?'alert-red':'alert-amber'}" style="margin-bottom:6px;">
       <div style="flex:1;"><div style="font-weight:700;font-size:13px;">${e.name}</div>
       <div style="font-size:12px;">${e.equipStatus||''}${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}</div>
-      ${e.isCNC?`<div style="font-size:11px;color:var(--amber);">CNC: ${e.cncNote||e.ccnc}</div>`:''}
+      ${e.isCNC?`<div style="font-size:11px;color:var(--amber);">CNC — wrong location — ${(e.cncNote||e.ccnc||'').replace(/^in vehicle:\s*/i,'in vehicle ')}</div>`:''}
       ${e.equipNote?`<div style="font-size:11px;color:var(--red);font-weight:600;">Note: ${e.equipNote.replace(/^[A-Z ]+\s*-\s*/i,'')}</div>`:''}
       </div>
     </div>`).join('');
