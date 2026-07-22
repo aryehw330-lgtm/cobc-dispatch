@@ -2432,10 +2432,10 @@ textarea.input{min-height:80px;resize:vertical;}
         <option value="">More…</option>
         <option value="needs_fan">💨 Needs Fans</option>
         <option value="generator">🔌 Generator</option>
-        <option value="transport">🚗 Transport</option>
+        <option value="transport">📦 Transport</option>
         <option value="welfare">🏥 Welfare Check</option>
         <option value="stuck_snow">❄️ Stuck in Snow/Ice</option>
-        <option value="vehicle_stalled">🚗 Vehicle Stalled</option>
+        <option value="vehicle_stalled">⚙️ Vehicle Stalled</option>
         <option value="vehicle_pullout">🚙 Vehicle Pull Out</option>
         <option value="bumper_hanging">🚗 Bumper Hanging</option>
         <option value="plastic_hanging">🚗 Plastic Hanging</option>
@@ -7797,7 +7797,7 @@ function selectCallType(type, btn) {
   document.getElementById('callType').value = type;
   document.querySelectorAll('.qtype-btn:not(.ns-btn)').forEach(b=>b.classList.remove('active','urgent-active'));
   if(btn) btn.classList.add('active');
-  const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas','vehicle_stalled','vehicle_pullout','stuck_snow','transport','bumper_hanging','plastic_hanging'];
+  const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas','vehicle_stalled','vehicle_pullout','stuck_snow','bumper_hanging','plastic_hanging'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
   // Flood → show equipment-needed multi-select
@@ -10986,9 +10986,20 @@ function _myTelzioShiftStatus(){
 // sign out). Tapping it still just opens Telzio — this is a status label, not a
 // remote toggle (no Telzio API connection exists to change your real status).
 function openTelzio(){
-  // Open the Telzio web app directly in a new tab. (Dropped the hidden-iframe
-  // telzio:// attempt — when the app wasn't installed it left a blank Safari page.)
-  window.open('https://app.telzio.com/','_blank','noopener');
+  // Directly invoke the app scheme (this is what actually launches the native app on
+  // iOS — an iframe won't). If the app opens, the page goes hidden and we skip the web
+  // fallback, so there's no blank Safari page.
+  let switched=false;
+  const onHide=()=>{ switched=true; };
+  document.addEventListener('visibilitychange', onHide, {once:true});
+  window.addEventListener('pagehide', onHide, {once:true});
+  const t=setTimeout(()=>{
+    document.removeEventListener('visibilitychange', onHide);
+    if(!switched && document.visibilityState==='visible'){
+      window.open('https://telzio.com/login','_blank','noopener');
+    }
+  }, 1200);
+  try{ window.location.href='telzio://'; }catch(e){ clearTimeout(t); window.open('https://telzio.com/login','_blank','noopener'); }
 }
 function updateTelzioBtnStatus(){
   const btn=document.getElementById('telzioSignInBtn');
