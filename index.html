@@ -4614,11 +4614,20 @@ async function requestViaI911(){
           if(st==='OK'&&res&&res[0]){
             if(input){
               const r=res[0];
-              const hasStreetNum=(r.address_components||[]).some(c=>c.types.includes('street_number'));
+              const comps=r.address_components||[];
+              const hasStreetNum=comps.some(c=>c.types.includes('street_number'));
+              const types=r.types||[];
+              const locType=(r.geometry&&r.geometry.location_type)||'';
+              // A precise residential/business hit comes back ROOFTOP with a street number.
+              // A highway/road point comes back as a 'route' (or non-address type) and/or a
+              // non-rooftop location_type — in that case the street name alone is useless to
+              // responders, so append the exact GPS coordinates i911 gave us.
+              const isRoadOnly = !hasStreetNum
+                || types.includes('route')
+                || (!types.includes('street_address') && !types.includes('premise') && !types.includes('subpremise'))
+                || (locType && locType!=='ROOFTOP' && locType!=='RANGE_INTERPOLATED');
               const isHwy=/\b(I-?\d+|US-?\d+|Route\s|Rte\.?\s|Hwy|Highway|Interstate|Turnpike|Pkwy|Parkway|Expressway|Expy|Thruway|Freeway)\b/i.test(r.formatted_address);
-              // On a highway (or any spot with no street number) the address alone is
-              // useless for responders — append the exact GPS coordinates too.
-              input.value = (isHwy || !hasStreetNum) ? (r.formatted_address+' — 📍 '+coordStr) : r.formatted_address;
+              input.value = (isHwy || isRoadOnly) ? (r.formatted_address+' — 📍 '+coordStr) : r.formatted_address;
               addrAutoLookup(input,'callTown','callTownText');
             }
           }
