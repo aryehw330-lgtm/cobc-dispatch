@@ -4603,8 +4603,19 @@ async function requestViaI911(){
         await loadGoogleMapsAPI();
         const geo=new google.maps.Geocoder();
         geo.geocode({location:{lat,lng}},(res,st)=>{
-          if(st==='OK'&&res&&res[0]){ if(input){ input.value=res[0].formatted_address; addrAutoLookup(input,'callTown','callTownText'); } }
-          else if(input){ input.value=lat.toFixed(6)+', '+lng.toFixed(6); }
+          const coordStr=lat.toFixed(6)+', '+lng.toFixed(6);
+          if(st==='OK'&&res&&res[0]){
+            if(input){
+              const r=res[0];
+              const hasStreetNum=(r.address_components||[]).some(c=>c.types.includes('street_number'));
+              const isHwy=/\b(I-?\d+|US-?\d+|Route\s|Rte\.?\s|Hwy|Highway|Interstate|Turnpike|Pkwy|Parkway|Expressway|Expy|Thruway|Freeway)\b/i.test(r.formatted_address);
+              // On a highway (or any spot with no street number) the address alone is
+              // useless for responders — append the exact GPS coordinates too.
+              input.value = (isHwy || !hasStreetNum) ? (r.formatted_address+' — 📍 '+coordStr) : r.formatted_address;
+              addrAutoLookup(input,'callTown','callTownText');
+            }
+          }
+          else if(input){ input.value=coordStr; }
           try{updateCallZoneBadge();}catch(e){}
         });
         filled=true;
