@@ -18028,12 +18028,14 @@ function submitCarBooking() {
   // Minute-based comparison so an 11PM→12AM (00:00) shift is valid (midnight = 1440)
   var _toMin=function(hhmm,isEnd){ var p=(hhmm||'').split(':'); var m=parseInt(p[0],10)*60+parseInt(p[1],10); if(isEnd&&m===0)m=1440; return m; };
   var startMin=_toMin(start24,false), endMin=_toMin(end24,true);
-  if (endMin <= startMin) { showToast('End time must be after start time'); return; }
+  if (endMin === startMin) { showToast('End time must be after start time'); return; }
+  if (endMin < startMin) endMin += 1440; // overnight shift — ends the next day
   var conflict = carSchedule.find(function(b) {
     if (b.date !== carSelectedDate) return false;
     if (_vehOfBooking(b) !== _selectedVehicle) return false;
     if (b.status==='cancelled'||b.status==='done') return false;
     var bS = _toMin(parse12to24C(b.startTime),false), bE = _toMin(parse12to24C(b.endTime),true);
+    if (bE <= bS) bE += 1440; // existing overnight booking
     return startMin < bE && endMin > bS;
   });
   if (conflict) { showToast('⚠️ Overlaps BC-'+conflict.memberId+'\'s shift ('+conflict.startTime+' – '+conflict.endTime+')'); return; }
