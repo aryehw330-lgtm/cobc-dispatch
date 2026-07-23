@@ -10924,9 +10924,11 @@ function _appHeartbeatRun(){
   try { _drainCallNumQueue(); } catch(e){}
   try { _maybeDailyBackup(); } catch(e){}
   try { _updateOfflineBanner(); } catch(e){}
-  // Every other tick (~60s) refresh the car schedule so the shift banner
-  // reflects bookings/sign-outs from other devices.
-  if (_appTick % 2 === 0) { try { loadCarSchedule(); } catch(e){} }
+  // Refresh the car schedule so the shift banner and pending-approval requests
+  // reflect other devices. Poll every tick (~30s) while the Car tab is open so an
+  // admin sees a new request's Approve button quickly; every other tick otherwise.
+  var _carTabOpen = (function(){ var t=document.getElementById('page-equipment'); var c=document.getElementById('car-live-status'); return t && !t.classList.contains('hidden') && c && c.offsetParent!==null; })();
+  if (_carTabOpen || _appTick % 2 === 0) { try { loadCarSchedule(); } catch(e){} }
 }
 function startAppHeartbeat(){
   if (_appHeartbeatTimer) return;
@@ -13514,8 +13516,57 @@ function subscribeEquipmentHistoryFromFirestore() {
       STATE.equipmentHistory = rows;
       try { save&&save(); } catch(e){}
       try { if(document.getElementById('eqHistList') && document.querySelector('#page-equipment:not(.hidden)')) renderEqActivityHistory(); } catch(e){}
+      try { _notifyEquipEvents(rows); } catch(e){}
     }, err => console.warn('equipmentHistory snapshot:', err));
   } catch(e) { console.warn('subscribeEquipmentHistory failed:', e); }
+}
+// Notify on-duty dispatchers + admins when equipment is checked IN or OUT.
+// Only the current user (if they're a dispatcher/admin) fires the push, and only for
+// NEW events after this device's baseline — so we don't re-notify on initial load and
+// don't multiply the push across every device. Server-side de-dupe handles overlap.
+var _equipNotifyBaseline = null;
+function _notifyEquipEvents(rows){
+  if(!Array.isArray(rows) || !rows.length) return;
+  const role = SESSION && SESSION.role;
+  const amNotifier = role==='admin' || role==='dispatch';
+  // Establish baseline on first snapshot — never notify for pre-existing history.
+  if(_equipNotifyBaseline === null){
+    _equipNotifyBaseline = rows.reduce((mx,r)=>Math.max(mx, Number(r.at)||0), 0);
+    return;
+  }
+  const fresh = rows.filter(r => (Number(r.at)||0) > _equipNotifyBaseline)
+                    .sort((a,b)=>(Number(a.at)||0)-(Number(b.at)||0));
+  if(!fresh.length) return;
+  _equipNotifyBaseline = Math.max(_equipNotifyBaseline, ...fresh.map(r=>Number(r.at)||0));
+  if(!amNotifier) return; // only dispatch/admin devices send the push
+  fresh.forEach(r=>{
+    const act = String(r.action||'').toUpperCase();
+    if(act!=='IN' && act!=='OUT') return;
+    const item = r.item || 'Item';
+    const by = r.byUnit ? ('BC-'+String(r.byUnit).replace(/^BC-?/i,'')) : 'someone';
+    const callTxt = r.callNum ? (' · Call #'+r.callNum) : '';
+    const verb = act==='OUT' ? 'checked OUT' : 'checked IN';
+    const emoji = act==='OUT' ? '📤' : '📥';
+    // status carries the CC/CNC/vehicle/move detail (colH), e.g. "CC", "CNC - Teaneck",
+    // "In Vehicle COBC Truck 2", "Moving between calls". Surface it so dispatch sees context.
+    let detail = String(r.status||'').trim();
+    let detailTxt = '';
+    if(detail && detail.toUpperCase()!=='CC'){
+      if(/^cnc/i.test(detail)) detailTxt = ' · ⚠️ CNC'+(detail.replace(/^cnc\s*-?\s*/i,'')?(' ('+detail.replace(/^cnc\s*-?\s*/i,'')+')'):'');
+      else if(/vehicle|truck/i.test(detail)) detailTxt = ' · 🚚 '+detail;
+      else if(/mov/i.test(detail)) detailTxt = ' · ↔️ Moving between calls';
+      else detailTxt = ' · '+detail;
+    }
+    const title = `${emoji} ${item} ${verb}`;
+    const body = `${item} ${verb} by ${by}${callTxt}${detailTxt}`;
+    const _duty=_onDutyDispatchUnits();
+    if(_duty.length){
+      [..._duty, ..._adminUnits()].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title,body,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
+    } else {
+      setTimeout(()=>{ try{ sendPush({target:'dispatchers',title,body,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0);
+      _adminUnits().forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title,body,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
+    }
+  });
 }
 function subscribeCobc4HistoryFromFirestore() {
   try {
@@ -17917,7 +17968,10 @@ function closeCarBooking() {
 }
 
 function renderCarDay(dateStr) {
-  var shifts = carSchedule.filter(function(b){ return b.date===dateStr && b.status!=='cancelled' && _vehOfBooking(b)===_selectedVehicle; });
+  // Show ALL vehicles' shifts for the day (each labeled) — never filter by the picker,
+  // so a member's shift can never "disappear" just because another vehicle is selected.
+  var shifts = carSchedule.filter(function(b){ return b.date===dateStr && b.status!=='cancelled'; });
+  var _multiVeh = _carVehicles().length > 1;
   var myId   = SESSION && SESSION.unit ? String(SESSION.unit) : null;
   var isAdm  = SESSION && SESSION.role==='admin';
   var el     = document.getElementById('car-day-shifts');
@@ -17927,11 +17981,11 @@ function renderCarDay(dateStr) {
     el.innerHTML = '<div style="color:rgba(255,255,255,.6);font-size:13px;padding:6px 0 10px">No shifts booked for this day yet.</div>';
   } else {
     el.innerHTML = shifts.map(function(b) {
+      var _bVeh = _vehOfBooking(b);
       var isMine = myId && parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10)===parseInt(myId,10);
-      // Is COBC 4 actually signed out right now? An "active" booking whose car is still
-      // IN means the person tapped Start Shift but never signed the car out — don't show
-      // it as a live/out shift.
-      var _carItemNow = (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
+      // Is THIS booking's vehicle actually signed out right now? An "active" booking whose
+      // car is still IN means the person tapped Start Shift but never signed the car out.
+      var _carItemNow = _carItemForVehicle(_bVeh) || (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
       var _carOutNow  = _carItemNow && String(_carItemNow.status||'').toLowerCase()==='out';
       var activeButCarIn = (b.status==='active' && !_carOutNow);
       var cls = 'car-shift-card'+(b.status==='pending'?' pending':'')+(isMine?' mine':'')+((b.status==='active'&&_carOutNow)?' active-shift':'')+(b.status==='done'?' done-shift':'');
@@ -18000,6 +18054,7 @@ function renderCarDay(dateStr) {
       return '<div class="'+cls+'">'
         +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
         +'<div><div style="font-size:13px;font-weight:700;color:#1a1a1a;">BC-'+String(b.memberId||'').replace(/^BC-?/i,'')+' '+( b.memberName||'')+(isMine?' <span style="font-size:10px;color:var(--navy);background:#dbeafe;padding:1px 6px;border-radius:8px">You</span>':'')+'</div>'
+        +(_multiVeh?'<div style="font-size:11px;font-weight:800;color:var(--navy);margin-top:1px;">🚗 '+_bVeh+'</div>':'')
         +dayBookedByLine
         +'<div style="font-size:12px;color:#555;margin-top:3px;">🕐 '+b.startTime+' – '+b.endTime+'</div>'
         +(function(){
@@ -18327,15 +18382,24 @@ function markCarShiftNoShow(bookingId) {
   showToast('Logged as not taken out');
 }
 function approveCarShift(bookingId) {
+  // Optimistic: flip status + re-render immediately so the tap feels instant.
+  var b = carSchedule.find(function(x){ return x.id===bookingId; });
+  var prev = b ? b.status : null;
+  if (b) b.status='approved';
+  try { renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); } catch(e){}
+  showToast('✅ Shift approved');
   postJ('approveCarShift', {id:bookingId})
     .then(function(d) {
-      if (d.success) {
-        var b = carSchedule.find(function(x){ return x.id===bookingId; });
-        if (b) b.status='approved';
-        renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate);
-        showToast('✅ Shift approved');
-      } else { showToast('Error: '+(d.error||'Unknown')); }
-    }).catch(function(){ showToast('Network error'); });
+      if (!d.success) {
+        if (b) b.status = prev; // revert on failure
+        try { renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); } catch(e){}
+        showToast('Error: '+(d.error||'Unknown'));
+      }
+    }).catch(function(){
+      if (b) b.status = prev;
+      try { renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); } catch(e){}
+      showToast('Network error — approval not saved');
+    });
 }
 
 function navigateToCarCheckout(direction, vehicle) {
