@@ -16751,7 +16751,9 @@ async function _maybeDailyBackup(){
   }catch(e){ console.warn('[backup] daily snapshot failed:', e); }
 }
 async function backupNowToCloud(){
-  if((SESSION.role||'')!=='admin' && (SESSION.role||'')!=='dispatch'){ showToast('Admin only'); return; }
+  const _role=(SESSION&&SESSION.role)||'';
+  if(_role!=='admin' && _role!=='dispatch'){ showToast('Admin only'); return; }
+  if(typeof firebase==='undefined' || !_firebaseReady){ showToast('⚠️ Not connected yet — try again in a moment'); return; }
   showToast('☁️ Backing up…');
   try{
     const key=_todayKey()+'_'+new Date().toTimeString().slice(0,5).replace(':','');
@@ -16774,7 +16776,7 @@ function downloadBackupFile(){
   }catch(e){ showToast('Download failed'); console.warn(e); }
 }
 function openRestorePicker(){
-  if((SESSION.role||'')!=='admin'){ showToast('Admin only — restore is a full data overwrite'); return; }
+  if(((SESSION&&SESSION.role)||'')!=='admin'){ showToast('Admin only — restore is a full data overwrite'); return; }
   const inp=document.getElementById('restoreFileInput'); if(inp){ inp.value=''; inp.click(); }
 }
 function restoreFromFile(ev){
@@ -16896,7 +16898,7 @@ const _AUDIT_LABELS = {
 async function renderAuditLog(){
   const list = document.getElementById('auditLogList');
   if(!list) return;
-  list.innerHTML = list.innerHTML || '<div style="font-size:12px;color:var(--text3);">Loading…</div>';
+  list.innerHTML = list.innerHTML || '<div style="font-size:12px;color:rgba(255,255,255,.55);">Loading…</div>';
   // Pull the SHARED log from Firestore (all devices); fall back to local if offline.
   let events = [];
   try{
@@ -16913,18 +16915,18 @@ async function renderAuditLog(){
     });
   }
   const shown = events.slice(0,200);
-  if(!shown.length){ list.innerHTML='<div style="font-size:12px;color:var(--text3);">No matching activity.</div>'; return; }
+  if(!shown.length){ list.innerHTML='<div style="font-size:12px;color:rgba(255,255,255,.55);padding:6px;">No matching activity.</div>'; return; }
   list.innerHTML = shown.map(e=>{
     const when = e.ts ? new Date(e.ts).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
     const who = e.byName ? (e.byName) : (e.by ? ('BC-'+String(e.by).replace(/^BC-?/i,'')) : 'system');
     const lbl = _AUDIT_LABELS[e.action] || e.action || '—';
     const numTag = e.callNum ? ('#'+e.callNum+' · ') : '';
     const detail = [numTag+(e.type?cleanLabel(CALL_TYPE_LABELS[e.type]||e.type):''), e.town||''].filter(Boolean).join(' · ');
-    return `<div style="display:flex;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border2);">
-      <div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--text);">${lbl}</div>
-      <div style="font-size:11px;color:var(--text2);">${detail||'—'}</div>
-      <div style="font-size:11px;color:var(--text3);">by ${who}</div></div>
-      <div style="font-size:10px;color:var(--text3);white-space:nowrap;flex-shrink:0;">${when}</div></div>`;
+    return `<div style="display:flex;gap:10px;padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.12);">
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;color:#fff;">${lbl}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.8);margin-top:1px;">${detail||'—'}</div>
+      <div style="font-size:11px;color:var(--gold-light,#e6c463);margin-top:1px;">by ${who}</div></div>
+      <div style="font-size:10px;color:rgba(255,255,255,.55);white-space:nowrap;flex-shrink:0;">${when}</div></div>`;
   }).join('');
   const cnt=document.getElementById('auditCount'); if(cnt) cnt.textContent = events.length+' event'+(events.length===1?'':'s')+(q?' (filtered)':'');
 }
