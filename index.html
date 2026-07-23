@@ -1649,16 +1649,6 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
         <!-- Telzio Phone Number History (admin/dispatch only; read-only view of telzioCalls) -->
         <!-- (Telzio Phone Number History moved to its own tab: #more-telzio) -->
-        <!-- Reset all calls (admin-only, testing) -->
-        <div class="card" id="settingsResetCard" style="margin-bottom:10px;display:none;border:1.5px solid #fca5a5;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-            <div style="flex:1;min-width:0;">
-              <div class="card-title">🗑️ Reset All Calls</div>
-              <div class="card-desc">Wipes every call from the shared database — see the clean day-one state. Testing mode: reusable.</div>
-            </div>
-            <button class="btn-sm btn-ghost" onclick="resetAllCallsQuick()" style="flex-shrink:0;color:var(--red);font-weight:800;">Reset</button>
-          </div>
-        </div>
 
         <!-- Text Size -->
         <div class="card" style="margin-bottom:10px;">
@@ -1731,6 +1721,16 @@ textarea.input{min-height:80px;resize:vertical;}
             <button style="width:100%;padding:12px;background:transparent;color:rgba(255,255,255,.85);border:1.5px dashed rgba(255,255,255,.3);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;" onclick="openRestorePicker()">⬆️ Restore from Backup…</button>
             <input type="file" id="restoreFileInput" accept="application/json,.json" style="display:none;" onchange="restoreFromFile(event)"/>
             <div id="cloudBackupList" style="margin-top:12px;"></div>
+          </div>
+          <!-- RESET ALL CALLS (admin-only, testing) -->
+          <div id="settingsResetCard" style="background:rgba(220,80,80,.1);border:1px solid rgba(248,113,113,.4);border-radius:14px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:15px;font-weight:800;color:#fca5a5;">🗑️ Reset All Calls</div>
+                <div style="font-size:12px;color:rgba(255,255,255,.6);line-height:1.5;margin-top:2px;">Wipes every call from the shared database — see the clean day-one state. Testing mode: reusable.</div>
+              </div>
+              <button style="flex-shrink:0;padding:11px 18px;background:rgba(220,38,38,.2);color:#fca5a5;border:1px solid rgba(248,113,113,.5);border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;" onclick="resetAllCallsQuick()">Reset</button>
+            </div>
           </div>
         </div>
       </div>
@@ -12059,8 +12059,8 @@ function renderSettingsTab() {
   const cl = document.getElementById('settings-changelog');
   if(cl && typeof APP_CHANGELOG!=='undefined'){
     cl.innerHTML = APP_CHANGELOG.slice(0,3).map(e=>
-      `<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:800;color:var(--text2);margin-bottom:4px;">${e.date}</div>`
-      + `<ul style="margin:0;padding-left:18px;">` + e.notes.map(n=>`<li style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:3px;">${n}</li>`).join('') + `</ul></div>`
+      `<div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:800;color:var(--gold-light,#e6c463);margin-bottom:4px;">${e.date}</div>`
+      + `<ul style="margin:0;padding-left:18px;">` + e.notes.map(n=>`<li style="font-size:12.5px;color:rgba(255,255,255,.82);line-height:1.55;margin-bottom:4px;">${n}</li>`).join('') + `</ul></div>`
     ).join('');
   }
   // Install card visibility (iOS Safari, not standalone)
