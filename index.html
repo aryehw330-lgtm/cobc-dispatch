@@ -3014,6 +3014,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div id="coModalItemList" style="margin-bottom:10px;max-height:160px;overflow-y:auto;"></div>
     <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="coModalSearch" placeholder="Search to add more items..." oninput="renderCOSearch()"/></div>
     <div id="coModalSearchResults" style="display:none;max-height:140px;overflow-y:auto;background:#fff;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px;"></div>
+    <button type="button" onclick="coOpenScanner()" style="width:100%;margin-bottom:10px;padding:11px;background:#eef2f7;color:var(--navy);border:1.5px dashed var(--navy);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📷 Scan QR to add item</button>
     <div style="display:flex;align-items:center;gap:8px;background:#eef2f7;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;font-weight:700;color:var(--navy);"><span>👤</span><span id="coModalLoggedAs">Logged in as —</span></div>
     <div class="input-group" id="coModalForWrap" style="display:none;margin-bottom:8px;">
       <label class="input-label">📋 Logging for unit #</label>
@@ -16267,6 +16268,61 @@ function renderCOSearch() {
   if(!matches.length){res.style.display='none';return;}
   res.style.display='block';
   res.innerHTML=matches.map(e=>{const _o=e.status==='out';const _b=`<span class="badge ${_o?'badge-red':'badge-green'}" style="font-size:9px;padding:1px 6px;margin-left:6px;">${_o?'OUT':'IN'}</span>`;return `<div onclick="coModalItems.push(STATE.equipment.find(x=>x.row===${e.row}));renderCOModalList();document.getElementById('coModalSearch').value='';document.getElementById('coModalSearchResults').style.display='none';" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--navy);display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="min-width:0;">${e.name} <span style="color:var(--text3);font-weight:400;">— ${e.location}</span></span>${_b}</div>`;}).join('');
+}
+
+// ── QR camera scanner for the checkout modal (type OR scan to add) ────────────
+function _coLoadJsQR(){ return new Promise(function(res,rej){ if(window.jsQR) return res(); var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'; s.onload=res; s.onerror=function(){rej(new Error('load'));}; document.head.appendChild(s); }); }
+let _coScanStream=null,_coScanRAF=null,_coScanLastMsg=0;
+function coOpenScanner(){
+  let ov=document.getElementById('co-scan-overlay');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='co-scan-overlay';
+    ov.style.cssText='position:fixed;inset:0;background:#000;z-index:100000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
+    ov.innerHTML='<div style="color:#fff;font-size:16px;font-weight:700;margin-bottom:12px;text-align:center;">Point the camera at an item’s QR sticker</div>'
+      +'<video id="co-scan-video" playsinline muted style="width:100%;max-width:420px;aspect-ratio:1;object-fit:cover;border-radius:16px;background:#111;"></video>'
+      +'<div id="co-scan-msg" style="color:#e8e8e8;font-size:14px;margin-top:12px;min-height:20px;text-align:center;font-weight:600;"></div>'
+      +'<button onclick="coCloseScanner()" style="margin-top:18px;padding:13px 32px;background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.4);border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">Cancel</button>';
+    document.body.appendChild(ov);
+  }
+  ov.style.display='flex';
+  const msg=document.getElementById('co-scan-msg'); msg.textContent='Starting camera…';
+  _coLoadJsQR().then(()=>navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}})).then(stream=>{
+    _coScanStream=stream;
+    const v=document.getElementById('co-scan-video');
+    v.srcObject=stream; v.setAttribute('playsinline',''); v.play();
+    msg.textContent='Scanning…';
+    const canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
+    function tick(){
+      if(!_coScanStream) return;
+      if(v.readyState===v.HAVE_ENOUGH_DATA && v.videoWidth){
+        canvas.width=v.videoWidth; canvas.height=v.videoHeight;
+        ctx.drawImage(v,0,0,canvas.width,canvas.height);
+        const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const code=window.jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
+        if(code&&code.data){ if(coTryAddScanned(code.data)){ coCloseScanner(); return; } }
+      }
+      _coScanRAF=requestAnimationFrame(tick);
+    }
+    _coScanRAF=requestAnimationFrame(tick);
+  }).catch(()=>{ const m=document.getElementById('co-scan-msg'); if(m) m.textContent='⚠️ Camera unavailable — allow camera access, or type the item name instead'; });
+}
+function coCloseScanner(){
+  if(_coScanRAF){ cancelAnimationFrame(_coScanRAF); _coScanRAF=null; }
+  if(_coScanStream){ _coScanStream.getTracks().forEach(t=>t.stop()); _coScanStream=null; }
+  const ov=document.getElementById('co-scan-overlay'); if(ov) ov.style.display='none';
+}
+function coTryAddScanned(data){
+  const msg=document.getElementById('co-scan-msg');
+  let name='';
+  try{ if(/[?&]page=car/i.test(data)) name='COBC 4'; else { const m=String(data).match(/[?&]name=([^&]+)/i); if(m) name=decodeURIComponent(m[1].replace(/\+/g,' ')); } }catch(e){}
+  if(!name) name=String(data||'').trim();
+  const found=(STATE.equipment||[]).find(it=>it.name.toLowerCase()===name.toLowerCase());
+  if(!found){ if(msg && Date.now()-_coScanLastMsg>800){ _coScanLastMsg=Date.now(); msg.textContent='⚠️ '+(name||'Code')+' not in inventory'; } return false; }
+  if(found.equipStatus==='Not Active'){ if(msg) msg.textContent='⚠️ '+found.name+' is not active'; return false; }
+  if(!coModalItems.find(m=>m.row===found.row)){ coModalItems.push(found); renderCOModalList(); }
+  if(msg) msg.textContent='✓ Added '+found.name;
+  try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
+  return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
