@@ -18016,7 +18016,7 @@ function updateCarBookForNoteD() {
 }
 
 function submitCarBooking() {
-  if (!carSelectedDate) return;
+  if (!carSelectedDate) { showToast('Pick a day on the calendar first, then Book a Shift'); return; }
   var startDisp = getCarTimeDisplay('start');
   var endDisp   = getCarTimeDisplay('end');
   var start24   = getCarTime('start');
