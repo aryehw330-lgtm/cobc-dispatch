@@ -3569,6 +3569,9 @@ async function initFirebaseApp() {
       try { _checkAppVersion(); } catch(e){ console.warn('versionCheck:', e); }
       try { subscribeAppFlags(); } catch(e){ console.warn('subscribeAppFlags:', e); }
       try { subscribeVehiclesFromFirestore(); } catch(e){ console.warn('subscribeVehicles:', e); }
+      // Always-on equipment-history listener for dispatch/admin so check-in/out push
+      // notifications fire without needing the activity-history accordion open.
+      try { if(SESSION && (SESSION.role==='admin'||SESSION.role==='dispatch')) _ensureEqActivityHistorySub(); } catch(e){ console.warn('eqHistBoot:', e); }
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -16381,7 +16384,10 @@ function coTryAddScanned(data){
 // ═══════════════════════════════════════════════════════════════════════════
 async function submitCO(action){
   const call=(document.getElementById('coModalCall')?.value||'').trim();
-  let ccnc=(document.getElementById('coModalCCNC')?.value||'CC');
+  const _rawStatus=(document.getElementById('coModalCCNC')?.value||'').trim();
+  // Require an explicit status — no silent default. Must pick one before IN/OUT.
+  if(!_rawStatus){ showToast('Select a status first'); return; }
+  let ccnc=_rawStatus;
   // TRUCK = "items in truck": behaves like CNC (wrong location, in a member's
   // possession — can be checked OUT but not IN) and writes through the SAME columns,
   // with the note recording which truck/vehicle it's on.
