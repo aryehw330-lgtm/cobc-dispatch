@@ -11048,6 +11048,16 @@ function _adminUnits(){
       .filter(Boolean))];
   }catch(e){ return []; }
 }
+// Units (BC numbers) of all EQUIPMENT-TEAM members — reached by unit for equipment
+// check-in/out notifications.
+function _equipUnits(){
+  try{
+    return [...new Set((STATE.members||[])
+      .filter(m=>String(m.role||m.status||'').toLowerCase().includes('equipment'))
+      .map(m=>String(m.unit||m.id||'').replace(/^BC-?/i,''))
+      .filter(Boolean))];
+  }catch(e){ return []; }
+}
 // Units (BC numbers) of the dispatchers ON THE CURRENT SHIFT right now — Primary +
 // Secondary, respecting one-time schedOverrides. Empty array if the slot is OPEN/unset.
 function _onDutyDispatchUnits(){
@@ -13523,54 +13533,11 @@ function subscribeEquipmentHistoryFromFirestore() {
     }, err => console.warn('equipmentHistory snapshot:', err));
   } catch(e) { console.warn('subscribeEquipmentHistory failed:', e); }
 }
-// Notify on-duty dispatchers + admins when equipment is checked IN or OUT.
-// Only the current user (if they're a dispatcher/admin) fires the push, and only for
-// NEW events after this device's baseline — so we don't re-notify on initial load and
-// don't multiply the push across every device. Server-side de-dupe handles overlap.
-var _equipNotifyBaseline = null;
-function _notifyEquipEvents(rows){
-  if(!Array.isArray(rows) || !rows.length) return;
-  const role = SESSION && SESSION.role;
-  const amNotifier = role==='admin' || role==='dispatch';
-  // Establish baseline on first snapshot — never notify for pre-existing history.
-  if(_equipNotifyBaseline === null){
-    _equipNotifyBaseline = rows.reduce((mx,r)=>Math.max(mx, Number(r.at)||0), 0);
-    return;
-  }
-  const fresh = rows.filter(r => (Number(r.at)||0) > _equipNotifyBaseline)
-                    .sort((a,b)=>(Number(a.at)||0)-(Number(b.at)||0));
-  if(!fresh.length) return;
-  _equipNotifyBaseline = Math.max(_equipNotifyBaseline, ...fresh.map(r=>Number(r.at)||0));
-  if(!amNotifier) return; // only dispatch/admin devices send the push
-  fresh.forEach(r=>{
-    const act = String(r.action||'').toUpperCase();
-    if(act!=='IN' && act!=='OUT') return;
-    const item = r.item || 'Item';
-    const by = r.byUnit ? ('BC-'+String(r.byUnit).replace(/^BC-?/i,'')) : 'someone';
-    const callTxt = r.callNum ? (' · Call #'+r.callNum) : '';
-    const verb = act==='OUT' ? 'checked OUT' : 'checked IN';
-    const emoji = act==='OUT' ? '📤' : '📥';
-    // status carries the CC/CNC/vehicle/move detail (colH), e.g. "CC", "CNC - Teaneck",
-    // "In Vehicle COBC Truck 2", "Moving between calls". Surface it so dispatch sees context.
-    let detail = String(r.status||'').trim();
-    let detailTxt = '';
-    if(detail && detail.toUpperCase()!=='CC'){
-      if(/^cnc/i.test(detail)) detailTxt = ' · ⚠️ CNC'+(detail.replace(/^cnc\s*-?\s*/i,'')?(' ('+detail.replace(/^cnc\s*-?\s*/i,'')+')'):'');
-      else if(/vehicle|truck/i.test(detail)) detailTxt = ' · 🚚 '+detail;
-      else if(/mov/i.test(detail)) detailTxt = ' · ↔️ Moving between calls';
-      else detailTxt = ' · '+detail;
-    }
-    const title = `${emoji} ${item} ${verb}`;
-    const body = `${item} ${verb} by ${by}${callTxt}${detailTxt}`;
-    const _duty=_onDutyDispatchUnits();
-    if(_duty.length){
-      [..._duty, ..._adminUnits()].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title,body,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
-    } else {
-      setTimeout(()=>{ try{ sendPush({target:'dispatchers',title,body,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0);
-      _adminUnits().forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title,body,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
-    }
-  });
-}
+// Equipment check-in/out notifications are now sent SERVER-SIDE by the Apps Script
+// (_pushEquipEvent), so they fire instantly even when no device has the app open.
+// The client-side send was removed to avoid double-firing. This is now a no-op kept
+// only so the equipmentHistory listener's call site stays valid.
+function _notifyEquipEvents(rows){ /* server-side now handles equipment push */ }
 function subscribeCobc4HistoryFromFirestore() {
   try {
     if(typeof firebase === 'undefined') return;
