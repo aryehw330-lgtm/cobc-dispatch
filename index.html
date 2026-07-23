@@ -16098,14 +16098,15 @@ function openCheckout(row, defaultAction) {
 
   // ── COBC 4 access rules ──────────────────────────────────────────────────
   if (isCarItem(it.name)) {
+    const _veh = (it.name||'').trim();
     const isAdm = SESSION.role === 'admin' || SESSION.role === 'equipment';
     if (!isAdm) {
       if (!SESSION || !SESSION.unit) {
-        alert('🔒 Please log in to access COBC 4.');
+        alert('🔒 Please log in to access '+_veh+'.');
         return;
       }
       if (!SESSION.carAccess) {
-        alert('🚫 You don\'t have COBC 4 access.\n\nContact the chiefs to request car access approval.');
+        alert('🚫 You don\'t have vehicle access.\n\nContact the chiefs to request car access approval.');
         return;
       }
       // Determine effective direction (Check IN button passes no action)
@@ -16113,9 +16114,9 @@ function openCheckout(row, defaultAction) {
       const effectivelyIN  = (defaultAction === 'IN')  || (!defaultAction && carIsOut);
       const effectivelyOUT = (defaultAction === 'OUT') || (!defaultAction && !carIsOut);
       if (effectivelyOUT) {
-        const booking = getMyActiveCarBookingForInventory();
+        const booking = getMyActiveCarBookingForInventory(_veh);
         if (!booking) {
-          alert('🔑 Please go to the 🚗 Car tab and tap "Start Shift" before signing COBC 4 out.\n\nThe Start Shift button appears 1 hour before your scheduled time.\n\nIf you don\'t have a shift booked, go to the 🚗 Car tab to schedule one.');
+          alert('🔑 Please go to the 🚗 Car tab, pick '+_veh+', and tap "Start Shift" before signing it out.\n\nThe Start Shift button appears 1 hour before your scheduled time.\n\nIf you don\'t have a shift booked, go to the 🚗 Car tab to schedule one.');
           return;
         }
       }
@@ -16126,13 +16127,13 @@ function openCheckout(row, defaultAction) {
         if (!lastMember || !canReturn) {
           const lmName = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'')===lastMember; });
           const nameStr = lmName ? ' — '+(lmName.firstName||'').trim() : '';
-          alert('🔒 Only BC-'+(lastMember||'?')+nameStr+', BC-38, or an admin can return COBC 4.\n\nPlease contact the Chiefs or BC-38 for assistance.');
+          alert('🔒 Only BC-'+(lastMember||'?')+nameStr+', BC-38, or an admin can return '+_veh+'.\n\nPlease contact the Chiefs or BC-38 for assistance.');
           return;
         }
       }
     }
   }
-  // ── end COBC 4 guard ─────────────────────────────────────────────────────
+  // ── end vehicle guard ────────────────────────────────────────────────────
 
   // Open the modal regardless of current state — the modal shows only the valid action
   // button for the selected item(s) (see updateCoModalButtons), so there's no dead-end.
@@ -16314,11 +16315,12 @@ async function submitCO(action){
   const hasCobc4Item = coModalItems.some(it => isCarItem(it.name));
   const isAdmin = SESSION && SESSION.role === 'admin';
   if (hasCobc4Item && !isAdmin) {
+    const _carVeh = ((coModalItems.find(function(it){return isCarItem(it.name);})||{}).name||'').trim();
     const myId = parseInt((SESSION && SESSION.unit ? String(SESSION.unit) : '').replace(/^BC-?/i,''),10);
     if (action === 'OUT') {
-      // Must have an active OR approved shift (leading-zero-safe numeric match)
+      // Must have an active OR approved shift FOR THIS VEHICLE (leading-zero-safe match)
       const hasActiveShift = (carSchedule||[]).some(function(b) {
-        return (b.status === 'active' || b.status === 'approved') && parseInt(String(b.memberId||'').replace(/^BC-?/i,''),10) === myId;
+        return (b.status === 'active' || b.status === 'approved') && parseInt(String(b.memberId||'').replace(/^BC-?/i,''),10) === myId && _vehOfBooking(b) === _carVeh;
       });
       if (!hasActiveShift) {
         showCobc4Warning('noShift');
@@ -16377,11 +16379,12 @@ async function submitCO(action){
   // If signing COBC 4 IN, optimistically mark any active shift as done so the
   // banner clears immediately — don’t wait for the sheet write to come back.
   if (action === 'IN' && itemsSnapshot.some(it => isCarItem(it.name))) {
-    var activeBkgOpt = (carSchedule||[]).find(function(b){ return b.status==='active'; });
+    var _inVehOpt = ((itemsSnapshot.find(function(it){return isCarItem(it.name);})||{}).name||'').trim();
+    var activeBkgOpt = (carSchedule||[]).find(function(b){ return b.status==='active' && _vehOfBooking(b)===_inVehOpt; });
     if (!activeBkgOpt) {
       // Also check approved (shift started via banner puts it active, but safety net)
       activeBkgOpt = (carSchedule||[]).find(function(b){
-        return (b.status==='active'||b.status==='approved') &&
+        return (b.status==='active'||b.status==='approved') && _vehOfBooking(b)===_inVehOpt &&
           parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10) === parseInt((SESSION&&SESSION.unit||'').toString().replace(/^BC-?/i,''),10);
       });
     }
@@ -16405,11 +16408,12 @@ async function submitCO(action){
       if (action === 'OUT' && itemsSnapshot.some(it => isCarItem(it.name))) {
         const startId = window._pendingStartShiftId || null;
         window._pendingStartShiftId = null;
+        const _outVeh = ((itemsSnapshot.find(function(it){return isCarItem(it.name);})||{}).name||'').trim();
         const startBkg = startId
           ? (carSchedule||[]).find(function(b){ return b.id===startId; })
-          : (carSchedule||[]).find(function(b){ return b.status==='approved' && parseInt(String(b.memberId||'').replace(/^BC-?/i,''),10)===parseInt(String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,''),10); });
+          : (carSchedule||[]).find(function(b){ return b.status==='approved' && parseInt(String(b.memberId||'').replace(/^BC-?/i,''),10)===parseInt(String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,''),10) && _vehOfBooking(b)===_outVeh; });
         if (startBkg && startBkg.status==='approved') {
-          postJ('startCarShift', {id:startBkg.id, member:(SESSION&&SESSION.unit)||'', call}).then(function(d){
+          postJ('startCarShift', {id:startBkg.id, member:(SESSION&&SESSION.unit)||'', call, vehicle:_vehOfBooking(startBkg)}).then(function(d){
             if (d && d.success) {
               startBkg.status='active';
               try{ var _so=JSON.parse(localStorage.getItem('cobc_shift_sawout')||'{}')||{}; _so[startBkg.id]=1; localStorage.setItem('cobc_shift_sawout', JSON.stringify(_so)); }catch(e){}
@@ -16428,9 +16432,10 @@ async function submitCO(action){
         // to finding any active shift (for admin direct sign-in).
         const pendingId = window._pendingEndShiftId || null;
         window._pendingEndShiftId = null; // consume immediately — never double-end
+        const _inVeh = ((itemsSnapshot.find(function(it){return isCarItem(it.name);})||{}).name||'').trim();
         const activeBkg = pendingId
           ? (carSchedule||[]).find(function(b){ return b.id===pendingId; })
-          : (carSchedule||[]).find(function(b){ return b.status==='active'; });
+          : (carSchedule||[]).find(function(b){ return b.status==='active' && _vehOfBooking(b)===_inVeh; });
         if (activeBkg && (activeBkg.status==='active'||activeBkg.status==='approved')) {
           const myUnit2 = SESSION&&SESSION.unit ? String(SESSION.unit) : '';
           const bMember2Num = parseInt((activeBkg.memberId||'').toString().replace(/^BC-?/i,''),10);
@@ -16439,7 +16444,7 @@ async function submitCO(action){
           const isBC38 = myUnit2Num === 38;
           const canEndShift = isAdmRole || isBC38 || myUnit2Num === bMember2Num;
           if (canEndShift) {
-            postJ('endCarShift', {id: activeBkg.id}).then(function(d) {
+            postJ('endCarShift', {id: activeBkg.id, member:(SESSION&&SESSION.unit)||'', vehicle:_vehOfBooking(activeBkg)}).then(function(d) {
               if (d.success) {
                 activeBkg.status = 'done';
                 activeBkg.actualSignIn = new Date().toISOString();
@@ -17503,8 +17508,23 @@ var carViewDate = new Date();
 var carSelectedDate = null;
 
 function isCarItem(name) {
-  return name && name.toString().toLowerCase().replace(/\s+/g,'').indexOf('cobc4') >= 0;
+  // Any shift vehicle: "COBC 4", "COBC Truck 2", "COBC Truck 3", future "COBC 5"… —
+  // i.e. a name starting with COBC followed by a number or "Truck". Regular equipment
+  // (Fan, Heater, etc.) never matches.
+  if(!name) return false;
+  return /^cobc\s*(?:\d|truck)/i.test(name.toString().trim());
 }
+// The set of distinct shift vehicles currently in inventory.
+function _carVehicles(){
+  var names=(STATE.equipment||[]).filter(function(i){return isCarItem(i.name);}).map(function(i){return (i.name||'').trim();});
+  var out=[]; names.forEach(function(n){ if(n && out.indexOf(n)<0) out.push(n); });
+  out.sort(); return out;
+}
+function _vehOfBooking(b){ return (b && b.vehicle) ? String(b.vehicle).trim() : 'COBC 4'; }
+function _carItemForVehicle(v){ return (STATE.equipment||[]).find(function(i){return isCarItem(i.name) && (i.name||'').trim()===v;}); }
+// Currently-selected vehicle on the Car tab (defaults to first available / COBC 4).
+var _selectedVehicle = 'COBC 4';
+function setSelectedVehicle(v){ _selectedVehicle=v; try{ renderCarItemStatus(); renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); renderCarHistory(); }catch(e){} }
 
 function pad2C(n) { return n < 10 ? '0'+n : String(n); }
 
@@ -17641,7 +17661,7 @@ function _toggleEqAcc(btn){
 }
 function _toggleEqHistAccordion(){ /* removed — Activity History replaced by Dispatch Call History */ }
 
-function getMyActiveCarBookingForInventory() {
+function getMyActiveCarBookingForInventory(vehicle) {
   if (!SESSION || !SESSION.unit || !carSchedule.length) return null;
   var now = new Date();
   var todayStr = now.getFullYear()+'-'+pad2C(now.getMonth()+1)+'-'+pad2C(now.getDate());
@@ -17649,6 +17669,7 @@ function getMyActiveCarBookingForInventory() {
   return carSchedule.find(function(b) {
     if (parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10) !== parseInt(myId,10)) return false;
     if (b.date !== todayStr) return false;
+    if (vehicle && _vehOfBooking(b) !== vehicle) return false;
     return b.status === 'active';
   }) || null;
 }
@@ -17656,16 +17677,32 @@ function getMyActiveCarBookingForInventory() {
 function renderCarItemStatus() {
   var el = document.getElementById('car-live-status');
   if (!el) return;
-  var carItem = (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
-  if (!carItem) { el.style.display='none'; return; }
+  var vehicles = _carVehicles();
+  if (!vehicles.length) { el.style.display='none'; return; }
+  if (vehicles.indexOf(_selectedVehicle) < 0) _selectedVehicle = vehicles[0];
   el.style.display = 'block';
-  var isOut = carItem.status === 'out';
-  el.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;'
-    +'background:'+(isOut?'#fdecea':'#e8f5e9')+';border:1.5px solid '+(isOut?'#ffcdd2':'#a5d6a7')+'">'
-    +'<span style="font-size:20px">'+(isOut?'🔴':'🟢')+'</span>'
-    +'<div><div style="font-size:13px;font-weight:700;color:'+(isOut?'#c0392b':'#2e7d32')+'">COBC 4 is currently '+(isOut?'OUT — in use':'IN — available')+'</div>'
-    +(isOut&&carItem.checkedOutBy?'<div style="font-size:11px;color:#666;margin-top:1px">Signed out by '+fmtMemberBadgeD(carItem.checkedOutBy)+'</div>':'')
-    +'</div></div>';
+  // Vehicle picker (only shown when there's more than one shift vehicle)
+  var picker = '';
+  if (vehicles.length > 1) {
+    picker = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'
+      + vehicles.map(function(v){
+          var on = v===_selectedVehicle;
+          return '<button onclick="setSelectedVehicle(\''+v.replace(/'/g,"\\'")+'\')" style="padding:8px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#1a3a5c':'rgba(255,255,255,.25)')+';background:'+(on?'#1a3a5c':'rgba(255,255,255,.06)')+';color:'+(on?'#fff':'rgba(255,255,255,.75)')+';">🚗 '+v+'</button>';
+        }).join('')
+      + '</div>';
+  }
+  var carItem = _carItemForVehicle(_selectedVehicle);
+  var statusHtml = '';
+  if (carItem) {
+    var isOut = carItem.status === 'out';
+    statusHtml = '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;'
+      +'background:'+(isOut?'#fdecea':'#e8f5e9')+';border:1.5px solid '+(isOut?'#ffcdd2':'#a5d6a7')+'">'
+      +'<span style="font-size:20px">'+(isOut?'🔴':'🟢')+'</span>'
+      +'<div><div style="font-size:13px;font-weight:700;color:'+(isOut?'#c0392b':'#2e7d32')+'">'+_selectedVehicle+' is currently '+(isOut?'OUT — in use':'IN — available')+'</div>'
+      +(isOut&&carItem.checkedOutBy?'<div style="font-size:11px;color:#666;margin-top:1px">Signed out by '+fmtMemberBadgeD(carItem.checkedOutBy)+'</div>':'')
+      +'</div></div>';
+  }
+  el.innerHTML = picker + statusHtml;
 }
 
 function loadCarSchedule(cb) {
@@ -17779,7 +17816,7 @@ function renderCarCalendar() {
   for (var d=1; d<=daysInMonth; d++) {
     var ds = year+'-'+pad2C(month+1)+'-'+pad2C(d);
     var isToday = ds===todayStr, isPast = ds<todayStr;
-    var dayBk = carSchedule.filter(function(b){ return b.date===ds && b.status!=='cancelled'; });
+    var dayBk = carSchedule.filter(function(b){ return b.date===ds && b.status!=='cancelled' && _vehOfBooking(b)===_selectedVehicle; });
     var statusOrder = {active:0,pending:1,approved:2};
     var sortedDayBk = dayBk.slice().sort(function(a,b){
       var sp = (statusOrder[a.status]||3) - (statusOrder[b.status]||3);
@@ -17824,7 +17861,7 @@ function closeCarBooking() {
 }
 
 function renderCarDay(dateStr) {
-  var shifts = carSchedule.filter(function(b){ return b.date===dateStr && b.status!=='cancelled'; });
+  var shifts = carSchedule.filter(function(b){ return b.date===dateStr && b.status!=='cancelled' && _vehOfBooking(b)===_selectedVehicle; });
   var myId   = SESSION && SESSION.unit ? String(SESSION.unit) : null;
   var isAdm  = SESSION && SESSION.role==='admin';
   var el     = document.getElementById('car-day-shifts');
@@ -17994,6 +18031,7 @@ function submitCarBooking() {
   if (endMin <= startMin) { showToast('End time must be after start time'); return; }
   var conflict = carSchedule.find(function(b) {
     if (b.date !== carSelectedDate) return false;
+    if (_vehOfBooking(b) !== _selectedVehicle) return false;
     if (b.status==='cancelled'||b.status==='done') return false;
     var bS = _toMin(parse12to24C(b.startTime),false), bE = _toMin(parse12to24C(b.endTime),true);
     return startMin < bE && endMin > bS;
@@ -18018,10 +18056,10 @@ function submitCarBooking() {
   // within 15s, re-enable it and tell the user.
   var _settled=false;
   var _watchdog=setTimeout(function(){ if(!_settled && btn){ btn.disabled=false; btn.textContent='Request Shift'; showToast('⚠️ Still working… check your connection and try again'); } }, 15000);
-  postJ('bookCarShift', {memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, needsApproval:true, bookedBy:bookedByVal||null})
+  postJ('bookCarShift', {memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, needsApproval:true, bookedBy:bookedByVal||null, vehicle:_selectedVehicle})
     .then(function(d) {
       if (d.success) {
-        var newB = {id:d.id||('local_'+Date.now()), memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, status:'pending', bookedBy:bookedByVal||null};
+        var newB = {id:d.id||('local_'+Date.now()), memberId:memberId, memberName:memberName, date:carSelectedDate, startTime:startDisp, endTime:endDisp, note:note, status:'pending', bookedBy:bookedByVal||null, vehicle:_selectedVehicle};
         carSchedule.push(newB);
         renderCarCalendar(); renderCarDay(carSelectedDate); closeCarBooking();
         showCarBookingSuccess(startDisp, endDisp, carSelectedDate, memberName, note);
@@ -18100,7 +18138,7 @@ function endCarShift(bookingId) {
   // physically sign COBC 4 in. Deferring this to submitCO meant nothing persisted
   // if the inventory modal wasn't completed.
   window._pendingEndShiftId = bookingId; // still consumed by submitCO as a backup
-  postJ('endCarShift', {id:bookingId, member:(SESSION&&SESSION.unit)||''})
+  postJ('endCarShift', {id:bookingId, member:(SESSION&&SESSION.unit)||'', vehicle:_vehOfBooking(carSchedule.find(function(x){return x.id===bookingId;}))})
     .then(function(d){
       if (d && d.success) {
         var b = carSchedule.find(function(x){ return x.id===bookingId; });
@@ -18241,10 +18279,18 @@ function approveCarShift(bookingId) {
     }).catch(function(){ showToast('Network error'); });
 }
 
-function navigateToCarCheckout(direction) {
-  var carItem = (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
-  if (!carItem) { showToast('COBC 4 not found in inventory'); return; }
-  // Authorize the next COBC 4 checkout action — consumed by submitCO
+function navigateToCarCheckout(direction, vehicle) {
+  // Infer which shift vehicle to sign out/in from the member's current shift if not given.
+  if (!vehicle) {
+    var _mine = (carSchedule||[]).find(function(b){
+      var mm = parseInt(String(b.memberId||'').replace(/^BC-?/i,''),10) === parseInt(String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,''),10);
+      return mm && (b.status==='active' || b.status==='approved');
+    });
+    if (_mine) vehicle = _vehOfBooking(_mine);
+  }
+  var carItem = vehicle ? _carItemForVehicle(vehicle) : (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
+  if (!carItem) { showToast((vehicle||'Vehicle')+' not found in inventory'); return; }
+  // Authorize the next vehicle checkout action — consumed by submitCO
   window._carCobc4Auth = direction || 'OUT';
   showTab('equipment'); setEqTab('inventory', document.querySelector('#eqSubTabs .sub-tab:nth-child(2)'));
   setTimeout(function(){ renderInventory(); openCheckout(carItem.row, direction||'OUT'); }, 200);
@@ -18323,7 +18369,7 @@ function renderCarHistory() {
   // Recent history — done or active, last 7 days
   var cutoff = new Date(); cutoff.setDate(cutoff.getDate()-7);
   var cutoffStr = cutoff.getFullYear()+'-'+pad2C(cutoff.getMonth()+1)+'-'+pad2C(cutoff.getDate());
-  var hist = carSchedule.filter(function(b){ return (b.status==='done'||b.status==='active') && b.date>=cutoffStr; })
+  var hist = carSchedule.filter(function(b){ return (b.status==='done'||b.status==='active') && b.date>=cutoffStr && _vehOfBooking(b)===_selectedVehicle; })
     .sort(function(a,b){ var ka=a.date+parse12to24C(a.startTime),kb=b.date+parse12to24C(b.startTime); return ka<kb?1:-1; });
 
   function fmtA(ts) {
