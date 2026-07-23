@@ -17684,10 +17684,10 @@ function renderCarItemStatus() {
   // Vehicle picker (only shown when there's more than one shift vehicle)
   var picker = '';
   if (vehicles.length > 1) {
-    picker = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'
+    picker = '<div style="display:flex;gap:5px;flex-wrap:nowrap;margin-bottom:10px;">'
       + vehicles.map(function(v){
           var on = v===_selectedVehicle;
-          return '<button onclick="setSelectedVehicle(\''+v.replace(/'/g,"\\'")+'\')" style="padding:8px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#1a3a5c':'rgba(255,255,255,.25)')+';background:'+(on?'#1a3a5c':'rgba(255,255,255,.06)')+';color:'+(on?'#fff':'rgba(255,255,255,.75)')+';">🚗 '+v+'</button>';
+          return '<button onclick="setSelectedVehicle(\''+v.replace(/'/g,"\\'")+'\')" style="flex:1;min-width:0;padding:8px 4px;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1.5px solid '+(on?'#1a3a5c':'rgba(255,255,255,.25)')+';background:'+(on?'#1a3a5c':'rgba(255,255,255,.06)')+';color:'+(on?'#fff':'rgba(255,255,255,.75)')+';">'+v+'</button>';
         }).join('')
       + '</div>';
   }
@@ -18111,36 +18111,37 @@ function revertCarShift(bookingId) {
 
 function startCarShift(bookingId) {
   var bkg = carSchedule.find(function(x){ return x.id===bookingId; });
-  var carItemNow = (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
+  var _veh = _vehOfBooking(bkg);
+  var carItemNow = _carItemForVehicle(_veh) || (STATE.equipment||[]).find(function(i){ return isCarItem(i.name); });
   var carIsOutNow = carItemNow && String(carItemNow.status||'').toLowerCase() === 'out';
   // Already marked active but the car was never actually signed OUT → don't re-hit the
-  // backend (it would error / double-count). Just route them to sign COBC 4 out.
+  // backend (it would error / double-count). Just route them to sign the vehicle out.
   if (bkg && bkg.status === 'active' && !carIsOutNow) {
-    if (!confirm('Sign COBC 4 out for your shift now?')) return;
-    showToast('🔑 Sign COBC 4 OUT in Inventory now');
-    setTimeout(function(){ navigateToCarCheckout('OUT'); }, 500);
+    if (!confirm('Sign '+_veh+' out for your shift now?')) return;
+    showToast('🔑 Sign '+_veh+' OUT in Inventory now');
+    setTimeout(function(){ navigateToCarCheckout('OUT', _veh); }, 500);
     return;
   }
-  if (!confirm('Start your shift? You\'ll be taken to sign COBC 4 out in Inventory.')) return;
-  if (!confirm('Start your shift? You\'ll be taken to sign COBC 4 out in Inventory.')) return;
+  if (!confirm('Start your shift? You\'ll be taken to sign '+_veh+' out in Inventory.')) return;
   // Do NOT mark the shift active yet — that only happens once the car is actually
   // signed OUT in inventory (handled in submitCO). Until then the shift stays
   // 'approved' so the Start Shift button keeps showing. This prevents a shift being
   // "started" when the user taps the button but never signs the car out.
   window._pendingStartShiftId = bookingId;
   window._carCobc4Auth = 'OUT';
-  showToast('🔑 Sign COBC 4 OUT in Inventory to start your shift');
-  setTimeout(function(){ navigateToCarCheckout('OUT'); }, 400);
+  showToast('🔑 Sign '+_veh+' OUT in Inventory to start your shift');
+  setTimeout(function(){ navigateToCarCheckout('OUT', _veh); }, 400);
 }
 
 function endCarShift(bookingId) {
-  if (!confirm('Return COBC 4? You\'ll be taken to sign it back IN in Inventory.')) return;
+  var _rveh = _vehOfBooking(carSchedule.find(function(x){return x.id===bookingId;}));
+  if (!confirm('Return '+_rveh+'? You\'ll be taken to sign it back IN in Inventory.')) return;
   // Mirror the equipment app: persist the shift end to the backend FIRST (marks
   // CarSchedule done + ActualSignIn on the sheet), THEN send them to inventory to
-  // physically sign COBC 4 in. Deferring this to submitCO meant nothing persisted
+  // physically sign the vehicle in. Deferring this to submitCO meant nothing persisted
   // if the inventory modal wasn't completed.
   window._pendingEndShiftId = bookingId; // still consumed by submitCO as a backup
-  postJ('endCarShift', {id:bookingId, member:(SESSION&&SESSION.unit)||'', vehicle:_vehOfBooking(carSchedule.find(function(x){return x.id===bookingId;}))})
+  postJ('endCarShift', {id:bookingId, member:(SESSION&&SESSION.unit)||'', vehicle:_rveh})
     .then(function(d){
       if (d && d.success) {
         var b = carSchedule.find(function(x){ return x.id===bookingId; });
@@ -18149,7 +18150,7 @@ function endCarShift(bookingId) {
         _lastCompactHtml=null; _lastLargeHtml=null;
         renderCarCalendar&&renderCarCalendar(); if(carSelectedDate) renderCarDay&&renderCarDay(carSelectedDate); renderCarHistory&&renderCarHistory();
         updateGlobalShiftBanner&&updateGlobalShiftBanner();
-        showToast('🏁 Sign COBC 4 IN in Inventory now');
+        showToast('🏁 Sign '+_rveh+' IN in Inventory now');
         setTimeout(function(){ loadCarSchedule&&loadCarSchedule(); }, 3000);
       } else { showToast('⚠️ Shift end failed: '+((d&&d.error)||'Unknown')); }
     }).catch(function(){ showToast('Network error ending shift — try again'); });
