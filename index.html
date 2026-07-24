@@ -3331,9 +3331,19 @@ textarea.input{min-height:80px;resize:vertical;}
 // ═══════════════════════════════════════════════════════
 // Build stamp — shown at the bottom of the Settings tab. Bump this whenever code
 // changes so the running version is identifiable on each device.
-const APP_BUILD = 'Build 2026-07-22a · auto-update';
+const APP_BUILD = 'Build 2026-07-23a · auto-update';
 // ── Changelog: newest first. Shown in Settings → What's New. Add an entry each deploy. ──
 const APP_CHANGELOG = [
+  { date:'2026-07-23', notes:[
+    'Multi-vehicle Car tab: COBC Truck 2/3 (and future COBC vehicles) now have their own shift schedule, live status, and sign-in/out — pick the vehicle at the top of the Car tab.',
+    'Faster notifications: broad alerts now fan out to everyone at once (FCM topics) instead of one-by-one.',
+    'Equipment check-in/out now notifies on-duty dispatchers, admins, and the equipment team — with call # and CC/CNC/vehicle context.',
+    'Assign Unit (📻) now warns if a member is not approved for that call type, matching the approve-a-responder warning.',
+    'Fixed: an admin who is also the on-duty dispatcher no longer gets duplicate request notifications.',
+    'Overnight shifts (e.g. 1:40 PM → 2:00 AM) can now be booked across midnight.',
+    'Vehicle out/in status now syncs live to every device.',
+    'Equipment: item OUT + returned as CC / Home Location now shows only Check IN.',
+  ]},
   { date:'2026-07-22', notes:[
     'Automatic daily cloud backup of all calls + equipment (Admin → Reset → Backup & Restore), with one-tap restore.',
     'Test Mode: mark training/testing calls so they never count in stats (Admin → Reset).',
