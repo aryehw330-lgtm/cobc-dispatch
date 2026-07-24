@@ -3826,7 +3826,7 @@ function topicsForRole_(role) {
 async function syncPushTopics_(token, role) {
   if (!token || !PUSH_TOPICS_URL) return;
   const want = topicsForRole_(role);
-  const storeKey = 'cobc_fcm_topics_' + token;
+  const storeKey = 'cobc_fcm_topics_v2_' + token;
   let had = [];
   try { had = JSON.parse(localStorage.getItem(storeKey) || '[]'); } catch(e) {}
   const toAdd  = want.filter(t => !had.includes(t));
