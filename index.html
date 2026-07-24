@@ -18240,14 +18240,15 @@ function submitCarBooking() {
           var _dl = new Date(carSelectedDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
           var _csTitle='🚗 New Car Shift Request';
           var _csBody='BC-'+String(memberId).replace(/^BC-?/i,'')+(memberName?' '+memberName:'')+' requested '+_dl+' · '+startDisp+'–'+endDisp+'. Tap to approve.';
-          // Scope to on-duty dispatchers + admins + equipment team (deduped), not all dispatchers.
-          var _csUnits=_dedupeUnits([..._onDutyDispatchUnits(), ..._adminUnits(), ...( typeof _equipUnits==='function'?_equipUnits():[] )]);
-          if(_csUnits.length){
-            _csUnits.forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_csTitle,body:_csBody,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
-          } else {
-            sendPush({ target:'dispatchers', title:_csTitle, body:_csBody, url:'/cobc-dispatch/?page=equipment' });
-            [...( typeof _equipUnits==='function'?_equipUnits():[] )].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_csTitle,body:_csBody,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
-          }
+          // Sent from the REQUESTER's device, which may not know who the admins are, so
+          // never rely on _adminUnits() here. Always hit the broad 'dispatchers' target —
+          // post-topics-cutover that reaches on-duty dispatchers AND all admins (admins are
+          // subscribed to the dispatch topic). Plus equipment team by unit when known.
+          sendPush({ target:'dispatchers', title:_csTitle, body:_csBody, url:'/cobc-dispatch/?page=equipment' });
+          try{
+            [..._dedupeUnits([..._adminUnits(), ...( typeof _equipUnits==='function'?_equipUnits():[] )])]
+              .forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_csTitle,body:_csBody,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
+          }catch(e){}
         } catch(e){}
       } else { showToast('Error: '+(d.error||'Unknown')); if(btn){btn.disabled=false;btn.textContent='Request Shift';} }
     }).catch(function(){ showToast('Network error — booking not saved'); if(btn){btn.disabled=false;btn.textContent='Request Shift';} })
@@ -18480,7 +18481,8 @@ function _updateCarReqBadge(n) {
 function editCarShiftNote(bookingId) {
   var bkg = carSchedule.find(function(x){return x.id===bookingId;});
   if (!bkg) return;
-  var isMine = loggedInMember && parseInt((bkg.memberId||'').toString().replace(/^BC-?/i,''),10)===parseInt(loggedInMember.id,10);
+  var _myNum = parseInt(String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,''),10);
+  var isMine = _myNum && parseInt((bkg.memberId||'').toString().replace(/^BC-?/i,''),10)===_myNum;
   var canEdit = isMine || isAdminUser() || (typeof isDispatchUser==='function' && isDispatchUser());
   if (!canEdit) { showToast('Not allowed'); return; }
   var next = prompt('Edit note for this shift:', bkg.note||'');
