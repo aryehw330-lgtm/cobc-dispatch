@@ -18415,9 +18415,41 @@ function checkPendingShiftRequests() {
         new Notification('🙋 Car Shift Request', { body: who+' requested '+when+' · '+b.startTime+'–'+b.endTime+'. Tap to approve.', tag: 'shift-request-'+b.id });
       }
     } catch(e){}
+    // Admins get an in-app approval popup they can act on right away.
+    if (isAdminUser()) { try { _showShiftApprovalPopup(b); } catch(e){} }
   });
   if (newCount) showToast('🙋 '+newCount+' new shift request'+(newCount>1?'s':'')+' awaiting approval');
   _updateCarReqBadge(pending.length);
+}
+// In-app approval popup for admins — approve/deny a pending car-shift request without
+// hunting through the Car tab. Queues if one is already showing.
+var _shiftPopupOpen = false, _shiftPopupQueue = [];
+function _showShiftApprovalPopup(b){
+  if(!b || !b.id) return;
+  if(_shiftPopupOpen){ if(!_shiftPopupQueue.find(function(x){return x.id===b.id;})) _shiftPopupQueue.push(b); return; }
+  _shiftPopupOpen = true;
+  var veh = (typeof _vehOfBooking==='function') ? _vehOfBooking(b) : (b.vehicle||'COBC 4');
+  var who = 'BC-'+String(b.memberId||'').replace(/^BC-?/i,'')+(b.memberName?' '+b.memberName:'');
+  var when = new Date(b.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML = '<div style="background:#1c1c1e;border:2px solid rgba(230,81,0,.55);border-radius:18px;padding:22px 20px;max-width:320px;width:100%;text-align:center;">'
+    + '<div style="font-size:32px;margin-bottom:8px;">🚗</div>'
+    + '<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:4px;">Car Shift Request</div>'
+    + '<div style="font-size:13px;font-weight:700;color:#ffcc99;margin-bottom:10px;">'+veh+'</div>'
+    + '<div style="font-size:14px;color:#fff;font-weight:700;">'+who+'</div>'
+    + '<div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:4px;">'+when+' · '+b.startTime+' – '+b.endTime+'</div>'
+    + (b.note?'<div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:6px;">📝 '+b.note+'</div>':'')
+    + '<div style="display:flex;gap:10px;margin-top:16px;">'
+    + '<button id="__sa_later" style="flex:1;padding:12px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Later</button>'
+    + '<button id="__sa_deny" style="flex:1;padding:12px;background:rgba(220,38,38,.2);color:#fca5a5;border:1px solid rgba(248,113,113,.5);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Deny</button>'
+    + '<button id="__sa_ok" style="flex:1.3;padding:12px;background:#2e7d32;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;">✓ Approve</button>'
+    + '</div></div>';
+  document.body.appendChild(ov);
+  function close(){ try{ document.body.removeChild(ov); }catch(e){} _shiftPopupOpen=false; var nx=_shiftPopupQueue.shift(); if(nx) setTimeout(function(){ _showShiftApprovalPopup(nx); },200); }
+  ov.querySelector('#__sa_later').onclick = close;
+  ov.querySelector('#__sa_ok').onclick = function(){ try{ approveCarShift(b.id); }catch(e){} close(); };
+  ov.querySelector('#__sa_deny').onclick = function(){ if(confirm('Deny and delete BC-'+String(b.memberId||'').replace(/^BC-?/i,'')+"'s "+veh+' request?')){ try{ deleteCarShift(b.id); }catch(e){} close(); } };
 }
 function _updateCarReqBadge(n) {
   var isPriv = isAdminUser() || (typeof isDispatchUser==='function' && isDispatchUser());
