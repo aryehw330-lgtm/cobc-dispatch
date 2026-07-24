@@ -1678,8 +1678,11 @@ textarea.input{min-height:80px;resize:vertical;}
 
         <!-- What's New / Changelog -->
         <div class="card" style="margin-bottom:10px;">
-          <div class="card-title">🆕 What's New</div>
-          <div id="settings-changelog" style="margin-top:8px;"></div>
+          <div onclick="var b=document.getElementById('settings-changelog'),a=document.getElementById('changelog-caret');var open=b.style.display!=='none';b.style.display=open?'none':'block';a.textContent=open?'▸':'▾';" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+            <div class="card-title" style="margin:0;">🆕 What's New</div>
+            <span id="changelog-caret" style="font-size:14px;color:var(--text3);">▸</span>
+          </div>
+          <div id="settings-changelog" style="margin-top:8px;display:none;"></div>
         </div>
         <!-- About -->
         <div class="card" style="margin-bottom:10px;">
