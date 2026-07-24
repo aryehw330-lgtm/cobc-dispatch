@@ -3833,22 +3833,49 @@ async function syncPushTopics_(token, role) {
   const toDrop = had.filter(t => !want.includes(t));
   if (!toAdd.length && !toDrop.length) return;
   const base = PUSH_TOPICS_URL.replace(/\/$/, '');
+  // Only cache "subscribed" when the server ACTUALLY confirms it. A fetch() resolves
+  // even on a 500/misconfig, so we must check response.ok (and the JSON ok flag) — else
+  // a failed subscribe gets permanently cached as success and the device silently never
+  // receives topic pushes. On any failure we do NOT update the cache, so the next login
+  // (and the retry below) tries again.
+  let addOk = !toAdd.length, dropOk = !toDrop.length;
   try {
     if (toAdd.length) {
-      await fetch(base + '/topic-subscribe', {
+      const r = await fetch(base + '/topic-subscribe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: PUSH_SHARED_KEY, token, topics: toAdd })
       });
+      let body = {}; try { body = await r.json(); } catch(e){}
+      addOk = r.ok && body.ok !== false && body.error == null;
+      if (!addOk) console.warn('Topic subscribe failed:', r.status, body);
     }
     if (toDrop.length) {
-      await fetch(base + '/topic-unsubscribe', {
+      const r = await fetch(base + '/topic-unsubscribe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: PUSH_SHARED_KEY, token, topics: toDrop })
       });
+      let body = {}; try { body = await r.json(); } catch(e){}
+      dropOk = r.ok && body.ok !== false && body.error == null;
+      if (!dropOk) console.warn('Topic unsubscribe failed:', r.status, body);
     }
+  } catch (e) { console.warn('Topic sync error:', e); addOk = dropOk = false; }
+  if (addOk && dropOk) {
+    // Full success — cache the exact topic set we confirmed.
     localStorage.setItem(storeKey, JSON.stringify(want));
-  } catch (e) { console.warn('Topic sync failed:', e); }
+    _topicRetryPending = false;
+  } else {
+    // Partial/total failure — record only what verifiably changed so we don't re-drop
+    // topics we already removed, and arm a retry so this device isn't left unsubscribed.
+    let confirmed = had.slice();
+    if (addOk) confirmed = [...new Set([...confirmed, ...toAdd])];
+    if (dropOk) confirmed = confirmed.filter(t => !toDrop.includes(t));
+    localStorage.setItem(storeKey, JSON.stringify(confirmed));
+    _topicRetryPending = true;
+    // Retry once shortly (covers a brief worker outage / redeploy window).
+    setTimeout(function(){ try{ syncPushTopicsIfEnabled_(); }catch(e){} }, 20000);
+  }
 }
+var _topicRetryPending = false;
 function syncPushTopicsIfEnabled_() {
   try {
     if (!SESSION || !SESSION.unit || !SESSION.role) return;
