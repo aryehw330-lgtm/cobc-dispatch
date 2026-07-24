@@ -2583,9 +2583,10 @@ textarea.input{min-height:80px;resize:vertical;}
       <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>{document.getElementById('callAddressSuggest').style.display='none';geocodeCallAddressForZone();},200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
       <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-      <button type="button" onclick="pasteMapsLink()" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📋 Paste Maps link</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;position:relative;">
+      <button type="button" onclick="toggleCommonCalls(this)" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📍 Common Calls ▾</button>
       <button type="button" id="i911Btn" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
+      <div id="commonCallsMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;background:var(--card,#fff);border:1.5px solid var(--border2,#e2e2e2);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:6px;max-height:280px;overflow-y:auto;"></div>
     </div>
     <!-- Town is auto-detected from the address; hidden from the UI but still stored for color-coding, maps & ETA -->
     <div style="display:none;">
@@ -3582,6 +3583,7 @@ async function initFirebaseApp() {
       try { _checkAppVersion(); } catch(e){ console.warn('versionCheck:', e); }
       try { subscribeAppFlags(); } catch(e){ console.warn('subscribeAppFlags:', e); }
       try { subscribeVehiclesFromFirestore(); } catch(e){ console.warn('subscribeVehicles:', e); }
+      try { subscribeCommonCallsFromFirestore(); } catch(e){ console.warn('subscribeCommonCalls:', e); }
       // Always-on equipment-history listener for dispatch/admin so check-in/out push
       // notifications fire without needing the activity-history accordion open.
       try { if(SESSION && (SESSION.role==='admin'||SESSION.role==='dispatch')) _ensureEqActivityHistorySub(); } catch(e){ console.warn('eqHistBoot:', e); }
@@ -4690,6 +4692,8 @@ function fmtLoc(call){
 }
 // Card-only address: drop the ZIP code to save space (notifications/maps keep it)
 function fmtLocCard(call){
+  // A saved Maps-link location: show a tappable label instead of the raw URL.
+  if(/^https?:\/\//i.test(String((call&&call.address)||'').trim())) return '🗺 Tap for map location';
   let s=String((call&&call.address)||'').trim();
   const town=String(cardTown(call)||'').trim();
   s=s.replace(/[,\s]+\d{5}(?:-\d{4})?\b/g,'');                               // drop ZIP
@@ -4720,6 +4724,82 @@ function setUrgentToggle(on){
   if(row){ row.style.background= on?'rgba(220,38,38,.12)':'var(--border2)'; row.style.borderColor= on?'var(--red)':'transparent'; }
 }
 
+// ── Common Calls — saved preset locations that are hard to address (gas stations,
+// stores, schools). Selecting one fills the Address field and runs the normal lookup.
+// The list is editable and stored in localStorage so the team can grow it.
+const _COMMON_CALLS_DEFAULT = [
+  { label: 'Mobil — Palisades Pkwy Southbound, Englewood Cliffs', q: '40.867081, -73.953770' },
+  { label: 'Mobil — Palisades Pkwy Northbound Service Area', q: '40.855909, -73.957640' },
+  { label: 'Snax It (Delta Gas, 475 Route 4 West, Englewood)', q: '40.892705, -73.987340' },
+  { label: 'Palisade Mobil (gas station)', q: 'Palisade Mobil gas station' },
+  { label: 'Snax It', q: 'Snax It' },
+];
+function _commonCalls(){
+  try{ const s=JSON.parse(localStorage.getItem('cobc_common_calls')||'null'); if(Array.isArray(s)) return s; }catch(e){}
+  return _COMMON_CALLS_DEFAULT.slice();
+}
+function _saveCommonCalls(list){
+  try{ localStorage.setItem('cobc_common_calls', JSON.stringify(list)); }catch(e){}
+  // Share the team list so every device sees the same Common Calls.
+  try{ if(_firebaseReady && firebase.firestore){ firebase.firestore().collection('config').doc('commonCalls').set({list:list, updatedAt:Date.now()}).catch(()=>{}); } }catch(e){}
+}
+// Live-sync Common Calls FROM Firestore so an add/remove on one device shows on all.
+function subscribeCommonCallsFromFirestore(){
+  try{
+    firebase.firestore().collection('config').doc('commonCalls').onSnapshot(doc=>{
+      if(!doc.exists) return;
+      const list=(doc.data()||{}).list;
+      if(!Array.isArray(list)) return;
+      try{ localStorage.setItem('cobc_common_calls', JSON.stringify(list)); }catch(e){}
+      try{ if(document.getElementById('commonCallsMenu')?.style.display==='block') renderCommonCallsMenu(); }catch(e){}
+    });
+  }catch(e){ console.warn('subscribeCommonCalls:', e); }
+}
+function toggleCommonCalls(btn){
+  const menu=document.getElementById('commonCallsMenu'); if(!menu) return;
+  if(menu.style.display==='block'){ menu.style.display='none'; return; }
+  renderCommonCallsMenu();
+  menu.style.display='block';
+  // Close on outside tap
+  setTimeout(()=>{ document.addEventListener('click', _closeCommonCallsOnOutside, {once:true}); },0);
+}
+function _closeCommonCallsOnOutside(e){
+  const menu=document.getElementById('commonCallsMenu');
+  if(menu && !menu.contains(e.target) && !(e.target.closest && e.target.closest('button')?.getAttribute('onclick')?.includes('toggleCommonCalls'))){ menu.style.display='none'; }
+}
+function renderCommonCallsMenu(){
+  const menu=document.getElementById('commonCallsMenu'); if(!menu) return;
+  const list=_commonCalls();
+  let html = list.map((c,i)=>`<div style="display:flex;align-items:center;gap:6px;">
+    <button type="button" onclick="pickCommonCall(${i})" style="flex:1;text-align:left;padding:10px 12px;background:transparent;border:none;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--text,#1a1a1a);cursor:pointer;font-family:inherit;">📍 ${escapeHTML(c.label)}</button>
+    <button type="button" onclick="removeCommonCall(${i})" title="Remove" style="flex-shrink:0;padding:8px 10px;background:transparent;border:none;color:var(--text3,#999);font-size:14px;cursor:pointer;">✕</button>
+  </div>`).join('') || '<div style="padding:10px 12px;font-size:12px;color:var(--text3,#999);">No common calls saved yet.</div>';
+  html += `<button type="button" onclick="addCommonCall()" style="width:100%;margin-top:4px;padding:10px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:9px;color:var(--gold-deep,#b8902a);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">➕ Add a common location</button>`;
+  menu.innerHTML=html;
+}
+function pickCommonCall(i){
+  const c=_commonCalls()[i]; if(!c) return;
+  const input=document.getElementById('callAddress');
+  const menu=document.getElementById('commonCallsMenu'); if(menu) menu.style.display='none';
+  if(input){
+    input.value=c.q;
+    // A Maps link is stored as-is (it becomes a tappable link on the card); a plain
+    // name/address runs the normal autocomplete + territory lookup.
+    if(/^https?:\/\//i.test((c.q||'').trim())){ showToast('🗺 '+c.label+' (map link)'); }
+    else { addrAutoLookup(input,'callTown','callTownText'); try{ geocodeCallAddressForZone(); }catch(e){} showToast('📍 '+c.label); }
+  }
+}
+function addCommonCall(){
+  const label=(prompt('Name for this location (e.g. Palisade Mobil):')||'').trim(); if(!label) return;
+  const q=(prompt('Address, business name, OR a Google Maps link:', label)||'').trim(); if(!q) return;
+  const list=_commonCalls(); list.push({label,q}); _saveCommonCalls(list); renderCommonCallsMenu();
+  showToast('✓ Saved "'+label+'"');
+}
+function removeCommonCall(i){
+  const list=_commonCalls(); const c=list[i]; if(!c) return;
+  if(!confirm('Remove "'+c.label+'" from Common Calls?')) return;
+  list.splice(i,1); _saveCommonCalls(list); renderCommonCallsMenu();
+}
 // Paste a Google/Apple Maps link from the clipboard → fill the address field
 async function pasteMapsLink(){
   let text='';
@@ -4869,8 +4949,7 @@ function addrAutoLookup(inputEl, townSelId, townTextId) {
         input: q,
         sessionToken: _getSessionToken(),
         bounds: bounds,
-        componentRestrictions: { country: 'us' },
-        types: ['address']
+        componentRestrictions: { country: 'us' }
       }, (predictions, status) => {
         if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
           box.innerHTML='<div class="addr-suggest-empty">No matches — type address manually</div>';
@@ -5758,7 +5837,7 @@ function initFirestore(){
     // Skip redundant re-renders: both the recent + open listeners (and Firestore's
     // cache/server snapshot pairs) fire in quick succession. Re-rendering the call
     // list on every one caused visible flicker. Only redraw when the set changed.
-    const _sig=STATE.calls.map(c=>c.id+':'+(c.status||'')+':'+(c.updatedAt||c.createdAt||0)+':'+(c.responders?c.responders.length:0)+':'+(c.pendingResponders?c.pendingResponders.length:0)+':'+(c.rejectedResponders?c.rejectedResponders.length:0)+':'+(c.pendingBackups?c.pendingBackups.length:0)+':'+(c.backupRequests?c.backupRequests.length:0)+':'+(c.completionRequest?1:0)).sort().join('|');
+    const _sig=STATE.calls.map(c=>c.id+':'+(c.status||'')+':'+(c.updatedAt||c.createdAt||0)+':'+(c.type||'')+':'+(c.priority||'')+':'+(c.callNum||'')+':'+(c.responders?c.responders.length:0)+':'+(c.pendingResponders?c.pendingResponders.length:0)+':'+(c.rejectedResponders?c.rejectedResponders.length:0)+':'+(c.pendingBackups?c.pendingBackups.length:0)+':'+(c.backupRequests?c.backupRequests.length:0)+':'+(c.completionRequest?1:0)).sort().join('|');
     if(_sig===_lastCallsSig){ save(); return; }
     _lastCallsSig=_sig;
     save();renderCalls&&renderCalls();renderHome&&renderHome();
@@ -8757,6 +8836,10 @@ function confirmRespond() {
     setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
     _adminUnits().forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
   }
+  // Reliable backstop: every admin device subscribes to the 'admin' FCM topic, so this
+  // guarantees admins get the request even if their role string wasn't parsed into
+  // _adminUnits() on the sender's device. (Deduped server-side against the unit send.)
+  setTimeout(()=>{ try{ sendPush({ target:'topic', topic:'admin', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} },0);
 
   showToast('Response request sent to on-duty dispatchers & admin');
 }
@@ -9933,6 +10016,7 @@ function saveCallEdit() {
     call.ezSpareFitment = null;
   }
   window._pendingEditEzFitment = null;
+  call.updatedAt = Date.now(); // bump so other devices' merge detects the change and re-renders
   save(); hideModal('callEditModal');
   renderCalls(); renderHome(); showToast('Call updated'); firestoreUpsertCall(call);
   // Notify everyone of the edit — push + WhatsApp, "Update to Call #X" + details
@@ -10368,6 +10452,7 @@ function openLiveDirections(callId) {
 // Look up a call by id then open the preview (for inline onclick handlers)
 function openAddressPreviewById(id) {
   const call = (STATE.calls||[]).find(c => c.id === id);
+  if (call && /^https?:\/\//i.test((call.address||'').trim())) { try{ window.open(call.address.trim(), '_blank'); }catch(e){} return; }
   if (call) openAddressPreview(call);
 }
 // WhatsApp / iOS-style address preview: satellite map + pin, ETA & distance,
