@@ -3745,6 +3745,7 @@ async function enablePushForThisDevice() {
     const token = await _fcmMessaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
     if (!token) { setStatus('Enable','btn-primary'); showToast('Could not get push token — try again in a moment'); return; }
     _fcmToken = token;
+    try { syncPushTopics_(token, SESSION.role).catch(()=>{}); } catch(e){}
 
     // Step 5 — Register token with push server
     await fetch(PUSH_SEND_URL, {
@@ -3799,6 +3800,50 @@ async function sendTestPush() {
 // ═══════════════════════════════════════════════════════════════════════════
 const PUSH_SEND_URL  = "https://script.google.com/macros/s/AKfycbyrOTdBNqyvoDOBRx_n_BuxvSXP6IvrndPQv0dKBKCoQyhOTXT1KoxBHlbArty9eBxsFQ/exec";    // ✅ set
 const PUSH_SHARED_KEY = "cobc-2026-shared-secret";   // ✅ set
+// ── FCM Topics (Phase 2: app-side subscribe/unsubscribe) ─────────────────────
+// Broad blasts go to role topics; the 2-dispatcher on-duty scoped alerts stay token-based.
+const PUSH_TOPICS_URL = "https://cobc-push-topics.aryehw330.workers.dev";
+function topicsForRole_(role) {
+  const topics = ['all'];
+  if (role === 'admin')          topics.push('dispatch', 'admin', 'equipment');
+  else if (role === 'dispatch')  topics.push('dispatch', 'equipment');
+  else if (role === 'equipment') topics.push('equipment');
+  return topics; // member, observer → just 'all'
+}
+async function syncPushTopics_(token, role) {
+  if (!token || !PUSH_TOPICS_URL) return;
+  const want = topicsForRole_(role);
+  const storeKey = 'cobc_fcm_topics_' + token;
+  let had = [];
+  try { had = JSON.parse(localStorage.getItem(storeKey) || '[]'); } catch(e) {}
+  const toAdd  = want.filter(t => !had.includes(t));
+  const toDrop = had.filter(t => !want.includes(t));
+  if (!toAdd.length && !toDrop.length) return;
+  const base = PUSH_TOPICS_URL.replace(/\/$/, '');
+  try {
+    if (toAdd.length) {
+      await fetch(base + '/topic-subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: PUSH_SHARED_KEY, token, topics: toAdd })
+      });
+    }
+    if (toDrop.length) {
+      await fetch(base + '/topic-unsubscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: PUSH_SHARED_KEY, token, topics: toDrop })
+      });
+    }
+    localStorage.setItem(storeKey, JSON.stringify(want));
+  } catch (e) { console.warn('Topic sync failed:', e); }
+}
+function syncPushTopicsIfEnabled_() {
+  try {
+    if (!SESSION || !SESSION.unit || !SESSION.role) return;
+    const token = _fcmToken || localStorage.getItem('cobc_fcm_token_' + SESSION.unit);
+    if (!token) return;
+    syncPushTopics_(token, SESSION.role).catch(()=>{});
+  } catch(e) {}
+}
 async function sendPush(payload) {
   // payload: { target: 'all' | 'dispatchers' | 'unit', unit?: '24', title, body, url?, urgent?, excludeUnit? }
   if (!PUSH_SEND_URL || PUSH_SEND_URL.startsWith("PASTE_")) return;
@@ -5793,6 +5838,7 @@ function _tryRestoreSession() {
       const roleLabel = document.getElementById('roleLabel'); if (roleLabel) roleLabel.textContent = rd[s.role]||s.role;
       const topSub = document.getElementById('topbarSub'); if (topSub) topSub.textContent = s.name+' · '+(s.unit||'');
       _applyRoleUI(s.role);
+      try{ syncPushTopicsIfEnabled_(); }catch(e){}
       renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner();
       // Cached app is now fully painted — lift the cover as soon as the minimum
       // on-screen time is met. We do NOT wait for the (slow) REST verify below;
@@ -6175,6 +6221,7 @@ if(_telzioBtn2)_telzioBtn2.style.display=_isDispatch?'':'none';
 // Apply the role-based UI: rebrands bottom tab to "My Stats" for members,
 // hides admin-strict sub-tabs (Equipment, Vehicles) from dispatch, etc.
 try{ _applyRoleUI(role); }catch(e){}
+try{ syncPushTopicsIfEnabled_(); }catch(e){}
 try{ _installLazyRenders(); }catch(e){}
 if(document.getElementById('loginPass'))document.getElementById('loginPass').value='';if(document.getElementById('loginUnit'))document.getElementById('loginUnit').value='';
 // Persist session for iOS PWA (page reloads on re-open)
