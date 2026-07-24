@@ -8712,7 +8712,7 @@ function confirmRespond() {
   // 'dispatchers' push when no one's on duty so none is missed.
   const _dutyUnits=_onDutyDispatchUnits();
   if(_dutyUnits.length){
-    [..._dutyUnits, ..._adminUnits()].forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
+    [..._dedupeUnits([..._dutyUnits, ..._adminUnits()])].forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
   } else {
     setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
     _adminUnits().forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
@@ -9090,7 +9090,7 @@ function _submitBackupNotify(call,_approved,id){
   const _bTitle=`🆘 Backup Requested — Call #${call.callNum||''}`, _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} needs backup — ${fmtLoc(call)}`;
   const _bpUnits=_onDutyDispatchUnits();
   if(_bpUnits.length){
-    [..._bpUnits, ..._adminUnits()].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
+    [..._dedupeUnits([..._bpUnits, ..._adminUnits()])].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
   } else {
     setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
     _adminUnits().forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
@@ -9221,6 +9221,26 @@ async function submitRadioResponders() {
   if(!radioSelectedMembers.length){showToast('Select at least one member');return;}
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
+  // Restriction check: warn if any selected member is only approved for certain call
+  // types and this call isn't one of them (skip for urgent calls — all hands). Mirrors
+  // the approve-responder warning so direct 📻 Assign can't silently bypass it.
+  if(call.priority!=='urgent'){
+    const _blocked=radioSelectedMembers.filter(m=>{
+      const tm=(STATE.members||[]).find(x=>_normUnit(x.unit)===_normUnit(m.unit));
+      const isObs=(tm&&tm.role==='observer');
+      if(isObs) return !isAllowedForObserver(call.type,m.unit);
+      return memberHasRestriction(m.unit)&&!isAllowedForUnit(call.type,m.unit);
+    });
+    if(_blocked.length){
+      const _typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+      const _names=_blocked.map(m=>{
+        const u=String(m.unit).replace(/^BC-?/i,'');
+        const allowed=allowedTypesForUnit(m.unit).map(t=>(CALL_TYPE_LABELS[t]||t).replace(/[^a-zA-Z\/\s]/g,'').trim()).join(', ')||'None set';
+        return '• BC-'+u+' (approved for: '+allowed+')';
+      }).join('\n');
+      if(!confirm('⚠️ Not Approved for This Call\n\nThis call is: '+_typeLabel+'\n\nThese members are not approved for it:\n'+_names+'\n\nAssign them anyway?')) return;
+    }
+  }
   // Re-entry guard: block repeat submits for the same call within 10s so the group
   // message (and push) can't fire 2–3× from a double/triple tap or re-invocation.
   window._radioAssignLock = window._radioAssignLock || {};
@@ -10031,7 +10051,7 @@ function _submitCompletionNotify(call){
   const _dutyUnits=_onDutyDispatchUnits();
   if(_dutyUnits.length){
     // On-duty dispatchers + admins, each reached by unit (no server 'admins' mode).
-    [..._dutyUnits, ..._adminUnits()].forEach(u=>sendPush({target:'unit',unit:String(u),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'}));
+    [..._dedupeUnits([..._dutyUnits, ..._adminUnits()])].forEach(u=>sendPush({target:'unit',unit:String(u),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'}));
   } else {
     // No one scheduled on duty (OPEN or CHIEFS) → all dispatchers + all admins.
     sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
@@ -11107,6 +11127,13 @@ function _equipUnits(){
 }
 // Units (BC numbers) of the dispatchers ON THE CURRENT SHIFT right now — Primary +
 // Secondary, respecting one-time schedOverrides. Empty array if the slot is OPEN/unset.
+// De-dupe a unit list by normalized BC number so someone who is BOTH an on-duty
+// dispatcher AND an admin only gets ONE push (not two).
+function _dedupeUnits(arr){
+  const seen=new Set(), out=[];
+  (arr||[]).forEach(u=>{ const k=_normUnit(u); if(k&&!seen.has(k)){ seen.add(k); out.push(u); } });
+  return out;
+}
 function _onDutyDispatchUnits(){
   try{
     if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length) return [];
