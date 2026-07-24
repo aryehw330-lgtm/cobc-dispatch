@@ -3222,7 +3222,7 @@ textarea.input{min-height:80px;resize:vertical;}
 
 <!-- Global Shift-Approval Banner (car shift requests; admin only, every tab) -->
 <div id="globalShiftBanner" style="display:none;position:fixed;left:0;right:0;bottom:calc(70px + env(safe-area-inset-bottom));z-index:899;padding:0 12px;pointer-events:none;">
-  <div onclick="showTab('equipment');setEqTab('car',document.getElementById('eqCarTab'));" style="pointer-events:auto;cursor:pointer;background:linear-gradient(135deg,rgba(230,81,0,.42),rgba(20,12,4,.66));-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5);color:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);display:flex;align-items:center;gap:10px;border:1px solid rgba(255,167,90,.55);animation:pendingPulse 1.8s ease-in-out infinite;">
+  <div onclick="goToFirstPendingShift()" style="pointer-events:auto;cursor:pointer;background:linear-gradient(135deg,rgba(230,81,0,.42),rgba(20,12,4,.66));-webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5);color:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.18);display:flex;align-items:center;gap:10px;border:1px solid rgba(255,167,90,.55);animation:pendingPulse 1.8s ease-in-out infinite;">
     <div style="font-size:18px;">🚗</div>
     <div style="flex:1;min-width:0;">
       <div id="globalShiftTitle" style="font-size:13px;font-weight:800;letter-spacing:.3px;color:#ffcc99;text-shadow:0 1px 3px rgba(0,0,0,.4);">— shift requests</div>
@@ -16228,7 +16228,7 @@ function openCheckout(row, defaultAction) {
       }
       if (effectivelyIN) {
         const lastMember = (it.checkedOutBy || '').toString().replace(/^BC-?/i,'').trim();
-        const myUnit = String(SESSION.unit);
+        const myUnit = String(SESSION.unit).replace(/^BC-?/i,'').trim();
         const canReturn = (myUnit === lastMember) || (myUnit === '38');
         if (!lastMember || !canReturn) {
           const lmName = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'')===lastMember; });
@@ -17672,11 +17672,10 @@ var carViewDate = new Date();
 var carSelectedDate = null;
 
 function isCarItem(name) {
-  // Any shift vehicle: "COBC 4", "COBC Truck 2", "COBC Truck 3", future "COBC 5"… —
-  // i.e. a name starting with COBC followed by a number or "Truck". Regular equipment
-  // (Fan, Heater, etc.) never matches.
+  // Any shift vehicle: any item whose name starts with "COBC" (COBC 4, COBC Truck 2,
+  // COBC Van, COBC 5…). Regular equipment (Fan, Heater, etc.) never matches.
   if(!name) return false;
-  return /^cobc\s*(?:\d|truck)/i.test(name.toString().trim());
+  return /^cobc\b/i.test(name.toString().trim());
 }
 // The set of distinct shift vehicles currently in inventory.
 function _carVehicles(){
@@ -17829,7 +17828,7 @@ function getMyActiveCarBookingForInventory(vehicle) {
   if (!SESSION || !SESSION.unit || !carSchedule.length) return null;
   var now = new Date();
   var todayStr = now.getFullYear()+'-'+pad2C(now.getMonth()+1)+'-'+pad2C(now.getDate());
-  var myId = String(SESSION.unit);
+  var myId = String(SESSION.unit).replace(/^BC-?/i,'');
   return carSchedule.find(function(b) {
     if (parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10) !== parseInt(myId,10)) return false;
     if (b.date !== todayStr) return false;
@@ -18029,7 +18028,7 @@ function renderCarDay(dateStr) {
   // so a member's shift can never "disappear" just because another vehicle is selected.
   var shifts = carSchedule.filter(function(b){ return b.date===dateStr && b.status!=='cancelled'; });
   var _multiVeh = _carVehicles().length > 1;
-  var myId   = SESSION && SESSION.unit ? String(SESSION.unit) : null;
+  var myId   = SESSION && SESSION.unit ? String(SESSION.unit).replace(/^BC-?/i,'') : null;
   var isAdm  = SESSION && SESSION.role==='admin';
   var el     = document.getElementById('car-day-shifts');
   if (!el) return;
@@ -18056,7 +18055,7 @@ function renderCarDay(dateStr) {
       }[b.status]||'';
       // Member can delete their OWN pending/approved booking (not started, not done)
       var memberDeleteBtn = isMine && !isAdm && (b.status==='approved'||b.status==='pending')
-        ? '<button onclick="deleteCarShift(\''+b.id+'\')" style="margin-top:7px;padding:6px 12px;background:#fdecea;color:#c0392b;border:1.5px solid #ffcdd2;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🗑 Delete Booking</button>' : '';
+        ? '<button onclick="deleteCarShift(\''+b.id+'\')" style="margin-top:7px;padding:6px 12px;background:#fdecea;color:#c0392b;border:1.5px solid #ffcdd2;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✕ Cancel My Shift</button>' : '';
       // Admin can delete ANY booking
       var deleteBtn = isAdm
         ? '<button onclick="deleteCarShift(\''+b.id+'\')" style="margin-top:7px;padding:6px 12px;background:#fff0f0;color:#9b1c1c;border:1.5px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🗑 Delete</button>' : '';
@@ -18236,9 +18235,16 @@ function submitCarBooking() {
         // Notify admin + dispatch (real push — arrives even if their app is closed)
         try {
           var _dl = new Date(carSelectedDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-          sendPush({ target:'dispatchers', title:'🚗 New Car Shift Request',
-            body:'BC-'+String(memberId).replace(/^BC-?/i,'')+(memberName?' '+memberName:'')+' requested '+_dl+' · '+startDisp+'–'+endDisp+'. Tap to approve.',
-            url:'/cobc-dispatch/?page=equipment' });
+          var _csTitle='🚗 New Car Shift Request';
+          var _csBody='BC-'+String(memberId).replace(/^BC-?/i,'')+(memberName?' '+memberName:'')+' requested '+_dl+' · '+startDisp+'–'+endDisp+'. Tap to approve.';
+          // Scope to on-duty dispatchers + admins + equipment team (deduped), not all dispatchers.
+          var _csUnits=_dedupeUnits([..._onDutyDispatchUnits(), ..._adminUnits(), ...( typeof _equipUnits==='function'?_equipUnits():[] )]);
+          if(_csUnits.length){
+            _csUnits.forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_csTitle,body:_csBody,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
+          } else {
+            sendPush({ target:'dispatchers', title:_csTitle, body:_csBody, url:'/cobc-dispatch/?page=equipment' });
+            [...( typeof _equipUnits==='function'?_equipUnits():[] )].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_csTitle,body:_csBody,url:'/cobc-dispatch/?page=equipment'}); }catch(e){} },0));
+          }
         } catch(e){}
       } else { showToast('Error: '+(d.error||'Unknown')); if(btn){btn.disabled=false;btn.textContent='Request Shift';} }
     }).catch(function(){ showToast('Network error — booking not saved'); if(btn){btn.disabled=false;btn.textContent='Request Shift';} })
@@ -18367,6 +18373,29 @@ function deleteCarShift(bookingId, fromAdminHistory) {
 
 // Notify admins/dispatch of new pending shift requests (once per request id).
 var _firedShiftReqs = {};
+// Banner tap → jump straight to the oldest pending shift's date + vehicle so the
+// Approve button is right there (works for any date, including overnight requests).
+function goToFirstPendingShift(){
+  showTab('equipment');
+  try{ setEqTab('car',document.getElementById('eqCarTab')); }catch(e){}
+  var pend=(carSchedule||[]).filter(function(b){return b.status==='pending';})
+    .sort(function(a,b){return String(a.date+(a.startTime||'')).localeCompare(String(b.date+(b.startTime||'')));});
+  if(!pend.length){ showToast('No pending requests'); return; }
+  var b=pend[0];
+  try{ if(typeof _vehOfBooking==='function'){ _selectedVehicle=_vehOfBooking(b); } }catch(e){}
+  try{
+    if(b.date){
+      var d=new Date(b.date+'T12:00:00');
+      carViewDate=new Date(d.getFullYear(),d.getMonth(),1);
+      carSelectedDate=b.date;
+    }
+  }catch(e){}
+  setTimeout(function(){
+    try{ renderCarItemStatus&&renderCarItemStatus(); }catch(e){}
+    try{ renderCarCalendar&&renderCarCalendar(); }catch(e){}
+    try{ if(carSelectedDate) renderCarDay&&renderCarDay(carSelectedDate); }catch(e){}
+  },180);
+}
 function checkPendingShiftRequests() {
   if (!(isAdminUser() || (typeof isDispatchUser==='function' && isDispatchUser()))) { _updateCarReqBadge(0); return; }
   if (!carSchedule || !carSchedule.length) { _updateCarReqBadge(0); return; }
@@ -18536,7 +18565,7 @@ function showCobc4Warning(type) {
 function renderCarHistory() {
   var el = document.getElementById('car-history-list');
   if (!el) return;
-  var myId  = SESSION && SESSION.unit ? String(SESSION.unit) : null;
+  var myId  = SESSION && SESSION.unit ? String(SESSION.unit).replace(/^BC-?/i,'') : null;
   var isAdm = SESSION && SESSION.role === 'admin';
 
   // My upcoming bookings — pending or approved, today or future
@@ -18846,14 +18875,19 @@ function _doUpdateGlobalShiftBanner() {
     return;
   }
 
-  // ── Upcoming approved shift within 60 min and car is IN → Start Shift (can sign out 1hr early) ──
+  // ── Approved shift: show Start Shift from 60 min before start until the shift's END
+  // time, as long as the car is still IN — so if a member taps Start but never signs
+  // the car out, the banner/button persists (never vanishes mid-shift). ──
   var upcomingShift = null, minUntil = Infinity;
   (carSchedule||[]).forEach(function(b) {
     if (b.status !== 'approved') return;
     if (parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10) !== myId) return;
     var startDt = new Date(b.date+'T'+parse12to24C(b.startTime)+':00');
+    var endDt2 = new Date(b.date+'T'+parse12to24C(b.endTime)+':00');
+    if (endDt2 <= startDt) endDt2.setDate(endDt2.getDate()+1); // overnight
     var mins = (startDt - now) / 60000;
-    if (mins <= 60 && mins >= -30 && mins < minUntil) { minUntil = mins; upcomingShift = b; }
+    // In window if within 60 min before start AND not past the shift's end time yet.
+    if (mins <= 60 && now <= endDt2 && mins < minUntil) { minUntil = mins; upcomingShift = b; }
   });
   if (upcomingShift && !carIsOut) {
     var mTxt = minUntil<=0 ? 'now' : 'in '+Math.round(minUntil)+'m';
@@ -18866,29 +18900,58 @@ function _doUpdateGlobalShiftBanner() {
   _hideShiftSlots();
 }
 
-// ── 20-min / 10-min "time running out" reminders for the driver ──
+// ── Reminders for the driver: 10 min before shift START, and 10/20 min before END ──
 var _carReminderFired = {};
 function _checkCarShiftReminders(carIsOut, activeShift, now) {
   try {
+    var myNum = parseInt(String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,''),10);
+    // 10-min-before-START: my approved shift, car not yet signed out.
+    if (myNum && !carIsOut) {
+      (carSchedule||[]).forEach(function(b){
+        if (b.status!=='approved') return;
+        if (parseInt((b.memberId||'').toString().replace(/^BC-?/i,''),10)!==myNum) return;
+        var startDt = new Date(b.date+'T'+parse12to24C(b.startTime)+':00');
+        var mToStart = (startDt-now)/60000;
+        var key = b.id+'@start10';
+        if (mToStart<=10 && mToStart>8.9 && !_carReminderFired[key]) {
+          _carReminderFired[key]=true;
+          _fireCarStartReminder(_vehOfBooking(b), Math.max(0,Math.round(mToStart)));
+        }
+      });
+    }
+    // END reminders (car out & active) — 20 and 10 min before end (overnight-safe).
     if (!carIsOut || !activeShift || !activeShift.endTime) return;
     var endDt = new Date(activeShift.date+'T'+parse12to24C(activeShift.endTime)+':00');
+    var stDt = new Date(activeShift.date+'T'+parse12to24C(activeShift.startTime)+':00');
+    if (endDt <= stDt) endDt.setDate(endDt.getDate()+1); // overnight
     var mLeft = (endDt - now) / 60000;
+    var _veh = _vehOfBooking(activeShift);
     [20,10].forEach(function(thr){
       var key = activeShift.id+'@'+thr;
-      // Fire once as the clock crosses the threshold (timer ticks ~every 60s)
       if (mLeft <= thr && mLeft > (thr-1.1) && !_carReminderFired[key]) {
         _carReminderFired[key] = true;
-        _fireCarReminder(thr);
+        _fireCarReminder(thr, _veh);
       }
     });
   } catch(e) {}
 }
-function _fireCarReminder(mins) {
-  var msg = 'You have '+mins+' minutes left on your COBC 4 shift. Please return the car, or sign up for a longer shift if time is available.';
-  try { showToast('⏰ '+mins+' min left on COBC 4 — please return or extend'); } catch(e){}
+function _fireCarStartReminder(veh, mins) {
+  var v = veh||'COBC 4';
+  var msg = 'Your '+v+' shift starts in '+(mins||10)+' minutes — head over and sign the car out to start.';
+  try { showToast('⏰ '+v+' shift starts in '+(mins||10)+' min'); } catch(e){}
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('COBC 4 — '+mins+' min left', { body: msg, tag: 'cobc4-reminder-'+mins });
+      new Notification('🔑 '+v+' shift starting soon', { body: msg, tag: 'car-start-'+v });
+    }
+  } catch(e){}
+}
+function _fireCarReminder(mins, veh) {
+  var v = veh||'COBC 4';
+  var msg = 'You have '+mins+' minutes left on your '+v+' shift. Please return the car, or sign up for a longer shift if time is available.';
+  try { showToast('⏰ '+mins+' min left on '+v+' — please return or extend'); } catch(e){}
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(v+' — '+mins+' min left', { body: msg, tag: 'car-reminder-'+v+'-'+mins });
     }
   } catch(e){}
 }
