@@ -720,7 +720,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card.draft{background:#faf5ff;border-left:4px solid var(--purple);}
 .call-card-header{padding:5px 13px 3px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
 .call-card-type{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.3px;line-height:1.1;}
-.call-card-addr{font-size:17px;font-weight:600;color:var(--text2);margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15;}
+.call-card-addr{font-size:17px;font-weight:600;color:var(--text2);margin-top:0;line-height:1.2;white-space:normal;overflow:hidden;overflow-wrap:break-word;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:1px;}
 .call-card-corner{font-size:14px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 13px 4px;letter-spacing:.2px;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
@@ -4045,6 +4045,44 @@ function sendWA(payload) {
     console.log('[WA] keepalive fetch fired, length=' + message.length);
   } catch(e) { console.warn('WA send error:', e); }
 }
+// Dispatch-only: compose a custom WhatsApp message to the group about a call, with quick
+// templates (e.g. "any units available within 5 min?"). Sends via the same group path.
+function openGroupWAMessage(callId){
+  const call=(STATE.calls||[]).find(c=>c.id===callId); if(!call) return;
+  const _typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
+  const cn=call.callNum?('#'+call.callNum):'';
+  const loc=(typeof fmtLoc==='function'?fmtLoc(call):'')||call.town||'';
+  const head=[cn,_typeLabel].filter(Boolean).join(' ')+(loc?' — '+loc:'');
+  const templates=[
+    'Any units available within 5 minutes of '+head+'?',
+    'Any units available to respond to '+head+'?',
+    'Still need a unit for '+head+' — please respond if available.',
+    'Any units already in the area of '+(loc||head)+'?'
+  ];
+  const old=document.getElementById('groupWASheet'); if(old) old.remove();
+  const ov=document.createElement('div');
+  ov.id='groupWASheet';
+  ov.style.cssText='position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));max-width:460px;width:100%;">
+    <div style="font-size:16px;font-weight:800;color:var(--navy);margin-bottom:2px;">💬 Message the WhatsApp Group</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">${escapeHTML(head)}</div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;">
+      ${templates.map(t=>`<button onclick="document.getElementById('groupWAText').value=this.dataset.t;document.getElementById('groupWAText').focus();" data-t="${escapeHTML(t)}" style="text-align:left;padding:11px 13px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;font-size:13px;font-weight:600;color:#15803d;cursor:pointer;">${escapeHTML(t)}</button>`).join('')}
+    </div>
+    <textarea id="groupWAText" rows="3" placeholder="Type a custom message to the group…" style="width:100%;padding:12px;border:1.5px solid var(--border,#ddd);border-radius:12px;font-size:15px;font-family:inherit;resize:vertical;margin-bottom:12px;box-sizing:border-box;"></textarea>
+    <button onclick="_sendGroupWA()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;padding:15px;cursor:pointer;margin-bottom:8px;">📤 Send to Group</button>
+    <button onclick="document.getElementById('groupWASheet').remove();" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:15px;font-weight:700;padding:8px;cursor:pointer;">Cancel</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _sendGroupWA(){
+  const ta=document.getElementById('groupWAText'); const msg=(ta&&ta.value||'').trim();
+  if(!msg){ showToast('Type a message first'); return; }
+  try{ sendWA({target:'all', message:msg}); }catch(e){}
+  const s=document.getElementById('groupWASheet'); if(s) s.remove();
+  showToast('📤 Sent to WhatsApp group');
+}
 
 // "🚗 BC-24 is responding to call #142"
 function _waMsgResponderUpdate(call, newResponder) {
@@ -4715,20 +4753,58 @@ function fmtLoc(call){
   return addr+', '+town;
 }
 // Card-only address: drop the ZIP code to save space (notifications/maps keep it)
+// Card address: show the FULL location — business name + street + town + state + ZIP as
+// typed. Never coordinates-only (the "— 📍 lat,lng" suffix is stripped; the name stays).
 function fmtLocCard(call){
-  // A saved Maps-link location: show a tappable label instead of the raw URL.
   if(/^https?:\/\//i.test(String((call&&call.address)||'').trim())) return '🗺 Tap for map location';
   let s=_stripCoordSuffix(String((call&&call.address)||'').trim());
   const town=String(cardTown(call)||'').trim();
-  s=s.replace(/[,\s]+\d{5}(?:-\d{4})?\b/g,'');                               // drop ZIP
-  s=s.replace(/[,\s]+(?:N\.?J\.?|N\.?Y\.?|New Jersey|New York)\b\.?/gi,''); // drop state
-  // Drop the town ONLY when it's the trailing component (shown as a chip) — never
-  // strip it from the middle of a street name (e.g. "West Englewood Avenue").
-  if(town){ s=s.replace(new RegExp('[,\\s]+'+town.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*$','i'),''); }
-  s=s.replace(/\s*,\s*$/,'').replace(/\s{2,}/g,' ').trim();
-  return s || town;
+  // Never show bare coordinates on a card — if that's all there is, use the town or a label.
+  const bareCoords=/^\s*-?\d{1,3}\.\d+\s*,\s*-?\d{1,3}\.\d+\s*$/.test(s);
+  if(!s||bareCoords) return town || '📍 Pinned location';
+  if(town && s.toLowerCase().indexOf(town.toLowerCase())<0) s=s+', '+town;
+  return s;
 }
-// URGENT toggle on the New Call form (replaces the old priority dropdown)
+// Two-line card location: NAME on top, and under it the pin coords / address /
+// map-link label. Never coordinates-only without a name above them.
+function fmtLocCardParts(call){
+  const raw=String((call&&call.address)||'').trim();
+  const town=String(cardTown(call)||'').trim();
+  const withTown=(name)=> (town && name && name.toLowerCase().indexOf(town.toLowerCase())<0) ? name+', '+town : (name||town);
+  // Map link → tappable label.
+  if(/^https?:\/\//i.test(raw)) return {line1:'🗺 Map location'+(town?', '+town:''), line2:'Tap to open map link'};
+  // Stored location name (business / common location / i911 highway) → name on top,
+  // address or coords underneath.
+  const ln=String((call&&call.locName)||'').trim();
+  if(ln){
+    const rest=_stripCoordSuffix(raw);
+    const cm=raw.match(/📍\s*(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+    let line2 = (rest && rest.toLowerCase()!==ln.toLowerCase()) ? rest : (cm?('📍 '+cm[1]+', '+cm[2]):'');
+    return {line1:withTown(ln), line2:line2};
+  }
+  // "Name — 📍 lat,lng" (highway/common w/ coords) → name top. Coords go UNDER only for
+  // raw highway hits; for a saved Common Location, show the name alone (coords live in the
+  // details section, not the card).
+  const m=raw.match(/^(.*?)\s*[—-]\s*📍\s*(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/);
+  if(m){
+    const nm=m[1].trim();
+    let isCommon=false;
+    try{ isCommon=(_commonCalls()||[]).some(c=>String(c.label||'').trim().toLowerCase()===nm.toLowerCase()); }catch(e){}
+    return {line1:withTown(nm||'📍 Pinned location'), line2:isCommon?'':('📍 '+m[2]+', '+m[3])};
+  }
+  // Bare coords only → town on top, coords under (never coords alone).
+  const bc=raw.match(/^\s*(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/);
+  if(bc) return {line1:town||'📍 Pinned location', line2:'📍 '+bc[1]+', '+bc[2]};
+  // Establishment typed as "Estihana 515 Cedar Lane, Teaneck, NJ 07666" → split the
+  // leading business name (letters before a street number) onto its own line.
+  const est=raw.match(/^([A-Za-z][^0-9,]{1,40}?)\s+(\d+\s+.*)$/);
+  if(est){ return {line1:est[1].trim(), line2:est[2].trim()}; }
+  return {line1:fmtLocCard(call), line2:''};
+}
+function fmtLocCardHTML(call){
+  const p=fmtLocCardParts(call);
+  return escapeHTML(p.line1)+(p.line2?`<div style="font-size:13px;font-weight:600;opacity:.8;margin-top:1px;">${escapeHTML(p.line2)}</div>`:'');
+}
 function toggleUrgent(){
   const type=(document.getElementById('callType')||{}).value;
   if(type==='child_lockout'){ setUrgentToggle(true); return; } // Child Locked in Car is always urgent — can't switch off
@@ -4761,6 +4837,40 @@ const _COMMON_CALLS_DEFAULT = [
 function _commonCalls(){
   try{ const s=JSON.parse(localStorage.getItem('cobc_common_calls')||'null'); if(Array.isArray(s)) return s; }catch(e){}
   return _COMMON_CALLS_DEFAULT.slice();
+}
+// Nearest saved common location within ~300m of a point — its label carries the road
+// direction (e.g. "…Southbound"), which raw i911/Google geocoding does not.
+function _nearestCommonLoc(lat,lng){
+  let best=null,bestD=Infinity;
+  (_commonCalls()||[]).forEach(c=>{
+    const m=String(c.coords||'').match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/); if(!m) return;
+    const dLat=(lat-parseFloat(m[1]))*111000, dLng=(lng-parseFloat(m[2]))*111000*Math.cos(lat*Math.PI/180);
+    const d=Math.sqrt(dLat*dLat+dLng*dLng);
+    if(d<bestD){ bestD=d; best=c; }
+  });
+  return bestD<=300 ? best : null;
+}
+// Infer a highway direction word (Northbound/Southbound/…) for a point by borrowing it
+// from the nearest saved common location ON THE SAME highway. Approximate (picks by
+// distance, not carriageway) but good enough per the team's request; returns '' if none.
+function _highwayDirection(lat,lng,roadName){
+  const road=String(roadName||'').toLowerCase();
+  // Which highway keyword does this road match?
+  const keys=['palisade','thruway','turnpike','garden state','parkway','i-80','i-95','route 4','route 17','route 46','route 9'];
+  const key=keys.find(k=>road.includes(k)); if(!key) return '';
+  let best=null,bestD=Infinity;
+  (_commonCalls()||[]).forEach(c=>{
+    const lbl=String(c.label||'').toLowerCase(); if(lbl.indexOf(key)<0) return;
+    const dir=(lbl.match(/\b(north|south|east|west)bound\b/)||lbl.match(/\b(nb|sb|eb|wb)\b/)); if(!dir) return;
+    const m=String(c.coords||'').match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/); if(!m) return;
+    const dLat=(lat-parseFloat(m[1]))*111000, dLng=(lng-parseFloat(m[2]))*111000*Math.cos(lat*Math.PI/180);
+    const d=Math.sqrt(dLat*dLat+dLng*dLng);
+    if(d<bestD){ bestD=d; best=dir[0]; }
+  });
+  if(!best) return '';
+  const map={nb:'Northbound',sb:'Southbound',eb:'Eastbound',wb:'Westbound'};
+  best=map[best.toLowerCase()]||(best.charAt(0).toUpperCase()+best.slice(1).toLowerCase());
+  return bestD<=8000 ? best : '';
 }
 function _saveCommonCalls(list){
   try{ localStorage.setItem('cobc_common_calls', JSON.stringify(list)); }catch(e){}
@@ -4957,7 +5067,17 @@ async function requestViaI911(){
                 || (!types.includes('street_address') && !types.includes('premise') && !types.includes('subpremise'))
                 || (locType && locType!=='ROOFTOP' && locType!=='RANGE_INTERPOLATED');
               const isHwy=/\b(I-?\d+|US-?\d+|Route\s|Rte\.?\s|Hwy|Highway|Interstate|Turnpike|Pkwy|Parkway|Expressway|Expy|Thruway|Freeway)\b/i.test(r.formatted_address);
-              input.value = (isHwy || isRoadOnly) ? (r.formatted_address+' — 📍 '+coordStr) : r.formatted_address;
+              // On a highway, prefer a saved common location's directional label (it has
+              // North/South-bound, which Google's road name lacks) when the point is near one.
+              const _near=(isHwy||isRoadOnly)?_nearestCommonLoc(lat,lng):null;
+              if(_near){ input.value=_near.label+' — 📍 '+coordStr; }
+              else if(isHwy || isRoadOnly){
+                // Append an inferred direction word (from nearest same-highway anchor).
+                const _dir=_highwayDirection(lat,lng,r.formatted_address);
+                const _roadName=r.formatted_address+(_dir&&r.formatted_address.toLowerCase().indexOf(_dir.toLowerCase())<0?' '+_dir:'');
+                input.value = _roadName+' — 📍 '+coordStr;
+              }
+              else { input.value = r.formatted_address; }
               addrAutoLookup(input,'callTown','callTownText');
             }
           }
@@ -4985,6 +5105,14 @@ function addrAutoLookup(inputEl, townSelId, townTextId) {
   if(inputEl.id==='callAddress'){ _lastCallLatLng=null; try{ updateCallZoneBadge(); }catch(e){} }
   if(!box) return;
   if(_addrTimer) clearTimeout(_addrTimer);
+  // Bare coordinates ("40.892705, -73.987340") — set the exact point, no text search.
+  const _coordM=q.match(/^\s*(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/);
+  if(_coordM && inputEl.id==='callAddress'){
+    box.style.display='none'; box.innerHTML='';
+    _lastCallLatLng={lat:parseFloat(_coordM[1]),lng:parseFloat(_coordM[2])};
+    try{ updateCallZoneBadge(); }catch(e){}
+    return;
+  }
   if(q.length < 3) { box.style.display='none'; box.innerHTML=''; return; }
 
   _addrTimer = setTimeout(async () => {
@@ -5045,7 +5173,7 @@ function addrPickSuggestion(idx, boxId, inputId, townSelId, townTextId) {
   svc.getDetails({
     placeId: prediction.place_id,
     sessionToken: _sessionToken,
-    fields: ['address_components','formatted_address','geometry']
+    fields: ['address_components','formatted_address','geometry','name']
   }, (place, status) => {
     _sessionToken = null;
     if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
@@ -5063,7 +5191,10 @@ function addrPickSuggestion(idx, boxId, inputId, townSelId, townTextId) {
                         .replace(/^(township|borough|town|city|village)\s+of\s+/i,'').trim();
     const zip = comp.postal_code || '';
     const state = comp.administrative_area_level_1_short || comp.administrative_area_level_1 || 'NJ';
-    inputEl.value = [street, town, zip ? state + ' ' + zip : state].filter(Boolean).join(', ');
+    // Keep the business/place NAME (e.g. "Estihana") in front of the street for establishments.
+    const bizName = (place.name && !/^\d/.test(place.name) && street && street.toLowerCase().indexOf(place.name.toLowerCase())<0) ? place.name : '';
+    const streetFull = [bizName, street].filter(Boolean).join(' ');
+    inputEl.value = [streetFull, town, zip ? state + ' ' + zip : state].filter(Boolean).join(', ');
 
     if (place.geometry?.location) {
       const key = `${inputEl.value}|${town}`;
@@ -5946,6 +6077,24 @@ function initFirestore(){
     _attachRecentListener();
     _attachOpenListener();
   }catch(e){ console.warn('calls scoped listeners failed:',e); _attachFullListener(); }
+  // Foreground re-pull: after Android Doze the onSnapshot socket can be stale/slow to
+  // reconnect, so on returning to the app we do a one-shot get() on the same scoped
+  // queries and merge — lands current calls instantly instead of waiting for the socket.
+  let _resyncInFlight=false, _resyncSkipUntil=0;
+  window._forceCallsResync=function(){
+    if(_resyncInFlight || Date.now()<_resyncSkipUntil) return;
+    _resyncInFlight=true; _resyncSkipUntil=Date.now()+4000; // throttle to ≤1 / 4s
+    Promise.all([
+      db.collection('calls').where('createdAt','>=',_recentStart).get(),
+      db.collection('calls').where('status','in',['open','active','draft']).get()
+    ]).then(([r,o])=>{
+      try{ if(typeof SESSION==='undefined')return;
+        const dr=_snapDocs(r), do_=_snapDocs(o);
+        if(dr!==null)_bufRecent=dr; if(do_!==null)_bufOpen=do_;
+        _applyCallsMerge();
+      }catch(e){ console.warn('calls resync merge:',e); }
+    }).catch(e=>console.warn('calls resync:',e)).finally(()=>{ _resyncInFlight=false; });
+  };
   // Members loaded from Google Sheet (loadMembersFromSheet) — Sheet is source of truth.
   // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
   _snapTimer=setTimeout(()=>{if(!_snapDelivered){console.warn('Firestore onSnapshot silent — starting get() fallback');_pollFirestore();}},5000);
@@ -6710,7 +6859,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){try{var _ne=document.getElementById('newCallNumInput');if(_ne){window._newCallNumOverride=null;_ne.value=_peekNextCallNum();}}catch(e){}if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof populateCarYearSelect==='function')populateCarYearSelect('carYear');if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){try{loadGoogleMapsAPI();}catch(e){}try{var _ne=document.getElementById('newCallNumInput');if(_ne){window._newCallNumOverride=null;_ne.value=_peekNextCallNum();}}catch(e){}if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof populateCarYearSelect==='function')populateCarYearSelect('carYear');if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');if(id==='callDetailModal')window._openDetailId=null;}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -7710,7 +7859,7 @@ function callCardHTML(call, mini=false) {
           <div style="flex:1;min-width:0;">
             <div class="call-card-type" style="color:${isUrgent?'var(--red)':townColor};">${typeLabelDisp}${isDraft?' <span style="background:#a855f7;color:#fff;padding:3px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.3);">DRAFT</span>':''}</div>
             ${carInfoLine?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfoLine}</div>`:''}
-            <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
+            <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCardHTML(call)}</div>
             ${ezFitBadge}
             ${floodBadge}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
@@ -7754,7 +7903,7 @@ function callCardHTML(call, mini=false) {
           ${isDispatch&&pending>0?`<span class="pending-badge">${pending} pending</span>`:''}
         </div>
         ${carInfoLine?`<div class="call-card-vehicle" style="font-size:13.5px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);margin-top:2px;">${carInfoLine}</div>`:''}
-        <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCard(call)}</div>
+        <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCardHTML(call)}</div>
         ${ezFitBadge}
         ${floodBadge}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
@@ -7894,8 +8043,11 @@ function fitCardAddresses(){
     const min = 9.5;
     let size = max;
     el.style.setProperty('font-size', size+'px', 'important');
+    el.style.setProperty('white-space', 'normal', 'important');
+    // Allow up to TWO lines: only shrink when the wrapped text exceeds two line-heights,
+    // so long location names flow to a second line instead of truncating.
     let guard = 60;
-    while(el.scrollWidth > el.clientWidth + 0.5 && size > min && guard-- > 0){
+    while(el.scrollHeight > (size*1.2*2)+2 && size > min && guard-- > 0){
       size -= 0.5;
       el.style.setProperty('font-size', size+'px', 'important');
     }
@@ -9666,7 +9818,7 @@ function openCallDetail(id) {
   const _myU=String(SESSION.unit||'').replace(/^BC-?/i,'').trim();
   const _iAmOnCall=(call.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
   const _canActOnCall = isDispatch || (call.status==='active' && _iAmOnCall);
-  if(call.phone && _canActOnCall) html+=`<button class="btn-sm" style="background:#f0fdf4;color:var(--green);font-weight:700;" onclick="callCaller('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Caller</button>`;
+  if(isDispatch && call.status!=='draft') html+=`<button class="btn-sm" style="background:#dcfce7;color:#15803d;font-weight:700;" onclick="openGroupWAMessage('${id}')">💬 Group Message</button>`;
   if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
@@ -10515,10 +10667,11 @@ function openAddressPreviewById(id) {
 // and a "Choose application" picker (Apple Maps / Google Maps / Waze).
 async function openAddressPreview(call) {
   if (!call || !call.address) return;
-  const addr = call.address || '';
+  const rawAddr = call.address || '';
   const town = call.town || '';
-  const fullAddr = `${addr}, ${town}, NJ`;
-  const enc = encodeURIComponent(fullAddr);
+  const addr = _stripCoordSuffix(rawAddr);            // display: name/street, no coord suffix
+  const navTarget = navQuery(rawAddr, town);          // nav: exact coords if embedded, else text
+  const enc = encodeURIComponent(navTarget);
   const key = window.MAPS_API_KEY || '';
 
   let ov = document.getElementById('addrPreviewModal');
@@ -10631,7 +10784,7 @@ async function openAddressPreview(call) {
 
 function openMyRouteMap(call) {
   if (!call) return;
-  const dest = encodeURIComponent((call.address||'') + ' ' + (call.town||'') + ' NJ');
+  const dest = encodeURIComponent(navQuery(call.address||'', call.town||''));
   const apiKey = typeof GOOGLE_MAPS_API_KEY !== 'undefined' ? GOOGLE_MAPS_API_KEY : '';
   const title = `#${call.callNum||''} · ${fmtLoc(call)}`;
 
@@ -11523,6 +11676,8 @@ function checkShiftSignInOutReminders(){
 (function _wireEscalationCatchUp(){
   function _catchUp(){
     if(document.visibilityState==='hidden') return;
+    try{ window._forceCallsResync && window._forceCallsResync(); }catch(e){}
+    try{ _ensureEqActivityHistorySub && _ensureEqActivityHistorySub(); }catch(e){}
     try{ checkWaitingEscalation(); }catch(e){}
     try{ checkReRequests(); }catch(e){}
     try{ checkShiftSignInOutReminders(); }catch(e){}
