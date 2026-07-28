@@ -150,7 +150,7 @@
     var subjectHtml = missing ? (
         '<div style="font-size:12px;font-weight:800;color:#7f1d1d;margin:6px 0 8px;text-transform:uppercase;letter-spacing:.04em;">Missing Person</div>'
       + '<div style="display:flex;gap:10px;margin-bottom:10px;">'
-      +   '<label id="mpPhotoBox" style="width:78px;height:78px;border-radius:12px;background:#f1f5f9;border:1.5px dashed #cbd5e1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#64748b;text-align:center;cursor:pointer;flex-shrink:0;overflow:hidden;">Add photo<input id="mpPhoto" type="file" accept="image/*" capture="environment" onchange="cmPhotoPick(event)" style="display:none;"/></label>'
+      +   '<label id="mpPhotoBox" style="width:78px;height:78px;border-radius:12px;background:#f1f5f9;border:1.5px dashed #cbd5e1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#64748b;text-align:center;cursor:pointer;flex-shrink:0;overflow:hidden;">Add photo<input id="mpPhoto" type="file" accept="image/*" onchange="cmPhotoPick(event)" style="display:none;"/></label>'
       +   '<div style="flex:1;display:flex;flex-direction:column;gap:8px;">'
       +     '<input id="mpName" placeholder="Full name" style="padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;"/>'
       +     '<input id="mpAge" placeholder="Age" inputmode="numeric" style="padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;"/>'
@@ -217,7 +217,7 @@
         var cv=document.createElement('canvas'); cv.width=img.width*sc; cv.height=img.height*sc;
         cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
         _cmPhotoData=cv.toDataURL('image/jpeg',0.7);
-        var box=document.getElementById('mpPhotoBox'); if(box) box.style.backgroundImage='url('+_cmPhotoData+')', box.style.backgroundSize='cover', box.innerHTML='<input id="mpPhoto" type="file" accept="image/*" capture="environment" onchange="cmPhotoPick(event)" style="display:none;"/>';
+        var box=document.getElementById('mpPhotoBox'); if(box) box.style.backgroundImage='url('+_cmPhotoData+')', box.style.backgroundSize='cover', box.innerHTML='<input id="mpPhoto" type="file" accept="image/*" onchange="cmPhotoPick(event)" style="display:none;"/>';
       };
       img.src=rd.result;
     };
@@ -308,7 +308,17 @@
 
   // ── Incident log ────────────────────────────────────────────────────────────
   function _cmAddLog(text,kind){ try{ db().collection('commandLog').add({ at:Date.now(), text:String(text||''), kind:kind||'note', by:myUnit() }).catch(function(){}); }catch(e){} }
-  function cmAddNote(){ var t=prompt('Add a note to the log:'); if(t&&t.trim()) _cmAddLog(t.trim(),'note'); }
+  function cmAddNote(){
+    var log=(_cmLog||[]).map(function(e){
+      var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      var by=e.by?(' <span style="color:#94a3b8;">BC-'+U(e.by)+'</span>'):'';
+      return '<div style="padding:8px 10px;border-bottom:1px solid #eef2f7;font-size:13px;color:#334155;line-height:1.4;"><span style="color:#94a3b8;font-size:11px;">'+t+'</span> '+escapeHTML(e.text||'')+by+'</div>';
+    }).join('')||'<div style="padding:12px;color:#94a3b8;font-size:13px;">No log entries yet.</div>';
+    var body='<div style="max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid #eef2f7;border-radius:10px;margin-bottom:12px;">'+log+'</div>'
+      +'<button onclick="cmPromptNote()" style="width:100%;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:14px;font-weight:800;font-size:14px;cursor:pointer;">✎ Add a note</button>';
+    _cmSheet('📋 Incident Log', body);
+  }
+  function cmPromptNote(){ var t=prompt('Add a note to the log:'); if(t&&t.trim()){ _cmAddLog(t.trim(),'note'); showToast('Note added'); setTimeout(cmAddNote,250); } }
 
   // ── Full-screen view ──────────────────────────────────────────────────────────
   function openCommandView(){
@@ -558,10 +568,10 @@
     var have={}; cmMembers().forEach(function(m){ have[U(m.unit)]=1; });
     var members=(STATE.members||[]).filter(function(m){ return !have[U(m.unit||m.id)]; }).sort(function(a,b){ return (parseInt(U(a.unit||a.id))||0)-(parseInt(U(b.unit||b.id))||0); });
     var body='<input id="cmAddSearch" placeholder="Filter…" oninput="cmFilterAdd(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:10px;box-sizing:border-box;"/>'
-      +'<div id="cmAddPick" style="max-height:44vh;overflow-y:auto;">'+members.map(function(m){ var u=U(m.unit||m.id); var nm=((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
+      +'<div id="cmAddPick" style="max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+members.map(function(m){ var u=U(m.unit||m.id); var nm=((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
         return '<div class="cmAddRow" data-u="'+u+'" data-n="'+escapeHTML(nm.toLowerCase())+'" onclick="cmTogglePick(\''+u+'\',this)" style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #f2f2f2;cursor:pointer;border-radius:8px;"><span class="cmChk" style="width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex-shrink:0;"></span><span style="font-weight:700;color:#1a3a5c;">BC-'+u+'</span><span style="color:#666;font-size:13px;">'+escapeHTML(nm)+'</span></div>';
       }).join('')||'<div style="color:#9ca3af;padding:8px;">Everyone is already added.</div>'+'</div>'
-      +'<button onclick="cmConfirmAdd()" style="width:100%;margin-top:12px;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;">Add selected</button>';
+      +'<button onclick="cmConfirmAdd()" style="position:sticky;bottom:0;width:100%;margin-top:12px;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 -6px 12px rgba(255,255,255,.9);">＋ Add <span id="cmPickCount">selected</span></button>';
     _cmSheet('Add members', body);
   }
   function cmFilterAdd(q){ q=(q||'').toLowerCase().trim(); document.querySelectorAll('#cmAddPick .cmAddRow').forEach(function(el){ var hit=!q||el.dataset.u.indexOf(q)>=0||(el.dataset.n||'').indexOf(q)>=0; el.style.display=hit?'flex':'none'; }); }
@@ -594,6 +604,7 @@
     cmSetLinkMode:cmSetLinkMode, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
     cmFilterSetup:cmFilterSetup, cmAddMembers:cmAddMembers, cmFilterAdd:cmFilterAdd, cmConfirmAdd:cmConfirmAdd,
     cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmArmSector:cmArmSector, cmBroadcast:cmBroadcast,
+    cmPromptNote:cmPromptNote,
     cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton
   });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(initCommandMode,1200); });
