@@ -21,6 +21,8 @@
   var _cmShareTimer=null, _cmUnsub={}, _cmCallCoords={}, _cmLoggedCalls={}, _cmReady=false, _cmSectorArm=false;
   var _cmView='calls', _cmCallFilter='all', _cmCallSearch='', _cmTick=null, _cmSelCall=null, _cmNewCallArm=false;
   var _cmPick={};   // start/add member selection: unit → true
+  var _cmHist=[];   // loaded commandHistory records for the Logs viewer
+  var _cmSeenStatus={}, _cmClosedHandled={};   // detect calls that flip to done while an op is open
   var _cmDrawMode='off';   // 'off' | 'draw' | 'erase'
   var _cmDrawLines=[];      // live google Polyline objects keyed by drawing id
   var _cmDrawObjs={};       // id → Polyline
@@ -334,10 +336,7 @@
     ov.innerHTML=''
       +'<div style="flex-shrink:0;background:#0b1220;color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);">'
         +'<div style="display:flex;align-items:center;gap:10px;min-width:0;"><span style="font-size:18px;">'+(missing?'🔍':'🎖️')+'</span><div style="min-width:0;"><div style="font-size:15px;font-weight:800;">'+(missing?'Missing Person Search':'Command Center')+'</div><div style="font-size:11px;color:#94a3b8;">Lead: BC-'+cmLeadUnit()+' · <span id="cmHeadcount"></span></div></div></div>'
-        +'<div style="display:flex;gap:8px;flex-shrink:0;">'
-          +(canEnd?'<button onclick="cmEndNight()" style="background:#7f1d1d;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;">End</button>':'')
-          +'<button onclick="closeCommandView()" style="background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer;">✕</button>'
-        +'</div>'
+        +'<div style="display:flex;gap:8px;flex-shrink:0;"></div>'
       +'</div>'
       +(missing?'<div id="cmSubjectBar" style="flex-shrink:0;background:#1a1000;border-bottom:1px solid rgba(255,255,255,.08);"></div>':'')
       +(missing?'':'<div id="cmStats" style="flex-shrink:0;background:#0b1220;border-bottom:1px solid rgba(255,255,255,.08);display:flex;gap:8px;overflow-x:auto;padding:8px 12px;"></div>')
@@ -356,8 +355,9 @@
       +'</div>';
     document.body.appendChild(ov);
     _cmInjectStyle(); _cmRenderSubjectBar(); if(!missing) _cmBuildCallsPanel(); _cmBuildSidebar(); if(!missing) _cmBuildStats();
+    _cmSeenStatus={}; _cmClosedHandled={}; (STATE.calls||[]).forEach(function(c){ _cmSeenStatus[c.id]=c.status; });
     if(_cmTick) clearInterval(_cmTick);
-    _cmTick=setInterval(function(){ if(document.getElementById('cmOverlay')){ if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); } } else { clearInterval(_cmTick); _cmTick=null; } }, 4000);
+    _cmTick=setInterval(function(){ if(document.getElementById('cmOverlay')){ _cmDetectCompletions(); if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); } } else { clearInterval(_cmTick); _cmTick=null; } }, 4000);
     loadGoogleMapsAPI().then(_cmInitMap).catch(function(){ _cmMapFallback(); });
   }
   function closeCommandView(){ if(_cmTick){ clearInterval(_cmTick); _cmTick=null; } var o=document.getElementById('cmOverlay'); if(o) o.remove(); _cmMap=null; _cmMarkers={}; _cmCallMarkers={}; _cmGridShapes={}; _cmTrails={}; _cmLastSeenMk=null; _cmSelCall=null; }
@@ -402,7 +402,9 @@
       +stat(idle,'Idle','#eab308')
       +stat(nosig,'No signal','#9ca3af')
       +stat(gps+'/'+mem.length,'GPS live','#3b82f6')
-      +stat(avg!=null?avg.toFixed(0)+'m':'—','Avg resp','#c4b5fd');
+      +stat(avg!=null?avg.toFixed(0)+'m':'—','Avg resp','#c4b5fd')
+      +'<button onclick="closeCommandView()" style="margin-left:auto;flex-shrink:0;align-self:center;background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:10px;padding:8px 14px;min-height:40px;font-size:16px;font-weight:800;cursor:pointer;">✕</button>'
+      +(((cmAmAdmin()||myUnit()===cmLeadUnit()))?'<button onclick="cmEndNight()" style="flex-shrink:0;align-self:center;background:#7f1d1d;color:#fff;border:none;border-radius:10px;padding:8px 16px;min-height:40px;font-size:13px;font-weight:800;cursor:pointer;">End</button>':'');
   }
 
   // ── Active Calls panel ──────────────────────────────────────────────────────
@@ -479,14 +481,54 @@
     if(to==='urgent'){ cmMembers().forEach(function(mm){ try{ sendPush({ target:'unit', unit:U(mm.unit), title:'🚨 Escalated', body:'Call #'+(c.callNum||'')+' escalated to URGENT', url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} }); }
     showToast(to==='urgent'?'🚨 Escalated':'De-escalated'); _cmCallPopup(id);
   }
+  function _cmCallTypeLabel(c){ var r=(c&&c.type)||''; return cleanLabel?cleanLabel(r.indexOf('other:')===0?r.replace('other:',''):(CALL_TYPE_LABELS[r]||r)):r; }
   function cmClearCall(id){
     var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
     if(!confirm('Clear (complete) call #'+(c.callNum||'')+'? It leaves the active board.')) return;
+    _cmClosedHandled[id]=1;   // this device owns the closing note; skip auto-detect
     c.status='done'; c.completedAt=Date.now(); c.completedBy=myUnit();
     try{ if(typeof logCallEvent==='function') logCallEvent(c,'completed',{by:myUnit(),responders:(c.responders||[]).length,durationMin:Math.round((c.completedAt-c.createdAt)/60000),viaCommand:true}); }catch(e){}
-    _cmSyncCall(c); _cmAddLog('✓ Call #'+(c.callNum||'')+' cleared by BC-'+myUnit(),'status');
-    showToast('Call cleared'); var s=document.getElementById('cmSheet'); if(s) s.remove(); _cmSelCall=null; _cmRefreshView();
+    _cmSyncCall(c);
+    showToast('Call cleared'); _cmSelCall=null; _cmRefreshView();
+    _cmCloseNotePrompt(id);   // ask command for a closing note
   }
+  function _cmCloseNotePrompt(id){
+    var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
+    var tl=_cmCallTypeLabel(c), phone=c.phone||c.callerPhone||'';
+    var body=''
+      +'<div style="font-size:13px;color:#111827;font-weight:800;margin-bottom:3px;">Call #'+(c.callNum||'')+' · '+escapeHTML(tl)+'</div>'
+      +'<div style="font-size:12px;color:#6b7280;margin-bottom:12px;">'+(phone?('☎ '+escapeHTML(phone)):'no phone on file')+'</div>'
+      +'<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Closing notes</label>'
+      +'<textarea id="cmCloseNote" rows="3" placeholder="Outcome / disposition / what happened…" style="width:100%;padding:11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin:6px 0 12px;box-sizing:border-box;resize:vertical;"></textarea>'
+      +'<div style="display:flex;gap:8px;"><button onclick="cmSkipCloseNote(\''+id+'\')" style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;">Skip</button><button onclick="cmSaveCloseNote(\''+id+'\')" style="flex:1.5;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;">Save note</button></div>';
+    _cmSheet('📝 Closing note — Call #'+(c.callNum||''), body);
+  }
+  function _cmClosingLog(c,note){
+    var tl=_cmCallTypeLabel(c), phone=c.phone||c.callerPhone||'';
+    _cmAddLog('✅ Call #'+(c.callNum||'')+' completed · '+tl+(phone?(' · ☎ '+phone):'')+(note?(' · “'+note+'”'):'')+' — by BC-'+myUnit(),'status');
+    try{ c.cmClosed=true; _cmSyncCall(c); }catch(e){}
+  }
+  // Fire the closing-note prompt whenever a call flips to done while an op is open —
+  // whether command cleared it, a dispatcher completed it, or a member's close
+  // request (CC/CNC) was approved. c.cmClosed (synced) dedupes across devices.
+  function _cmDetectCompletions(){
+    if(!cmIsActive()||!document.getElementById('cmOverlay')) return;
+    (STATE.calls||[]).forEach(function(c){
+      var prev=_cmSeenStatus[c.id]; _cmSeenStatus[c.id]=c.status;
+      if(prev===undefined||c.status!=='done'||prev==='done') return;
+      if(_cmClosedHandled[c.id]){ return; }
+      if(c.cmClosed){ _cmClosedHandled[c.id]=1; return; }
+      _cmClosedHandled[c.id]=1;
+      _cmCloseNotePrompt(c.id);
+    });
+  }
+  function cmSaveCloseNote(id){
+    var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c){ var s0=document.getElementById('cmSheet'); if(s0) s0.remove(); return; }
+    var el=document.getElementById('cmCloseNote'); var note=el?(el.value||'').trim():'';
+    if(note){ c.notes=(c.notes?(c.notes+' | '):'')+'Closed: '+note; try{ _cmSyncCall(c); }catch(e){} }
+    _cmClosingLog(c,note); var s=document.getElementById('cmSheet'); if(s) s.remove(); showToast(note?'Note saved to log':'Call completed');
+  }
+  function cmSkipCloseNote(id){ var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(c) _cmClosingLog(c,''); var s=document.getElementById('cmSheet'); if(s) s.remove(); }
   function cmCancelCallCmd(id){
     var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
     if(typeof window.cancelCall==='function'){ var s=document.getElementById('cmSheet'); if(s) s.remove(); try{ window.cancelCall(id); }catch(e){} _cmAddLog('✕ Call #'+(c.callNum||'')+' cancel requested by BC-'+myUnit(),'status'); setTimeout(_cmRefreshView,400); return; }
@@ -556,6 +598,7 @@
 
   function _cmRefreshView(){
     _cmRenderSubjectBar();
+    _cmDetectCompletions();
     if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); }
     if(!_cmMap||!_cmMap._isGoogle){ _cmBuildSidebar(); return; }
     var G=google.maps, seen={};
@@ -626,7 +669,7 @@
       (STATE.calls||[]).forEach(function(c){
         if((c.status==='open'||c.status==='active')&&!_cmLoggedCalls[c.id]&&(c.createdAt||0)>=((_cmState&&_cmState.startedAt)||0)){
           _cmLoggedCalls[c.id]=1; var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||'');
-          _cmAddLog('🔴 Call '+(c.callNum?('#'+c.callNum+' '):'')+tl+' — '+(c.town||''),'call');
+          _cmAddLog('🔴 Call '+(c.callNum?('#'+c.callNum+' '):'')+tl+' — '+(c.town||'')+(c.caller?(' · '+c.caller):'')+(c.phone?(' · ☎ '+c.phone):''),'call');
         }
       });
     }
@@ -825,15 +868,76 @@
   // ── Broadcast ───────────────────────────────────────────────────────────────
   function cmBroadcast(){ var msg=prompt('Broadcast to all members:'); if(!msg||!msg.trim()) return; cmMembers().forEach(function(mm){ try{ sendPush({ target:'unit', unit:U(mm.unit), title:(cmIsMissing()?'🔍 Search':'🎖️ Command'), body:msg.trim(), url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} }); try{ sendWA({ target:'all', message:(cmIsMissing()?'🔍 SEARCH: ':'🎖️ COMMAND: ')+msg.trim() }); }catch(e){} _cmAddLog('📣 Broadcast: '+msg.trim(),'broadcast'); showToast('📣 Sent'); }
 
-  // ── End ─────────────────────────────────────────────────────────────────────
+  // ── End + incident report + Command Center Logs ─────────────────────────────
+  function _cmReportText(){
+    var t=cmIsMissing()?'Missing Person Search':'Command Operation';
+    var start=(_cmState&&_cmState.startedAt)||null, end=Date.now();
+    var dur=start?Math.round((end-start)/60000):0;
+    var fmt=function(ms){ return ms?new Date(ms).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—'; };
+    var lines=[];
+    lines.push(t.toUpperCase()+' — INCIDENT REPORT');
+    lines.push('Lead: BC-'+cmLeadUnit()+((_cmState&&_cmState.leadName)?(' ('+_cmState.leadName+')'):''));
+    lines.push('Start: '+fmt(start));
+    lines.push('End:   '+fmt(end)+'  ('+dur+' min)');
+    var mem=cmMembers().map(function(m){ return 'BC-'+U(m.unit); }).join(', ');
+    lines.push('Members ('+cmMembers().length+'): '+(mem||'none'));
+    if(cmIsMissing()&&_cmState&&_cmState.subject){ var s=_cmState.subject; lines.push('Subject: '+(s.name||'Unknown')+(s.age?(', '+s.age):'')); }
+    lines.push('');
+    lines.push('— LOG —');
+    var log=(_cmLog||[]).slice().sort(function(a,b){ return (a.at||0)-(b.at||0); });
+    log.forEach(function(e){ var tm=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); lines.push(tm+'  '+cleanLabel(e.text||'')+(e.by?('  (BC-'+U(e.by)+')'):'')); });
+    if(!log.length) lines.push('(no entries)');
+    return lines.join('\n');
+  }
+  function _cmHistText(v){ if(v&&v.reportText) return v.reportText; var lines=[]; (v.log||[]).slice().sort(function(a,b){ return (a.at||0)-(b.at||0); }).forEach(function(e){ var tm=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); lines.push(tm+'  '+cleanLabel(e.text||'')); }); return lines.join('\n')||'(no log)'; }
+  function _cmSaveHistory(cb){
+    var start=(_cmState&&_cmState.startedAt)||null;
+    var title=(cmIsMissing()?'Missing Person Search':'Command Operation')+' · '+(start?new Date(start).toLocaleDateString('en-US',{month:'short',day:'numeric'}):new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+    var summary={ type:cmType(), title:title, startedAt:start, endedAt:Date.now(), leadUnit:cmLeadUnit(), leadName:(_cmState&&_cmState.leadName)||'', members:cmMembers(), subject:(_cmState&&_cmState.subject)||null, sectors:(_cmState&&_cmState.sectors)||[], grid:(_cmState&&_cmState.grid)||[], linkedCallId:(_cmState&&_cmState.linkedCallId)||null, log:(_cmLog||[]).slice(0,800), reportText:_cmReportText(), endedBy:myUnit(), savedAt:Date.now() };
+    try{ db().collection('commandHistory').add(summary).then(function(){ if(cb) cb(); }).catch(function(){ if(cb) cb(); }); }catch(e){ if(cb) cb(); }
+  }
   function cmEndNight(){
     if(!((myUnit()===cmLeadUnit())||cmAmAdmin())){ showToast('Only the lead or an admin can end it'); return; }
-    if(!confirm('End this operation? Members stop sharing and a summary is saved.')) return;
-    var summary={ type:cmType(), startedAt:(_cmState&&_cmState.startedAt)||null, endedAt:Date.now(), leadUnit:cmLeadUnit(), members:cmMembers(), subject:(_cmState&&_cmState.subject)||null, sectors:(_cmState&&_cmState.sectors)||[], grid:(_cmState&&_cmState.grid)||[], linkedCallId:(_cmState&&_cmState.linkedCallId)||null, log:_cmLog.slice(0,500), endedBy:myUnit() };
-    try{ db().collection('commandHistory').add(summary); }catch(e){}
-    _cmAddLog('🏁 Operation ended by BC-'+myUnit(),'end');
-    db().collection('config').doc('commandMode').set({ active:false, endedAt:Date.now() }, {merge:true}).then(function(){ try{ db().collection('commandLocations').get().then(function(s){ s.forEach(function(d){ d.ref.delete().catch(function(){}); }); }); }catch(e){} closeCommandView(); showToast('🏁 Ended — summary saved'); });
+    var report=_cmReportText();
+    var body=''
+      +'<div style="font-size:12px;color:#6b7280;margin-bottom:10px;">Send or save the full incident report — every note and log entry — then end the operation. Ending also saves a copy to Command Logs automatically.</div>'
+      +'<pre style="background:#0b1220;color:#cbd5e1;border-radius:10px;padding:12px;font-size:11px;line-height:1.5;white-space:pre-wrap;max-height:30vh;overflow:auto;font-family:\'DM Mono\',monospace;margin-bottom:14px;">'+escapeHTML(report)+'</pre>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
+        +'<button onclick="cmReportWhatsApp()" style="background:#075e54;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:13px;cursor:pointer;">📱 WhatsApp</button>'
+        +'<button onclick="cmReportEmail()" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:13px;cursor:pointer;">✉️ Email</button>'
+        +'<button onclick="cmReportSave()" style="grid-column:1/-1;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:13px;cursor:pointer;">💾 Save to Command Logs</button>'
+      +'</div>'
+      +'<button onclick="cmReportEndConfirm()" style="width:100%;background:#7f1d1d;color:#fff;border:none;border-radius:12px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;margin-top:6px;">🏁 End Operation</button>';
+    _cmSheet((cmIsMissing()?'🔍':'🎖️')+' End & Report', body);
   }
+  function cmReportWhatsApp(){ var txt=_cmReportText(); try{ sendWA({ target:'all', message:txt }); showToast('📱 Report sent to WhatsApp'); }catch(e){ try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }catch(_){} } _cmAddLog('📱 Report sent via WhatsApp by BC-'+myUnit(),'end'); }
+  function cmReportEmail(){ var txt=_cmReportText(); var subj=(cmIsMissing()?'Missing Person Search':'Command Operation')+' Report — '+new Date().toLocaleDateString(); try{ window.location.href='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(txt); }catch(e){} _cmAddLog('✉️ Report emailed by BC-'+myUnit(),'end'); }
+  function cmReportSave(){ _cmSaveHistory(function(){ showToast('💾 Saved to Command Logs'); }); }
+  function cmReportEndConfirm(){ if(!confirm('End this operation? Members stop sharing their location.')) return; _cmDoEnd(); }
+  function _cmDoEnd(){
+    _cmAddLog('🏁 Operation ended by BC-'+myUnit(),'end');
+    _cmSaveHistory();
+    db().collection('config').doc('commandMode').set({ active:false, endedAt:Date.now() }, {merge:true}).then(function(){ try{ db().collection('commandLocations').get().then(function(s){ s.forEach(function(d){ d.ref.delete().catch(function(){}); }); }); }catch(e){} var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); closeCommandView(); showToast('🏁 Ended — saved to Command Logs'); });
+  }
+
+  // Command Center Logs — every past incident's notes + log, re-sendable.
+  function openCommandLogs(){
+    _cmSheet('📚 Command Center Logs','<div id="cmLogsList" style="max-height:66vh;overflow-y:auto;-webkit-overflow-scrolling:touch;"><div style="padding:16px;color:#9ca3af;font-size:13px;">Loading…</div></div>');
+    try{
+      db().collection('commandHistory').orderBy('endedAt','desc').limit(100).get().then(function(snap){
+        var items=[]; snap.forEach(function(d){ var v=d.data()||{}; v._id=d.id; items.push(v); });
+        _cmRenderLogsList(items);
+      }).catch(function(e){ var el=document.getElementById('cmLogsList'); if(el) el.innerHTML='<div style="padding:16px;color:#dc2626;font-size:13px;">Could not load — '+((e&&e.code)||'error')+'</div>'; });
+    }catch(e){ var el=document.getElementById('cmLogsList'); if(el) el.innerHTML='<div style="padding:16px;color:#dc2626;font-size:13px;">Unavailable</div>'; }
+  }
+  function _cmRenderLogsList(items){
+    _cmHist=items||[]; var el=document.getElementById('cmLogsList'); if(!el) return;
+    if(!_cmHist.length){ el.innerHTML='<div style="padding:16px;color:#9ca3af;font-size:13px;">No saved incidents yet. They appear here after an operation ends.</div>'; return; }
+    el.innerHTML=_cmHist.map(function(v,i){ var when=v.endedAt?new Date(v.endedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''; var dur=(v.startedAt&&v.endedAt)?Math.round((v.endedAt-v.startedAt)/60000):null; var icon=v.type==='missing'?'🔍':'🎖️'; return '<div onclick="cmOpenLog('+i+')" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">'+icon+'</span><span style="font-weight:800;color:#111827;font-size:14px;flex:1;">'+escapeHTML(v.title||(v.type==='missing'?'Missing Person Search':'Command Operation'))+'</span><span style="color:#94a3b8;font-size:18px;">›</span></div><div style="font-size:12px;color:#64748b;margin-top:4px;">'+when+(dur!=null?(' · '+dur+' min'):'')+' · Lead BC-'+U(v.leadUnit||'')+' · '+((v.members||[]).length)+' members · '+((v.log||[]).length)+' log entries</div></div>'; }).join('');
+  }
+  function cmOpenLog(i){ var v=_cmHist[i]; if(!v) return; var body='<pre style="background:#0b1220;color:#cbd5e1;border-radius:10px;padding:12px;font-size:11px;line-height:1.5;white-space:pre-wrap;max-height:54vh;overflow:auto;font-family:\'DM Mono\',monospace;margin-bottom:12px;">'+escapeHTML(_cmHistText(v))+'</pre>'+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><button onclick="cmHistWhatsApp('+i+')" style="background:#075e54;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">📱 WhatsApp</button><button onclick="cmHistEmail('+i+')" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">✉️ Email</button></div><button onclick="openCommandLogs()" style="width:100%;margin-top:8px;background:transparent;border:none;color:#6b7280;font-size:13px;font-weight:700;padding:6px;cursor:pointer;">‹ Back to all logs</button>'; _cmSheet('📄 '+escapeHTML(v.title||'Incident'), body); }
+  function cmHistWhatsApp(i){ var v=_cmHist[i]; if(!v) return; var txt=_cmHistText(v); try{ sendWA({ target:'all', message:txt }); showToast('📱 Sent'); }catch(e){ try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }catch(_){} } }
+  function cmHistEmail(i){ var v=_cmHist[i]; if(!v) return; var txt=_cmHistText(v); try{ window.location.href='mailto:?subject='+encodeURIComponent(v.title||'Incident Report')+'&body='+encodeURIComponent(txt); }catch(e){} }
 
   Object.assign(window, {
     initCommandMode:initCommandMode, openCommandModeAdmin:openCommandModeAdmin, openMissingPersonAdmin:openMissingPersonAdmin,
@@ -843,9 +947,11 @@
     cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAssignMember:cmAssignMember, cmApproveResp:cmApproveResp, cmRejectResp:cmRejectResp, cmBroadcast:cmBroadcast,
     cmPromptNote:cmPromptNote,
     cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton,
-    cmSetCallFilter:cmSetCallFilter, cmCallSearchInput:cmCallSearchInput, _cmCallPopup:_cmCallPopup, cmEscalate:cmEscalate, cmClearCall:cmClearCall, cmCancelCallCmd:cmCancelCallCmd,
+    cmSetCallFilter:cmSetCallFilter, cmCallSearchInput:cmCallSearchInput, _cmCallPopup:_cmCallPopup, cmEscalate:cmEscalate, cmClearCall:cmClearCall, cmCancelCallCmd:cmCancelCallCmd, cmSaveCloseNote:cmSaveCloseNote, cmSkipCloseNote:cmSkipCloseNote,
     cmManageViewers:cmManageViewers, cmFilterViewers:cmFilterViewers, cmConfirmViewers:cmConfirmViewers, cmRemoveViewer:cmRemoveViewer,
-    cmNewCall:cmNewCall
+    cmNewCall:cmNewCall,
+    cmReportWhatsApp:cmReportWhatsApp, cmReportEmail:cmReportEmail, cmReportSave:cmReportSave, cmReportEndConfirm:cmReportEndConfirm,
+    openCommandLogs:openCommandLogs, cmOpenLog:cmOpenLog, cmHistWhatsApp:cmHistWhatsApp, cmHistEmail:cmHistEmail
   });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(initCommandMode,1200); });
   else setTimeout(initCommandMode,1200);
