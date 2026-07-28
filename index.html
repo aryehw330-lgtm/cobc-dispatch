@@ -1696,6 +1696,19 @@ textarea.input{min-height:80px;resize:vertical;}
         <!-- ADMIN TOOLS (admin only): Test Mode, Audit Log, Backup & Restore -->
         <div id="settingsAdminTools" style="display:none;margin-top:4px;">
           <div class="section-label">Admin Tools</div>
+          <!-- COMMAND MODE -->
+          <div style="background:linear-gradient(135deg,rgba(127,29,29,.35),rgba(185,28,28,.18));border:1px solid rgba(248,113,113,.4);border-radius:14px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:15px;font-weight:800;color:#fff;">🎖️ Command Mode <span id="cmSettingsStatus" style="font-size:12px;font-weight:700;color:#fca5a5;">Off</span></div>
+                <div style="font-size:12px;color:rgba(255,255,255,.65);line-height:1.5;margin-top:2px;">Start a command night: added members share live location on a map (missing person, flood ops). Runs alongside normal dispatch.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+                <button onclick="openCommandModeAdmin()" style="padding:11px 16px;background:#b91c1c;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">Start / Open</button>
+                <button id="cmOpenBtn" onclick="openCommandView()" style="display:none;padding:9px 16px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Open Map</button>
+              </div>
+            </div>
+          </div>
           <!-- TEST MODE -->
           <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px;margin-bottom:12px;">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
@@ -9822,8 +9835,8 @@ function openCallDetail(id) {
   if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
-  if(isDispatch && (call.status==='open'||call.status==='active') && currentTab==='dispatch') html+=`<button class="btn-sm" style="background:linear-gradient(135deg,#047857,#059669);color:#fff;font-weight:700;" onclick="sendCallToInterstate('${id}')">🌐 Send to Interstate</button>`;
-  if(isDispatch && call.status!=='draft' && currentTab==='dispatch') html+=`<button class="btn-sm" style="background:#dcfce7;color:#15803d;font-weight:700;" onclick="openGroupWAMessage('${id}')">💬 Group Message</button>`;
+  if(isDispatch && (call.status==='open'||call.status==='active')) html+=`<button class="btn-sm" style="background:linear-gradient(135deg,#047857,#059669);color:#fff;font-weight:700;" onclick="sendCallToInterstate('${id}')">🌐 Send to Interstate</button>`;
+  if(isDispatch && call.status!=='draft') html+=`<button class="btn-sm" style="background:#dcfce7;color:#15803d;font-weight:700;" onclick="openGroupWAMessage('${id}')">💬 Group Message</button>`;
   if(call.status!=='done'&&call.status!=='draft'&&call.status!=='cancelled'){
     const _myResp=(call.responders||[]).find(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
     if(_myResp){
@@ -9836,7 +9849,7 @@ function openCallDetail(id) {
       html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
     }
   }
-  if(call.address && currentTab!=='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Navigation</button>`;
+  if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Navigation</button>`;
   // Share my location — for approved responders who are on their way
   const _iAmApprovedDetail = (call.responders||[]).some(r=>String(r.unit)===String(SESSION.unit));
   if(_iAmApprovedDetail && call.status!=='done') html+=`<button class="btn-sm" style="background:#25d366;color:#fff;border:none;" onclick="shareMyLocationOnCall('${id}')">📍 Send Live Location</button>`;
@@ -9847,9 +9860,9 @@ function openCallDetail(id) {
     // ▶ Active button removed — calls go active automatically when a responder is approved/radio-assigned
     if(call.status==='done'||call.status==='cancelled') html+=`<button class="btn-sm btn-amber" onclick="reopenCall('${id}');renderCallDetail('${id}')">🔄 Re-open</button>`;
     if(call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-danger" onclick="cancelCall('${id}')">🚫 Cancel Call</button>`;
-    if(currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
-    if(currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">Share call info</button>`;
-    if(currentTab==='dispatch') html+=`<button class="btn-sm btn-ghost" onclick="window.open('https://www.i911.com/','_blank','noopener')">🌐 Open i911 site</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="openCallEdit('${id}')">✏️ Edit</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="shareDispatchWA('${id}')">Share call info</button>`;
+    html+=`<button class="btn-sm btn-ghost" onclick="window.open('https://www.i911.com/','_blank','noopener')">🌐 Open i911 site</button>`;
     if(call.status!=='draft') html+=`<button class="btn-sm btn-danger" onclick="deleteCall('${id}');hideModal('callDetailModal')">🗑 Delete</button>`;
 
     // Vehicle assignment (not for drafts)
@@ -12273,6 +12286,7 @@ function setMoreTab(tab,el) {
     const _at=document.getElementById('settingsAdminTools');
     const _isAdm=(SESSION&&SESSION.role)==='admin';
     if(_at) _at.style.display=_isAdm?'block':'none';
+    try{ _cmSyncSettingsButton && _cmSyncSettingsButton(); }catch(e){}
     if(_isAdm){
       try{ renderBackupPanel(); }catch(e){}
       try{ renderAuditLog(); }catch(e){}
@@ -19993,6 +20007,7 @@ function fmtMemberBadgeD(memberStr) {
   };
 })();
 </script>
+<script src="command-mode.js"></script>
 </body>
 </html>
 
