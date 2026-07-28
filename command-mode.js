@@ -20,6 +20,10 @@
   var _cmMap=null, _cmMarkers={}, _cmCallMarkers={}, _cmSectorMarkers={}, _cmGridShapes={}, _cmTrails={}, _cmLastSeenMk=null;
   var _cmShareTimer=null, _cmUnsub={}, _cmCallCoords={}, _cmLoggedCalls={}, _cmReady=false, _cmSectorArm=false;
   var _cmPick={};   // start/add member selection: unit → true
+  var _cmDrawMode='off';   // 'off' | 'draw' | 'erase'
+  var _cmDrawLines=[];      // live google Polyline objects keyed by drawing id
+  var _cmDrawObjs={};       // id → Polyline
+  var _cmCurDraw=null;      // in-progress {id,points,poly}
 
   function U(u){ return String(u||'').replace(/^BC-?/i,'').trim(); }
   function myUnit(){ return (typeof SESSION!=='undefined'&&SESSION&&SESSION.unit)?U(SESSION.unit):''; }
@@ -357,7 +361,32 @@
     _cmMap=new google.maps.Map(el,{ center:{lat:40.8976,lng:-74.0160}, zoom:13, mapTypeControl:false, streetViewControl:false, fullscreenControl:false, styles:[{elementType:'geometry',stylers:[{color:'#1d2c4d'}]},{elementType:'labels.text.fill',stylers:[{color:'#8ec3b9'}]},{elementType:'labels.text.stroke',stylers:[{color:'#1a3646'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#304a7d'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#0e1626'}]},{featureType:'poi',stylers:[{visibility:'off'}]}] });
     _cmMap._isGoogle=true;
     _cmMap.addListener('click', function(e){ if(_cmSectorArm){ _cmDropSector(e.latLng.lat(),e.latLng.lng()); } });
+    // Freehand drawing (missing mode): mousedown starts a line, drag extends it.
+    _cmMap.addListener('mousedown', function(e){ if(_cmDrawMode==='draw'){ _cmDrawStart(e.latLng); } });
+    _cmMap.addListener('mousemove', function(e){ if(_cmDrawMode==='draw'&&_cmCurDraw){ _cmDrawExtend(e.latLng); } });
+    _cmMap.addListener('mouseup', function(){ if(_cmDrawMode==='draw'&&_cmCurDraw){ _cmDrawEnd(); } });
     _cmRefreshView();
+  }
+  function _cmDrawStart(ll){ var id='d'+Date.now(); _cmCurDraw={ id:id, points:[{lat:ll.lat(),lng:ll.lng()}], poly:new google.maps.Polyline({ map:_cmMap, path:[{lat:ll.lat(),lng:ll.lng()}], strokeColor:'#f472b6', strokeWeight:4, strokeOpacity:0.95 }) }; }
+  function _cmDrawExtend(ll){ _cmCurDraw.points.push({lat:ll.lat(),lng:ll.lng()}); _cmCurDraw.poly.setPath(_cmCurDraw.points); }
+  function _cmDrawEnd(){
+    if(!_cmCurDraw||_cmCurDraw.points.length<2){ if(_cmCurDraw&&_cmCurDraw.poly) _cmCurDraw.poly.setMap(null); _cmCurDraw=null; return; }
+    var drawings=((_cmState&&_cmState.drawings)||[]).concat([{ id:_cmCurDraw.id, points:_cmCurDraw.points }]);
+    _cmCurDraw.poly.setMap(null); _cmCurDraw=null;
+    db().collection('config').doc('commandMode').update({ drawings:drawings }).catch(function(){});
+  }
+  function cmToggleDraw(){ _cmDrawMode=_cmDrawMode==='draw'?'off':'draw'; _cmDrawSync(); }
+  function cmToggleErase(){ _cmDrawMode=_cmDrawMode==='erase'?'off':'erase'; _cmDrawSync(); }
+  function _cmDrawSync(){
+    if(_cmMap&&_cmMap._isGoogle) _cmMap.setOptions({ draggable:_cmDrawMode==='off', gestureHandling:_cmDrawMode==='off'?'auto':'none' });
+    var d=document.getElementById('cmDrawBtn'), e=document.getElementById('cmEraseBtn');
+    if(d){ d.style.background=_cmDrawMode==='draw'?'#db2777':'#7c3aed'; d.textContent=_cmDrawMode==='draw'?'✏️ Drawing…':'✏️ Draw'; }
+    if(e){ e.style.background=_cmDrawMode==='erase'?'#dc2626':'#4b5563'; e.textContent=_cmDrawMode==='erase'?'🧹 Tap a line':'🧹 Erase'; }
+    showToast(_cmDrawMode==='draw'?'Drag on the map to draw':_cmDrawMode==='erase'?'Tap a drawn line to erase it':'Drawing off');
+  }
+  function _cmEraseDrawing(id){
+    var drawings=((_cmState&&_cmState.drawings)||[]).filter(function(x){ return x.id!==id; });
+    db().collection('config').doc('commandMode').update({ drawings:drawings }).catch(function(){});
   }
   function _cmMapFallback(){ var el=document.getElementById('cmMap'); if(el) el.innerHTML='<div style="color:#94a3b8;padding:20px;font-size:13px;">Map unavailable — check connection.</div>'; }
   function _transIcon(){ return { url:'data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'), size:new google.maps.Size(1,1), anchor:new google.maps.Point(0,0) }; }
@@ -421,6 +450,17 @@
         }
       });
       Object.keys(_cmGridShapes).forEach(function(id){ if(!gseen[id]){ _cmGridShapes[id].rect.setMap(null); _cmGridShapes[id].lbl.setMap(null); delete _cmGridShapes[id]; } });
+      // Freehand drawings
+      var dseen={};
+      ((_cmState&&_cmState.drawings)||[]).forEach(function(d){
+        dseen[d.id]=1;
+        if(!_cmDrawObjs[d.id]){
+          var pl=new G.Polyline({ map:_cmMap, path:d.points, strokeColor:'#f472b6', strokeWeight:4, strokeOpacity:0.95 });
+          pl.addListener('click', function(){ if(_cmDrawMode==='erase') _cmEraseDrawing(d.id); });
+          _cmDrawObjs[d.id]=pl;
+        }
+      });
+      Object.keys(_cmDrawObjs).forEach(function(id){ if(!dseen[id]){ _cmDrawObjs[id].setMap(null); delete _cmDrawObjs[id]; } });
     }
     // Manual sectors (command)
     var sseen={};
@@ -449,6 +489,8 @@
       +'<div style="padding:12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);">'
         +'<button onclick="cmAddMembers()" style="flex:1;min-width:0;background:#1e3a5f;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">＋ Members</button>'
         +(missing?'':'<button onclick="cmArmSector()" id="cmSectorBtn" style="flex:1;min-width:0;background:#3730a3;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">⬡ Sector</button>')
+        +(missing?'<button onclick="cmToggleDraw()" id="cmDrawBtn" style="flex:1;min-width:0;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Draw</button>':'')
+        +(missing?'<button onclick="cmToggleErase()" id="cmEraseBtn" style="flex:1;min-width:0;background:#4b5563;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">🧹 Erase</button>':'')
         +'<button onclick="cmBroadcast()" style="flex:1;min-width:0;background:#065f46;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">📣 Broadcast</button>'
         +'<button onclick="cmAddNote()" style="flex:1;min-width:0;background:#374151;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✎ Note</button>'
       +'</div>'
@@ -552,7 +594,7 @@
     cmSetLinkMode:cmSetLinkMode, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
     cmFilterSetup:cmFilterSetup, cmAddMembers:cmAddMembers, cmFilterAdd:cmFilterAdd, cmConfirmAdd:cmConfirmAdd,
     cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmArmSector:cmArmSector, cmBroadcast:cmBroadcast,
-    cmAddNote:cmAddNote, cmEndNight:cmEndNight, _cmSyncSettingsButton:_cmSyncSettingsButton
+    cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton
   });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(initCommandMode,1200); });
   else setTimeout(initCommandMode,1200);

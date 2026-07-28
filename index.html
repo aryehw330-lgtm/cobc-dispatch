@@ -1701,11 +1701,24 @@ textarea.input{min-height:80px;resize:vertical;}
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
               <div style="flex:1;min-width:0;">
                 <div style="font-size:15px;font-weight:800;color:#fff;">🎖️ Command Mode <span id="cmSettingsStatus" style="font-size:12px;font-weight:700;color:#fca5a5;">Off</span></div>
-                <div style="font-size:12px;color:rgba(255,255,255,.65);line-height:1.5;margin-top:2px;">Start a command night: added members share live location on a map (missing person, flood ops). Runs alongside normal dispatch.</div>
+                <div style="font-size:12px;color:rgba(255,255,255,.65);line-height:1.5;margin-top:2px;">Big multi-call events (flood night). Added members share live location; make, assign & complete calls from a live map. Runs alongside normal dispatch.</div>
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
                 <button onclick="openCommandModeAdmin()" style="padding:11px 16px;background:#b91c1c;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">Start / Open</button>
                 <button id="cmOpenBtn" onclick="openCommandView()" style="display:none;padding:9px 16px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Open Map</button>
+              </div>
+            </div>
+          </div>
+          <!-- MISSING PERSON -->
+          <div style="background:linear-gradient(135deg,rgba(30,58,95,.4),rgba(59,130,246,.15));border:1px solid rgba(96,165,250,.4);border-radius:14px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:15px;font-weight:800;color:#fff;">🔍 Missing Person <span id="mpSettingsStatus" style="font-size:12px;font-weight:700;color:#93c5fd;">Off</span></div>
+                <div style="font-size:12px;color:rgba(255,255,255,.65);line-height:1.5;margin-top:2px;">Grid search: subject profile + photo, last-seen pin, auto search grid, member breadcrumb trails, and draw-on-map.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+                <button onclick="openMissingPersonAdmin()" style="padding:11px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">Start / Open</button>
+                <button id="mpOpenBtn" onclick="openCommandView()" style="display:none;padding:9px 16px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Open Map</button>
               </div>
             </div>
           </div>
