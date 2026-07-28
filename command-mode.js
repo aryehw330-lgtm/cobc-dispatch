@@ -17,7 +17,7 @@
   var _cmState = null;               // config/commandMode doc
   var _cmLocs = {};                  // unit → {unit,name,lat,lng,at}
   var _cmLog = [];                   // incident log entries
-  var _cmMap = null, _cmMarkers = {}, _cmCallMarkers = {}, _cmSectorMarkers = {};
+  var _cmMap = null, _cmMarkers = {}, _cmCallMarkers = {}, _cmSectorMarkers = {}, _cmTrails = {};
   var _cmShareTimer = null;
   var _cmUnsub = {};                 // firestore unsubscribers
   var _cmCallCoords = {};            // callId → {lat,lng} cache
@@ -45,6 +45,28 @@
   function initCommandMode(){
     if(_cmReady) return; if(!fsReady()) { setTimeout(initCommandMode, 800); return; }
     _cmReady = true;
+    // Wrap the app's createCall so a new missing-person call auto-links to the search
+    // and returns the lead to the command map.
+    try{
+      if(typeof window.createCall==='function' && !window._cmWrapCreate){
+        window._cmWrapCreate=true;
+        var _origCreate=window.createCall;
+        window.createCall=async function(){
+          var before=(STATE.calls||[]).map(function(c){ return c.id; });
+          var r=await _origCreate.apply(this, arguments);
+          try{
+            if(window._cmAwaitMissingCall){
+              window._cmAwaitMissingCall=false;
+              var neu=(STATE.calls||[]).filter(function(c){ return before.indexOf(c.id)<0; })
+                .sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); })[0];
+              if(neu){ db().collection('config').doc('commandMode').update({ searchCallId:neu.id }).catch(function(){}); _cmAddLog('🔎 Search call '+(neu.callNum?('#'+neu.callNum):'')+' created','call'); }
+              setTimeout(function(){ if(cmCanView()) openCommandView(); }, 500);
+            }
+          }catch(e){}
+          return r;
+        };
+      }
+    }catch(e){}
     try{
       db().collection('config').doc('commandMode').onSnapshot(function(doc){
         _cmState = doc.exists ? doc.data() : null;
@@ -91,17 +113,30 @@
     var write = function(){
       navigator.geolocation.getCurrentPosition(function(pos){
         var u=myUnit(); if(!u) return;
-        db().collection('commandLocations').doc(u).set({
-          unit:u, name:(SESSION&&SESSION.name)||'', lat:pos.coords.latitude, lng:pos.coords.longitude, at:Date.now()
-        }).catch(function(){});
+        var pt={lat:pos.coords.latitude, lng:pos.coords.longitude, t:Date.now()};
+        var ref=db().collection('commandLocations').doc(u);
+        // Append to a capped breadcrumb track (for Missing-Person route trails) while
+        // updating the live position. Read-modify-write keeps it in one doc (cheap).
+        ref.get().then(function(d){
+          var prev=(d.exists && Array.isArray((d.data()||{}).track)) ? d.data().track : [];
+          // Only add a point if we've moved ~>8m or >45s since last, to keep it lean.
+          var last=prev[prev.length-1];
+          var moved = !last || _ptDist(last,pt)>8 || (pt.t-(last.t||0))>45000;
+          var track = moved ? prev.concat([pt]).slice(-300) : prev;
+          ref.set({ unit:u, name:(SESSION&&SESSION.name)||'', lat:pt.lat, lng:pt.lng, at:pt.t, track:track }, {merge:true}).catch(function(){});
+        }).catch(function(){
+          ref.set({ unit:u, name:(SESSION&&SESSION.name)||'', lat:pt.lat, lng:pt.lng, at:pt.t, track:[pt] }, {merge:true}).catch(function(){});
+        });
       }, function(){}, { enableHighAccuracy:true, maximumAge:20000, timeout:30000 });
     };
     write(); _cmShareTimer = setInterval(write, CM_SHARE_MS);
     console.log('[command] location sharing started');
   }
+  function _ptDist(a,b){ var R=6371000,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180,la=a.lat*Math.PI/180,lb=b.lat*Math.PI/180; var h=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(la)*Math.cos(lb)*Math.sin(dLng/2)*Math.sin(dLng/2); return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
   function _cmStopShare(){
     if(_cmShareTimer){ clearInterval(_cmShareTimer); _cmShareTimer=null; }
   }
+  function cmMode(){ return (_cmState && _cmState.mode) || 'dispatch'; }
 
   // ── Member banner ───────────────────────────────────────────────────────────
   function _cmRenderBanner(){
@@ -163,6 +198,15 @@
       +'<div style="font-size:12px;color:#666;margin-top:3px;">Added members share their live location for the night. You are the command lead.</div>'
       +'</div>'
       +'<div style="padding:12px 18px;overflow-y:auto;flex:1;">'
+      +'<div style="font-size:12px;font-weight:700;color:#444;margin-bottom:8px;">Command mode</div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:16px;">'
+        +'<label class="cmModeOpt" onclick="cmSelMode(this,\'dispatch\')" style="flex:1;border:2px solid #b91c1c;border-radius:12px;padding:11px;cursor:pointer;background:#fef2f2;"><input type="radio" name="cmMode" value="dispatch" checked style="display:none;"/>'
+          +'<div style="font-size:14px;font-weight:800;color:#991b1b;">📞 Dispatch Ops</div>'
+          +'<div style="font-size:11px;color:#7f1d1d;margin-top:2px;line-height:1.35;">Make & assign real numbered calls, track units on calls. Flood / busy night.</div></label>'
+        +'<label class="cmModeOpt" onclick="cmSelMode(this,\'missing\')" style="flex:1;border:2px solid #ddd;border-radius:12px;padding:11px;cursor:pointer;background:#fff;"><input type="radio" name="cmMode" value="missing" style="display:none;"/>'
+          +'<div style="font-size:14px;font-weight:800;color:#334155;">🔎 Missing Person</div>'
+          +'<div style="font-size:11px;color:#64748b;margin-top:2px;line-height:1.35;">Track every member + draw the routes they searched. Sector sweeps.</div></label>'
+      +'</div>'
       +'<div style="font-size:12px;font-weight:700;color:#444;margin-bottom:8px;">Add members to the command night</div>'
       +'<input id="cmMemberSearch" placeholder="Filter…" oninput="cmFilterSetup(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:10px;box-sizing:border-box;"/>'
       +'<div id="cmMemberPick">'+members.map(function(m){
@@ -186,8 +230,20 @@
       el.style.display = hit ? 'flex' : 'none';
     });
   }
+  function cmSelMode(el, mode){
+    var r=el.querySelector('input'); if(r) r.checked=true;
+    document.querySelectorAll('#cmSetup .cmModeOpt').forEach(function(l){
+      var on=l.querySelector('input').checked;
+      l.style.border='2px solid '+(on?(mode==='missing'||l.querySelector('input').value==='missing'&&on?'#334155':'#b91c1c'):'#ddd');
+      l.style.background=on?(l.querySelector('input').value==='missing'?'#f1f5f9':'#fef2f2'):'#fff';
+      if(on&&l.querySelector('input').value==='missing') l.style.borderColor='#334155';
+      if(on&&l.querySelector('input').value==='dispatch') l.style.borderColor='#b91c1c';
+    });
+  }
   function cmConfirmStart(){
     var picked=[].slice.call(document.querySelectorAll('#cmMemberPick input:checked')).map(function(c){ return c.value; });
+    var modeEl=document.querySelector('#cmSetup input[name="cmMode"]:checked');
+    var mode=modeEl?modeEl.value:'dispatch';
     var mem=(STATE.members||[]);
     var members=picked.map(function(u){
       var m=mem.find(function(x){ return U(x.unit||x.id)===u; });
@@ -196,16 +252,57 @@
     });
     var me=myUnit();
     var payload={
-      active:true, startedBy:me, startedByName:(SESSION&&SESSION.name)||'',
+      active:true, mode:mode, startedBy:me, startedByName:(SESSION&&SESSION.name)||'',
       leadUnit:me, leadName:(SESSION&&SESSION.name)||'', startedAt:Date.now(),
       members:members, sectors:[], endedAt:null
     };
     db().collection('config').doc('commandMode').set(payload).then(function(){
-      _cmAddLog('🎖️ Command night started by BC-'+me+(members.length?(' · '+members.length+' members'):''), 'start');
+      _cmAddLog('🎖️ '+(mode==='missing'?'Missing-Person':'Dispatch')+' command night started by BC-'+me+(members.length?(' · '+members.length+' members'):''), 'start');
       var s=document.getElementById('cmSetup'); if(s) s.remove();
       showToast('🎖️ Command night started');
-      setTimeout(openCommandView, 300);
+      // Missing-Person = one big numbered call everyone sees in open calls. Ask whether
+      // to attach to a call already dispatched or create a new one.
+      if(mode==='missing') setTimeout(_cmMissingCallSetup, 300);
+      else setTimeout(openCommandView, 300);
     }).catch(function(e){ showToast('Could not start'); console.warn(e); });
+  }
+  // Missing-Person search call: link to an existing open call, or create a new one.
+  function _cmMissingCallSetup(){
+    var open=(STATE.calls||[]).filter(function(c){ return c.status==='open'||c.status==='active'; })
+      .sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+    var body='<div style="font-size:13px;color:#374151;line-height:1.5;margin-bottom:14px;">A missing-person search is one numbered call every member sees in Open Calls until it\'s completed. Is this for a call already dispatched, or a new one?</div>';
+    if(open.length){
+      body+='<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;margin-bottom:6px;">Attach to an existing call</div>';
+      body+=open.map(function(c){
+        var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||'');
+        return '<div onclick="cmLinkMissingCall(\''+c.id+'\')" style="padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:6px;cursor:pointer;"><b>'+(c.callNum?'#'+c.callNum+' ':'')+escapeHTML(tl)+'</b><div style="font-size:12px;color:#6b7280;">'+escapeHTML(c.town||'')+'</div></div>';
+      }).join('');
+      body+='<div style="height:8px;"></div>';
+    }
+    body+='<button onclick="cmNewMissingCall()" style="width:100%;background:#b91c1c;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;">＋ Create a new missing-person call</button>';
+    body+='<button onclick="document.getElementById(\'cmSheet\').remove();openCommandView();" style="width:100%;margin-top:8px;background:transparent;color:#6b7280;border:none;padding:10px;font-weight:700;cursor:pointer;">Skip for now</button>';
+    _cmSheet('🔎 Missing-Person Search', body);
+  }
+  function cmLinkMissingCall(id){
+    db().collection('config').doc('commandMode').update({ searchCallId:id }).then(function(){
+      var c=(STATE.calls||[]).find(function(x){return x.id===id;});
+      _cmAddLog('🔎 Search linked to call '+(c&&c.callNum?('#'+c.callNum):''),'call');
+      var s=document.getElementById('cmSheet'); if(s)s.remove(); showToast('Linked'); openCommandView();
+    }).catch(function(){ showToast('Could not link'); });
+  }
+  function cmNewMissingCall(){
+    var s=document.getElementById('cmSheet'); if(s)s.remove();
+    // Use the app's own New Call flow (numbering, notifications, WhatsApp all handled).
+    try{
+      showModal('newCallModal');
+      var m=document.getElementById('newCallModal'); if(m) m.style.zIndex='9800';
+      // Preset type to Missing Person if that option exists; else leave for lead to pick.
+      var ct=document.getElementById('callType');
+      if(ct){ var has=[].some.call(ct.options||[],function(o){return /missing/i.test(o.value)||/missing/i.test(o.text);});
+        if(has){ [].forEach.call(ct.options,function(o){ if(/missing/i.test(o.value)||/missing/i.test(o.text)) ct.value=o.value; }); } }
+      window._cmAwaitMissingCall=true; // linked when the call is created (see _cmRefreshView)
+      showToast('Fill the location & dispatch — it links to the search automatically');
+    }catch(e){ openCommandView(); }
   }
 
   // ── Incident log ─────────────────────────────────────────────────────────────
@@ -225,22 +322,34 @@
     var ov=document.createElement('div'); ov.id='cmOverlay';
     ov.style.cssText='position:fixed;inset:0;z-index:9700;background:#0f172a;display:flex;flex-direction:column;';
     var canEnd = (myUnit()===cmLeadUnit()) || cmAmAdmin();
+    if(!document.getElementById('cmLayoutStyle')){
+      var st=document.createElement('style'); st.id='cmLayoutStyle';
+      st.textContent='#cmBody{flex:1;display:flex;min-height:0;}'
+        +'#cmMapWrap{flex:1;position:relative;min-width:0;}'
+        +'#cmSidebar{width:310px;flex-shrink:0;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);min-height:0;}'
+        +'@media (max-width:820px){'
+          +'#cmBody{flex-direction:column;}'
+          +'#cmMapWrap{flex:none;height:44vh;width:100%;}'
+          +'#cmSidebar{width:100%;flex:1;border-left:none;border-top:1px solid rgba(255,255,255,.12);}'
+        +'}';
+      document.head.appendChild(st);
+    }
     ov.innerHTML=''
       +'<div style="flex-shrink:0;background:#0b1220;color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);">'
-        +'<div style="display:flex;align-items:center;gap:10px;min-width:0;"><span style="font-size:18px;">🎖️</span><div style="min-width:0;"><div style="font-size:15px;font-weight:800;">Command Center</div><div style="font-size:11px;color:#94a3b8;">Lead: BC-'+cmLeadUnit()+' · <span id="cmHeadcount"></span></div></div></div>'
+        +'<div style="display:flex;align-items:center;gap:10px;min-width:0;"><span style="font-size:18px;">🎖️</span><div style="min-width:0;"><div style="font-size:15px;font-weight:800;">'+(cmMode()==='missing'?'🔎 Missing-Person Search':'📞 Command Center')+'</div><div style="font-size:11px;color:#94a3b8;">Lead: BC-'+cmLeadUnit()+' · <span id="cmHeadcount"></span></div></div></div>'
         +'<div style="display:flex;gap:8px;flex-shrink:0;">'
           +(canEnd?'<button onclick="cmEndNight()" style="background:#7f1d1d;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;">End Night</button>':'')
           +'<button onclick="closeCommandView()" style="background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer;">✕</button>'
         +'</div>'
       +'</div>'
-      +'<div style="flex:1;display:flex;min-height:0;">'
-        +'<div id="cmMapWrap" style="flex:1;position:relative;min-width:0;"><div id="cmMap" style="position:absolute;inset:0;"></div>'
+      +'<div id="cmBody">'
+        +'<div id="cmMapWrap"><div id="cmMap" style="position:absolute;inset:0;"></div>'
           +'<div style="position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(11,18,32,.85);color:#fff;border-radius:10px;padding:8px 11px;font-size:11px;line-height:1.7;">'
             +'<div><b style="color:#22c55e;">BC-##</b> on call &nbsp; <b style="color:#eab308;">BC-##</b> idle</div>'
             +'<div><b style="color:#9ca3af;">BC-##</b> stale &nbsp; <b style="color:#3b82f6;">BC-##</b> lead &nbsp; <b style="color:#ef4444;">▮</b> call</div>'
           +'</div>'
         +'</div>'
-        +'<div id="cmSidebar" style="width:300px;flex-shrink:0;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);"></div>'
+        +'<div id="cmSidebar"></div>'
       +'</div>';
     document.body.appendChild(ov);
     _cmBuildSidebar();
@@ -302,6 +411,21 @@
       mk.setLabel({ text:'BC-'+u, color:color, fontWeight:'800', fontSize:'13px' });
     });
     Object.keys(_cmMarkers).forEach(function(u){ if(!seen[u]){ _cmMarkers[u].setMap(null); delete _cmMarkers[u]; } });
+    // Missing-Person mode: draw each member's searched route as a colored trail.
+    if(cmMode()==='missing'){
+      var tseen={};
+      cmMembers().forEach(function(mm){
+        var u=U(mm.unit); var loc=_cmLocs[u]; if(!loc||!Array.isArray(loc.track)||loc.track.length<2) return; tseen[u]=1;
+        var path=loc.track.map(function(p){ return {lat:p.lat,lng:p.lng}; });
+        var col=_cmMemberColor(u,loc);
+        var tr=_cmTrails[u];
+        if(!tr){ tr=new G.Polyline({ map:_cmMap, strokeColor:col, strokeOpacity:0.85, strokeWeight:4 }); _cmTrails[u]=tr; }
+        tr.setPath(path); tr.setOptions({ strokeColor:col });
+      });
+      Object.keys(_cmTrails).forEach(function(u){ if(!tseen[u]){ _cmTrails[u].setMap(null); delete _cmTrails[u]; } });
+    } else {
+      Object.keys(_cmTrails).forEach(function(u){ _cmTrails[u].setMap(null); delete _cmTrails[u]; });
+    }
     // Calls (red labels)
     var cseen={};
     (STATE.calls||[]).forEach(function(c){
@@ -350,13 +474,16 @@
     var hc=document.getElementById('cmHeadcount'); if(hc) hc.textContent=mem.length+' members · '+onCall+' on call · '+idle+' idle';
     sb.innerHTML=''
       +'<div style="padding:12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);">'
+        +'<button onclick="cmNewCall()" style="flex:1 1 100%;background:linear-gradient(135deg,#b45309,#d97706);color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">＋ New Call / Dispatch</button>'
         +'<button onclick="cmAddMembers()" style="flex:1;min-width:0;background:#1e3a5f;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">＋ Members</button>'
         +'<button onclick="cmArmSector()" id="cmSectorBtn" style="flex:1;min-width:0;background:#3730a3;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">⬡ Sector</button>'
         +'<button onclick="cmBroadcast()" style="flex:1;min-width:0;background:#065f46;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">📣 Broadcast</button>'
         +'<button onclick="cmAddNote()" style="flex:1;min-width:0;background:#374151;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✎ Note</button>'
       +'</div>'
-      +'<div style="flex:1;overflow-y:auto;">'
-        +'<div style="padding:10px 12px 4px;font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Roster ('+mem.length+')</div>'
+      +'<div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">'
+        +'<div style="padding:10px 12px 4px;font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Live Calls</div>'
+        +'<div id="cmCallsList"></div>'
+        +'<div style="padding:12px 12px 4px;font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Roster ('+mem.length+')</div>'
         +'<div>'+mem.map(function(mm){
             var u=U(mm.unit); var loc=_cmLocs[u]; var col=_cmMemberColor(u,loc);
             var lbl = col==='#22c55e'?'on call':col==='#eab308'?'idle':col==='#9ca3af'?'no signal':'lead';
@@ -369,7 +496,55 @@
         +'<div style="padding:12px 12px 4px;font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Incident Log</div>'
         +'<div id="cmLogList"></div>'
       +'</div>';
+    _cmRenderCalls();
     _cmRenderLog();
+  }
+  // Live open/active calls with their assigned units — tap to focus + assign.
+  function _cmRenderCalls(){
+    var el=document.getElementById('cmCallsList'); if(!el) return;
+    var calls=(STATE.calls||[]).filter(function(c){ return c.status==='open'||c.status==='active'; })
+      .sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+    el.innerHTML=calls.map(function(c){
+      var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||'');
+      var resp=(c.responders||[]).filter(function(r){ return r.status!=='rejected'; });
+      var units=resp.length?resp.map(function(r){ return 'BC-'+U(r.unit); }).join(', '):'No units yet';
+      var isActive=c.status==='active';
+      return '<div onclick="cmOpenCall(\''+c.id+'\')" style="padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;">'
+        +'<div style="display:flex;align-items:center;gap:7px;">'
+          +'<span style="width:8px;height:8px;border-radius:50%;background:'+(isActive?'#22c55e':'#ef4444')+';flex-shrink:0;"></span>'
+          +'<span style="font-weight:800;color:#fff;font-size:13px;">'+(c.callNum?'#'+c.callNum+' ':'')+escapeHTML(tl)+'</span>'
+          +'<span style="color:#94a3b8;font-size:11px;margin-left:auto;flex-shrink:0;">'+escapeHTML(c.town||'')+'</span>'
+        +'</div>'
+        +'<div style="font-size:11px;color:'+(resp.length?'#86efac':'#f59e0b')+';margin-top:3px;margin-left:15px;">'+escapeHTML(units)+'</div>'
+      +'</div>';
+    }).join('')||'<div style="padding:10px 12px;color:#64748b;font-size:12px;">No open or active calls.</div>';
+  }
+  // Open the New Call modal ON TOP of the command overlay (don't leave command view).
+  function cmNewCall(){
+    try{
+      if(typeof showModal==='function'){
+        showModal('newCallModal');
+        var m=document.getElementById('newCallModal');
+        if(m){ m.style.zIndex='9800'; }
+      }
+    }catch(e){ showToast&&showToast('Could not open new call'); }
+  }
+  function cmOpenCall(id){ _cmCallPopup(id); var c=(STATE.calls||[]).find(function(x){return x.id===id;}); var ll=c&&_cmCallLatLng(c); if(ll&&_cmMap&&_cmMap._isGoogle){ _cmMap.panTo(ll); _cmMap.setZoom(15); } }
+  // Bridges into the app's own tested call flows, raised above the command overlay.
+  function cmOpenCallDetail(id){ var s=document.getElementById('cmSheet'); if(s)s.remove(); try{ openCallDetail(id); var m=document.getElementById('callDetailModal'); if(m) m.style.zIndex='9850'; }catch(e){ showToast&&showToast('Could not open call'); } }
+  function cmCompleteCall(id){
+    var s=document.getElementById('cmSheet'); if(s)s.remove();
+    try{
+      document.getElementById('completeCallId').value=id;
+      var oc=document.getElementById('completeOutcome'); if(oc) oc.value='CC';
+      var n1=document.getElementById('completeNote'); if(n1) n1.value='';
+      var n2=document.getElementById('completeNotes'); if(n2) n2.value='';
+      var g=document.getElementById('completeNoteGroup'); if(g) g.style.display='none';
+      showModal('callCompleteModal');
+      var m=document.getElementById('callCompleteModal'); if(m) m.style.zIndex='9850';
+      var c=(STATE.calls||[]).find(function(x){return x.id===id;});
+      _cmAddLog('✓ Completing call '+(c&&c.callNum?('#'+c.callNum):'')+' from command','call');
+    }catch(e){ showToast&&showToast('Could not open complete'); }
   }
   function _cmRenderLog(){
     var el=document.getElementById('cmLogList'); if(!el) return;
@@ -399,8 +574,12 @@
     var nearest=_cmNearestIdle(id);
     var body='<div style="font-size:13px;color:#374151;margin-bottom:3px;">'+escapeHTML(c.town||'')+(c.address?(' · '+escapeHTML(String(c.address).replace(/\s*—?\s*📍.*$/,''))):'')+'</div>'
       +'<div style="font-size:12px;color:#6b7280;margin-bottom:14px;">'+(c.responders&&c.responders.length?(c.responders.length+' responding'):'No units yet')+'</div>';
-    if(nearest) body+='<button onclick="cmAssignNearest(\''+id+'\')" style="width:100%;background:#b45309;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;">Assign nearest idle unit → BC-'+nearest.unit+' ('+nearest.miles.toFixed(1)+' mi)</button>';
-    else body+='<div style="color:#9ca3af;font-size:12px;">No idle units with a live location to assign.</div>';
+    if(nearest) body+='<button onclick="cmAssignNearest(\''+id+'\')" style="width:100%;background:#b45309;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">Assign nearest idle unit → BC-'+nearest.unit+' ('+nearest.miles.toFixed(1)+' mi)</button>';
+    else body+='<div style="color:#9ca3af;font-size:12px;margin-bottom:8px;">No idle units with a live location to assign.</div>';
+    body+='<div style="display:flex;gap:8px;">'
+      +'<button onclick="cmOpenCallDetail(\''+id+'\')" style="flex:1;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">Open call</button>'
+      +'<button onclick="cmCompleteCall(\''+id+'\')" style="flex:1;background:#065f46;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">✓ Complete</button>'
+      +'</div>';
     _cmSheet('🔴 Call '+(c.callNum?('#'+c.callNum+' '):'')+tl, body);
   }
 
@@ -520,6 +699,9 @@
     cmAddMembers: cmAddMembers, cmFilterAdd: cmFilterAdd, cmConfirmAdd: cmConfirmAdd,
     cmFocusMember: cmFocusMember, cmAssignNearest: cmAssignNearest, cmArmSector: cmArmSector,
     cmBroadcast: cmBroadcast, cmAddNote: cmAddNote, cmEndNight: cmEndNight,
+    cmSelMode: cmSelMode, cmNewCall: cmNewCall, cmOpenCall: cmOpenCall,
+    cmOpenCallDetail: cmOpenCallDetail, cmCompleteCall: cmCompleteCall,
+    cmLinkMissingCall: cmLinkMissingCall, cmNewMissingCall: cmNewMissingCall,
     _cmSyncSettingsButton: _cmSyncSettingsButton
   });
 
