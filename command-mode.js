@@ -334,11 +334,6 @@
     ov.innerHTML=''
       +'<div style="flex-shrink:0;background:#0b1220;color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);">'
         +'<div style="display:flex;align-items:center;gap:10px;min-width:0;"><span style="font-size:18px;">'+(missing?'🔍':'🎖️')+'</span><div style="min-width:0;"><div style="font-size:15px;font-weight:800;">'+(missing?'Missing Person Search':'Command Center')+'</div><div style="font-size:11px;color:#94a3b8;">Lead: BC-'+cmLeadUnit()+' · <span id="cmHeadcount"></span></div></div></div>'
-        +(missing?'':'<div class="cm-viewtoggle" style="display:none;gap:4px;background:rgba(255,255,255,.08);border-radius:10px;padding:3px;flex-shrink:0;">'
-          +'<button id="cmVT-calls" onclick="cmSetView(\'calls\')" style="border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;background:#1e3a5f;color:#fff;">Calls</button>'
-          +'<button id="cmVT-map" onclick="cmSetView(\'map\')" style="border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;background:transparent;color:#94a3b8;">Map</button>'
-          +'<button id="cmVT-roster" onclick="cmSetView(\'roster\')" style="border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;background:transparent;color:#94a3b8;">Roster</button>'
-        +'</div>')
         +'<div style="display:flex;gap:8px;flex-shrink:0;">'
           +(canEnd?'<button onclick="cmEndNight()" style="background:#7f1d1d;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;">End</button>':'')
           +'<button onclick="closeCommandView()" style="background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer;">✕</button>'
@@ -347,17 +342,20 @@
       +(missing?'<div id="cmSubjectBar" style="flex-shrink:0;background:#1a1000;border-bottom:1px solid rgba(255,255,255,.08);"></div>':'')
       +(missing?'':'<div id="cmStats" style="flex-shrink:0;background:#0b1220;border-bottom:1px solid rgba(255,255,255,.08);display:flex;gap:8px;overflow-x:auto;padding:8px 12px;"></div>')
       +'<div style="flex:1;display:flex;min-height:0;">'
-        +(missing?'':'<div id="cmCallsPanel" class="cm-region cm-active" style="width:300px;flex-shrink:0;background:#0e1424;color:#e5e7eb;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;"></div>')
-        +'<div id="cmMapWrap" class="cm-region" style="flex:1;position:relative;min-width:0;display:block;"><div id="cmMap" style="position:absolute;inset:0;"></div>'
+        +(missing?'':'<div id="cmLeftCol" style="width:44%;max-width:360px;min-width:150px;flex-shrink:0;display:flex;flex-direction:column;min-height:0;border-right:1px solid rgba(255,255,255,.08);">'
+          +'<div id="cmCallsPanel" style="flex:1 1 58%;min-height:0;background:#0e1424;color:#e5e7eb;display:flex;flex-direction:column;overflow:hidden;"></div>'
+          +'<div id="cmSidebar" style="flex:1 1 42%;min-height:0;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;overflow:hidden;border-top:2px solid rgba(255,255,255,.1);"></div>'
+        +'</div>')
+        +'<div id="cmMapWrap" style="flex:1;position:relative;min-width:0;"><div id="cmMap" style="position:absolute;inset:0;"></div>'
           +'<div style="position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(11,18,32,.85);color:#fff;border-radius:10px;padding:8px 11px;font-size:11px;line-height:1.7;">'
             +'<div><b style="color:#22c55e;">BC-##</b> on call &nbsp; <b style="color:#eab308;">BC-##</b> idle</div>'
             +'<div><b style="color:#9ca3af;">BC-##</b> stale &nbsp; <b style="color:#3b82f6;">BC-##</b> lead &nbsp; <b style="color:#ef4444;">▮</b> call</div>'
           +'</div>'
         +'</div>'
-        +'<div id="cmSidebar" class="cm-region" style="width:300px;flex-shrink:0;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);"></div>'
+        +(missing?'<div id="cmSidebar" style="width:300px;flex-shrink:0;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);"></div>':'')
       +'</div>';
     document.body.appendChild(ov);
-    _cmInjectStyle(); _cmApplyView(); _cmRenderSubjectBar(); if(!missing) _cmBuildCallsPanel(); _cmBuildSidebar(); if(!missing) _cmBuildStats();
+    _cmInjectStyle(); _cmRenderSubjectBar(); if(!missing) _cmBuildCallsPanel(); _cmBuildSidebar(); if(!missing) _cmBuildStats();
     if(_cmTick) clearInterval(_cmTick);
     _cmTick=setInterval(function(){ if(document.getElementById('cmOverlay')){ if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); } } else { clearInterval(_cmTick); _cmTick=null; } }, 4000);
     loadGoogleMapsAPI().then(_cmInitMap).catch(function(){ _cmMapFallback(); });
@@ -368,9 +366,7 @@
   function _cmInjectStyle(){
     if(document.getElementById('cmRespStyle')) return;
     var s=document.createElement('style'); s.id='cmRespStyle';
-    s.textContent='#cmOverlay .cm-viewtoggle{display:none;}'
-      +'@media(max-width:899px){#cmOverlay .cm-region{display:none!important;}#cmOverlay .cm-region.cm-active{display:flex!important;}#cmOverlay .cm-viewtoggle{display:flex!important;}}'
-      +'#cmOverlay .cmStat{flex-shrink:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:6px 11px;}'
+    s.textContent='#cmOverlay .cmStat{flex-shrink:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:6px 11px;}'
       +'#cmOverlay .cmStat .n{font-size:18px;font-weight:800;line-height:1;font-family:"DM Mono",monospace;}'
       +'#cmOverlay .cmStat .l{font-size:9.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin-top:3px;white-space:nowrap;}'
       +'#cmOverlay .cmCallRow{cursor:pointer;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);}'
@@ -388,14 +384,6 @@
       +'#cmCallRows .call-card.active .call-card-type,#cmCallRows .call-card.urgent .call-card-type{color:#fff!important;}';
     document.head.appendChild(s);
   }
-  function cmSetView(v){ _cmView=v; _cmApplyView(); if(v==='map'&&_cmMap&&_cmMap._isGoogle&&window.google){ setTimeout(function(){ try{ google.maps.event.trigger(_cmMap,'resize'); }catch(e){} },60); } }
-  function _cmApplyView(){
-    [['calls','cmCallsPanel'],['map','cmMapWrap'],['roster','cmSidebar']].forEach(function(p){
-      var el=document.getElementById(p[1]); if(el) el.classList.toggle('cm-active', p[0]===_cmView);
-      var b=document.getElementById('cmVT-'+p[0]); if(b){ b.style.background=p[0]===_cmView?'#1e3a5f':'transparent'; b.style.color=p[0]===_cmView?'#fff':'#94a3b8'; }
-    });
-  }
-
   // ── Live stat widgets ──────────────────────────────────────────────────────
   function _cmBuildStats(){
     var el=document.getElementById('cmStats'); if(!el) return;
@@ -422,6 +410,7 @@
     var el=document.getElementById('cmCallsPanel'); if(!el) return;
     el.innerHTML=''
       +'<div style="flex-shrink:0;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,.06);">'
+        +'<button onclick="cmNewCall()" style="width:100%;background:#dc2626;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:10px;box-shadow:0 2px 8px rgba(220,38,38,.35);">＋ New Call</button>'
         +'<div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Active Calls</div>'
         +'<input id="cmCallSearch" placeholder="Search #, type, town, dispatcher…" value="'+escapeHTML(_cmCallSearch)+'" oninput="cmCallSearchInput(this.value)" style="width:100%;padding:8px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#fff;font-size:13px;box-sizing:border-box;margin-bottom:8px;"/>'
         +'<div style="display:flex;gap:6px;overflow-x:auto;">'+['all','urgent','open','active'].map(function(f){ return '<button data-f="'+f+'" class="cmChipF'+(_cmCallFilter===f?' on':'')+'" onclick="cmSetCallFilter(\''+f+'\')">'+(f==='all'?'All':f.charAt(0).toUpperCase()+f.slice(1))+'</button>'; }).join('')+'</div>'
@@ -526,7 +515,6 @@
     var el=document.getElementById('cmMap'); if(!el) return;
     _cmMap=new google.maps.Map(el,{ center:{lat:40.8976,lng:-74.0160}, zoom:13, mapTypeControl:false, streetViewControl:false, fullscreenControl:false, styles:[{elementType:'geometry',stylers:[{color:'#1d2c4d'}]},{elementType:'labels.text.fill',stylers:[{color:'#8ec3b9'}]},{elementType:'labels.text.stroke',stylers:[{color:'#1a3646'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#304a7d'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#0e1626'}]},{featureType:'poi',stylers:[{visibility:'off'}]}] });
     _cmMap._isGoogle=true;
-    _cmMap.addListener('click', function(e){ if(_cmSectorArm){ _cmDropSector(e.latLng.lat(),e.latLng.lng()); } else if(_cmNewCallArm){ _cmNewCallAt(e.latLng.lat(),e.latLng.lng()); } });
     // Freehand drawing (missing mode): mousedown starts a line, drag extends it.
     _cmMap.addListener('mousedown', function(e){ if(_cmDrawMode==='draw'){ _cmDrawStart(e.latLng); } });
     _cmMap.addListener('mousemove', function(e){ if(_cmDrawMode==='draw'&&_cmCurDraw){ _cmDrawExtend(e.latLng); } });
@@ -655,9 +643,7 @@
     sb.innerHTML=''
       +'<div style="padding:12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);">'
         +'<button onclick="cmAddMembers()" style="flex:1;min-width:0;background:#1e3a5f;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">＋ Members</button>'
-        +'<button onclick="cmArmNewCall()" id="cmNewCallBtn" style="flex:1;min-width:0;background:#b91c1c;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">＋ Call</button>'
         +((cmAmAdmin()||myUnit()===cmLeadUnit())?'<button onclick="cmManageViewers()" style="flex:1;min-width:0;background:#0e7490;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">👁 Watchers</button>':'')
-        +(missing?'':'<button onclick="cmArmSector()" id="cmSectorBtn" style="flex:1;min-width:0;background:#3730a3;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">⬡ Sector</button>')
         +(missing?'<button onclick="cmToggleDraw()" id="cmDrawBtn" style="flex:1;min-width:0;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Draw</button>':'')
         +(missing?'<button onclick="cmToggleErase()" id="cmEraseBtn" style="flex:1;min-width:0;background:#4b5563;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">🧹 Erase</button>':'')
         +'<button onclick="cmBroadcast()" style="flex:1;min-width:0;background:#065f46;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">📣 Broadcast</button>'
@@ -720,12 +706,20 @@
         +badge+(r.eta?'<span style="font-size:11px;color:#64748b;">'+r.eta+'m</span>':'')+(when?'<span style="font-size:11px;color:#94a3b8;">'+when+'</span>':'')
       +'</div>';
     }).join(''):'<div style="color:#9ca3af;font-size:12px;padding:4px 0 8px;">No responders yet.</div>';
+    var pend=(c.pendingResponders||[]);
+    if(pend.length){
+      body+='<div style="font-size:11px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;">⏳ Pending approval ('+pend.length+')</div>';
+      body+=pend.map(function(r){ var u=U(r.unit); return '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 10px;margin-bottom:6px;">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;"><span style="font-weight:800;color:#92400e;font-size:13px;">BC-'+u+'</span><span style="color:#78350f;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+escapeHTML(r.name||'')+'</span>'+(r.eta?'<span style="font-size:11px;color:#92400e;">ETA '+r.eta+'m</span>':'')+'</div>'
+        +'<div style="display:flex;gap:6px;"><button onclick="cmApproveResp(\''+c.id+'\',\''+u+'\')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">✓ Approve</button><button onclick="cmRejectResp(\''+c.id+'\',\''+u+'\')" style="flex:1;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:800;cursor:pointer;">✕ Reject</button></div>'
+      +'</div>'; }).join('');
+    }
     var lg=(STATE.callLog||[]).filter(function(e){ return e.callId===c.id; }).slice(-12);
     body+='<div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;">Timeline</div>';
     body+= lg.length? lg.map(function(e){ var tt=new Date(e.ts||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); return '<div style="font-size:12px;color:#334155;padding:4px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#94a3b8;">'+tt+'</span> · '+escapeHTML(_cmLogLabel(e))+'</div>'; }).join(''):'<div style="color:#9ca3af;font-size:12px;">No timeline events recorded.</div>';
     body+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">';
     if(nearest) body+='<button onclick="cmAssignNearest(\''+id+'\')" style="grid-column:1/-1;background:#b45309;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">⚡ Assign nearest idle → BC-'+nearest.unit+' ('+nearest.miles.toFixed(1)+' mi)</button>';
-    body+='<button onclick="cmAddToCall(\''+id+'\')" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">＋ Add member</button>';
+    body+='<button onclick="cmAssignMember(\''+id+'\')" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">👥 Assign member</button>';
     body+='<button onclick="cmEscalate(\''+id+'\')" style="background:'+(urgent?'#475569':'#dc2626')+';color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">'+(urgent?'▽ De-escalate':'▲ Escalate')+'</button>';
     body+='<button onclick="cmClearCall(\''+id+'\')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">✓ Clear call</button>';
     body+='<button onclick="cmCancelCallCmd(\''+id+'\')" style="background:#334155;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">✕ Cancel</button>';
@@ -758,30 +752,13 @@
     _cmAddLog('➡️ BC-'+n.unit+' assigned to call '+(c.callNum?('#'+c.callNum):'')+' ('+n.miles.toFixed(1)+' mi)','assign');
     showToast('Assigned BC-'+n.unit); var s=document.getElementById('cmSheet'); if(s) s.remove();
   }
-  // Manually add ANY member to a call (a shared responder that shows on the call card
-  // for everyone — same as dispatch's add). Picker over all members not already on it.
-  function cmAddToCall(callId){
-    var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return;
-    var on={}; (c.responders||[]).forEach(function(r){ on[U(r.unit)]=1; });
-    var members=(STATE.members||[]).filter(function(m){ return !on[U(m.unit||m.id)]; }).sort(function(a,b){ return (parseInt(U(a.unit||a.id))||0)-(parseInt(U(b.unit||b.id))||0); });
-    _cmPick={};
-    var body='<input placeholder="Filter…" oninput="cmFilterAdd(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:10px;box-sizing:border-box;"/>'
-      +'<div id="cmAddPick" style="max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+members.map(function(m){ var u=U(m.unit||m.id); var nm=((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
-        return '<div class="cmAddRow" data-u="'+u+'" data-n="'+escapeHTML(nm.toLowerCase())+'" onclick="cmTogglePick(\''+u+'\',this)" style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #f2f2f2;cursor:pointer;border-radius:8px;"><span class="cmChk" style="width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex-shrink:0;"></span><span style="font-weight:700;color:#1a3a5c;">BC-'+u+'</span><span style="color:#666;font-size:13px;">'+escapeHTML(nm)+'</span></div>';
-      }).join('')||'<div style="color:#9ca3af;padding:8px;">Everyone is already on this call.</div>'+'</div>'
-      +'<button onclick="cmConfirmAddToCall(\''+callId+'\')" style="position:sticky;bottom:0;width:100%;margin-top:12px;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 -6px 12px rgba(255,255,255,.9);">＋ Add <span id="cmPickCount">selected</span></button>';
-    _cmSheet('Add members to call '+(c.callNum?('#'+c.callNum):''), body);
-  }
-  function cmConfirmAddToCall(callId){
-    var picked=Object.keys(_cmPick); if(!picked.length){ showToast('Tap members to select'); return; }
-    var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return;
-    var mem=(STATE.members||[]); c.responders=c.responders||[];
-    picked.forEach(function(u){ if(c.responders.some(function(r){ return U(r.unit)===u; })) return; var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); c.responders.push({ unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'', time:Date.now(), status:'approved', approvedBy:myUnit(), approvedAt:Date.now(), viaCommand:true }); try{ sendPush({ target:'unit', unit:u, title:'🎖️ Command assignment', body:'Assigned to Call '+(c.callNum?('#'+c.callNum):'')+' — '+(c.town||''), url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} });
-    try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
-    try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); }catch(e){}
-    _cmAddLog('➕ Added '+picked.map(function(u){ return 'BC-'+u; }).join(', ')+' to call '+(c.callNum?('#'+c.callNum):''),'assign');
-    _cmPick={}; showToast('Added '+picked.length); var s=document.getElementById('cmSheet'); if(s) s.remove();
-  }
+  // Assign / approve / reject — reuse the app's REAL dispatcher flows so every change
+  // shows on the normal Open Calls cards for all members (push + WA fire from there).
+  function _cmRaise(id){ var m=document.getElementById(id); if(m){ m.style.zIndex='9800'; } return m; }
+  function cmNewCall(){ _cmRaise('newCallModal'); try{ if(typeof showModal==='function') showModal('newCallModal'); else { var m=document.getElementById('newCallModal'); if(m) m.classList.remove('hidden'); } }catch(e){ showToast('New call unavailable'); } }
+  function cmAssignMember(callId){ var s=document.getElementById('cmSheet'); if(s) s.remove(); _cmRaise('radioModal'); try{ if(typeof openRadioModal==='function'){ openRadioModal(callId); } else { showToast('Assign unavailable'); } }catch(e){ showToast('Assign unavailable'); } }
+  function cmApproveResp(callId,unit){ try{ if(typeof approveResponder==='function') approveResponder(callId,U(unit)); }catch(e){} _cmAddLog('✔️ Approved BC-'+U(unit)+' on call by BC-'+myUnit(),'assign'); setTimeout(function(){ _cmRenderCallRows(); if(document.getElementById('cmSheet')) _cmCallPopup(callId); },350); }
+  function cmRejectResp(callId,unit){ try{ if(typeof rejectResponder==='function') rejectResponder(callId,U(unit)); }catch(e){} _cmAddLog('✖️ Rejected BC-'+U(unit)+' on call by BC-'+myUnit(),'assign'); setTimeout(function(){ _cmRenderCallRows(); if(document.getElementById('cmSheet')) _cmCallPopup(callId); },350); }
 
   // ── Add members mid-op (click-to-toggle, robust) ────────────────────────────
   function cmAddMembers(){
@@ -799,7 +776,13 @@
   function cmConfirmAdd(){
     var picked=Object.keys(_cmPick); if(!picked.length){ showToast('Tap members to select'); return; }
     var mem=(STATE.members||[]); var add=picked.map(function(u){ var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); return { unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'' }; });
-    db().collection('config').doc('commandMode').update({ members:cmMembers().concat(add) }).then(function(){ _cmAddLog('➕ Added '+add.map(function(a){ return 'BC-'+a.unit; }).join(', '),'roster'); var s=document.getElementById('cmSheet'); if(s) s.remove(); _cmPick={}; showToast('Added '+add.length); }).catch(function(){ showToast('Could not add'); });
+    var next=cmMembers().concat(add);
+    db().collection('config').doc('commandMode').set({ members:next }, {merge:true}).then(function(){
+      if(_cmState) _cmState.members=next;   // optimistic — the snapshot reconciles
+      _cmAddLog('➕ Added '+add.map(function(a){ return 'BC-'+a.unit; }).join(', '),'roster');
+      add.forEach(function(a){ try{ sendPush({ target:'unit', unit:a.unit, title:(cmIsMissing()?'🔍 Search':'🎖️ Command'), body:'You\'ve been added — location sharing is on. Open the app.', url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} });
+      var s=document.getElementById('cmSheet'); if(s) s.remove(); _cmPick={}; _cmBuildSidebar(); showToast('Added '+add.length);
+    }).catch(function(e){ console.warn('[command] add members failed',e); showToast('Could not add — '+((e&&e.code)||'error')); });
   }
 
   // ── Watchers: extra view-only access beyond admins + on-duty dispatchers ──────────────
@@ -839,58 +822,6 @@
     db().collection('config').doc('commandMode').update({ viewers:cmViewers().filter(function(v){ return U(v.unit)!==U(u); }) }).then(function(){ _cmAddLog('👁 Removed watcher BC-'+U(u),'roster'); showToast('Removed'); cmManageViewers(); }).catch(function(){ showToast('Could not remove'); });
   }
 
-  // ── Live call creation: tap the map to drop a new call ────────────────────────────────
-  function cmArmNewCall(){
-    _cmNewCallArm=!_cmNewCallArm;
-    var b=document.getElementById('cmNewCallBtn'); if(b){ b.style.background=_cmNewCallArm?'#ef4444':'#b91c1c'; b.textContent=_cmNewCallArm?'✕ Tap map':'＋ Call'; }
-    if(_cmNewCallArm&&_cmView!=='map') cmSetView('map');
-    showToast(_cmNewCallArm?'Tap the map where the call is':'New call off');
-  }
-  function _cmNewCallAt(lat,lng){
-    _cmNewCallArm=false; var b=document.getElementById('cmNewCallBtn'); if(b){ b.style.background='#b91c1c'; b.textContent='＋ Call'; }
-    var open=function(addr){ _cmNewCallForm(lat,lng,addr||''); };
-    try{ new google.maps.Geocoder().geocode({location:{lat:lat,lng:lng}}, function(res,status){ open((status==='OK'&&res&&res[0])?res[0].formatted_address:''); }); }
-    catch(e){ open(''); }
-  }
-  function _cmNewCallForm(lat,lng,addr){
-    var COMMON=['flood','car_lockout','lockout','jump_start','vehicle_stalled','out_of_gas','transport','welfare','missing_person','other'];
-    var opts=COMMON.map(function(k){ var lbl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[k]||k):k; return '<option value="'+k+'">'+escapeHTML(lbl)+'</option>'; }).join('');
-    var body=''
-      +'<div style="font-size:12px;color:#6b7280;margin-bottom:10px;">📍 '+escapeHTML(addr||(lat.toFixed(5)+', '+lng.toFixed(5)))+'</div>'
-      +'<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Incident type</label>'
-      +'<select id="cmNCType" style="width:100%;padding:10px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin:5px 0 10px;box-sizing:border-box;">'+opts+'</select>'
-      +'<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Address</label>'
-      +'<input id="cmNCAddr" value="'+escapeHTML(addr||'')+'" placeholder="Address" style="width:100%;padding:10px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin:5px 0 10px;box-sizing:border-box;"/>'
-      +'<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Notes</label>'
-      +'<textarea id="cmNCNotes" rows="2" placeholder="What\'s going on?" style="width:100%;padding:10px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin:5px 0 10px;box-sizing:border-box;resize:vertical;"></textarea>'
-      +'<label style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:9px;margin-bottom:12px;cursor:pointer;"><input type="checkbox" id="cmNCUrgent" style="width:18px;height:18px;"/><span style="font-size:13px;font-weight:700;color:#b91c1c;">🚨 Urgent</span></label>'
-      +'<button onclick="cmSubmitNewCall('+lat+','+lng+')" style="width:100%;background:#b91c1c;color:#fff;border:none;border-radius:11px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;">Create call</button>';
-    _cmSheet('＋ New Call', body);
-  }
-  function cmSubmitNewCall(lat,lng){
-    var type=val('cmNCType')||'other';
-    var addr=val('cmNCAddr'); var notes=val('cmNCNotes'); var urgent=!!(document.getElementById('cmNCUrgent')&&document.getElementById('cmNCUrgent').checked);
-    var addrStore=(addr||'')+' — 📍 '+lat.toFixed(6)+','+lng.toFixed(6);
-    var call={ id:'cmd_'+Date.now(), type:type, address:addrStore, town:'', caller:'', phone:'', priority:urgent?'urgent':'normal', notes:notes, status:'open', createdAt:Date.now(), createdBy:myUnit(), responders:[], pendingResponders:[], pendingBackups:[], assignedVehicles:[], assignedEquipment:[], viaCommand:true };
-    _cmCallCoords[call.id]={lat:lat,lng:lng};
-    var lbl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[type]||type):type;
-    var writeIt=function(){
-      try{ STATE.calls=STATE.calls||[]; STATE.calls.unshift(call); }catch(e){}
-      try{ if(typeof logCallEvent==='function') logCallEvent(call,'created',{by:myUnit(),viaCommand:true}); }catch(e){}
-      _cmSyncCall(call);
-      try{ sendPush({ target:'all', title:(urgent?'🚨 URGENT — ':'')+'New Call'+(call.callNum?(' #'+call.callNum):''), body:lbl+(addr?(' — '+addr):''), url:'/cobc-dispatch/?page=dispatch', urgent:urgent?'true':'false' }); }catch(e){}
-      _cmAddLog('🆕 Call '+(call.callNum?('#'+call.callNum+' '):'')+lbl+' created by BC-'+myUnit(),'call');
-      var s=document.getElementById('cmSheet'); if(s) s.remove();
-      showToast('Call created'); _cmRefreshView();
-    };
-    if(typeof _nextCallNumAtomic==='function'){ _nextCallNumAtomic().then(function(n){ call.callNum=n; writeIt(); }).catch(writeIt); }
-    else { try{ if(typeof _nextCallNum==='function') call.callNum=_nextCallNum(); }catch(e){} writeIt(); }
-  }
-
-  // ── Manual sectors (command only) ──────────────────────────────────────────
-  function cmArmSector(){ _cmSectorArm=!_cmSectorArm; var b=document.getElementById('cmSectorBtn'); if(b){ b.style.background=_cmSectorArm?'#a78bfa':'#3730a3'; b.textContent=_cmSectorArm?'⬡ Tap map…':'⬡ Sector'; } showToast(_cmSectorArm?'Tap the map to drop a sector':'Sector off'); }
-  function _cmDropSector(lat,lng){ var label=prompt('Sector label:'); if(label===null) return; var sectors=((_cmState&&_cmState.sectors)||[]).concat([{ id:'s'+Date.now(), label:(label||'Zone').trim(), lat:lat, lng:lng }]); db().collection('config').doc('commandMode').update({ sectors:sectors }).then(function(){ _cmAddLog('⬡ Sector "'+(label||'Zone')+'" added','sector'); }); _cmSectorArm=false; var b=document.getElementById('cmSectorBtn'); if(b){ b.style.background='#3730a3'; b.textContent='⬡ Sector'; } }
-
   // ── Broadcast ───────────────────────────────────────────────────────────────
   function cmBroadcast(){ var msg=prompt('Broadcast to all members:'); if(!msg||!msg.trim()) return; cmMembers().forEach(function(mm){ try{ sendPush({ target:'unit', unit:U(mm.unit), title:(cmIsMissing()?'🔍 Search':'🎖️ Command'), body:msg.trim(), url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} }); try{ sendWA({ target:'all', message:(cmIsMissing()?'🔍 SEARCH: ':'🎖️ COMMAND: ')+msg.trim() }); }catch(e){} _cmAddLog('📣 Broadcast: '+msg.trim(),'broadcast'); showToast('📣 Sent'); }
 
@@ -909,12 +840,12 @@
     openCommandView:openCommandView, closeCommandView:closeCommandView, cmMemberSignOut:cmMemberSignOut,
     cmSetLinkMode:cmSetLinkMode, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
     cmFilterSetup:cmFilterSetup, cmAddMembers:cmAddMembers, cmFilterAdd:cmFilterAdd, cmConfirmAdd:cmConfirmAdd,
-    cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAddToCall:cmAddToCall, cmConfirmAddToCall:cmConfirmAddToCall, cmArmSector:cmArmSector, cmBroadcast:cmBroadcast,
+    cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAssignMember:cmAssignMember, cmApproveResp:cmApproveResp, cmRejectResp:cmRejectResp, cmBroadcast:cmBroadcast,
     cmPromptNote:cmPromptNote,
     cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton,
-    cmSetView:cmSetView, cmSetCallFilter:cmSetCallFilter, cmCallSearchInput:cmCallSearchInput, _cmCallPopup:_cmCallPopup, cmEscalate:cmEscalate, cmClearCall:cmClearCall, cmCancelCallCmd:cmCancelCallCmd,
+    cmSetCallFilter:cmSetCallFilter, cmCallSearchInput:cmCallSearchInput, _cmCallPopup:_cmCallPopup, cmEscalate:cmEscalate, cmClearCall:cmClearCall, cmCancelCallCmd:cmCancelCallCmd,
     cmManageViewers:cmManageViewers, cmFilterViewers:cmFilterViewers, cmConfirmViewers:cmConfirmViewers, cmRemoveViewer:cmRemoveViewer,
-    cmArmNewCall:cmArmNewCall, cmSubmitNewCall:cmSubmitNewCall
+    cmNewCall:cmNewCall
   });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(initCommandMode,1200); });
   else setTimeout(initCommandMode,1200);
