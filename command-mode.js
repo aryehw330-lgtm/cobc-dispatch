@@ -19,6 +19,7 @@
   var _cmState=null, _cmLocs={}, _cmLog=[];
   var _cmMap=null, _cmMarkers={}, _cmCallMarkers={}, _cmSectorMarkers={}, _cmGridShapes={}, _cmTrails={}, _cmLastSeenMk=null;
   var _cmShareTimer=null, _cmUnsub={}, _cmCallCoords={}, _cmLoggedCalls={}, _cmReady=false, _cmSectorArm=false;
+  var _cmView='calls', _cmCallFilter='all', _cmCallSearch='', _cmTick=null, _cmSelCall=null, _cmNewCallArm=false;
   var _cmPick={};   // start/add member selection: unit → true
   var _cmDrawMode='off';   // 'off' | 'draw' | 'erase'
   var _cmDrawLines=[];      // live google Polyline objects keyed by drawing id
@@ -36,9 +37,11 @@
   function cmLeadUnit(){ return _cmState?U(_cmState.leadUnit):''; }
   function cmMembers(){ return (_cmState&&Array.isArray(_cmState.members))?_cmState.members:[]; }
   function cmIsMember(){ var u=myUnit(); return cmMembers().some(function(m){ return U(m.unit)===u; }); }
+  function cmViewers(){ return (_cmState&&Array.isArray(_cmState.viewers))?_cmState.viewers:[]; }
+  function cmIsViewer(){ var u=myUnit(); return cmViewers().some(function(v){ return U(v.unit)===u; }); }
   function cmAmAdmin(){ return typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin'; }
   function cmAmOnDuty(){ try{ return (_onDutyDispatchUnits()||[]).map(U).indexOf(myUnit())>=0; }catch(e){ return false; } }
-  function cmCanView(){ return cmIsActive()&&(cmAmAdmin()||myUnit()===cmLeadUnit()||cmAmOnDuty()); }
+  function cmCanView(){ return cmIsActive()&&(cmAmAdmin()||myUnit()===cmLeadUnit()||cmAmOnDuty()||cmIsViewer()); }
 
   // ── Init ──────────────────────────────────────────────────────────────────
   function initCommandMode(){
@@ -331,26 +334,179 @@
     ov.innerHTML=''
       +'<div style="flex-shrink:0;background:#0b1220;color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);">'
         +'<div style="display:flex;align-items:center;gap:10px;min-width:0;"><span style="font-size:18px;">'+(missing?'🔍':'🎖️')+'</span><div style="min-width:0;"><div style="font-size:15px;font-weight:800;">'+(missing?'Missing Person Search':'Command Center')+'</div><div style="font-size:11px;color:#94a3b8;">Lead: BC-'+cmLeadUnit()+' · <span id="cmHeadcount"></span></div></div></div>'
+        +(missing?'':'<div class="cm-viewtoggle" style="display:none;gap:4px;background:rgba(255,255,255,.08);border-radius:10px;padding:3px;flex-shrink:0;">'
+          +'<button id="cmVT-calls" onclick="cmSetView(\'calls\')" style="border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;background:#1e3a5f;color:#fff;">Calls</button>'
+          +'<button id="cmVT-map" onclick="cmSetView(\'map\')" style="border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;background:transparent;color:#94a3b8;">Map</button>'
+          +'<button id="cmVT-roster" onclick="cmSetView(\'roster\')" style="border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;background:transparent;color:#94a3b8;">Roster</button>'
+        +'</div>')
         +'<div style="display:flex;gap:8px;flex-shrink:0;">'
           +(canEnd?'<button onclick="cmEndNight()" style="background:#7f1d1d;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer;">End</button>':'')
           +'<button onclick="closeCommandView()" style="background:rgba(255,255,255,.12);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer;">✕</button>'
         +'</div>'
       +'</div>'
       +(missing?'<div id="cmSubjectBar" style="flex-shrink:0;background:#1a1000;border-bottom:1px solid rgba(255,255,255,.08);"></div>':'')
+      +(missing?'':'<div id="cmStats" style="flex-shrink:0;background:#0b1220;border-bottom:1px solid rgba(255,255,255,.08);display:flex;gap:8px;overflow-x:auto;padding:8px 12px;"></div>')
       +'<div style="flex:1;display:flex;min-height:0;">'
-        +'<div id="cmMapWrap" style="flex:1;position:relative;min-width:0;"><div id="cmMap" style="position:absolute;inset:0;"></div>'
+        +(missing?'':'<div id="cmCallsPanel" class="cm-region cm-active" style="width:300px;flex-shrink:0;background:#0e1424;color:#e5e7eb;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;"></div>')
+        +'<div id="cmMapWrap" class="cm-region" style="flex:1;position:relative;min-width:0;display:block;"><div id="cmMap" style="position:absolute;inset:0;"></div>'
           +'<div style="position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(11,18,32,.85);color:#fff;border-radius:10px;padding:8px 11px;font-size:11px;line-height:1.7;">'
             +'<div><b style="color:#22c55e;">BC-##</b> on call &nbsp; <b style="color:#eab308;">BC-##</b> idle</div>'
             +'<div><b style="color:#9ca3af;">BC-##</b> stale &nbsp; <b style="color:#3b82f6;">BC-##</b> lead &nbsp; <b style="color:#ef4444;">▮</b> call</div>'
           +'</div>'
         +'</div>'
-        +'<div id="cmSidebar" style="width:300px;flex-shrink:0;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);"></div>'
+        +'<div id="cmSidebar" class="cm-region" style="width:300px;flex-shrink:0;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);"></div>'
       +'</div>';
     document.body.appendChild(ov);
-    _cmRenderSubjectBar(); _cmBuildSidebar();
+    _cmInjectStyle(); _cmApplyView(); _cmRenderSubjectBar(); if(!missing) _cmBuildCallsPanel(); _cmBuildSidebar(); if(!missing) _cmBuildStats();
+    if(_cmTick) clearInterval(_cmTick);
+    _cmTick=setInterval(function(){ if(document.getElementById('cmOverlay')){ if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); } } else { clearInterval(_cmTick); _cmTick=null; } }, 4000);
     loadGoogleMapsAPI().then(_cmInitMap).catch(function(){ _cmMapFallback(); });
   }
-  function closeCommandView(){ var o=document.getElementById('cmOverlay'); if(o) o.remove(); _cmMap=null; _cmMarkers={}; _cmCallMarkers={}; _cmGridShapes={}; _cmTrails={}; _cmLastSeenMk=null; }
+  function closeCommandView(){ if(_cmTick){ clearInterval(_cmTick); _cmTick=null; } var o=document.getElementById('cmOverlay'); if(o) o.remove(); _cmMap=null; _cmMarkers={}; _cmCallMarkers={}; _cmGridShapes={}; _cmTrails={}; _cmLastSeenMk=null; _cmSelCall=null; }
+
+  // ── Responsive EOC layout: style + view toggle (Calls / Map / Roster on narrow) ──
+  function _cmInjectStyle(){
+    if(document.getElementById('cmRespStyle')) return;
+    var s=document.createElement('style'); s.id='cmRespStyle';
+    s.textContent='#cmOverlay .cm-viewtoggle{display:none;}'
+      +'@media(max-width:899px){#cmOverlay .cm-region{display:none!important;}#cmOverlay .cm-region.cm-active{display:flex!important;}#cmOverlay .cm-viewtoggle{display:flex!important;}}'
+      +'#cmOverlay .cmStat{flex-shrink:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:6px 11px;}'
+      +'#cmOverlay .cmStat .n{font-size:18px;font-weight:800;line-height:1;font-family:"DM Mono",monospace;}'
+      +'#cmOverlay .cmStat .l{font-size:9.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin-top:3px;white-space:nowrap;}'
+      +'#cmOverlay .cmCallRow{cursor:pointer;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);}'
+      +'#cmOverlay .cmCallRow:hover{background:rgba(255,255,255,.04);}'
+      +'#cmOverlay .cmCallRow.sel{background:rgba(59,130,246,.14);box-shadow:inset 3px 0 0 #3b82f6;}'
+      +'#cmOverlay .cmChipF{padding:5px 11px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid rgba(255,255,255,.14);background:transparent;color:#94a3b8;cursor:pointer;white-space:nowrap;}'
+      +'#cmOverlay .cmChipF.on{background:#1e3a5f;border-color:#1e3a5f;color:#fff;}'
+      +'#cmCallRows{padding:8px 8px 2px;}'
+      +'#cmCallRows .call-card{background:linear-gradient(135deg,rgba(212,169,58,.22),rgba(20,16,8,.6));border:1px solid rgba(255,255,255,.14);border-left:4px solid #f59e0b;border-radius:16px;overflow:hidden;margin-bottom:10px;box-shadow:0 2px 10px rgba(0,0,0,.3);}'
+      +'#cmCallRows .call-card.active{background:linear-gradient(135deg,rgba(34,197,94,.5),rgba(8,30,16,.66));border-color:rgba(74,222,128,.5);}'
+      +'#cmCallRows .call-card.urgent{background:linear-gradient(135deg,rgba(220,38,38,.72),rgba(120,10,10,.6) 55%,rgba(8,4,4,.78));border:2px solid rgba(248,113,113,.7);}'
+      +'#cmCallRows .call-card.sel{outline:2px solid #3b82f6;outline-offset:-2px;}'
+      +'#cmCallRows .call-card-addr{color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.5);font-size:15px;}'
+      +'#cmCallRows .call-card-corner{color:rgba(255,255,255,.85)!important;padding:0 13px 8px;}'
+      +'#cmCallRows .call-card.active .call-card-type,#cmCallRows .call-card.urgent .call-card-type{color:#fff!important;}';
+    document.head.appendChild(s);
+  }
+  function cmSetView(v){ _cmView=v; _cmApplyView(); if(v==='map'&&_cmMap&&_cmMap._isGoogle&&window.google){ setTimeout(function(){ try{ google.maps.event.trigger(_cmMap,'resize'); }catch(e){} },60); } }
+  function _cmApplyView(){
+    [['calls','cmCallsPanel'],['map','cmMapWrap'],['roster','cmSidebar']].forEach(function(p){
+      var el=document.getElementById(p[1]); if(el) el.classList.toggle('cm-active', p[0]===_cmView);
+      var b=document.getElementById('cmVT-'+p[0]); if(b){ b.style.background=p[0]===_cmView?'#1e3a5f':'transparent'; b.style.color=p[0]===_cmView?'#fff':'#94a3b8'; }
+    });
+  }
+
+  // ── Live stat widgets ──────────────────────────────────────────────────────
+  function _cmBuildStats(){
+    var el=document.getElementById('cmStats'); if(!el) return;
+    var calls=(STATE.calls||[]).filter(function(c){ return c.status==='open'||c.status==='active'; });
+    var urgent=calls.filter(function(c){ return c.priority==='urgent'; }).length;
+    var respSet={}; calls.forEach(function(c){ (c.responders||[]).forEach(function(r){ respSet[U(r.unit)]=1; }); });
+    var mem=cmMembers(), idle=0, nosig=0; mem.forEach(function(mm){ var col=_cmMemberColor(U(mm.unit),_cmLocs[U(mm.unit)]); if(col==='#eab308')idle++; else if(col==='#9ca3af')nosig++; });
+    var gps=0, now=Date.now(); Object.keys(_cmLocs).forEach(function(u){ var l=_cmLocs[u]; if(l&&(now-(l.at||0))<CM_STALE_MS) gps++; });
+    var t0=new Date(); t0.setHours(0,0,0,0); t0=t0.getTime();
+    var times=(STATE.calls||[]).filter(function(c){ return c.status==='done'&&c.completedAt>=t0&&c.createdAt; }).map(function(c){ return (c.completedAt-c.createdAt)/60000; }).filter(function(m){ return m>0&&m<300; });
+    var avg=times.length?(times.reduce(function(s,m){return s+m;},0)/times.length):null;
+    function stat(n,l,color){ return '<div class="cmStat"><div class="n" style="color:'+(color||'#fff')+';">'+n+'</div><div class="l">'+l+'</div></div>'; }
+    el.innerHTML=stat(calls.length,'Active',calls.length?'#f87171':'#fff')
+      +stat(urgent,'Urgent',urgent?'#ef4444':'#64748b')
+      +stat(Object.keys(respSet).length,'Responding','#22c55e')
+      +stat(idle,'Idle','#eab308')
+      +stat(nosig,'No signal','#9ca3af')
+      +stat(gps+'/'+mem.length,'GPS live','#3b82f6')
+      +stat(avg!=null?avg.toFixed(0)+'m':'—','Avg resp','#c4b5fd');
+  }
+
+  // ── Active Calls panel ──────────────────────────────────────────────────────
+  function _cmBuildCallsPanel(){
+    var el=document.getElementById('cmCallsPanel'); if(!el) return;
+    el.innerHTML=''
+      +'<div style="flex-shrink:0;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,.06);">'
+        +'<div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Active Calls</div>'
+        +'<input id="cmCallSearch" placeholder="Search #, type, town, dispatcher…" value="'+escapeHTML(_cmCallSearch)+'" oninput="cmCallSearchInput(this.value)" style="width:100%;padding:8px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#fff;font-size:13px;box-sizing:border-box;margin-bottom:8px;"/>'
+        +'<div style="display:flex;gap:6px;overflow-x:auto;">'+['all','urgent','open','active'].map(function(f){ return '<button data-f="'+f+'" class="cmChipF'+(_cmCallFilter===f?' on':'')+'" onclick="cmSetCallFilter(\''+f+'\')">'+(f==='all'?'All':f.charAt(0).toUpperCase()+f.slice(1))+'</button>'; }).join('')+'</div>'
+      +'</div>'
+      +'<div id="cmCallRows" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>';
+    _cmRenderCallRows();
+  }
+  function cmSetCallFilter(f){ _cmCallFilter=f; var p=document.getElementById('cmCallsPanel'); if(p) p.querySelectorAll('.cmChipF').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-f')===f); }); _cmRenderCallRows(); }
+  function cmCallSearchInput(v){ _cmCallSearch=v; _cmRenderCallRows(); }
+  function _cmActiveCalls(){
+    var arr=(STATE.calls||[]).filter(function(c){ return c.status==='open'||c.status==='active'; });
+    if(_cmCallFilter==='urgent') arr=arr.filter(function(c){ return c.priority==='urgent'; });
+    else if(_cmCallFilter==='open') arr=arr.filter(function(c){ return c.status==='open'; });
+    else if(_cmCallFilter==='active') arr=arr.filter(function(c){ return c.status==='active'; });
+    var q=(_cmCallSearch||'').toLowerCase().trim();
+    if(q) arr=arr.filter(function(c){ var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||''); return (('#'+(c.callNum||''))+' '+tl+' '+(c.town||'')+' '+(c.address||'')+' bc-'+U(c.createdBy||'')).toLowerCase().indexOf(q)>=0; });
+    arr.sort(function(a,b){ var au=a.priority==='urgent'?0:1, bu=b.priority==='urgent'?0:1; return au-bu||(b.createdAt||0)-(a.createdAt||0); });
+    return arr;
+  }
+  function _cmRenderCallRows(){
+    var el=document.getElementById('cmCallRows'); if(!el) return;
+    var TC=(typeof TOWN_COLORS!=='undefined'&&TOWN_COLORS)?TOWN_COLORS:{};
+    el.innerHTML=_cmActiveCalls().map(function(c){
+      var urgent=c.priority==='urgent'&&c.status!=='done';
+      var cls=urgent?'urgent':(c.status||'open');
+      var typeRaw=c.type||'other';
+      var tl=cleanLabel?cleanLabel(typeRaw.indexOf('other:')===0?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw)):typeRaw;
+      var town=cardTown?cardTown(c):(c.town||'');
+      var tcol=(TC[town]||TC.Other||'#f59e0b');
+      var ts=c.createdAt?new Date(c.createdAt):null;
+      var timeStr=ts?((ts.toLocaleDateString('en-US',{month:'numeric',day:'numeric'}))+' · '+ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})):'';
+      var addr=(typeof fmtLocCardHTML==='function')?fmtLocCardHTML(c):escapeHTML(String(c.address||'').replace(/\s*—?\s*📍.*$/,''));
+      var badges=(typeof _respNumBadges==='function')?(_respNumBadges(c)||''):'';
+      var pending=(c.pendingResponders||[]).length;
+      var sc=c.status==='active'?'#16a34a':'#d97706';
+      var townChip=town?'<span style="display:inline-flex;align-items:center;background:color-mix(in srgb,'+tcol+' 24%,transparent);border:1px solid color-mix(in srgb,'+tcol+' 55%,transparent);color:#fff;padding:2px 10px;border-radius:7px;font-size:13px;font-weight:700;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.45);">'+escapeHTML(town)+'</span>':'<span></span>';
+      return '<div class="call-card '+cls+(_cmSelCall===c.id?' sel':'')+'" onclick="_cmCallPopup(\''+c.id+'\')" style="cursor:pointer;">'
+        +(urgent?'<div style="background:var(--red);color:#fff;font-size:11px;font-weight:800;padding:4px 13px;letter-spacing:.5px;">URGENT</div>':'')
+        +'<div class="call-card-header">'
+          +'<div style="flex:1;min-width:0;">'
+            +'<div class="call-card-type" style="color:'+(urgent?'var(--red)':tcol)+';">'+escapeHTML(tl)+'</div>'
+            +'<div class="call-card-addr">'+addr+'</div>'
+            +(c.notes?'<div style="font-size:13px;font-weight:600;color:#fff;margin-top:6px;padding:7px 10px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.4;text-shadow:0 1px 2px rgba(0,0,0,.35);">'+escapeHTML(c.notes)+'</div>':'')
+          +'</div>'
+          +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">'
+            +'<div style="background:'+sc+';color:#fff;padding:4px 11px;border-radius:8px;font-size:12px;font-weight:800;letter-spacing:.4px;text-shadow:0 1px 1px rgba(0,0,0,.3);">'+(c.status||'open').toUpperCase()+'</div>'
+            +(pending?'<div style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:7px;font-size:11px;font-weight:800;white-space:nowrap;">⏳ '+pending+'</div>':'')
+          +'</div>'
+        +'</div>'
+        +(badges?'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:0 13px;margin:2px 0 4px;">'+badges+'</div>':'')
+        +'<div class="call-card-corner">'+townChip+'<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;"><span style="font-family:\'DM Mono\',monospace;font-weight:700;">#'+(c.callNum||'—')+'</span><span style="opacity:.55;">·</span><span>'+timeStr+'</span></span></div>'
+      +'</div>';
+    }).join('')||'<div style="padding:16px 12px;color:#64748b;font-size:12px;">No active calls.</div>';
+  }
+  function _cmLogLabel(e){
+    var who=e.responder?(' · BC-'+U(e.responder)):(e.dispatcher?(' · BC-'+U(e.dispatcher)):(e.by?(' · BC-'+U(e.by)):''));
+    var m={ responder_pending:'Requested to respond', responder_approved:'Responder approved', auto_approved:'Auto-approved (urgent)', completed:'Call completed', cancelled:'Call cancelled', created:'Call created', escalated:'Escalated to urgent', deescalated:'De-escalated' };
+    return (m[e.action]||String(e.action||'update').replace(/_/g,' '))+who;
+  }
+  function _cmSyncCall(c){ try{ if(typeof firestoreUpsertCall==='function') firestoreUpsertCall(c); else db().collection('calls').doc(String(c.id)).set(c,{merge:true}); }catch(e){} try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); }catch(e){} }
+  function cmEscalate(id){
+    var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
+    var to=c.priority==='urgent'?'normal':'urgent'; c.priority=to;
+    try{ if(typeof logCallEvent==='function') logCallEvent(c, to==='urgent'?'escalated':'deescalated', {by:myUnit()}); }catch(e){}
+    _cmSyncCall(c); _cmAddLog((to==='urgent'?'▲ Escalated':'▽ De-escalated')+' call #'+(c.callNum||'')+' by BC-'+myUnit(),'status');
+    if(to==='urgent'){ cmMembers().forEach(function(mm){ try{ sendPush({ target:'unit', unit:U(mm.unit), title:'🚨 Escalated', body:'Call #'+(c.callNum||'')+' escalated to URGENT', url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} }); }
+    showToast(to==='urgent'?'🚨 Escalated':'De-escalated'); _cmCallPopup(id);
+  }
+  function cmClearCall(id){
+    var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
+    if(!confirm('Clear (complete) call #'+(c.callNum||'')+'? It leaves the active board.')) return;
+    c.status='done'; c.completedAt=Date.now(); c.completedBy=myUnit();
+    try{ if(typeof logCallEvent==='function') logCallEvent(c,'completed',{by:myUnit(),responders:(c.responders||[]).length,durationMin:Math.round((c.completedAt-c.createdAt)/60000),viaCommand:true}); }catch(e){}
+    _cmSyncCall(c); _cmAddLog('✓ Call #'+(c.callNum||'')+' cleared by BC-'+myUnit(),'status');
+    showToast('Call cleared'); var s=document.getElementById('cmSheet'); if(s) s.remove(); _cmSelCall=null; _cmRefreshView();
+  }
+  function cmCancelCallCmd(id){
+    var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
+    if(typeof window.cancelCall==='function'){ var s=document.getElementById('cmSheet'); if(s) s.remove(); try{ window.cancelCall(id); }catch(e){} _cmAddLog('✕ Call #'+(c.callNum||'')+' cancel requested by BC-'+myUnit(),'status'); setTimeout(_cmRefreshView,400); return; }
+    if(!confirm('Cancel call #'+(c.callNum||'')+'?')) return;
+    c.status='cancelled'; c.cancelledAt=Date.now();
+    try{ if(typeof logCallEvent==='function') logCallEvent(c,'cancelled',{by:myUnit(),viaCommand:true}); }catch(e){}
+    _cmSyncCall(c); _cmAddLog('✕ Call #'+(c.callNum||'')+' cancelled by BC-'+myUnit(),'status');
+    showToast('Call cancelled'); var s2=document.getElementById('cmSheet'); if(s2) s2.remove(); _cmSelCall=null; _cmRefreshView();
+  }
 
   function _cmRenderSubjectBar(){
     if(!cmIsMissing()) return; var el=document.getElementById('cmSubjectBar'); if(!el) return;
@@ -370,7 +526,7 @@
     var el=document.getElementById('cmMap'); if(!el) return;
     _cmMap=new google.maps.Map(el,{ center:{lat:40.8976,lng:-74.0160}, zoom:13, mapTypeControl:false, streetViewControl:false, fullscreenControl:false, styles:[{elementType:'geometry',stylers:[{color:'#1d2c4d'}]},{elementType:'labels.text.fill',stylers:[{color:'#8ec3b9'}]},{elementType:'labels.text.stroke',stylers:[{color:'#1a3646'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#304a7d'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#0e1626'}]},{featureType:'poi',stylers:[{visibility:'off'}]}] });
     _cmMap._isGoogle=true;
-    _cmMap.addListener('click', function(e){ if(_cmSectorArm){ _cmDropSector(e.latLng.lat(),e.latLng.lng()); } });
+    _cmMap.addListener('click', function(e){ if(_cmSectorArm){ _cmDropSector(e.latLng.lat(),e.latLng.lng()); } else if(_cmNewCallArm){ _cmNewCallAt(e.latLng.lat(),e.latLng.lng()); } });
     // Freehand drawing (missing mode): mousedown starts a line, drag extends it.
     _cmMap.addListener('mousedown', function(e){ if(_cmDrawMode==='draw'){ _cmDrawStart(e.latLng); } });
     _cmMap.addListener('mousemove', function(e){ if(_cmDrawMode==='draw'&&_cmCurDraw){ _cmDrawExtend(e.latLng); } });
@@ -412,6 +568,7 @@
 
   function _cmRefreshView(){
     _cmRenderSubjectBar();
+    if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); }
     if(!_cmMap||!_cmMap._isGoogle){ _cmBuildSidebar(); return; }
     var G=google.maps, seen={};
     // Members + breadcrumb trails
@@ -498,6 +655,8 @@
     sb.innerHTML=''
       +'<div style="padding:12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);">'
         +'<button onclick="cmAddMembers()" style="flex:1;min-width:0;background:#1e3a5f;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">＋ Members</button>'
+        +'<button onclick="cmArmNewCall()" id="cmNewCallBtn" style="flex:1;min-width:0;background:#b91c1c;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">＋ Call</button>'
+        +((cmAmAdmin()||myUnit()===cmLeadUnit())?'<button onclick="cmManageViewers()" style="flex:1;min-width:0;background:#0e7490;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">👁 Watchers</button>':'')
         +(missing?'':'<button onclick="cmArmSector()" id="cmSectorBtn" style="flex:1;min-width:0;background:#3730a3;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">⬡ Sector</button>')
         +(missing?'<button onclick="cmToggleDraw()" id="cmDrawBtn" style="flex:1;min-width:0;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Draw</button>':'')
         +(missing?'<button onclick="cmToggleErase()" id="cmEraseBtn" style="flex:1;min-width:0;background:#4b5563;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">🧹 Erase</button>':'')
@@ -528,12 +687,50 @@
   }
   function _cmCallPopup(id){
     var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
+    _cmSelCall=id; _cmRenderCallRows();
+    var ll=_cmCallLatLng(c); if(ll&&_cmMap&&_cmMap._isGoogle){ _cmMap.panTo(ll); if(_cmMap.getZoom()<14) _cmMap.setZoom(15); }
     var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||'');
+    var urgent=c.priority==='urgent';
+    var t=c.createdAt?new Date(c.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'—';
+    var durMin=c.createdAt?Math.round((Date.now()-c.createdAt)/60000):0;
+    var loc=((cardTown?cardTown(c):(c.town||''))||'')+(c.address?(' · '+String(c.address).replace(/\s*—?\s*📍.*$/,'')):'');
     var nearest=_cmNearestIdle(id);
-    var body='<div style="font-size:13px;color:#374151;margin-bottom:3px;">'+escapeHTML(c.town||'')+(c.address?(' · '+escapeHTML(String(c.address).replace(/\s*—?\s*📍.*$/,''))):'')+'</div><div style="font-size:12px;color:#6b7280;margin-bottom:14px;">'+(c.responders&&c.responders.length?(c.responders.length+' responding'):'No units yet')+'</div>';
-    if(nearest) body+='<button onclick="cmAssignNearest(\''+id+'\')" style="width:100%;background:#b45309;color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;">Assign nearest idle unit → BC-'+nearest.unit+' ('+nearest.miles.toFixed(1)+' mi)</button>';
-    else body+='<div style="color:#9ca3af;font-size:12px;">No idle units with a live location to assign.</div>';
-    _cmSheet('🔴 Call '+(c.callNum?('#'+c.callNum+' '):'')+tl, body);
+    function chip(label,v,color){ return '<div style="background:#f8fafc;border-radius:9px;padding:7px 9px;"><div style="font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.03em;">'+label+'</div><div style="font-size:13px;font-weight:700;color:'+(color||'#111827')+';margin-top:2px;">'+v+'</div></div>'; }
+    var body='<div style="max-height:64vh;overflow-y:auto;-webkit-overflow-scrolling:touch;">';
+    body+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px;">'
+      +chip('Status',(c.status==='active'?'Active':'Open'),c.status==='active'?'#16a34a':'#d97706')
+      +chip('Priority',urgent?'URGENT':'Normal',urgent?'#dc2626':'#111827')
+      +chip('Dispatched',t)
+      +chip('Elapsed',durMin+' min')
+      +chip('Dispatcher',c.createdBy?('BC-'+U(c.createdBy)):'—')
+      +chip('Responding',((c.responders||[]).length)+' units')
+    +'</div>';
+    body+='<div style="font-size:12px;color:#374151;margin-bottom:12px;"><b>📍 </b>'+escapeHTML(loc||'No location')+'</div>';
+    if(c.notes) body+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:9px 11px;font-size:12.5px;color:#78350f;margin-bottom:12px;">📝 '+escapeHTML(c.notes)+'</div>';
+    var resp=(c.responders||[]);
+    body+='<div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Responding members ('+resp.length+')</div>';
+    body+= resp.length? resp.map(function(r){
+      var u=U(r.unit); var when=(r.approvedAt||r.time)?new Date(r.approvedAt||r.time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+      var badge=r.status==='pending'?'<span style="font-size:9px;font-weight:800;background:#fef3c7;color:#92400e;border-radius:5px;padding:2px 5px;">PENDING</span>':'<span style="font-size:9px;font-weight:800;background:#dcfce7;color:#166534;border-radius:5px;padding:2px 5px;">ON CALL</span>';
+      var l2=_cmLocs[u]; var live=l2&&(Date.now()-(l2.at||0))<CM_STALE_MS;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9;">'
+        +'<span title="'+(live?'GPS live':'no signal')+'" style="width:8px;height:8px;border-radius:50%;background:'+(live?'#22c55e':'#cbd5e1')+';flex-shrink:0;"></span>'
+        +'<span style="font-weight:800;color:#1a3a5c;font-size:13px;">BC-'+u+'</span>'
+        +'<span style="color:#64748b;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+escapeHTML(r.name||'')+'</span>'
+        +badge+(r.eta?'<span style="font-size:11px;color:#64748b;">'+r.eta+'m</span>':'')+(when?'<span style="font-size:11px;color:#94a3b8;">'+when+'</span>':'')
+      +'</div>';
+    }).join(''):'<div style="color:#9ca3af;font-size:12px;padding:4px 0 8px;">No responders yet.</div>';
+    var lg=(STATE.callLog||[]).filter(function(e){ return e.callId===c.id; }).slice(-12);
+    body+='<div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;">Timeline</div>';
+    body+= lg.length? lg.map(function(e){ var tt=new Date(e.ts||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); return '<div style="font-size:12px;color:#334155;padding:4px 0;border-bottom:1px solid #f5f5f5;"><span style="color:#94a3b8;">'+tt+'</span> · '+escapeHTML(_cmLogLabel(e))+'</div>'; }).join(''):'<div style="color:#9ca3af;font-size:12px;">No timeline events recorded.</div>';
+    body+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;">';
+    if(nearest) body+='<button onclick="cmAssignNearest(\''+id+'\')" style="grid-column:1/-1;background:#b45309;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">⚡ Assign nearest idle → BC-'+nearest.unit+' ('+nearest.miles.toFixed(1)+' mi)</button>';
+    body+='<button onclick="cmAddToCall(\''+id+'\')" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">＋ Add member</button>';
+    body+='<button onclick="cmEscalate(\''+id+'\')" style="background:'+(urgent?'#475569':'#dc2626')+';color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">'+(urgent?'▽ De-escalate':'▲ Escalate')+'</button>';
+    body+='<button onclick="cmClearCall(\''+id+'\')" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">✓ Clear call</button>';
+    body+='<button onclick="cmCancelCallCmd(\''+id+'\')" style="background:#334155;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">✕ Cancel</button>';
+    body+='</div></div>';
+    _cmSheet('🔴 Call #'+(c.callNum||'—')+' · '+tl, body);
   }
   function _cmSheet(title,bodyHtml){
     var old=document.getElementById('cmSheet'); if(old) old.remove();
@@ -561,6 +758,30 @@
     _cmAddLog('➡️ BC-'+n.unit+' assigned to call '+(c.callNum?('#'+c.callNum):'')+' ('+n.miles.toFixed(1)+' mi)','assign');
     showToast('Assigned BC-'+n.unit); var s=document.getElementById('cmSheet'); if(s) s.remove();
   }
+  // Manually add ANY member to a call (a shared responder that shows on the call card
+  // for everyone — same as dispatch's add). Picker over all members not already on it.
+  function cmAddToCall(callId){
+    var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return;
+    var on={}; (c.responders||[]).forEach(function(r){ on[U(r.unit)]=1; });
+    var members=(STATE.members||[]).filter(function(m){ return !on[U(m.unit||m.id)]; }).sort(function(a,b){ return (parseInt(U(a.unit||a.id))||0)-(parseInt(U(b.unit||b.id))||0); });
+    _cmPick={};
+    var body='<input placeholder="Filter…" oninput="cmFilterAdd(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:10px;box-sizing:border-box;"/>'
+      +'<div id="cmAddPick" style="max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+members.map(function(m){ var u=U(m.unit||m.id); var nm=((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
+        return '<div class="cmAddRow" data-u="'+u+'" data-n="'+escapeHTML(nm.toLowerCase())+'" onclick="cmTogglePick(\''+u+'\',this)" style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #f2f2f2;cursor:pointer;border-radius:8px;"><span class="cmChk" style="width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex-shrink:0;"></span><span style="font-weight:700;color:#1a3a5c;">BC-'+u+'</span><span style="color:#666;font-size:13px;">'+escapeHTML(nm)+'</span></div>';
+      }).join('')||'<div style="color:#9ca3af;padding:8px;">Everyone is already on this call.</div>'+'</div>'
+      +'<button onclick="cmConfirmAddToCall(\''+callId+'\')" style="position:sticky;bottom:0;width:100%;margin-top:12px;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 -6px 12px rgba(255,255,255,.9);">＋ Add <span id="cmPickCount">selected</span></button>';
+    _cmSheet('Add members to call '+(c.callNum?('#'+c.callNum):''), body);
+  }
+  function cmConfirmAddToCall(callId){
+    var picked=Object.keys(_cmPick); if(!picked.length){ showToast('Tap members to select'); return; }
+    var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return;
+    var mem=(STATE.members||[]); c.responders=c.responders||[];
+    picked.forEach(function(u){ if(c.responders.some(function(r){ return U(r.unit)===u; })) return; var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); c.responders.push({ unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'', time:Date.now(), status:'approved', approvedBy:myUnit(), approvedAt:Date.now(), viaCommand:true }); try{ sendPush({ target:'unit', unit:u, title:'🎖️ Command assignment', body:'Assigned to Call '+(c.callNum?('#'+c.callNum):'')+' — '+(c.town||''), url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} });
+    try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
+    try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); }catch(e){}
+    _cmAddLog('➕ Added '+picked.map(function(u){ return 'BC-'+u; }).join(', ')+' to call '+(c.callNum?('#'+c.callNum):''),'assign');
+    _cmPick={}; showToast('Added '+picked.length); var s=document.getElementById('cmSheet'); if(s) s.remove();
+  }
 
   // ── Add members mid-op (click-to-toggle, robust) ────────────────────────────
   function cmAddMembers(){
@@ -579,6 +800,91 @@
     var picked=Object.keys(_cmPick); if(!picked.length){ showToast('Tap members to select'); return; }
     var mem=(STATE.members||[]); var add=picked.map(function(u){ var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); return { unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'' }; });
     db().collection('config').doc('commandMode').update({ members:cmMembers().concat(add) }).then(function(){ _cmAddLog('➕ Added '+add.map(function(a){ return 'BC-'+a.unit; }).join(', '),'roster'); var s=document.getElementById('cmSheet'); if(s) s.remove(); _cmPick={}; showToast('Added '+add.length); }).catch(function(){ showToast('Could not add'); });
+  }
+
+  // ── Watchers: extra view-only access beyond admins + on-duty dispatchers ──────────────
+  // Admins & on-duty dispatchers can ALWAYS watch. Here the admin/lead grants extra
+  // people view access to the live op. Watchers see the map & calls but do NOT share GPS.
+  function cmManageViewers(){
+    if(!(cmAmAdmin()||myUnit()===cmLeadUnit())){ showToast('Admins or lead only'); return; }
+    _cmPick={};
+    var have={}; cmViewers().forEach(function(v){ have[U(v.unit)]=1; });
+    var onduty=[]; try{ onduty=(_onDutyDispatchUnits()||[]).map(U); }catch(e){}
+    var pickable=(STATE.members||[]).filter(function(m){ return !have[U(m.unit||m.id)]; }).sort(function(a,b){ return (parseInt(U(a.unit||a.id))||0)-(parseInt(U(b.unit||b.id))||0); });
+    var curHtml=cmViewers().length? cmViewers().map(function(v){ var u=U(v.unit); return '<div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-bottom:1px solid #f2f2f2;"><span style="width:9px;height:9px;border-radius:50%;background:#0e7490;flex-shrink:0;"></span><span style="font-weight:800;color:#1a3a5c;">BC-'+u+'</span><span style="color:#666;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+escapeHTML(v.name||'')+'</span><button onclick="cmRemoveViewer(\''+u+'\')" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">Remove</button></div>'; }).join('') : '<div style="color:#9ca3af;font-size:12px;padding:10px;">No extra watchers added yet.</div>';
+    var ondutyChips=onduty.length? onduty.map(function(u){ return '<span style="display:inline-block;background:#eef2ff;color:#3730a3;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;margin:0 4px 4px 0;">BC-'+u+'</span>'; }).join('') : '<span style="color:#9ca3af;font-size:12px;">none on duty right now</span>';
+    var body=''
+      +'<div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#0f766e;line-height:1.5;">Admins and on-duty dispatchers can always watch. Add anyone else below — watchers see the live map &amp; calls but don\'t share their location.</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Always watching</div>'
+      +'<div style="margin-bottom:16px;">'+ondutyChips+'</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Added watchers</div>'
+      +'<div style="margin-bottom:16px;border:1px solid #eef2f7;border-radius:10px;overflow:hidden;">'+curHtml+'</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Add watchers</div>'
+      +'<input placeholder="Filter…" oninput="cmFilterViewers(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:8px;box-sizing:border-box;"/>'
+      +'<div id="cmVwPick" style="max-height:32vh;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+(pickable.map(function(m){ var u=U(m.unit||m.id); var nm=((m.firstName||m.name||'')+' '+(m.lastName||'')).trim(); return '<div class="cmVwRow" data-u="'+u+'" data-n="'+escapeHTML(nm.toLowerCase())+'" onclick="cmTogglePick(\''+u+'\',this)" style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #f2f2f2;cursor:pointer;border-radius:8px;"><span class="cmChk" style="width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex-shrink:0;"></span><span style="font-weight:700;color:#1a3a5c;">BC-'+u+'</span><span style="color:#666;font-size:13px;">'+escapeHTML(nm)+'</span></div>'; }).join('')||'<div style="color:#9ca3af;padding:8px;">No members to add.</div>')+'</div>'
+      +'<button onclick="cmConfirmViewers()" style="position:sticky;bottom:0;width:100%;margin-top:12px;background:#0e7490;color:#fff;border:none;border-radius:10px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 -6px 12px rgba(255,255,255,.9);">＋ Add as watchers <span id="cmPickCount"></span></button>';
+    _cmSheet('👁 Watchers', body);
+  }
+  function cmFilterViewers(q){ q=(q||'').toLowerCase().trim(); document.querySelectorAll('#cmVwPick .cmVwRow').forEach(function(el){ var hit=!q||el.dataset.u.indexOf(q)>=0||(el.dataset.n||'').indexOf(q)>=0; el.style.display=hit?'flex':'none'; }); }
+  function cmConfirmViewers(){
+    var picked=Object.keys(_cmPick); if(!picked.length){ showToast('Tap members to select'); return; }
+    var mem=(STATE.members||[]); var add=picked.map(function(u){ var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); return { unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'', addedBy:myUnit(), at:Date.now() }; });
+    db().collection('config').doc('commandMode').update({ viewers:cmViewers().concat(add) }).then(function(){
+      _cmAddLog('👁 Added watcher'+(add.length>1?'s':'')+' '+add.map(function(a){ return 'BC-'+a.unit; }).join(', '),'roster');
+      add.forEach(function(a){ try{ sendPush({ target:'unit', unit:a.unit, title:(cmIsMissing()?'🔍 Search':'🎖️ Command')+' — watch access', body:'You can now watch the live '+(cmIsMissing()?'search':'command center')+'. Open the app → Settings.', url:'/cobc-dispatch/?page=more', urgent:'false' }); }catch(e){} });
+      _cmPick={}; showToast('Added '+add.length+' watcher'+(add.length>1?'s':'')); cmManageViewers();
+    }).catch(function(){ showToast('Could not add'); });
+  }
+  function cmRemoveViewer(u){
+    db().collection('config').doc('commandMode').update({ viewers:cmViewers().filter(function(v){ return U(v.unit)!==U(u); }) }).then(function(){ _cmAddLog('👁 Removed watcher BC-'+U(u),'roster'); showToast('Removed'); cmManageViewers(); }).catch(function(){ showToast('Could not remove'); });
+  }
+
+  // ── Live call creation: tap the map to drop a new call ────────────────────────────────
+  function cmArmNewCall(){
+    _cmNewCallArm=!_cmNewCallArm;
+    var b=document.getElementById('cmNewCallBtn'); if(b){ b.style.background=_cmNewCallArm?'#ef4444':'#b91c1c'; b.textContent=_cmNewCallArm?'✕ Tap map':'＋ Call'; }
+    if(_cmNewCallArm&&_cmView!=='map') cmSetView('map');
+    showToast(_cmNewCallArm?'Tap the map where the call is':'New call off');
+  }
+  function _cmNewCallAt(lat,lng){
+    _cmNewCallArm=false; var b=document.getElementById('cmNewCallBtn'); if(b){ b.style.background='#b91c1c'; b.textContent='＋ Call'; }
+    var open=function(addr){ _cmNewCallForm(lat,lng,addr||''); };
+    try{ new google.maps.Geocoder().geocode({location:{lat:lat,lng:lng}}, function(res,status){ open((status==='OK'&&res&&res[0])?res[0].formatted_address:''); }); }
+    catch(e){ open(''); }
+  }
+  function _cmNewCallForm(lat,lng,addr){
+    var COMMON=['flood','car_lockout','lockout','jump_start','vehicle_stalled','out_of_gas','transport','welfare','missing_person','other'];
+    var opts=COMMON.map(function(k){ var lbl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[k]||k):k; return '<option value="'+k+'">'+escapeHTML(lbl)+'</option>'; }).join('');
+    var body=''
+      +'<div style="font-size:12px;color:#6b7280;margin-bottom:10px;">📍 '+escapeHTML(addr||(lat.toFixed(5)+', '+lng.toFixed(5)))+'</div>'
+      +'<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Incident type</label>'
+      +'<select id="cmNCType" style="width:100%;padding:10px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin:5px 0 10px;box-sizing:border-box;">'+opts+'</select>'
+      +'<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Address</label>'
+      +'<input id="cmNCAddr" value="'+escapeHTML(addr||'')+'" placeholder="Address" style="width:100%;padding:10px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin:5px 0 10px;box-sizing:border-box;"/>'
+      +'<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">Notes</label>'
+      +'<textarea id="cmNCNotes" rows="2" placeholder="What\'s going on?" style="width:100%;padding:10px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin:5px 0 10px;box-sizing:border-box;resize:vertical;"></textarea>'
+      +'<label style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:9px;margin-bottom:12px;cursor:pointer;"><input type="checkbox" id="cmNCUrgent" style="width:18px;height:18px;"/><span style="font-size:13px;font-weight:700;color:#b91c1c;">🚨 Urgent</span></label>'
+      +'<button onclick="cmSubmitNewCall('+lat+','+lng+')" style="width:100%;background:#b91c1c;color:#fff;border:none;border-radius:11px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;">Create call</button>';
+    _cmSheet('＋ New Call', body);
+  }
+  function cmSubmitNewCall(lat,lng){
+    var type=val('cmNCType')||'other';
+    var addr=val('cmNCAddr'); var notes=val('cmNCNotes'); var urgent=!!(document.getElementById('cmNCUrgent')&&document.getElementById('cmNCUrgent').checked);
+    var addrStore=(addr||'')+' — 📍 '+lat.toFixed(6)+','+lng.toFixed(6);
+    var call={ id:'cmd_'+Date.now(), type:type, address:addrStore, town:'', caller:'', phone:'', priority:urgent?'urgent':'normal', notes:notes, status:'open', createdAt:Date.now(), createdBy:myUnit(), responders:[], pendingResponders:[], pendingBackups:[], assignedVehicles:[], assignedEquipment:[], viaCommand:true };
+    _cmCallCoords[call.id]={lat:lat,lng:lng};
+    var lbl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[type]||type):type;
+    var writeIt=function(){
+      try{ STATE.calls=STATE.calls||[]; STATE.calls.unshift(call); }catch(e){}
+      try{ if(typeof logCallEvent==='function') logCallEvent(call,'created',{by:myUnit(),viaCommand:true}); }catch(e){}
+      _cmSyncCall(call);
+      try{ sendPush({ target:'all', title:(urgent?'🚨 URGENT — ':'')+'New Call'+(call.callNum?(' #'+call.callNum):''), body:lbl+(addr?(' — '+addr):''), url:'/cobc-dispatch/?page=dispatch', urgent:urgent?'true':'false' }); }catch(e){}
+      _cmAddLog('🆕 Call '+(call.callNum?('#'+call.callNum+' '):'')+lbl+' created by BC-'+myUnit(),'call');
+      var s=document.getElementById('cmSheet'); if(s) s.remove();
+      showToast('Call created'); _cmRefreshView();
+    };
+    if(typeof _nextCallNumAtomic==='function'){ _nextCallNumAtomic().then(function(n){ call.callNum=n; writeIt(); }).catch(writeIt); }
+    else { try{ if(typeof _nextCallNum==='function') call.callNum=_nextCallNum(); }catch(e){} writeIt(); }
   }
 
   // ── Manual sectors (command only) ──────────────────────────────────────────
@@ -603,9 +909,12 @@
     openCommandView:openCommandView, closeCommandView:closeCommandView, cmMemberSignOut:cmMemberSignOut,
     cmSetLinkMode:cmSetLinkMode, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
     cmFilterSetup:cmFilterSetup, cmAddMembers:cmAddMembers, cmFilterAdd:cmFilterAdd, cmConfirmAdd:cmConfirmAdd,
-    cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmArmSector:cmArmSector, cmBroadcast:cmBroadcast,
+    cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAddToCall:cmAddToCall, cmConfirmAddToCall:cmConfirmAddToCall, cmArmSector:cmArmSector, cmBroadcast:cmBroadcast,
     cmPromptNote:cmPromptNote,
-    cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton
+    cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton,
+    cmSetView:cmSetView, cmSetCallFilter:cmSetCallFilter, cmCallSearchInput:cmCallSearchInput, _cmCallPopup:_cmCallPopup, cmEscalate:cmEscalate, cmClearCall:cmClearCall, cmCancelCallCmd:cmCancelCallCmd,
+    cmManageViewers:cmManageViewers, cmFilterViewers:cmFilterViewers, cmConfirmViewers:cmConfirmViewers, cmRemoveViewer:cmRemoveViewer,
+    cmArmNewCall:cmArmNewCall, cmSubmitNewCall:cmSubmitNewCall
   });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(initCommandMode,1200); });
   else setTimeout(initCommandMode,1200);
