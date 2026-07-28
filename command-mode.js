@@ -233,8 +233,7 @@
     var on=!!_cmPick[u];
     if(el){ el.style.background=on?'#eef6ff':'transparent'; var chk=el.querySelector('.cmChk'); if(chk){ chk.style.background=on?'#1e3a5f':'#fff'; chk.style.borderColor=on?'#1e3a5f':'#cbd5e1'; chk.textContent=on?'✓':''; } }
     var c=document.getElementById('cmPickCount'); if(c){ var n=Object.keys(_cmPick).length; c.textContent=n?('· '+n+' selected'):''; }
-  }
-  function cmFilterSetup(q){ q=(q||'').toLowerCase().trim(); document.querySelectorAll('#cmMemberPick .cmPick').forEach(function(el){ var hit=!q||el.dataset.u.indexOf(q)>=0||(el.dataset.n||'').indexOf(q)>=0; el.style.display=hit?'flex':'none'; }); }
+  }  function cmFilterSetup(q){ q=(q||'').toLowerCase().trim(); document.querySelectorAll('#cmMemberPick .cmPick').forEach(function(el){ var hit=!q||el.dataset.u.indexOf(q)>=0||(el.dataset.n||'').indexOf(q)>=0; el.style.display=hit?'flex':'none'; }); }
 
   function cmConfirmStart(type){
     var mem=(STATE.members||[]);
@@ -506,6 +505,7 @@
   function _cmClosingLog(c,note){
     var tl=_cmCallTypeLabel(c), phone=c.phone||c.callerPhone||'';
     _cmAddLog('✅ Call #'+(c.callNum||'')+' completed · '+tl+(phone?(' · ☎ '+phone):'')+(note?(' · “'+note+'”'):'')+' — by BC-'+myUnit(),'status');
+    if(note){ try{ if(typeof logCallEvent==='function') logCallEvent(c,'note',{note:'Closing note: '+note, by:myUnit(), viaCommand:true}); }catch(e){} }
     try{ c.cmClosed=true; _cmSyncCall(c); }catch(e){}
   }
   // Fire the closing-note prompt whenever a call flips to done while an op is open —
@@ -525,7 +525,7 @@
   function cmSaveCloseNote(id){
     var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c){ var s0=document.getElementById('cmSheet'); if(s0) s0.remove(); return; }
     var el=document.getElementById('cmCloseNote'); var note=el?(el.value||'').trim():'';
-    if(note){ c.notes=(c.notes?(c.notes+' | '):'')+'Closed: '+note; try{ _cmSyncCall(c); }catch(e){} }
+    if(note){ c.notes=(c.notes?(c.notes+' | '):'')+'Closing note (BC-'+myUnit()+'): '+note; try{ _cmSyncCall(c); }catch(e){} }
     _cmClosingLog(c,note); var s=document.getElementById('cmSheet'); if(s) s.remove(); showToast(note?'Note saved to log':'Call completed');
   }
   function cmSkipCloseNote(id){ var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(c) _cmClosingLog(c,''); var s=document.getElementById('cmSheet'); if(s) s.remove(); }
@@ -809,10 +809,10 @@
     var have={}; cmMembers().forEach(function(m){ have[U(m.unit)]=1; });
     var members=(STATE.members||[]).filter(function(m){ return !have[U(m.unit||m.id)]; }).sort(function(a,b){ return (parseInt(U(a.unit||a.id))||0)-(parseInt(U(b.unit||b.id))||0); });
     var body='<input id="cmAddSearch" placeholder="Filter…" oninput="cmFilterAdd(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:10px;box-sizing:border-box;"/>'
-      +'<div id="cmAddPick" style="max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+members.map(function(m){ var u=U(m.unit||m.id); var nm=((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
+      +'<div id="cmAddPick" style="max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch;">'+(members.map(function(m){ var u=U(m.unit||m.id); var nm=((m.firstName||m.name||'')+' '+(m.lastName||'')).trim();
         return '<div class="cmAddRow" data-u="'+u+'" data-n="'+escapeHTML(nm.toLowerCase())+'" onclick="cmTogglePick(\''+u+'\',this)" style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #f2f2f2;cursor:pointer;border-radius:8px;"><span class="cmChk" style="width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex-shrink:0;"></span><span style="font-weight:700;color:#1a3a5c;">BC-'+u+'</span><span style="color:#666;font-size:13px;">'+escapeHTML(nm)+'</span></div>';
-      }).join('')||'<div style="color:#9ca3af;padding:8px;">Everyone is already added.</div>'+'</div>'
-      +'<button onclick="cmConfirmAdd()" style="position:sticky;bottom:0;width:100%;margin-top:12px;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 -6px 12px rgba(255,255,255,.9);">＋ Add <span id="cmPickCount">selected</span></button>';
+      }).join('')||'<div style="color:#9ca3af;padding:8px;">Everyone is already added.</div>')+'</div>'
+      +'<button onclick="cmConfirmAdd()" style="width:100%;margin-top:12px;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;">＋ Add to roster <span id="cmPickCount"></span></button>';
     _cmSheet('Add members', body);
   }
   function cmFilterAdd(q){ q=(q||'').toLowerCase().trim(); document.querySelectorAll('#cmAddPick .cmAddRow').forEach(function(el){ var hit=!q||el.dataset.u.indexOf(q)>=0||(el.dataset.n||'').indexOf(q)>=0; el.style.display=hit?'flex':'none'; }); }
