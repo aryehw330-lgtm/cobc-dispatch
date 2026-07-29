@@ -1061,6 +1061,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- ══ HOME ══ -->
     <div class="page" id="page-home">
       <div id="shiftSlotHome" style="display:none;"></div>
+      <div id="cmChatMountHome" class="cm-chat-mount"></div>
       <div class="home-header">
         <div class="home-greet">
           <div class="section-title" id="homeGreeting">Welcome</div>
@@ -1098,6 +1099,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- ══ DISPATCH ══ -->
     <div class="page hidden" id="page-dispatch">
       <div id="shiftSlotDispatch" style="display:none;"></div>
+      <div id="cmChatMountDispatch" class="cm-chat-mount"></div>
       <div class="section-header">
         <div><div class="section-title">Dispatch</div><div class="section-sub" id="dispatchSubtitle">Active &amp; Open Calls</div></div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
@@ -18170,6 +18172,13 @@ function _logEquipEvent(items, action, memberDisplay, call, ccnc, cncNote, logge
   try{
     const unit = SESSION&&SESSION.unit ? String(SESSION.unit).replace(/^BC-?/i,'') : '';
     const itemNames = items.map(function(it){return it.name||'';}).filter(Boolean).join(', ');
+    // Dedupe guard: skip an identical event (same items+action+unit) fired within 12s,
+    // so a double-tap / retry can't write two rows (which the server turns into 2 pushes).
+    const _dedupeKey = action+'|'+unit+'|'+itemNames;
+    window._eqLogSeen = window._eqLogSeen || {};
+    const _nowTs = Date.now();
+    if(window._eqLogSeen[_dedupeKey] && (_nowTs - window._eqLogSeen[_dedupeKey]) < 12000){ return; }
+    window._eqLogSeen[_dedupeKey] = _nowTs;
     const ccStr = (ccnc==='CNC'&&cncNote)?'CNC - '+cncNote:(ccnc||'CC');
     const memberStr = memberDisplay||('BC-'+unit)||'';
     const logStr = loggedBy ? (memberStr+' (by BC-'+loggedBy+')') : memberStr;

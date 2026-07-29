@@ -60,7 +60,7 @@
     var shouldShare=cmIsActive()&&(cmIsMember()||myUnit()===cmLeadUnit());
     if(shouldShare) _cmStartShare(); else _cmStopShare();
     if(cmIsActive()) _cmAttachLive(); else _cmDetachLive();
-    _cmRenderBanner(); _cmSyncSettingsButton();
+    _cmRenderBanner(); _cmSyncSettingsButton(); _cmSyncCommsButton();
     if(document.getElementById('cmOverlay')){ if(!cmCanView()) closeCommandView(); else _cmRefreshView(); }
   }
   function _cmAttachLive(){
@@ -112,8 +112,12 @@
     }
     var label=cmIsMissing()?'Missing Person search active':'Command Mode active';
     el.innerHTML='<span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:#fca5a5;box-shadow:0 0 0 3px rgba(252,165,165,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+' — sharing your location</span></span>'
-      +'<span style="display:flex;gap:8px;flex-shrink:0;"><button onclick="cmMemberChat()" style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">💬 Join Chat</button><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
-    if(!document.getElementById('cmPulseStyle')){ var s=document.createElement('style'); s.id='cmPulseStyle'; s.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'; document.head.appendChild(s); }
+      +'<span style="display:flex;gap:8px;flex-shrink:0;"><button onclick="cmMemberChat()" id="cmBannerChatBtn" style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">💬 Join Chat</button><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
+    if(!document.getElementById('cmPulseStyle')){ var s=document.createElement('style'); s.id='cmPulseStyle'; s.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'
+      +'@keyframes cmSlideDown{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}'
+      +'@keyframes cmGrad{0%{background-position:0% 50%}100%{background-position:200% 50%}}'
+      +'.cmCommsPulse{background-image:linear-gradient(90deg,#1d4ed8,#22d3ee,#1d4ed8,#22d3ee)!important;background-size:200% 100%!important;animation:cmGrad 1.1s linear infinite!important;box-shadow:0 0 0 2px rgba(34,211,238,.5)!important;}';
+      document.head.appendChild(s); }
   }
   function cmMemberSignOut(){
     if(!confirm('Sign out? You will stop sharing your location.')) return;
@@ -124,12 +128,15 @@
   }
 
   // ── Member/dispatcher chat panel (bottom-half popup from the banner) ─────────
-  var _cmMChatTab='dispatch';
-  function cmMemberChat(){ var p=document.getElementById('cmMemberChatPanel'); if(p){ p.remove(); return; } p=document.createElement('div'); p.id='cmMemberChatPanel'; p.style.cssText='position:fixed;left:0;right:0;bottom:0;height:56vh;z-index:9650;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden;'; document.body.appendChild(p); _cmRenderMemberChat(); }
+  var _cmMChatTab='members';
+  // Who can see all three channels (Dispatch · Members · Notes): admin, dispatch, equipment.
+  function _cmCanSeeAllChats(){ try{ var r=(SESSION&&SESSION.role||'').toLowerCase(); if(r==='admin'||r==='dispatch'||r==='equipment') return true; var me=(STATE.members||[]).find(function(m){ return U(m.unit||m.id)===myUnit(); }); var rr=me?String(me.role||'').toLowerCase():''; return rr.indexOf('admin')>=0||rr.indexOf('dispatch')>=0||rr.indexOf('equipment')>=0; }catch(e){ return false; } }
+  function cmMemberChat(){ var p=document.getElementById('cmMemberChatPanel'); if(p){ p.remove(); return; } p=document.createElement('div'); p.id='cmMemberChatPanel'; p.style.cssText='position:fixed;left:0;right:0;bottom:0;height:56vh;z-index:9650;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden;'; document.body.appendChild(p); ['cmBannerChatBtn','cmChatBtn','cmNoteBtn'].forEach(_cmClearPulse); document.querySelectorAll('.cmChatTopBtn').forEach(function(b){ b.classList.remove('cmCommsPulse'); }); _cmRenderMemberChat(); }
   function cmMemberChatTab(t){ _cmMChatTab=t; _cmRenderMemberChat(); }
   function _cmRenderMemberChat(){
     var p=document.getElementById('cmMemberChatPanel'); if(!p) return;
-    var defs=[{k:'dispatch',label:'💬 Dispatch'},{k:'members',label:'👥 Members'}];
+    var defs=_cmCanSeeAllChats()?[{k:'dispatch',label:'💬 Dispatch'},{k:'members',label:'👥 Members'},{k:'note',label:'📝 Notes'}]:[{k:'members',label:'👥 Members'}];
+    if(!defs.some(function(d){ return d.k===_cmMChatTab; })) _cmMChatTab=defs[0].k;
     var tabs=defs.map(function(d){ var on=_cmMChatTab===d.k; return '<button onclick="cmMemberChatTab(\''+d.k+'\')" style="flex:1;padding:9px 6px;border:none;border-radius:9px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;background:'+(on?'#1e3a5f':'#f1f5f9')+';color:'+(on?'#fff':'#64748b')+';">'+d.label+'</button>'; }).join('');
     var msgs=(_cmLog||[]).filter(function(e){ return (e.channel||'note')===_cmMChatTab; }).slice().reverse();
     var list=msgs.map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var mine=U(e.by)===myUnit(); return '<div style="display:flex;flex-direction:column;align-items:'+(mine?'flex-end':'flex-start')+';margin-bottom:8px;"><div style="max-width:82%;background:'+(mine?'#dbeafe':'#f1f5f9')+';color:#0f172a;border-radius:12px;padding:8px 11px;font-size:13px;line-height:1.4;">'+_cmBoldCalls(escapeHTML(e.text||''))+'</div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">'+(e.by?'BC-'+U(e.by)+' · ':'')+t+'</div></div>'; }).join('')||'<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">No messages yet.</div>';
@@ -139,7 +146,13 @@
       +'<div style="flex-shrink:0;display:flex;gap:8px;padding:10px 12px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid #eef2f7;"><input id="cmMChatInput" placeholder="Message '+(_cmMChatTab==='dispatch'?'dispatch':'members')+'…" onkeydown="if(event.key===\'Enter\')cmMemberChatSend()" style="flex:1;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;box-sizing:border-box;"/><button onclick="cmMemberChatSend()" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:0 18px;font-weight:800;font-size:14px;cursor:pointer;">Send</button></div>';
     setTimeout(function(){ var l=document.getElementById('cmMChatList'); if(l) l.scrollTop=l.scrollHeight; var i=document.getElementById('cmMChatInput'); if(i) i.focus(); },30);
   }
-  function cmMemberChatSend(){ var i=document.getElementById('cmMChatInput'); if(!i) return; var t=(i.value||'').trim(); if(!t) return; var entry={ at:Date.now(), text:t, kind:'chat', channel:_cmMChatTab, by:myUnit() }; _cmLog=_cmLog||[]; _cmLog.unshift(entry); _cmAddLog(t,'chat',_cmMChatTab); i.value=''; _cmRenderMemberChat(); }
+  function cmMemberChatSend(){ var i=document.getElementById('cmMChatInput'); if(!i) return; var t=(i.value||'').trim(); if(!t) return; var isNote=_cmMChatTab==='note'; var entry={ at:Date.now(), text:t, kind:isNote?'note':'chat', channel:_cmMChatTab, by:myUnit() }; _cmLog=_cmLog||[]; _cmLog.unshift(entry); _cmAddLog(t,isNote?'note':'chat',_cmMChatTab); i.value=''; _cmRenderMemberChat(); }
+  // Chat button pinned to the top of the Open Calls / Dispatch tabs during an active op.
+  function _cmSyncCommsButton(){
+    var on=cmIsActive(); var all=_cmCanSeeAllChats();
+    var html=on?('<button class="cmChatTopBtn" onclick="cmMemberChat()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 3px 12px rgba(37,99,235,.3);font-family:inherit;">💬 '+(cmIsMissing()?'Search Chat':'Command Chat')+(all?' · Dispatch·Members·Notes':'')+'</button>'):'';
+    ['cmChatMountHome','cmChatMountDispatch'].forEach(function(id){ var el=document.getElementById(id); if(!el) return; el.innerHTML=html; el.style.display=on?'block':'none'; });
+  }
 
   // ── Settings entry points ──────────────────────────────────────────────────
   function _cmSyncSettingsButton(){
@@ -327,6 +340,15 @@
       });
     }catch(e){}
   }
+  // Command drags the ★ pin (e.g. a park with no street address) → persist + regrid.
+  function _cmMoveLastSeen(lat,lng){
+    var sub=Object.assign({}, (_cmState&&_cmState.subject)||{});
+    sub.lastSeenLat=lat; sub.lastSeenLng=lng;
+    var grid=_cmBuildGrid(lat,lng);
+    db().collection('config').doc('commandMode').update({ subject:sub, grid:grid }).catch(function(){});
+    _cmAddLog('📍 Last-seen pin moved by BC-'+myUnit()+' — grid updated','grid');
+    showToast('📍 Last-seen pin moved');
+  }
   // 3×3 grid of ~0.4mi lettered cells around the last-seen point.
   function _cmBuildGrid(lat,lng){
     var cellMi=0.4, dLat=cellMi/69, dLng=cellMi/(69*Math.cos(lat*Math.PI/180));
@@ -377,13 +399,14 @@
     // Animate command-view buttons
     if(hasDispatch||hasMembers) _cmPulse('cmChatBtn');
     if(hasNote) _cmPulse('cmNoteBtn');
+    if(hasDispatch||hasMembers||hasNote){ document.querySelectorAll('.cmChatTopBtn').forEach(function(b){ b.classList.add('cmCommsPulse'); }); }
     // Animate the member banner's Join Chat button + drop a banner alert
     var last=fresh[fresh.length-1];
     if(hasMembers){ _cmCommsBanner('💬 New member chat', last.text||'', 'members'); _cmPulse('cmBannerChatBtn'); }
     if(hasDispatch && _cmIsDispatchOrAdmin()){ _cmCommsBanner('💬 Dispatch chat', last.text||'', 'dispatch'); _cmPulse('cmBannerChatBtn'); }
   }
-  function _cmPulse(id){ var el=document.getElementById(id); if(!el) return; el.classList.add('cmPulse'); }
-  function _cmClearPulse(id){ var el=document.getElementById(id); if(el) el.classList.remove('cmPulse'); }
+  function _cmPulse(id){ var el=document.getElementById(id); if(!el) return; el.classList.add('cmCommsPulse'); }
+  function _cmClearPulse(id){ var el=document.getElementById(id); if(el) el.classList.remove('cmCommsPulse'); }
   function _cmCommsBanner(title,body,tab){
     // Members only get member-chat banners; dispatch/admin get both (dispatch filtered above)
     if(tab==='dispatch' && !_cmIsDispatchOrAdmin()) return;
@@ -415,12 +438,11 @@
           +'<button onclick="closeCommandView()" style="background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:10px;padding:8px 14px;min-height:38px;font-size:16px;font-weight:800;cursor:pointer;">✕</button>'
         +'</div>'
       +'</div>'
-      +(missing?'<div id="cmSubjectBar" style="flex-shrink:0;background:#1a1000;border-bottom:1px solid rgba(255,255,255,.08);"></div>':'')
       +'<div id="cmBody" style="flex:1;display:flex;min-height:0;">'
-        +(missing?'':'<div id="cmLeftCol" style="width:44%;max-width:360px;min-width:150px;flex-shrink:0;display:flex;flex-direction:column;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;border-right:1px solid rgba(255,255,255,.08);">'
+        +'<div id="cmLeftCol" style="width:44%;max-width:360px;min-width:150px;flex-shrink:0;display:flex;flex-direction:column;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;border-right:1px solid rgba(255,255,255,.08);">'
           +'<div id="cmCallsPanel" style="flex:1 1 58%;min-height:160px;background:#0e1424;color:#e5e7eb;display:flex;flex-direction:column;overflow:hidden;"></div>'
           +'<div id="cmSidebar" style="flex:1 1 42%;min-height:120px;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;overflow:hidden;border-top:2px solid rgba(255,255,255,.1);"></div>'
-        +'</div>')
+        +'</div>'
         +'<div id="cmMapWrap" style="flex:1;position:relative;min-width:0;"><div id="cmMap" style="position:absolute;inset:0;"></div>'
           +'<button onclick="cmToggleMapExpand()" id="cmMapExpandBtn" title="Expand map" style="position:absolute;top:10px;right:10px;z-index:6;background:rgba(11,18,32,.9);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:9px;width:40px;height:40px;font-size:17px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);">⤢</button>'
           +'<div style="position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(11,18,32,.85);color:#fff;border-radius:10px;padding:8px 11px;font-size:11px;line-height:1.7;">'
@@ -428,13 +450,12 @@
             +'<div><b style="color:#9ca3af;">BC-##</b> stale &nbsp; <b style="color:#3b82f6;">BC-##</b> lead &nbsp; <b style="color:#ef4444;">▮</b> call</div>'
           +'</div>'
         +'</div>'
-        +(missing?'<div id="cmSidebar" style="width:300px;flex-shrink:0;background:#111827;color:#e5e7eb;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);"></div>':'')
       +'</div>';
     document.body.appendChild(ov);
-    _cmInjectStyle(); _cmRenderSubjectBar(); if(!missing) _cmBuildCallsPanel(); _cmBuildSidebar(); if(!missing) _cmBuildStats();
+    _cmInjectStyle(); _cmBuildCallsPanel(); _cmBuildSidebar(); if(!missing) _cmBuildStats();
     _cmSeenStatus={}; _cmClosedHandled={}; (STATE.calls||[]).forEach(function(c){ _cmSeenStatus[c.id]=c.status; });
     if(_cmTick) clearInterval(_cmTick);
-    _cmTick=setInterval(function(){ if(document.getElementById('cmOverlay')){ _cmDetectCompletions(); if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); } } else { clearInterval(_cmTick); _cmTick=null; } }, 4000);
+    _cmTick=setInterval(function(){ if(document.getElementById('cmOverlay')){ _cmDetectCompletions(); if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); } else { _cmRenderMissingCard(); } } else { clearInterval(_cmTick); _cmTick=null; } }, 4000);
     loadGoogleMapsAPI().then(_cmInitMap).catch(function(){ _cmMapFallback(); });
   }
   function cmToggleMapExpand(){
@@ -512,6 +533,17 @@
   // ── Active Calls panel ──────────────────────────────────────────────────────
   function _cmBuildCallsPanel(){
     var el=document.getElementById('cmCallsPanel'); if(!el) return;
+    if(cmIsMissing()){
+      var canEdit=cmAmAdmin()||myUnit()===cmLeadUnit();
+      el.innerHTML=''
+        +'<div style="flex-shrink:0;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,.06);">'
+          +(canEdit?'<button onclick="cmEditReport()" style="width:100%;background:#1d4ed8;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(29,78,216,.35);">✎ Edit Missing Person Report</button>':'')
+          +'<div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:center;margin-top:'+(canEdit?'10px':'0')+';">Active Search</div>'
+        +'</div>'
+        +'<div id="cmCallRows" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>';
+      _cmRenderMissingCard();
+      return;
+    }
     el.innerHTML=''
       +'<div style="flex-shrink:0;padding:10px 12px 8px;border-bottom:1px solid rgba(255,255,255,.06);">'
         +'<button onclick="cmNewCall()" style="width:100%;background:#dc2626;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:10px;box-shadow:0 2px 8px rgba(220,38,38,.35);">＋ New Call</button>'
@@ -522,6 +554,68 @@
       +'</div>'
       +'<div id="cmCallRows" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>';
     _cmRenderCallRows();
+  }
+  // Single subject card (the one “call” for a missing-person op), styled like an active call card.
+  function _cmRenderMissingCard(){
+    var el=document.getElementById('cmCallRows'); if(!el) return;
+    var s=(_cmState&&_cmState.subject)||{};
+    var linked=(STATE.calls||[]).find(function(c){ return c.id===((_cmState&&_cmState.linkedCallId)); });
+    var callNo=linked&&linked.callNum?('#'+linked.callNum):'';
+    var started=(_cmState&&_cmState.startedAt)?new Date(_cmState.startedAt):null;
+    var elapsed=started?Math.round((Date.now()-started.getTime())/60000):0;
+    var elapsedStr=elapsed>=60?(Math.floor(elapsed/60)+'h '+(elapsed%60)+'m'):(elapsed+' min');
+    function row(icon,label,val,color){ return val?('<div style="display:flex;gap:8px;font-size:13px;line-height:1.4;margin-top:6px;"><span style="flex-shrink:0;">'+icon+'</span><span style="color:'+(color||'#e5e7eb')+';"><b style="color:#94a3b8;font-weight:700;">'+label+'</b> '+escapeHTML(val)+'</span></div>'):''; }
+    el.innerHTML='<div style="margin:8px;border-radius:14px;overflow:hidden;background:linear-gradient(160deg,#7f1d1d,#b91c1c);border:1px solid rgba(248,113,113,.5);box-shadow:0 2px 12px rgba(0,0,0,.35);">'
+      +'<div style="background:var(--red,#dc2626);color:#fff;font-size:11px;font-weight:800;padding:5px 13px;letter-spacing:.5px;display:flex;justify-content:space-between;"><span>🔍 MISSING PERSON</span><span>'+(callNo||'')+'</span></div>'
+      +'<div style="padding:13px;">'
+        +'<div style="display:flex;gap:12px;align-items:flex-start;">'
+          +(s.photo?'<img src="'+s.photo+'" style="width:70px;height:70px;border-radius:11px;object-fit:cover;flex-shrink:0;border:2px solid rgba(255,255,255,.5);"/>':'<div style="width:70px;height:70px;border-radius:11px;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;">👤</div>')
+          +'<div style="min-width:0;flex:1;"><div style="font-size:19px;font-weight:800;color:#fff;line-height:1.1;">'+escapeHTML(s.name||'Unknown')+(s.age?(' <span style=\'font-size:14px;opacity:.85;\'>· '+escapeHTML(s.age)+'</span>'):'')+'</div>'
+            +'<div style="font-size:12px;color:#fecaca;margin-top:3px;">Searching '+elapsedStr+'</div></div>'
+        +'</div>'
+        +row('📍','Last seen',(s.lastSeenAddr||'')+(s.lastSeenTime?(' · '+s.lastSeenTime):''),'#fff')
+        +row('👤','Description',s.desc,'#fff')
+        +row('👕','Clothing',s.clothing,'#fde68a')
+        +row('⚕️','Medical',s.medical,'#fca5a5')
+        +(linked&&linked.phone?'<a href="tel:'+linked.phone+'" style="display:inline-block;margin-top:10px;background:rgba(34,197,94,.25);border:1px solid rgba(34,197,94,.55);color:#fff;text-decoration:none;border-radius:9px;padding:7px 13px;font-size:13px;font-weight:800;">📞 Caller</a>':'')
+      +'</div></div>';
+  }
+  // Edit the missing-person report: subject fields → config.subject, re-geocode
+  // last-seen if it changed, and keep the linked dispatch call in sync.
+  function cmEditReport(){
+    if(!(cmAmAdmin()||myUnit()===cmLeadUnit())){ showToast('Only the lead or an admin can edit'); return; }
+    var s=(_cmState&&_cmState.subject)||{};
+    function fld(id,label,val,ph){ return '<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block;margin-top:10px;">'+label+'</label><input id="'+id+'" value="'+escapeHTML(val||'')+'" placeholder="'+(ph||'')+'" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-top:4px;box-sizing:border-box;"/>'; }
+    var body=''
+      +'<div style="display:flex;gap:10px;align-items:center;">'
+        +'<label id="mpEditPhotoBox" style="width:70px;height:70px;border-radius:11px;background:#f1f5f9;border:1.5px dashed #cbd5e1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#64748b;text-align:center;cursor:pointer;overflow:hidden;flex-shrink:0;">'+(s.photo?'<img src="'+s.photo+'" style="width:100%;height:100%;object-fit:cover;"/>':'Photo')+'<input type="file" accept="image/*" onchange="cmPhotoPick(event,\'mpEditPhotoBox\')" style="display:none;"/></label>'
+        +'<div style="flex:1;">'+fld('mpeName','Name',s.name,'Full name')+'</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:10px;"><div style="flex:1;">'+fld('mpeAge','Age',s.age,'e.g. 74')+'</div></div>'
+      +fld('mpeAddr','Last seen — address',s.lastSeenAddr,'Street, town')
+      +fld('mpeTime','Last seen — time',s.lastSeenTime,'e.g. 3:15 PM')
+      +fld('mpeDesc','Description',s.desc,'Height, build, hair…')
+      +fld('mpeClothing','Clothing',s.clothing,'What they were wearing')
+      +fld('mpeMedical','Medical / notes',s.medical,'Conditions, meds, risk')
+      +'<button onclick="cmSaveReport()" style="width:100%;margin-top:16px;background:#16a34a;color:#fff;border:none;border-radius:12px;padding:14px;font-weight:800;font-size:15px;cursor:pointer;">Save report</button>';
+    _cmSheet('✎ Edit Missing Person Report', body);
+  }
+  function cmSaveReport(){
+    var g=function(id){ var e=document.getElementById(id); return e?e.value.trim():''; };
+    var s=Object.assign({}, (_cmState&&_cmState.subject)||{});
+    var oldAddr=s.lastSeenAddr||'';
+    s.name=g('mpeName')||'Unknown'; s.age=g('mpeAge'); s.lastSeenAddr=g('mpeAddr'); s.lastSeenTime=g('mpeTime');
+    s.desc=g('mpeDesc'); s.clothing=g('mpeClothing'); s.medical=g('mpeMedical');
+    if(_cmPhotoData){ s.photo=_cmPhotoData; }
+    db().collection('config').doc('commandMode').update({ subject:s }).catch(function(){});
+    // Keep the linked dispatch call in sync (caller name, address, notes)
+    try{
+      var linked=(STATE.calls||[]).find(function(c){ return c.id===((_cmState&&_cmState.linkedCallId)); });
+      if(linked){ linked.caller=s.name; linked.address=s.lastSeenAddr||linked.address; linked.notes='Last seen: '+(s.lastSeenTime||'')+(s.medical?(' · '+s.medical):''); _cmSyncCall(linked); }
+    }catch(e){}
+    if(s.lastSeenAddr && s.lastSeenAddr!==oldAddr){ _cmGeocodeLastSeen(s.lastSeenAddr); }
+    _cmPhotoData=''; _cmAddLog('✎ Report updated by BC-'+myUnit(),'note');
+    var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); showToast('✅ Report saved'); _cmRenderMissingCard();
   }
   function cmSetCallFilter(f){ _cmCallFilter=f; var p=document.getElementById('cmCallsPanel'); if(p) p.querySelectorAll('.cmChipF').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-f')===f); }); _cmRenderCallRows(); }
   function cmCallSearchInput(v){ _cmCallSearch=v; _cmRenderCallRows(); }
@@ -703,9 +797,8 @@
   }
 
   function _cmRefreshView(){
-    _cmRenderSubjectBar();
     _cmDetectCompletions();
-    if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); }
+    if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); } else { _cmRenderMissingCard(); }
     if(!_cmMap||!_cmMap._isGoogle){ _cmBuildSidebar(); return; }
     var G=google.maps, seen={};
     // Members + breadcrumb trails
@@ -741,9 +834,13 @@
     if(cmIsMissing()){
       var sub=(_cmState&&_cmState.subject)||{};
       if(sub.lastSeenLat!=null){
-        if(!_cmLastSeenMk){ _cmLastSeenMk=new G.Marker({ map:_cmMap, icon:_transIcon(), zIndex:1200 }); _cmMap.setCenter({lat:sub.lastSeenLat,lng:sub.lastSeenLng}); _cmMap.setZoom(15); }
+        var _canDragPin=(cmAmAdmin()||myUnit()===cmLeadUnit());
+        if(!_cmLastSeenMk){ _cmLastSeenMk=new G.Marker({ map:_cmMap, icon:_transIcon(), zIndex:1200, draggable:_canDragPin, cursor:_canDragPin?'move':'default' }); _cmMap.setCenter({lat:sub.lastSeenLat,lng:sub.lastSeenLng}); _cmMap.setZoom(15);
+          if(_canDragPin){ _cmLastSeenMk.addListener('dragend', function(e){ _cmMoveLastSeen(e.latLng.lat(), e.latLng.lng()); }); }
+        }
+        _cmLastSeenMk.setDraggable(_canDragPin);
         _cmLastSeenMk.setPosition({lat:sub.lastSeenLat,lng:sub.lastSeenLng});
-        _cmLastSeenMk.setLabel({ text:'★ Last seen', color:'#f59e0b', fontWeight:'800', fontSize:'14px' });
+        _cmLastSeenMk.setLabel({ text:(_canDragPin?'★ Last seen (drag)':'★ Last seen'), color:'#f59e0b', fontWeight:'800', fontSize:'14px' });
       }
       var gseen={};
       ((_cmState&&_cmState.grid)||[]).forEach(function(g){
@@ -1172,8 +1269,8 @@
     cmSetLinkMode:cmSetLinkMode, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
     cmFilterSetup:cmFilterSetup, cmAddMembers:cmAddMembers, cmFilterAdd:cmFilterAdd, cmConfirmAdd:cmConfirmAdd,
     cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAssignUnitToCall:cmAssignUnitToCall, cmAssignMember:cmAssignMember, cmApproveResp:cmApproveResp, cmRejectResp:cmRejectResp, cmBroadcast:cmBroadcast,
-    cmPromptNote:cmPromptNote, cmChatTab:cmChatTab, cmChatSend:cmChatSend, cmOpenChat:cmOpenChat, cmChatMenu:cmChatMenu,
-    cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton,
+    cmPromptNote:cmPromptNote, cmChatTab:cmChatTab, cmChatSend:cmChatSend, cmOpenChat:cmOpenChat, cmChatMenu:cmChatMenu, cmEditReport:cmEditReport, cmSaveReport:cmSaveReport,
+    cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton, _cmSyncCommsButton:_cmSyncCommsButton,
     cmSetCallFilter:cmSetCallFilter, cmCallSearchInput:cmCallSearchInput, _cmCallPopup:_cmCallPopup, cmCallResp:cmCallResp, cmRemoveResp:cmRemoveResp, cmEscalate:cmEscalate, cmClearCall:cmClearCall, cmCancelCallCmd:cmCancelCallCmd, cmSaveCloseNote:cmSaveCloseNote, cmSkipCloseNote:cmSkipCloseNote,
     cmManageViewers:cmManageViewers, cmFilterViewers:cmFilterViewers, cmConfirmViewers:cmConfirmViewers, cmRemoveViewer:cmRemoveViewer,
     cmNewCall:cmNewCall,
