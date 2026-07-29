@@ -1693,6 +1693,20 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
 
+        <!-- COMMAND MODE WATCH (dispatchers, non-admin): only visible when an op is live -->
+        <div id="settingsCmWatch" style="display:none;margin-top:4px;">
+          <div class="section-label">Live Operation</div>
+          <div style="background:linear-gradient(135deg,rgba(127,29,29,.35),rgba(185,28,28,.18));border:1px solid rgba(248,113,113,.4);border-radius:14px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:15px;font-weight:800;color:#fff;"><span id="cmWatchTitle">🎖️ Command Mode</span> <span style="font-size:12px;font-weight:700;color:#fca5a5;">ACTIVE</span></div>
+                <div style="font-size:12px;color:rgba(255,255,255,.65);line-height:1.5;margin-top:2px;">An operation is running. Open the live map to watch, make new calls, and assign units.</div>
+              </div>
+              <button id="cmWatchOpenBtn" onclick="openCommandView()" style="flex-shrink:0;padding:12px 18px;background:#b91c1c;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">Open Map</button>
+            </div>
+          </div>
+        </div>
+
         <!-- ADMIN TOOLS (admin only): Test Mode, Audit Log, Backup & Restore -->
         <div id="settingsAdminTools" style="display:none;margin-top:4px;">
           <div class="section-label">Admin Tools</div>
@@ -1720,6 +1734,16 @@ textarea.input{min-height:80px;resize:vertical;}
                 <button onclick="openMissingPersonAdmin()" style="padding:11px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">Start / Open</button>
                 <button id="mpOpenBtn" onclick="openCommandView()" style="display:none;padding:9px 16px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Open Map</button>
               </div>
+            </div>
+          </div>
+          <!-- COMMAND CENTER LOGS -->
+          <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:15px;font-weight:800;color:#fff;">📚 Command Center Logs</div>
+                <div style="font-size:12px;color:rgba(255,255,255,.6);line-height:1.5;margin-top:2px;">Every past command / search operation — the full notes &amp; activity log for each incident, re-sendable by WhatsApp or email.</div>
+              </div>
+              <button onclick="openCommandLogs()" style="flex-shrink:0;padding:11px 16px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">View Logs</button>
             </div>
           </div>
           <!-- TEST MODE -->
@@ -9231,9 +9255,9 @@ function isAllowedForObserver(callType, unit) {
 function approveResponder(callId,unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
-  const req=(call.pendingResponders||[]).find(r=>String(r.unit)===String(unit));
+  const req=(call.pendingResponders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===String(unit).replace(/^BC-?/i,''));
   if(!req) return;
-  // Observer restriction warning: if responder is an observer and call type is not allowed, ask to confirm override
+  // Observer restriction warning: if responder is an observer and call type is not allowed, ask to confirm override: if responder is an observer and call type is not allowed, ask to confirm override
   // Restriction warning for ANY member with a saved callTypes list (not just observers)
   const targetMember = (STATE.members||[]).find(x => String(x.unit).replace(/^BC-?/i,'') === String(unit).replace(/^BC-?/i,''));
   const targetIsObserver = req.isObserver || (targetMember && targetMember.role === 'observer');
@@ -9338,9 +9362,10 @@ function _doApproveResponder(callId, unit, call, req) {
 function rejectResponder(callId,unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
-  const req=(call.pendingResponders||[]).find(r=>String(r.unit)===String(unit));
+  const _ru=String(unit).replace(/^BC-?/i,'');
+  const req=(call.pendingResponders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===_ru);
   if(!req) return;
-  call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
+  call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit).replace(/^BC-?/i,'')!==_ru);
   call.rejectedResponders=call.rejectedResponders||[];
   call.rejectedResponders.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:Date.now()});
   logCallEvent(call, 'responder_rejected', {responder:unit, rejectedBy:SESSION.unit});
