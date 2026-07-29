@@ -8489,7 +8489,7 @@ async function _nextCallNumAtomic(){
   }
   const year=new Date().getFullYear();
   const counterRef=firebase.firestore().collection('config').doc('callCounter');
-  const num=await firebase.firestore().runTransaction(async(tx)=>{
+  const txPromise=firebase.firestore().runTransaction(async(tx)=>{
     const snap=await tx.get(counterRef);
     const data=snap.exists?(snap.data()||{}):{};
     // Reset the shared counter at the start of each year.
@@ -8499,8 +8499,23 @@ async function _nextCallNumAtomic(){
     tx.set(counterRef,{nextCallNum:current+1, year:year},{merge:true});
     return current;
   });
-  try{ localStorage.setItem('cobc_callnum_'+year,String(num)); }catch(e){}
-  return num;
+  // NEVER let the mint hang the New Call submit. If the transaction stalls (offline,
+  // unreachable, or a Firestore rule silently blocks config/callCounter), fall back to
+  // a locally-sequential number after 4s so the call is ALWAYS created. The atomic
+  // reconcile drain corrects any collision once connectivity/rules allow.
+  const TIMEOUT=Symbol('timeout');
+  const timer=new Promise(res=>setTimeout(()=>res(TIMEOUT),4000));
+  const result=await Promise.race([txPromise, timer]);
+  if(result===TIMEOUT){
+    const local=(typeof _peekNextCallNum==='function')?_peekNextCallNum():((parseInt(localStorage.getItem('cobc_callnum_'+year)||'0',10)||0)+1);
+    try{ localStorage.setItem('cobc_callnum_'+year,String(local)); }catch(e){}
+    // Let the (still-pending) transaction settle in the background; ignore its result/errors.
+    txPromise.then(n=>{ try{ const cur=parseInt(localStorage.getItem('cobc_callnum_'+year)||'0',10)||0; if(n>cur) localStorage.setItem('cobc_callnum_'+year,String(n)); }catch(e){} }).catch(()=>{});
+    console.warn('Call-number mint timed out — using local #'+local+'; will reconcile.');
+    return local;
+  }
+  try{ localStorage.setItem('cobc_callnum_'+year,String(result)); }catch(e){}
+  return result;
 }
 function _peekNextCallNum() {
   const year = new Date().getFullYear();
