@@ -71,8 +71,9 @@
       }, function(e){ console.warn('[command] locs',e); });
     }
     if(!_cmUnsub.log){
-      _cmUnsub.log=db().collection('commandLog').orderBy('at','desc').limit(200).onSnapshot(function(snap){
+      _cmUnsub.log=db().collection('commandLog').orderBy('at','desc').limit(500).onSnapshot(function(snap){
         _cmLog=snap.docs.map(function(d){ return d.data(); });
+        try{ _cmDetectNewComms(); }catch(e){}
         if(document.getElementById('cmLogList')) _cmRenderLog();
       }, function(e){ console.warn('[command] log',e); });
     }
@@ -111,7 +112,7 @@
     }
     var label=cmIsMissing()?'Missing Person search active':'Command Mode active';
     el.innerHTML='<span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:#fca5a5;box-shadow:0 0 0 3px rgba(252,165,165,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+' — sharing your location</span></span>'
-      +'<button onclick="cmMemberSignOut()" style="flex-shrink:0;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button>';
+      +'<span style="display:flex;gap:8px;flex-shrink:0;"><button onclick="cmMemberChat()" style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">💬 Join Chat</button><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
     if(!document.getElementById('cmPulseStyle')){ var s=document.createElement('style'); s.id='cmPulseStyle'; s.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'; document.head.appendChild(s); }
   }
   function cmMemberSignOut(){
@@ -121,6 +122,24 @@
     try{ db().collection('config').doc('commandMode').update({ members:cmMembers().filter(function(m){ return U(m.unit)!==u; }) }); }catch(e){}
     showToast('Signed out');
   }
+
+  // ── Member/dispatcher chat panel (bottom-half popup from the banner) ─────────
+  var _cmMChatTab='dispatch';
+  function cmMemberChat(){ var p=document.getElementById('cmMemberChatPanel'); if(p){ p.remove(); return; } p=document.createElement('div'); p.id='cmMemberChatPanel'; p.style.cssText='position:fixed;left:0;right:0;bottom:0;height:56vh;z-index:9650;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden;'; document.body.appendChild(p); _cmRenderMemberChat(); }
+  function cmMemberChatTab(t){ _cmMChatTab=t; _cmRenderMemberChat(); }
+  function _cmRenderMemberChat(){
+    var p=document.getElementById('cmMemberChatPanel'); if(!p) return;
+    var defs=[{k:'dispatch',label:'💬 Dispatch'},{k:'members',label:'👥 Members'}];
+    var tabs=defs.map(function(d){ var on=_cmMChatTab===d.k; return '<button onclick="cmMemberChatTab(\''+d.k+'\')" style="flex:1;padding:9px 6px;border:none;border-radius:9px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;background:'+(on?'#1e3a5f':'#f1f5f9')+';color:'+(on?'#fff':'#64748b')+';">'+d.label+'</button>'; }).join('');
+    var msgs=(_cmLog||[]).filter(function(e){ return (e.channel||'note')===_cmMChatTab; }).slice().reverse();
+    var list=msgs.map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var mine=U(e.by)===myUnit(); return '<div style="display:flex;flex-direction:column;align-items:'+(mine?'flex-end':'flex-start')+';margin-bottom:8px;"><div style="max-width:82%;background:'+(mine?'#dbeafe':'#f1f5f9')+';color:#0f172a;border-radius:12px;padding:8px 11px;font-size:13px;line-height:1.4;">'+_cmBoldCalls(escapeHTML(e.text||''))+'</div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">'+(e.by?'BC-'+U(e.by)+' · ':'')+t+'</div></div>'; }).join('')||'<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">No messages yet.</div>';
+    p.innerHTML='<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eef2f7;"><div style="font-size:15px;font-weight:800;color:#0f172a;">🎖️ Command Chat</div><button onclick="cmMemberChat()" style="background:#f1f5f9;border:none;border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer;color:#64748b;">✕</button></div>'
+      +'<div style="flex-shrink:0;display:flex;gap:6px;padding:10px 12px 0;">'+tabs+'</div>'
+      +'<div id="cmMChatList" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;">'+list+'</div>'
+      +'<div style="flex-shrink:0;display:flex;gap:8px;padding:10px 12px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid #eef2f7;"><input id="cmMChatInput" placeholder="Message '+(_cmMChatTab==='dispatch'?'dispatch':'members')+'…" onkeydown="if(event.key===\'Enter\')cmMemberChatSend()" style="flex:1;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;box-sizing:border-box;"/><button onclick="cmMemberChatSend()" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:0 18px;font-weight:800;font-size:14px;cursor:pointer;">Send</button></div>';
+    setTimeout(function(){ var l=document.getElementById('cmMChatList'); if(l) l.scrollTop=l.scrollHeight; var i=document.getElementById('cmMChatInput'); if(i) i.focus(); },30);
+  }
+  function cmMemberChatSend(){ var i=document.getElementById('cmMChatInput'); if(!i) return; var t=(i.value||'').trim(); if(!t) return; var entry={ at:Date.now(), text:t, kind:'chat', channel:_cmMChatTab, by:myUnit() }; _cmLog=_cmLog||[]; _cmLog.unshift(entry); _cmAddLog(t,'chat',_cmMChatTab); i.value=''; _cmRenderMemberChat(); }
 
   // ── Settings entry points ──────────────────────────────────────────────────
   function _cmSyncSettingsButton(){
@@ -321,18 +340,63 @@
   }
 
   // ── Incident log ────────────────────────────────────────────────────────────
-  function _cmAddLog(text,kind){ try{ db().collection('commandLog').add({ at:Date.now(), text:String(text||''), kind:kind||'note', by:myUnit() }).catch(function(){}); }catch(e){} }
+  function _cmAddLog(text,kind,channel){ try{ db().collection('commandLog').add({ at:Date.now(), text:String(text||''), kind:kind||'note', channel:channel||'note', by:myUnit() }).catch(function(){}); }catch(e){} }
+  function _cmBoldCalls(s){ return String(s==null?'':s).replace(/#(\d+)/g,'<b>#$1</b>'); }
+  var _cmChatTab='dispatch';
+  function cmChatTab(t){ _cmChatTab=t; cmAddNote(); }
   function cmAddNote(){
-    var log=(_cmLog||[]).map(function(e){
-      var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-      var by=e.by?(' <span style="color:#94a3b8;">BC-'+U(e.by)+'</span>'):'';
-      return '<div style="padding:8px 10px;border-bottom:1px solid #eef2f7;font-size:13px;color:#334155;line-height:1.4;"><span style="color:#94a3b8;font-size:11px;">'+t+'</span> '+escapeHTML(e.text||'')+by+'</div>';
-    }).join('')||'<div style="padding:12px;color:#94a3b8;font-size:13px;">No log entries yet.</div>';
-    var body='<div style="max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid #eef2f7;border-radius:10px;margin-bottom:12px;">'+log+'</div>'
-      +'<button onclick="cmPromptNote()" style="width:100%;background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:14px;font-weight:800;font-size:14px;cursor:pointer;">✎ Add a note</button>';
-    _cmSheet('📋 Incident Log', body);
+    var defs=[{k:'dispatch',label:'💬 Dispatch'},{k:'members',label:'👥 Members'},{k:'note',label:'📝 Notes'}];
+    var tabs=defs.map(function(d){ var on=_cmChatTab===d.k; return '<button onclick="cmChatTab(\''+d.k+'\')" style="flex:1;padding:9px 6px;border:none;border-radius:9px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;background:'+(on?'#1e3a5f':'#f1f5f9')+';color:'+(on?'#fff':'#64748b')+';">'+d.label+'</button>'; }).join('');
+    var msgs=(_cmLog||[]).filter(function(e){ return (e.channel||'note')===_cmChatTab; }).slice().reverse();
+    var list=msgs.map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var mine=U(e.by)===myUnit(); return '<div style="display:flex;flex-direction:column;align-items:'+(mine?'flex-end':'flex-start')+';margin-bottom:8px;"><div style="max-width:82%;background:'+(mine?'#dbeafe':'#f1f5f9')+';color:#0f172a;border-radius:12px;padding:8px 11px;font-size:13px;line-height:1.4;">'+_cmBoldCalls(escapeHTML(e.text||''))+'</div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">'+(e.by?'BC-'+U(e.by)+' · ':'')+t+'</div></div>'; }).join('')||'<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">'+(_cmChatTab==='note'?'No notes yet.':'No messages yet.')+'</div>';
+    var isNote=_cmChatTab==='note';
+    var body='<div style="display:flex;gap:6px;margin-bottom:12px;">'+tabs+'</div>'
+      +'<div id="cmChatList" style="height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #eef2f7;border-radius:12px;padding:10px;margin-bottom:10px;">'+list+'</div>'
+      +'<div style="display:flex;gap:8px;"><input id="cmChatInput" placeholder="'+(isNote?'Add a note…':'Message '+(_cmChatTab==='dispatch'?'dispatch':'members')+'…')+'" onkeydown="if(event.key===\'Enter\')cmChatSend()" style="flex:1;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;box-sizing:border-box;"/><button onclick="cmChatSend()" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:0 18px;font-weight:800;font-size:14px;cursor:pointer;">'+(isNote?'Add':'Send')+'</button></div>';
+    _cmSheet('📋 Command Comms', body);
+    setTimeout(function(){ var l=document.getElementById('cmChatList'); if(l) l.scrollTop=l.scrollHeight; var i=document.getElementById('cmChatInput'); if(i) i.focus(); },30);
   }
-  function cmPromptNote(){ var t=prompt('Add a note to the log:'); if(t&&t.trim()){ _cmAddLog(t.trim(),'note'); showToast('Note added'); setTimeout(cmAddNote,250); } }
+  function cmChatSend(){ var i=document.getElementById('cmChatInput'); if(!i) return; var t=(i.value||'').trim(); if(!t) return; var entry={ at:Date.now(), text:t, kind:_cmChatTab==='note'?'note':'chat', channel:_cmChatTab, by:myUnit() }; _cmLog=_cmLog||[]; _cmLog.unshift(entry); _cmAddLog(t,entry.kind,_cmChatTab); i.value=''; cmAddNote(); }
+  function cmPromptNote(){ _cmChatTab='note'; cmAddNote(); }
+  // Detect newly-arrived chat/notes and alert: animate the Chat/Note buttons in the
+  // command view + drop a banner. Routing: members-chat → everyone; dispatch-chat →
+  // dispatch/admin only (never members); notes → Note button only.
+  var _cmCommsSeen=0, _cmCommsInit=false;
+  function _cmIsDispatchOrAdmin(){ try{ var r=(SESSION&&SESSION.role||'').toLowerCase(); return r==='dispatch'||r==='admin'; }catch(e){ return false; } }
+  function _cmDetectNewComms(){
+    var comms=(_cmLog||[]).filter(function(e){ return e.channel==='dispatch'||e.channel==='members'||e.kind==='note'||e.channel==='note'; });
+    var newest=comms.reduce(function(mx,e){ return Math.max(mx,e.at||0); },0);
+    if(!_cmCommsInit){ _cmCommsInit=true; _cmCommsSeen=newest; return; }
+    if(newest<=_cmCommsSeen) return;
+    var fresh=comms.filter(function(e){ return (e.at||0)>_cmCommsSeen && U(e.by)!==myUnit(); });
+    _cmCommsSeen=newest;
+    if(!fresh.length) return;
+    var hasDispatch=fresh.some(function(e){ return e.channel==='dispatch'; });
+    var hasMembers=fresh.some(function(e){ return e.channel==='members'; });
+    var hasNote=fresh.some(function(e){ return e.kind==='note'||e.channel==='note'; });
+    // Animate command-view buttons
+    if(hasDispatch||hasMembers) _cmPulse('cmChatBtn');
+    if(hasNote) _cmPulse('cmNoteBtn');
+    // Animate the member banner's Join Chat button + drop a banner alert
+    var last=fresh[fresh.length-1];
+    if(hasMembers){ _cmCommsBanner('💬 New member chat', last.text||'', 'members'); _cmPulse('cmBannerChatBtn'); }
+    if(hasDispatch && _cmIsDispatchOrAdmin()){ _cmCommsBanner('💬 Dispatch chat', last.text||'', 'dispatch'); _cmPulse('cmBannerChatBtn'); }
+  }
+  function _cmPulse(id){ var el=document.getElementById(id); if(!el) return; el.classList.add('cmPulse'); }
+  function _cmClearPulse(id){ var el=document.getElementById(id); if(el) el.classList.remove('cmPulse'); }
+  function _cmCommsBanner(title,body,tab){
+    // Members only get member-chat banners; dispatch/admin get both (dispatch filtered above)
+    if(tab==='dispatch' && !_cmIsDispatchOrAdmin()) return;
+    var b=document.getElementById('cmCommsBanner'); if(b) b.remove();
+    b=document.createElement('div'); b.id='cmCommsBanner';
+    b.style.cssText='position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 10px);z-index:10000;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 8px 26px rgba(0,0,0,.35);display:flex;align-items:center;gap:11px;cursor:pointer;animation:cmSlideDown .25s ease;';
+    b.innerHTML='<span style="font-size:20px;flex-shrink:0;">💬</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:800;">'+escapeHTML(title)+'</div><div style="font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHTML(body)+'</div></div>';
+    b.onclick=function(){ b.remove(); try{ if(document.getElementById('cmOverlay')) cmOpenChat(tab); else if(typeof cmMemberChat==='function') cmMemberChat(); }catch(e){} };
+    document.body.appendChild(b);
+    setTimeout(function(){ if(b&&b.parentNode) b.remove(); },6000);
+  }
+  function cmOpenChat(tab){ var m=document.getElementById('cmSheet'); if(m) m.remove(); _cmChatTab=tab; cmAddNote(); }
+  function cmChatMenu(){ function opt(k,label,bg){ return '<button onclick="cmOpenChat(\''+k+'\')" style="width:100%;background:'+bg+';color:#fff;border:none;border-radius:12px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;text-align:left;margin-bottom:10px;">'+label+'</button>'; } _cmSheet('💬 Open Chat', opt('dispatch','💬 Dispatch chat','#1e3a5f')+opt('members','👥 Members chat','#0e7490')+opt('note','📝 Notes / log','#374151')); }
 
   // ── Full-screen view ──────────────────────────────────────────────────────────
   function openCommandView(){
@@ -343,7 +407,7 @@
     var ov=document.createElement('div'); ov.id='cmOverlay';
     ov.style.cssText='position:fixed;inset:0;z-index:9700;background:#0f172a;display:flex;flex-direction:column;';
     ov.innerHTML=''
-      +'<div style="flex-shrink:0;background:#0b1220;color:#fff;padding:8px 12px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.1);">'
+      +'<div style="flex-shrink:0;background:#0b1220;color:#fff;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.1);">'
         +'<div style="display:flex;align-items:center;gap:9px;min-width:0;flex-shrink:0;"><span style="font-size:18px;">'+(missing?'🔍':'🎖️')+'</span><div style="min-width:0;"><div style="font-size:15px;font-weight:800;white-space:nowrap;">'+(missing?'Missing Person Search':'Command Center')+'</div><div style="font-size:11px;color:#94a3b8;white-space:nowrap;">Lead: BC-'+cmLeadUnit()+'</div></div></div>'
         +(missing?'':'<div id="cmStats" style="flex:1;min-width:0;display:flex;gap:7px;overflow-x:auto;align-items:center;"></div>')
         +'<div style="display:flex;gap:8px;flex-shrink:0;margin-left:auto;">'
@@ -379,10 +443,10 @@
     var btn=document.getElementById('cmMapExpandBtn');
     if(on){
       w.style.cssText='flex:1;position:relative;min-width:0;'; w.removeAttribute('data-expanded');
-      if(btn){ btn.textContent='⤢'; btn.title='Expand map'; }
+      if(btn){ btn.textContent='⤢'; btn.title='Expand map'; btn.style.top='10px'; btn.style.zIndex='6'; btn.style.background='rgba(11,18,32,.9)'; btn.style.width='40px'; btn.style.height='40px'; btn.style.fontSize='17px'; }
     } else {
       w.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;z-index:9999;min-width:0;'; w.setAttribute('data-expanded','1');
-      if(btn){ btn.textContent='✕'; btn.title='Exit full screen'; }
+      if(btn){ btn.textContent='✕'; btn.title='Exit full screen'; btn.style.top='calc(10px + env(safe-area-inset-top))'; btn.style.zIndex='10001'; btn.style.background='#dc2626'; btn.style.width='46px'; btn.style.height='46px'; btn.style.fontSize='20px'; }
     }
     try{ if(_cmMap&&_cmMap._isGoogle){ setTimeout(function(){ google.maps.event.trigger(_cmMap,'resize'); },60); } }catch(e){}
   }
@@ -669,7 +733,7 @@
       var _street=String(c.address||'').replace(/\s*—?\s*📍.*$/,'').split(',')[0].trim();
       var lbl='#'+(c.callNum||'')+(_street?(' · '+_street):'');
       var mk=_cmCallMarkers[c.id];
-      if(!mk){ mk=new G.Marker({ map:_cmMap, zIndex:999 }); mk.addListener('click', function(){ if(typeof openCallDetail==='function') openCallDetail(c.id); else _cmCallPopup(c.id); }); _cmCallMarkers[c.id]=mk; }
+      if(!mk){ mk=new G.Marker({ map:_cmMap, zIndex:999 }); mk.addListener('click', function(){ if(typeof openCallDetail==='function'){ openCallDetail(c.id); _cmRaise('callDetailModal'); } else _cmCallPopup(c.id); }); _cmCallMarkers[c.id]=mk; }
       mk.setPosition(ll); mk.setIcon(_cmDotIcon(c.priority==='urgent'?'#dc2626':'#ef4444',true)); mk.setLabel({ text:lbl, color:'#fff', fontWeight:'800', fontSize:'13px' });
     });
     Object.keys(_cmCallMarkers).forEach(function(id){ if(!cseen[id]){ _cmCallMarkers[id].setMap(null); delete _cmCallMarkers[id]; } });
@@ -734,7 +798,8 @@
         +(missing?'<button onclick="cmToggleDraw()" id="cmDrawBtn" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Draw</button>':'')
         +(missing?'<button onclick="cmToggleErase()" id="cmEraseBtn" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#4b5563;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">🧹 Erase</button>':'')
         +'<button onclick="cmBroadcast()" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#065f46;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">📣 Broadcast</button>'
-        +'<button onclick="cmAddNote()" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#374151;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✎ Note</button>'
+        +'<button onclick="cmAddNote()" id="cmNoteBtn" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#374151;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;position:relative;">✎ Note/Log</button>'
+        +'<button onclick="cmChatMenu()" id="cmChatBtn" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;position:relative;">💬 Chat</button>'
       +'</div>'
       +'<div style="flex:1;overflow-y:auto;">'
         +'<div style="padding:10px 12px 4px;font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Roster ('+mem.length+')</div>'
@@ -746,7 +811,7 @@
       +'</div>';
     _cmRenderLog();
   }
-  function _cmRenderLog(){ var el=document.getElementById('cmLogList'); if(!el) return; el.innerHTML=(_cmLog||[]).map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); return '<div style="padding:6px 12px;font-size:12px;color:#cbd5e1;border-bottom:1px solid rgba(255,255,255,.04);"><span style="color:#64748b;">'+t+'</span> · '+escapeHTML(e.text||'')+'</div>'; }).join('')||'<div style="padding:8px 12px;color:#64748b;font-size:12px;">No events yet.</div>'; }
+  function _cmRenderLog(){ var el=document.getElementById('cmLogList'); if(!el) return; el.innerHTML=(_cmLog||[]).map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); return '<div style="padding:6px 12px;font-size:12px;color:#cbd5e1;border-bottom:1px solid rgba(255,255,255,.04);"><span style="color:#64748b;">'+t+'</span> · '+_cmBoldCalls(escapeHTML(e.text||''))+'</div>'; }).join('')||'<div style="padding:8px 12px;color:#64748b;font-size:12px;">No events yet.</div>'; }
 
   function cmFocusMember(u){ var loc=_cmLocs[u]; if(loc&&_cmMap&&_cmMap._isGoogle){ _cmMap.panTo({lat:loc.lat,lng:loc.lng}); _cmMap.setZoom(16); } _cmMemberPopup(u); }
   function _cmMemberPopup(u){
@@ -754,9 +819,19 @@
     var m=(STATE.members||[]).find(function(x){ return U(x.unit||x.id)===u; }); var phone=m&&m.phone?m.phone:'';
     var status=u===cmLeadUnit()?'Command Lead':(!loc||(Date.now()-(loc.at||0))>CM_STALE_MS?'No recent signal':(_cmUnitOnCall(u)?'On an active call':'Idle / available'));
     var when=loc&&loc.at?new Date(loc.at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'—';
+    // Calls this member is currently on (kick-off targets)
+    var onCalls=(STATE.calls||[]).filter(function(c){ return (c.status==='open'||c.status==='active')&&(c.responders||[]).some(function(r){ return U(r.unit)===u; }); });
+    // Open/active calls the member is NOT on yet (assign targets)
+    var openCalls=(STATE.calls||[]).filter(function(c){ return (c.status==='open'||c.status==='active')&&!(c.responders||[]).some(function(r){ return U(r.unit)===u; }); }).sort(function(a,b){ return (b.priority==='urgent'?1:0)-(a.priority==='urgent'?1:0); });
+    function _clbl(c){ var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||''); var st=String(c.address||'').replace(/\s*—?\s*📍.*$/,'').split(',')[0].trim(); return '#'+(c.callNum||'')+' '+tl+(st?(' · '+st):''); }
+    var onHtml=onCalls.map(function(c){ return '<div style="display:flex;align-items:center;gap:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:8px 10px;margin-bottom:6px;"><span style="flex:1;min-width:0;font-size:12px;font-weight:700;color:#166534;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHTML(_clbl(c))+'</span><button onclick="cmRemoveResp(\''+c.id+'\',\''+u+'\')" style="flex-shrink:0;background:#fee2e2;color:#b91c1c;border:none;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;">Remove</button></div>'; }).join('');
+    var assignHtml=openCalls.slice(0,8).map(function(c){ var urg=c.priority==='urgent'; return '<div style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:8px 10px;margin-bottom:6px;"><span style="flex:1;min-width:0;font-size:12px;font-weight:700;color:'+(urg?'#b91c1c':'#334155')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(urg?'🔴 ':'')+escapeHTML(_clbl(c))+'</span><button onclick="cmAssignUnitToCall(\''+c.id+'\',\''+u+'\')" style="flex-shrink:0;background:#e0e7ff;color:#3730a3;border:none;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;">Assign</button></div>'; }).join('');
     _cmSheet('BC-'+u+(mm&&mm.name?' · '+escapeHTML(mm.name):''),
       '<div style="font-size:13px;color:#374151;margin-bottom:4px;">'+status+'</div><div style="font-size:12px;color:#6b7280;margin-bottom:14px;">Last update: '+when+'</div>'
-      +(phone?'<div style="display:flex;gap:8px;"><a href="tel:'+phone+'" style="flex:1;text-align:center;background:#065f46;color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:800;">📞 Call</a><a href="sms:'+phone+'" style="flex:1;text-align:center;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:800;">💬 Text</a></div>':'<div style="color:#9ca3af;font-size:12px;">No phone on file</div>'));
+      +(phone?'<div style="display:flex;gap:8px;margin-bottom:16px;"><a href="tel:'+phone+'" style="flex:1;text-align:center;background:#065f46;color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:800;">📞 Call</a><a href="sms:'+phone+'" style="flex:1;text-align:center;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:800;">💬 Text</a></div>':'<div style="color:#9ca3af;font-size:12px;margin-bottom:16px;">No phone on file</div>')
+      +(onHtml?'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">On call — tap to remove</div>'+onHtml:'')
+      +'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin:12px 0 6px;">Assign to call</div>'
+      +(assignHtml||'<div style="color:#9ca3af;font-size:12px;">No open calls to assign.</div>'));
   }
   function _cmCallPopup(id){
     var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
@@ -847,6 +922,23 @@
     _cmAddLog('➡️ BC-'+n.unit+' assigned to call '+(c.callNum?('#'+c.callNum):'')+' ('+n.miles.toFixed(1)+' mi)','assign');
     showToast('Assigned BC-'+n.unit); var s=document.getElementById('cmSheet'); if(s) s.remove();
   }
+  // Assign a SPECIFIC unit to a call (from the member map popup)
+  function cmAssignUnitToCall(callId,unit){
+    unit=U(unit);
+    var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return;
+    var m=(STATE.members||[]).find(function(x){ return U(x.unit||x.id)===unit; });
+    c.responders=c.responders||[];
+    if(c.responders.some(function(r){ return U(r.unit)===unit; })){ showToast('BC-'+unit+' already on this call'); return; }
+    c.responders.push({ unit:unit, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'', time:Date.now(), status:'approved', approvedBy:myUnit(), approvedAt:Date.now(), viaCommand:true });
+    if(c.status!=='done'&&c.status!=='cancelled') c.status='active';
+    try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders, status:c.status }); }catch(e){}
+    try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
+    try{ if(!cmIsMissing()){ _cmBuildStats(); _cmRenderCallRows(); } }catch(e){}
+    try{ sendPush({ target:'unit', unit:unit, title:'🎖️ Command assignment', body:'Assigned to Call '+(c.callNum?('#'+c.callNum):'')+' — '+(c.town||''), url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){}
+    try{ sendPush({ target:'all', title:'Assigned to Call', body:'#'+(c.callNum||'')+' · BC-'+unit+' is responding — '+(c.town||''), url:'/cobc-dispatch/?page=dispatch', callId:c.id }); }catch(e){}
+    _cmAddLog('➡️ BC-'+unit+' assigned to call '+(c.callNum?('#'+c.callNum):'')+' by BC-'+myUnit(),'assign');
+    showToast('Assigned BC-'+unit); setTimeout(function(){ _cmMemberPopup(unit); },300);
+  }
   // Assign / approve / reject — reuse the app's REAL dispatcher flows so every change
   // shows on the normal Open Calls cards for all members (push + WA fire from there).
   function _cmRaise(id){ var m=document.getElementById(id); if(m){ m.style.zIndex='9800'; } return m; }
@@ -921,6 +1013,18 @@
   function cmBroadcast(){ var msg=prompt('Broadcast to all members:'); if(!msg||!msg.trim()) return; cmMembers().forEach(function(mm){ try{ sendPush({ target:'unit', unit:U(mm.unit), title:(cmIsMissing()?'🔍 Search':'🎖️ Command'), body:msg.trim(), url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} }); try{ sendWA({ target:'all', message:(cmIsMissing()?'🔍 SEARCH: ':'🎖️ COMMAND: ')+msg.trim() }); }catch(e){} _cmAddLog('📣 Broadcast: '+msg.trim(),'broadcast'); showToast('📣 Sent'); }
 
   // ── End + incident report + Command Center Logs ─────────────────────────────
+  function _cmOpCalls(start){ var s=start||0; return (STATE.calls||[]).filter(function(c){ if(!c) return false; return (c.createdAt&&c.createdAt>=s)||(c.completedAt&&c.completedAt>=s)||(c.status==='active'||c.status==='open'); }).sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); }); }
+  function cmLogExternal(text,channel){ try{ if(cmIsActive()) _cmAddLog(String(text||''),'status',channel||'note'); }catch(e){} }
+  // Called from the normal Dispatch tab when a call is completed while a command op
+  // is running: log it to the command Notes, then prompt dispatch for a closing note.
+  function cmExternalComplete(callId){
+    if(!cmIsActive()) return;
+    var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return;
+    if(_cmClosedHandled[callId]) return; _cmClosedHandled[callId]=1;
+    var verb=(c.status==='cancelled')?'cancelled':'completed';
+    try{ _cmAddLog('✅ Call #'+(c.callNum||'')+' '+verb+' in Dispatch — by BC-'+myUnit(),'status','note'); }catch(e){}
+    try{ _cmCloseNotePrompt(callId); }catch(e){}
+  }
   function _cmReportText(){
     var t=cmIsMissing()?'Missing Person Search':'Command Operation';
     var start=(_cmState&&_cmState.startedAt)||null, end=Date.now();
@@ -934,10 +1038,26 @@
     var mem=cmMembers().map(function(m){ return 'BC-'+U(m.unit); }).join(', ');
     lines.push('Members ('+cmMembers().length+'): '+(mem||'none'));
     if(cmIsMissing()&&_cmState&&_cmState.subject){ var s=_cmState.subject; lines.push('Subject: '+(s.name||'Unknown')+(s.age?(', '+s.age):'')); }
+    var opCalls=_cmOpCalls(start);
+    if(opCalls.length){
+      lines.push('');
+      lines.push('— CALLS HANDLED ('+opCalls.length+') —');
+      opCalls.forEach(function(c){
+        var tl=_cmCallTypeLabel(c);
+        var loc=cleanLabel((c.town||'')+(c.address?(' '+String(c.address).replace(/\s*—?\s*📍.*$/,'')):''));
+        var st=(c.status==='done')?'COMPLETED':(c.status==='cancelled')?'CANCELLED':(c.status||'open').toUpperCase();
+        var resp=(c.responders||[]).map(function(r){ return 'BC-'+U(r.unit); }).join(', ')||'none';
+        var dur=(c.completedAt&&c.createdAt)?('  ('+Math.round((c.completedAt-c.createdAt)/60000)+' min)'):'';
+        lines.push('#'+(c.callNum||'—')+'  '+tl+'  ['+st+']'+dur);
+        lines.push('   '+(loc||'no location'));
+        lines.push('   Responders: '+resp);
+        if(c.notes) lines.push('   Notes: '+cleanLabel(c.notes));
+      });
+    }
     lines.push('');
     lines.push('— LOG —');
     var log=(_cmLog||[]).slice().sort(function(a,b){ return (a.at||0)-(b.at||0); });
-    log.forEach(function(e){ var tm=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); lines.push(tm+'  '+cleanLabel(e.text||'')+(e.by?('  (BC-'+U(e.by)+')'):'')); });
+    log.forEach(function(e){ var tm=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var ch=(e.channel==='dispatch')?'[DISPATCH] ':(e.channel==='members')?'[MEMBERS] ':''; lines.push(tm+'  '+ch+cleanLabel(e.text||'')+(e.by?('  (BC-'+U(e.by)+')'):'')); });
     if(!log.length) lines.push('(no entries)');
     return lines.join('\n');
   }
@@ -945,8 +1065,32 @@
   function _cmSaveHistory(cb){
     var start=(_cmState&&_cmState.startedAt)||null;
     var title=(cmIsMissing()?'Missing Person Search':'Command Operation')+' · '+(start?new Date(start).toLocaleDateString('en-US',{month:'short',day:'numeric'}):new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}));
-    var summary={ type:cmType(), title:title, startedAt:start, endedAt:Date.now(), leadUnit:cmLeadUnit(), leadName:(_cmState&&_cmState.leadName)||'', members:cmMembers(), subject:(_cmState&&_cmState.subject)||null, sectors:(_cmState&&_cmState.sectors)||[], grid:(_cmState&&_cmState.grid)||[], linkedCallId:(_cmState&&_cmState.linkedCallId)||null, log:(_cmLog||[]).slice(0,800), reportText:_cmReportText(), endedBy:myUnit(), savedAt:Date.now() };
-    try{ db().collection('commandHistory').add(summary).then(function(){ if(cb) cb(); }).catch(function(){ if(cb) cb(); }); }catch(e){ if(cb) cb(); }
+    var _opCallsSnap=_cmOpCalls(start).map(function(c){ return { callNum:c.callNum||'', type:c.type||'', typeLabel:_cmCallTypeLabel(c), town:c.town||'', address:String(c.address||'').replace(/\s*—?\s*📍.*$/,''), status:c.status||'open', createdAt:c.createdAt||null, completedAt:c.completedAt||null, notes:c.notes||'', responders:(c.responders||[]).map(function(r){ return 'BC-'+U(r.unit); }) }; });
+    var summary={ type:cmType(), title:title, startedAt:start, endedAt:Date.now(), leadUnit:cmLeadUnit(), leadName:(_cmState&&_cmState.leadName)||'', members:cmMembers(), calls:_opCallsSnap, subject:(_cmState&&_cmState.subject)||null, sectors:(_cmState&&_cmState.sectors)||[], grid:(_cmState&&_cmState.grid)||[], linkedCallId:(_cmState&&_cmState.linkedCallId)||null, log:(_cmLog||[]).slice(0,500), reportText:_cmReportText(), endedBy:myUnit(), savedAt:Date.now() };
+    try{ db().collection('commandHistory').add(summary).then(function(ref){ if(cb) cb(ref); }).catch(function(){ if(cb) cb(null); }); }catch(e){ if(cb) cb(null); }
+  }
+  // Verify-then-clear: only delete raw commandLog entries AFTER the archive doc is
+  // confirmed saved AND read back with a populated log. Zero-loss by construction.
+  function _cmVerifyAndClearLog(ref, endedAt){
+    if(!ref||!ref.id){ return; }
+    try{
+      db().collection('commandHistory').doc(ref.id).get().then(function(doc){
+        var ok=doc && doc.exists && doc.data() && Array.isArray(doc.data().log) && doc.data().log.length>0;
+        if(!ok){ showToast('⚠️ Log kept (archive not confirmed)'); return; }
+        // Delete only entries from BEFORE this op ended, in batches — never touch a new op's fresh entries
+        db().collection('commandLog').where('at','<',endedAt).get().then(function(snap){
+          if(snap.empty) return;
+          var docs=snap.docs, n=docs.length, i=0;
+          function batchNext(){
+            if(i>=n){ showToast('🧹 Archived '+n+' log entries'); return; }
+            var b=db().batch(), end=Math.min(i+400,n);
+            for(;i<end;i++) b.delete(docs[i].ref);
+            b.commit().then(batchNext).catch(function(){});
+          }
+          batchNext();
+        }).catch(function(){});
+      }).catch(function(){});
+    }catch(e){}
   }
   function cmEndNight(){
     if(!((myUnit()===cmLeadUnit())||cmAmAdmin())){ showToast('Only the lead or an admin can end it'); return; }
@@ -968,8 +1112,12 @@
   function cmReportEndConfirm(){ if(!confirm('End this operation? Members stop sharing their location.')) return; _cmDoEnd(); }
   function _cmDoEnd(){
     _cmAddLog('🏁 Operation ended by BC-'+myUnit(),'end');
-    _cmSaveHistory();
-    db().collection('config').doc('commandMode').set({ active:false, endedAt:Date.now() }, {merge:true}).then(function(){ try{ db().collection('commandLocations').get().then(function(s){ s.forEach(function(d){ d.ref.delete().catch(function(){}); }); }); }catch(e){} var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); closeCommandView(); showToast('🏁 Ended — saved to Command Logs'); });
+    var _endTs=Date.now();
+    // Save the permanent archive, then verify-then-clear the raw commandLog (admin/lead only)
+    _cmSaveHistory(function(ref){
+      if(ref && (cmAmAdmin()||myUnit()===cmLeadUnit())){ setTimeout(function(){ _cmVerifyAndClearLog(ref,_endTs); },600); }
+    });
+    db().collection('config').doc('commandMode').set({ active:false, endedAt:_endTs }, {merge:true}).then(function(){ try{ db().collection('commandLocations').get().then(function(s){ s.forEach(function(d){ d.ref.delete().catch(function(){}); }); }); }catch(e){} var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); closeCommandView(); showToast('🏁 Ended — saved to Command Logs'); });
   }
 
   // Command Center Logs — every past incident's notes + log, re-sendable.
@@ -987,7 +1135,29 @@
     if(!_cmHist.length){ el.innerHTML='<div style="padding:16px;color:#9ca3af;font-size:13px;">No saved incidents yet. They appear here after an operation ends.</div>'; return; }
     el.innerHTML=_cmHist.map(function(v,i){ var when=v.endedAt?new Date(v.endedAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''; var dur=(v.startedAt&&v.endedAt)?Math.round((v.endedAt-v.startedAt)/60000):null; var icon=v.type==='missing'?'🔍':'🎖️'; return '<div onclick="cmOpenLog('+i+')" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">'+icon+'</span><span style="font-weight:800;color:#111827;font-size:14px;flex:1;">'+escapeHTML(v.title||(v.type==='missing'?'Missing Person Search':'Command Operation'))+'</span><span style="color:#94a3b8;font-size:18px;">›</span></div><div style="font-size:12px;color:#64748b;margin-top:4px;">'+when+(dur!=null?(' · '+dur+' min'):'')+' · Lead BC-'+U(v.leadUnit||'')+' · '+((v.members||[]).length)+' members · '+((v.log||[]).length)+' log entries</div></div>'; }).join('');
   }
-  function cmOpenLog(i){ var v=_cmHist[i]; if(!v) return; var body='<pre style="background:#0b1220;color:#cbd5e1;border-radius:10px;padding:12px;font-size:11px;line-height:1.5;white-space:pre-wrap;max-height:48vh;overflow:auto;font-family:\'DM Mono\',monospace;margin-bottom:12px;">'+escapeHTML(_cmHistText(v))+'</pre>'+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><button onclick="cmHistWhatsApp('+i+')" style="background:#075e54;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">📱 WhatsApp</button><button onclick="cmHistEmail('+i+')" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">✉️ Email</button></div><button onclick="cmHistDelete('+i+')" style="width:100%;margin-top:8px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">🗑️ Delete this log</button><button onclick="openCommandLogs()" style="width:100%;margin-top:8px;background:transparent;border:none;color:#6b7280;font-size:13px;font-weight:700;padding:6px;cursor:pointer;">‹ Back to all logs</button>'; _cmSheet('📄 '+escapeHTML(v.title||'Incident'), body); }
+  var _cmArchTab='calls';
+  function cmArchTab(i,t){ _cmArchTab=t; cmOpenLog(i); }
+  function cmOpenLog(i){
+    var v=_cmHist[i]; if(!v) return;
+    var defs=[{k:'calls',label:'🚨 Calls'},{k:'chats',label:'💬 Chats'},{k:'log',label:'📝 Notes/Log'}];
+    var tabs=defs.map(function(d){ var on=_cmArchTab===d.k; return '<button onclick="cmArchTab('+i+',\''+d.k+'\')" style="flex:1;padding:9px 6px;border:none;border-radius:9px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;background:'+(on?'#1e3a5f':'#f1f5f9')+';color:'+(on?'#fff':'#64748b')+';">'+d.label+'</button>'; }).join('');
+    var section='';
+    if(_cmArchTab==='calls'){
+      var calls=v.calls||[];
+      section=calls.length? calls.map(function(c){ var st=(c.status==='done')?'COMPLETED':(c.status==='cancelled')?'CANCELLED':(c.status||'open').toUpperCase(); var sc=(c.status==='done')?'#16a34a':(c.status==='cancelled')?'#6b7280':'#d97706'; var dur=(c.completedAt&&c.createdAt)?(' · '+Math.round((c.completedAt-c.createdAt)/60000)+' min'):''; return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:11px 12px;margin-bottom:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:800;color:#0f172a;font-size:14px;">#'+(c.callNum||'—')+' '+escapeHTML(c.typeLabel||c.type||'')+'</span><span style="margin-left:auto;font-size:10px;font-weight:800;color:#fff;background:'+sc+';padding:2px 8px;border-radius:6px;">'+st+'</span></div><div style="font-size:12px;color:#64748b;margin-top:3px;">'+escapeHTML(((c.town||'')+' '+(c.address||'')).trim()||'no location')+dur+'</div><div style="font-size:12px;color:#334155;margin-top:3px;">Responders: '+((c.responders||[]).join(', ')||'none')+'</div>'+(c.notes?'<div style="font-size:12px;color:#78350f;background:#fffbeb;border-radius:7px;padding:6px 8px;margin-top:5px;">📝 '+escapeHTML(c.notes)+'</div>':'')+'</div>'; }).join('') : '<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">No calls recorded for this operation.</div>';
+    } else if(_cmArchTab==='chats'){
+      var msgs=(v.log||[]).filter(function(e){ return e.channel==='dispatch'||e.channel==='members'; }).slice().sort(function(a,b){ return (a.at||0)-(b.at||0); });
+      section=msgs.length? msgs.map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var tag=e.channel==='dispatch'?'Dispatch':'Members'; var col=e.channel==='dispatch'?'#1e3a5f':'#0e7490'; return '<div style="margin-bottom:8px;"><span style="font-size:9.5px;font-weight:800;color:#fff;background:'+col+';padding:1px 7px;border-radius:5px;">'+tag+'</span> <span style="font-size:13px;color:#0f172a;">'+_cmBoldCalls(escapeHTML(e.text||''))+'</span><div style="font-size:10px;color:#94a3b8;">'+(e.by?'BC-'+U(e.by)+' · ':'')+t+'</div></div>'; }).join('') : '<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">No chat messages in this operation.</div>';
+    } else {
+      section='<pre style="background:#0b1220;color:#cbd5e1;border-radius:10px;padding:12px;font-size:11px;line-height:1.5;white-space:pre-wrap;font-family:\'DM Mono\',monospace;margin:0;">'+escapeHTML(_cmHistText(v))+'</pre>';
+    }
+    var body='<div style="display:flex;gap:6px;margin-bottom:12px;">'+tabs+'</div>'
+      +'<div style="max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;">'+section+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><button onclick="cmHistWhatsApp('+i+')" style="background:#075e54;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">📱 WhatsApp</button><button onclick="cmHistEmail('+i+')" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">✉️ Email</button></div>'
+      +'<button onclick="cmHistDelete('+i+')" style="width:100%;margin-top:8px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:10px;padding:12px;font-weight:800;font-size:13px;cursor:pointer;">🗑️ Delete this log</button>'
+      +'<button onclick="openCommandLogs()" style="width:100%;margin-top:8px;background:transparent;border:none;color:#6b7280;font-size:13px;font-weight:700;padding:6px;cursor:pointer;">‹ Back to all logs</button>';
+    _cmSheet('📄 '+escapeHTML(v.title||'Incident'), body);
+  }
   function cmCallResp(u){ var m=(STATE.members||[]).find(function(x){ return U(x.unit||x.id)===U(u); }); var ph=m&&m.phone?m.phone:''; if(!ph){ showToast('No phone on file for BC-'+U(u)); return; } try{ window.location.href='tel:'+ph; }catch(e){} }
   function cmRemoveResp(callId,u){ u=U(u); var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return; var r=(c.responders||[]).find(function(x){ return U(x.unit)===u; }); var nm=r&&r.name?(' '+r.name):''; if(!confirm('Take BC-'+u+nm+' off this call?\n\nThey will be notified not to respond.')) return; try{ if(typeof removeApprovedResponder==='function'){ removeApprovedResponder(callId,u); } else { c.responders=(c.responders||[]).filter(function(x){ return U(x.unit)!==u; }); try{ db().collection('calls').doc(String(callId)).update({ responders:c.responders }); }catch(e){} if(typeof save==='function') save(); } }catch(e){}
     _cmAddLog('➖ BC-'+u+' taken off call '+(c.callNum?('#'+c.callNum):'')+' by BC-'+myUnit(),'assign');
@@ -998,17 +1168,17 @@
 
   Object.assign(window, {
     initCommandMode:initCommandMode, openCommandModeAdmin:openCommandModeAdmin, openMissingPersonAdmin:openMissingPersonAdmin,
-    openCommandView:openCommandView, closeCommandView:closeCommandView, cmToggleMapExpand:cmToggleMapExpand, cmMemberSignOut:cmMemberSignOut,
+    openCommandView:openCommandView, closeCommandView:closeCommandView, cmToggleMapExpand:cmToggleMapExpand, cmMemberSignOut:cmMemberSignOut, cmMemberChat:cmMemberChat, cmMemberChatTab:cmMemberChatTab, cmMemberChatSend:cmMemberChatSend,
     cmSetLinkMode:cmSetLinkMode, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
     cmFilterSetup:cmFilterSetup, cmAddMembers:cmAddMembers, cmFilterAdd:cmFilterAdd, cmConfirmAdd:cmConfirmAdd,
-    cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAssignMember:cmAssignMember, cmApproveResp:cmApproveResp, cmRejectResp:cmRejectResp, cmBroadcast:cmBroadcast,
-    cmPromptNote:cmPromptNote,
+    cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAssignUnitToCall:cmAssignUnitToCall, cmAssignMember:cmAssignMember, cmApproveResp:cmApproveResp, cmRejectResp:cmRejectResp, cmBroadcast:cmBroadcast,
+    cmPromptNote:cmPromptNote, cmChatTab:cmChatTab, cmChatSend:cmChatSend, cmOpenChat:cmOpenChat, cmChatMenu:cmChatMenu,
     cmAddNote:cmAddNote, cmEndNight:cmEndNight, cmToggleDraw:cmToggleDraw, cmToggleErase:cmToggleErase, _cmSyncSettingsButton:_cmSyncSettingsButton,
     cmSetCallFilter:cmSetCallFilter, cmCallSearchInput:cmCallSearchInput, _cmCallPopup:_cmCallPopup, cmCallResp:cmCallResp, cmRemoveResp:cmRemoveResp, cmEscalate:cmEscalate, cmClearCall:cmClearCall, cmCancelCallCmd:cmCancelCallCmd, cmSaveCloseNote:cmSaveCloseNote, cmSkipCloseNote:cmSkipCloseNote,
     cmManageViewers:cmManageViewers, cmFilterViewers:cmFilterViewers, cmConfirmViewers:cmConfirmViewers, cmRemoveViewer:cmRemoveViewer,
     cmNewCall:cmNewCall,
     cmReportWhatsApp:cmReportWhatsApp, cmReportEmail:cmReportEmail, cmReportSave:cmReportSave, cmReportEndConfirm:cmReportEndConfirm,
-    openCommandLogs:openCommandLogs, cmOpenLog:cmOpenLog, cmHistWhatsApp:cmHistWhatsApp, cmHistEmail:cmHistEmail, cmHistDelete:cmHistDelete
+    openCommandLogs:openCommandLogs, cmOpenLog:cmOpenLog, cmArchTab:cmArchTab, cmHistWhatsApp:cmHistWhatsApp, cmHistEmail:cmHistEmail, cmHistDelete:cmHistDelete, cmLogExternal:cmLogExternal, cmExternalComplete:cmExternalComplete
   });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(initCommandMode,1200); });
   else setTimeout(initCommandMode,1200);

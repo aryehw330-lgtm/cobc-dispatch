@@ -9205,6 +9205,7 @@ function _doCancelCall(id,call) {
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   hideModal('callDetailModal');
   showToast('🚫 Call cancelled');
+  try{ if(window.cmExternalComplete) window.cmExternalComplete(call.id); }catch(e){}
   const _cxTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   // Always broadcast to everyone — "Call #X cancelled"
   setTimeout(()=>sendPush({
@@ -10382,6 +10383,7 @@ function confirmCompleteCall() {
   logCallEvent(call, 'completed', {outcome, cncReason:outcome==='CNC'?cnc:null, responders:(call.responders||[]).length, durationMin:Math.round((call.completedAt-call.createdAt)/60000)});
   save(); hideModal('callCompleteModal');
   renderCalls(); renderHome(); showToast('Call completed'); firestoreUpsertCall(call);
+  try{ if(window.cmExternalComplete) window.cmExternalComplete(call.id); }catch(e){}
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
     setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:`Thank you for responding 🙏`,url:'/cobc-dispatch/'}),0);
@@ -10455,6 +10457,7 @@ function approveCallCompletion(id){
   logCallEvent(call,'completed',{outcome:cr.outcome,cncReason:cr.outcome==='CNC'?cr.note:null,approvedBy:SESSION.unit,viaMemberRequest:true});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   showToast(`✅ Call completed (${cr.outcome})`);
+  try{ if(window.cmExternalComplete) window.cmExternalComplete(call.id); }catch(e){}
   // Notify the member who requested it
   sendPush({target:'unit',unit:String(cr.by),title:'✅ Completion Approved',body:`Dispatch confirmed your ${cr.outcome} report. Call closed.`,url:'/cobc-dispatch/',callId:call.id});
   const _cl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
@@ -15178,10 +15181,46 @@ function setStatsSub(sub,el) {
 }
 let _statsSubT=null;
 let _wildYear='all';
+// Command Center operations shown in Interesting Calls as one big "op" card each.
+window._CM_WILD_OPS = window._CM_WILD_OPS || [];
+let _cmOpsLoaded=false, _cmOpsLoading=false;
+function loadCommandOpsForStats(){
+  if(_cmOpsLoaded||_cmOpsLoading) return;
+  if(!(window.firebase && _firebaseReady)) return;
+  _cmOpsLoading=true;
+  try{
+    firebase.firestore().collection('commandHistory').orderBy('endedAt','desc').limit(200).get().then(snap=>{
+      const ops=[];
+      snap.forEach(d=>{
+        const v=d.data()||{};
+        const when=v.endedAt||v.startedAt||v.savedAt||Date.now();
+        const calls=v.calls||[];
+        // Members responding = union of every responder across the op's calls + roster
+        const respSet=new Set();
+        calls.forEach(c=>(c.responders||[]).forEach(r=>respSet.add(String(r).replace(/^BC-?/i,''))));
+        (v.members||[]).forEach(m=>{ const u=String((m&&(m.unit))||m||'').replace(/^BC-?/i,''); if(u) respSet.add(u); });
+        ops.push({
+          _cmOp:true, _id:d.id,
+          yr:new Date(when).getFullYear(),
+          dt:new Date(when).toISOString(),
+          title:v.title||(v.type==='missing'?'Missing Person Search':'Command Operation'),
+          isMissing:v.type==='missing',
+          callCount:calls.length,
+          responders:[...respSet].sort((a,b)=>(parseInt(a,10)||0)-(parseInt(b,10)||0)),
+          leadUnit:String(v.leadUnit||'').replace(/^BC-?/i,''),
+          durMin:(v.startedAt&&v.endedAt)?Math.round((v.endedAt-v.startedAt)/60000):null
+        });
+      });
+      window._CM_WILD_OPS=ops; _cmOpsLoaded=true; _cmOpsLoading=false;
+      if(document.getElementById('st-interesting')?.style.display!=='none') renderInteresting();
+    }).catch(()=>{ _cmOpsLoading=false; });
+  }catch(e){ _cmOpsLoading=false; }
+}
 // Interesting Calls — notable "wild" calls carried from the archive stats site.
 function renderInteresting(){
   const bar=document.getElementById('wildYearBar'); if(!bar) return;
-  const yrs=[...new Set((WILD_CALLS||[]).map(c=>c.yr))].sort((a,b)=>b-a);
+  loadCommandOpsForStats();
+  const yrs=[...new Set((WILD_CALLS||[]).map(c=>c.yr).concat((window._CM_WILD_OPS||[]).map(o=>o.yr)))].sort((a,b)=>b-a);
   const mk=(v,lbl)=>`<button class="chip${_wildYear===v?' active':''}" onclick="_wildYear=${typeof v==='string'?`'${v}'`:v};renderInteresting()" style="cursor:pointer;">${lbl}</button>`;
   bar.innerHTML=mk('all','All Years')+yrs.map(y=>mk(y,y)).join('');
   renderWildGrid();
@@ -15200,8 +15239,32 @@ function renderWildGrid(){
     if(q && (c.nature||'').toLowerCase().indexOf(q)<0 && (c.call_type||'').toLowerCase().indexOf(q)<0 && (c.loc||'').toLowerCase().indexOf(q)<0) return false;
     return true;
   }).sort((a,b)=>(b.dt||'').localeCompare(a.dt||''));
-  if(!list.length){ grid.innerHTML='<div style="text-align:center;padding:28px;color:var(--text3);font-size:13px;">No interesting calls match.</div>'; return; }
-  grid.innerHTML=list.map(c=>{
+  // Command Center operations — one large card each, showing calls handled + members responding
+  const cmOps=(window._CM_WILD_OPS||[]).filter(o=>{
+    if(_wildYear!=='all' && String(o.yr)!==String(_wildYear)) return false;
+    if(q && (o.title||'').toLowerCase().indexOf(q)<0 && ('command operation missing person'.indexOf(q)<0)) return false;
+    return true;
+  }).sort((a,b)=>(b.dt||'').localeCompare(a.dt||''));
+  const cmHtml=cmOps.map(o=>{
+    let ds=''; try{ const d=new Date(o.dt); ds=MN[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear(); }catch(e){}
+    const dur=o.durMin!=null?(o.durMin>=60?(Math.floor(o.durMin/60)+'h '+(o.durMin%60)+'m'):(o.durMin+' min')):'';
+    const resp=o.responders||[];
+    const chips=resp.slice(0,24).map(u=>`<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;background:#e0e7ff;color:#3730a3;white-space:nowrap;">BC-${u}</span>`).join('')+(resp.length>24?`<span style="font-size:11px;color:var(--text3);">+${resp.length-24}</span>`:'');
+    return `<div style="background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:12px;padding:13px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+        <div><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#4338ca;">${o.isMissing?'🔍 Missing Person Search':'🎖️ Command Operation'}</div>
+        <div style="font-size:11px;color:var(--text3);">${o.leadUnit?('Lead BC-'+o.leadUnit+' · '):''}${dur?(dur+' · '):''}${o.yr}</div></div>
+        <div style="font-size:11px;color:var(--text3);white-space:nowrap;">${ds}</div>
+      </div>
+      <div style="display:flex;gap:16px;margin-bottom:9px;">
+        <div><div style="font-size:22px;font-weight:800;color:#4338ca;line-height:1;">${o.callCount}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;">Calls handled</div></div>
+        <div><div style="font-size:22px;font-weight:800;color:#4338ca;line-height:1;">${resp.length}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;">Members responding</div></div>
+      </div>
+      ${chips?`<div style="display:flex;gap:5px;flex-wrap:wrap;">${chips}</div>`:''}
+    </div>`;
+  }).join('');
+  if(!list.length && !cmHtml){ grid.innerHTML='<div style="text-align:center;padding:28px;color:var(--text3);font-size:13px;">No interesting calls match.</div>'; return; }
+  grid.innerHTML=cmHtml+list.map(c=>{
     let ds=''; try{ const d=new Date(c.dt); ds=MN[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear(); }catch(e){}
     const flags=(c.flags||[]).map(f=>`<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;background:#fef3c7;color:#92400e;white-space:nowrap;">${f.label}</span>`).join('');
     return `<div style="background:#fffdf7;border:1.5px solid #fde68a;border-radius:12px;padding:13px;margin-bottom:10px;">
