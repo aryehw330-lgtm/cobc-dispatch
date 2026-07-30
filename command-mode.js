@@ -1011,6 +1011,7 @@
           _cmLoggedCalls[c.id]=1; var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||'');
           _cmAddLog('🔴 Call '+(c.callNum?('#'+c.callNum+' '):'')+tl+' — '+(c.town||'')+(c.caller?(' · '+c.caller):'')+(c.phone?(' · ☎ '+c.phone):''),'call');
         }
+        if(!cmIsMissing()) return;
         if(c.status!=='open'&&c.status!=='active') return;
         var changed=false;
         cmMembers().forEach(function(mm){
@@ -1336,7 +1337,7 @@
     var start=(_cmState&&_cmState.startedAt)||null;
     var title=(cmIsMissing()?'Missing Person Search':'Command Operation')+' · '+(start?new Date(start).toLocaleDateString('en-US',{month:'short',day:'numeric'}):new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}));
     var _opCallsSnap=_cmOpCalls(start).map(function(c){ return { callNum:c.callNum||'', type:c.type||'', typeLabel:_cmCallTypeLabel(c), town:c.town||'', address:String(c.address||'').replace(/\s*—?\s*📍.*$/,''), status:c.status||'open', createdAt:c.createdAt||null, completedAt:c.completedAt||null, notes:c.notes||'', responders:(c.responders||[]).map(function(r){ return 'BC-'+U(r.unit); }) }; });
-    var summary={ type:cmType(), title:title, startedAt:start, endedAt:Date.now(), leadUnit:cmLeadUnit(), leadName:(_cmState&&_cmState.leadName)||'', members:cmMembers(), calls:_opCallsSnap, subject:(_cmState&&_cmState.subject)||null, sectors:(_cmState&&_cmState.sectors)||[], grid:(_cmState&&_cmState.grid)||[], linkedCallId:(_cmState&&_cmState.linkedCallId)||null, log:(_cmLog||[]).slice(0,500), reportText:_cmReportText(), endedBy:myUnit(), savedAt:Date.now() };
+    var summary={ type:cmType(), title:title, startedAt:start, endedAt:Date.now(), leadUnit:cmLeadUnit(), leadName:(_cmState&&_cmState.leadName)||'', members:cmMembers(), calls:_opCallsSnap, mapImage:(cmIsMissing()?_cmStaticMapURL():null), subject:(_cmState&&_cmState.subject)||null, sectors:(_cmState&&_cmState.sectors)||[], grid:(_cmState&&_cmState.grid)||[], linkedCallId:(_cmState&&_cmState.linkedCallId)||null, log:(_cmLog||[]).slice(0,500), reportText:_cmReportText(), endedBy:myUnit(), savedAt:Date.now() };
     try{ db().collection('commandHistory').add(summary).then(function(ref){ if(cb) cb(ref); }).catch(function(){ if(cb) cb(null); }); }catch(e){ if(cb) cb(null); }
   }
   // Verify-then-clear: only delete raw commandLog entries AFTER the archive doc is
@@ -1362,6 +1363,30 @@
       }).catch(function(){});
     }catch(e){}
   }
+  // Static-map snapshot of every breadcrumb trail + member position at end-of-op, so the
+  // archived report has a visual of everywhere the search covered, centered on the missing
+  // person's last-seen location (not HQ), capped to a 50-mile radius.
+  function _cmStaticMapURL(){
+    try{
+      var key=window.MAPS_API_KEY||''; if(!key) return null;
+      var sub=(_cmState&&_cmState.subject)||{};
+      var c={lat:sub.lastSeenLat,lng:sub.lastSeenLng}; if(c.lat==null||c.lng==null) return null;
+      var MAX_MI=50, R=3958.8;
+      function distMi(p){ var dLat=(p.lat-c.lat)*Math.PI/180,dLng=(p.lng-c.lng)*Math.PI/180,la=c.lat*Math.PI/180,lb=p.lat*Math.PI/180; var h=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(la)*Math.cos(lb)*Math.sin(dLng/2)*Math.sin(dLng/2); return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
+      var paths=[], pts=[], maxMi=0.5;
+      Object.keys(_cmLocs).forEach(function(u){
+        var loc=_cmLocs[u]; if(!loc) return;
+        var trail=(Array.isArray(loc.trail)?loc.trail:[loc]).filter(function(p){ return distMi(p)<=MAX_MI; });
+        trail.forEach(function(p){ maxMi=Math.max(maxMi,distMi(p)); });
+        if(trail.length){ pts.push(trail[trail.length-1]); }
+        if(trail.length>1){ paths.push('path=weight:4|color:0xdc262699|'+trail.map(function(p){ return p.lat.toFixed(5)+','+p.lng.toFixed(5); }).join('|')); }
+      });
+      var zoom=Math.max(6,Math.min(15,Math.round(14-Math.log2(Math.max(maxMi,0.5)))));
+      var markers=pts.map(function(p){ return 'markers=size:small|color:blue|'+p.lat.toFixed(5)+','+p.lng.toFixed(5); }).join('&');
+      var url='https://maps.googleapis.com/maps/api/staticmap?size=640x480&scale=2&maptype=roadmap&center='+c.lat.toFixed(5)+','+c.lng.toFixed(5)+'&zoom='+zoom+'&markers=size:mid|color:orange|label:S|'+c.lat.toFixed(5)+','+c.lng.toFixed(5)+(paths.length?('&'+paths.join('&')):'')+(markers?('&'+markers):'')+'&key='+key;
+      return url;
+    }catch(e){ return null; }
+  }
   function cmEndNight(){
     if(!((myUnit()===cmLeadUnit())||cmAmAdmin())){ showToast('Only the lead or an admin can end it'); return; }
     var report=_cmReportText();
@@ -1383,6 +1408,16 @@
   function _cmDoEnd(){
     _cmAddLog('🏁 Operation ended by BC-'+myUnit(),'end');
     var _endTs=Date.now();
+    // Missing Person ops are exactly one linked call — close it so it drops off Open Calls.
+    // Command Mode calls are independent dispatch calls and stay open/untouched.
+    try{
+      var linked=cmIsMissing()?(STATE.calls||[]).find(function(c){ return c.id===((_cmState&&_cmState.linkedCallId)); }):null;
+      if(linked&&linked.status!=='done'&&linked.status!=='cancelled'){
+        linked.status='done'; linked.completedAt=_endTs; linked.completedBy=myUnit();
+        try{ if(typeof logCallEvent==='function') logCallEvent(linked,'completed',{by:myUnit(),responders:(linked.responders||[]).length,durationMin:Math.round((_endTs-linked.createdAt)/60000),viaCommand:true}); }catch(e){}
+        _cmSyncCall(linked);
+      }
+    }catch(e){}
     // Save the permanent archive, then verify-then-clear the raw commandLog (admin/lead only)
     _cmSaveHistory(function(ref){
       if(ref && (cmAmAdmin()||myUnit()===cmLeadUnit())){ setTimeout(function(){ _cmVerifyAndClearLog(ref,_endTs); },600); }
@@ -1409,7 +1444,7 @@
   function cmArchTab(i,t){ _cmArchTab=t; cmOpenLog(i); }
   function cmOpenLog(i){
     var v=_cmHist[i]; if(!v) return;
-    var defs=[{k:'calls',label:'🚨 Calls'},{k:'chats',label:'💬 Chats'},{k:'log',label:'📝 Notes/Log'}];
+    var defs=[{k:'calls',label:'🚨 Calls'},{k:'chats',label:'💬 Chats'},{k:'log',label:'📝 Notes/Log'}].concat(v.mapImage?[{k:'map',label:'🗺️ Search Map'}]:[]);
     var tabs=defs.map(function(d){ var on=_cmArchTab===d.k; return '<button onclick="cmArchTab('+i+',\''+d.k+'\')" style="flex:1;padding:9px 6px;border:none;border-radius:9px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;background:'+(on?'#1e3a5f':'#f1f5f9')+';color:'+(on?'#fff':'#64748b')+';">'+d.label+'</button>'; }).join('');
     var section='';
     if(_cmArchTab==='calls'){
@@ -1420,6 +1455,9 @@
       section=msgs.length? msgs.map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var tag=e.channel==='dispatch'?'Dispatch':'Members'; var col=e.channel==='dispatch'?'#1e3a5f':'#0e7490'; return '<div style="margin-bottom:8px;"><span style="font-size:9.5px;font-weight:800;color:#fff;background:'+col+';padding:1px 7px;border-radius:5px;">'+tag+'</span> <span style="font-size:13px;color:#0f172a;">'+_cmBoldCalls(escapeHTML(e.text||''))+'</span><div style="font-size:10px;color:#94a3b8;">'+(e.by?'BC-'+U(e.by)+' · ':'')+t+'</div></div>'; }).join('') : '<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">No chat messages in this operation.</div>';
     } else {
       section='<pre style="background:#0b1220;color:#cbd5e1;border-radius:10px;padding:12px;font-size:11px;line-height:1.5;white-space:pre-wrap;font-family:\'DM Mono\',monospace;margin:0;">'+escapeHTML(_cmHistText(v))+'</pre>';
+    }
+    if(_cmArchTab==='map'){
+      section=v.mapImage?('<img src="'+v.mapImage+'" style="width:100%;border-radius:10px;border:1px solid #e2e8f0;display:block;">'):'<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">No map captured for this operation.</div>';
     }
     var body='<div style="display:flex;gap:6px;margin-bottom:12px;">'+tabs+'</div>'
       +'<div style="max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;">'+section+'</div>'
@@ -1475,8 +1513,13 @@
       }).catch(function(){});
     }catch(e){}
   }
-  function cmRosterBadgesHTML(){
+  function cmRosterBadgesHTML(call){
     if(!cmIsActive()) return '';
+    if(cmIsMissing()){
+      if(!call||call.id!==((_cmState&&_cmState.linkedCallId))) return '';
+    } else {
+      if(!call||!_cmOpCalls((_cmState&&_cmState.startedAt)||0).some(function(c){ return c.id===call.id; })) return '';
+    }
     var mem=cmMembers(); if(!mem.length) return '';
     var lead=cmLeadUnit();
     var pills=mem.map(function(mm){
