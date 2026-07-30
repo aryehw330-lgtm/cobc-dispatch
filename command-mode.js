@@ -51,7 +51,18 @@
   // Missing Person: admins AND on-duty dispatchers get automatic staff access (off-duty
   // dispatchers still need the roster). Command Mode: any admin or dispatcher, on-duty or not.
   function _cmAutoStaff(){ return cmIsMissing()?(cmAmAdmin()||cmAmOnDuty()):(cmAmAdmin()||cmAmDispatcher()); }
-  function cmCanView(){ return cmIsActive()&&(_cmAutoStaff()||myUnit()===cmLeadUnit()||cmIsMember()||cmIsViewer()); }
+  // Staff (admin/dispatch/equipment), the lead, and explicitly-added watchers can always
+  // open the map. Plain roster members get the map ONLY during a Missing Person search —
+  // in Command Mode they do not (they get Join Chat + command contacts, not the live map).
+  function cmCanView(){
+    if(!cmIsActive()) return false;
+    if(myUnit()===cmLeadUnit()||cmAmAdmin()||cmIsViewer()) return true; // lead, admin, explicit watchers: always
+    // Missing Person: dispatchers see the map ONLY if they're on the roster; plain members
+    // never see it unless added as a watcher (covered by cmIsViewer above).
+    if(cmIsMissing()) return cmAmDispatcher()&&cmIsMember();
+    // Command Mode: on-duty/staff dispatchers auto; plain members get no map.
+    return _cmAutoStaff();
+  }
 
   // ── Init ──────────────────────────────────────────────────────────────────
   function initCommandMode(){
@@ -1469,7 +1480,22 @@
     _cmSaveHistory(function(ref){
       if(ref && (cmAmAdmin()||myUnit()===cmLeadUnit())){ setTimeout(function(){ _cmVerifyAndClearLog(ref,_endTs); },600); }
     });
-    db().collection('config').doc('commandMode').set({ active:false, endedAt:_endTs }, {merge:true}).then(function(){ try{ db().collection('commandLocations').get().then(function(s){ s.forEach(function(d){ d.ref.delete().catch(function(){}); }); }); }catch(e){} var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); closeCommandView(); showToast('🏁 Ended — saved to Command Logs'); });
+    // Sign EVERYONE out of the operation: release every roster member from any open/active
+    // call they were responding to, then clear the roster itself. Their location sharing
+    // stops automatically once active:false propagates, and their location docs are wiped below.
+    try{
+      var _roster={}; cmMembers().forEach(function(m){ _roster[U(m.unit)]=1; });
+      (STATE.calls||[]).forEach(function(c){
+        if(c.status!=='open'&&c.status!=='active') return;
+        if(!(c.responders||[]).some(function(r){ return _roster[U(r.unit)]; })) return;
+        (c.responders||[]).forEach(function(r){ if(_roster[U(r.unit)]) _cmAutoRemoved[c.id+'|'+U(r.unit)]=1; });
+        c.responders=(c.responders||[]).filter(function(r){ return !_roster[U(r.unit)]; });
+        try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
+      });
+      try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
+    }catch(e){}
+    if(_cmState) _cmState.members=[];
+    db().collection('config').doc('commandMode').set({ active:false, endedAt:_endTs, members:[] }, {merge:true}).then(function(){ try{ db().collection('commandLocations').get().then(function(s){ s.forEach(function(d){ d.ref.delete().catch(function(){}); }); }); }catch(e){} var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); closeCommandView(); showToast('🏁 Ended — everyone signed out, saved to Command Logs'); });
   }
 
   // Command Center Logs — every past incident's notes + log, re-sendable.
