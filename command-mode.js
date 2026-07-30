@@ -174,6 +174,7 @@
   function cmToggleWakeLock(checked){
     try{ localStorage.setItem('cmWakeLockOff', checked?'0':'1'); }catch(e){}
     if(checked) _cmRequestWakeLock(); else _cmReleaseWakeLock();
+    _cmRenderBanner();
   }
   function _cmReleaseWakeLock(){ try{ if(_cmWakeLock){ _cmWakeLock.release().catch(function(){}); } }catch(e){} _cmWakeLock=null; }
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'&&_cmShareTimer&&!_cmWakeLock) _cmRequestWakeLock(); });
@@ -190,13 +191,14 @@
     var el=document.getElementById('cmMemberBanner');
     if(!show){ if(el) el.remove(); return; }
     if(!el){ el=document.createElement('div'); el.id='cmMemberBanner';
-      el.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9600;background:linear-gradient(90deg,#7f1d1d,#b91c1c);color:#fff;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:700;box-shadow:0 -2px 8px rgba(0,0,0,.3);padding-bottom:calc(8px + env(safe-area-inset-bottom));';
+      el.style.cssText='position:fixed;left:0;right:0;z-index:9600;background:linear-gradient(90deg,#7f1d1d,#b91c1c);color:#fff;padding:6px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;font-weight:700;box-shadow:0 -2px 8px rgba(0,0,0,.3);';
       document.body.appendChild(el);
     }
+    var _bar=document.querySelector('.tabbar'); el.style.bottom=(_bar?_bar.getBoundingClientRect().height:0)+'px';
     if(amWatcherOnly){
       el.style.background='linear-gradient(90deg,#1e3a5f,#0e7490)';
       el.innerHTML='<span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:#93c5fd;box-shadow:0 0 0 3px rgba(147,197,253,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(cmIsMissing()?'Watching the Missing Person search':'Watching Command Mode')+'</span></span>'
-        +'<button onclick="openCommandView()" style="background:#fff;color:#0e7490;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">🗺️ Open Map</button>';
+        +'<button onclick="openCommandView()" style="background:#fff;color:#0e7490;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;">🗺️ Open Map</button>';
       if(!document.getElementById('cmPulseStyle')){ var s0=document.createElement('style'); s0.id='cmPulseStyle'; s0.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'
         +'@keyframes cmSlideDown{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}'
         +'@keyframes cmGrad{0%{background-position:0% 50%}100%{background-position:200% 50%}}'
@@ -207,8 +209,8 @@
     el.style.background='linear-gradient(90deg,#7f1d1d,#b91c1c)';
     var label=cmIsMissing()?'Missing Person search active':'Command Mode active';
     var wlOn=_cmWakeLockPref();
-    el.innerHTML='<span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:#fca5a5;box-shadow:0 0 0 3px rgba(252,165,165,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+' — sharing your location</span></span>'
-      +'<span style="display:flex;gap:8px;align-items:center;flex-shrink:0;"><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;"><span style="position:relative;width:32px;height:18px;flex-shrink:0;"><input type="checkbox" onchange="cmToggleWakeLock(this.checked)" '+(wlOn?'checked':'')+' style="opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1;"><span style="position:absolute;inset:0;background:'+(wlOn?'#22c55e':'rgba(255,255,255,.25)')+';border-radius:10px;transition:background .15s;"></span><span style="position:absolute;top:2px;left:'+(wlOn?'16px':'2px')+';width:14px;height:14px;background:#fff;border-radius:50%;transition:left .15s;"></span></span>Screen awake</label><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
+    el.innerHTML='<span style="display:flex;align-items:center;gap:6px;min-width:0;"><span style="width:7px;height:7px;border-radius:50%;background:#fca5a5;box-shadow:0 0 0 3px rgba(252,165,165,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+'</span></span>'
+      +'<span style="display:flex;gap:6px;align-items:center;flex-shrink:0;"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;font-weight:700;white-space:nowrap;"><span style="position:relative;width:28px;height:16px;flex-shrink:0;"><input type="checkbox" onchange="cmToggleWakeLock(this.checked)" '+(wlOn?'checked':'')+' style="opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1;"><span style="position:absolute;inset:0;background:'+(wlOn?'#22c55e':'rgba(255,255,255,.25)')+';border-radius:9px;transition:background .15s;"></span><span style="position:absolute;top:2px;left:'+(wlOn?'14px':'2px')+';width:12px;height:12px;background:#fff;border-radius:50%;transition:left .15s;"></span></span>Awake</label><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
     if(!document.getElementById('cmPulseStyle')){ var s=document.createElement('style'); s.id='cmPulseStyle'; s.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'
       +'@keyframes cmSlideDown{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}'
       +'@keyframes cmGrad{0%{background-position:0% 50%}100%{background-position:200% 50%}}'
@@ -285,6 +287,14 @@
       }
       var joinBtn='<button class="cmChatTopBtn" onclick="cmMemberChat()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border:none;border-radius:12px;padding:12px 8px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(37,99,235,.3);font-family:inherit;">💬 Join Chat'+(all?' · D·M·N':'')+'</button>';
       html='<div style="display:flex;gap:8px;margin-bottom:12px;">'+leftBtn+joinBtn+'</div>';
+      // Command Mode: cards stay normal (no roster strip) — just surface who's in
+      // command and who's dispatching, so members know who to contact.
+      if(!cmIsMissing()){
+        var lead=cmLeadUnit(); var dispatchers=(function(){
+          try{ return (_onDutyDispatchUnits()||[]).map(U).filter(function(u){ return u&&u!==lead; }); }catch(e){ return []; }
+        })();
+        html+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:-4px 0 12px;font-size:11px;color:#94a3b8;"><span style="font-weight:800;color:#e2e8f0;">🎖️ Command BC-'+lead+'</span>'+(dispatchers.length?('<span>· 📡 Dispatch '+dispatchers.map(function(u){ return 'BC-'+u; }).join(', ')+'</span>'):'')+'</div>';
+      }
     }
     ['cmChatMountHome','cmChatMountDispatch'].forEach(function(id){ var el=document.getElementById(id); if(!el) return; el.innerHTML=html; el.style.display=on?'block':'none'; });
   }
@@ -1552,11 +1562,9 @@
   }
   function cmRosterBadgesHTML(call){
     if(!cmIsActive()) return '';
-    if(cmIsMissing()){
-      if(!call||call.id!==((_cmState&&_cmState.linkedCallId))) return '';
-    } else {
-      if(!call||!_cmOpCalls((_cmState&&_cmState.startedAt)||0).some(function(c){ return c.id===call.id; })) return '';
-    }
+    // Command Mode calls stay normal cards \u2014 only real responders show, no roster strip.
+    if(!cmIsMissing()) return '';
+    if(!call||call.id!==((_cmState&&_cmState.linkedCallId))) return '';
     var mem=cmMembers(); if(!mem.length) return '';
     var lead=cmLeadUnit();
     var pills=mem.map(function(mm){
