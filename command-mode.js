@@ -27,6 +27,10 @@
   var _cmDrawLines=[];      // live google Polyline objects keyed by drawing id
   var _cmDrawObjs={};       // id → Polyline
   var _cmCurDraw=null;      // in-progress {id,points,poly}
+  var _cmWatchId=null;      // navigator.geolocation.watchPosition handle
+  var _cmWakeLock=null;     // Screen Wake Lock — keeps the screen/tab awake while sharing (foreground only)
+  var _cmBreadcrumbSel={};  // unit → true: checked in roster, show breadcrumb trail on map
+  var _cmAutoRemoved={};    // callId+'|'+unit → true: dispatcher manually took them off, don't re-add
 
   function U(u){ return String(u||'').replace(/^BC-?/i,'').trim(); }
   function myUnit(){ return (typeof SESSION!=='undefined'&&SESSION&&SESSION.unit)?U(SESSION.unit):''; }
@@ -60,8 +64,28 @@
     var shouldShare=cmIsActive()&&(cmIsMember()||myUnit()===cmLeadUnit());
     if(shouldShare) _cmStartShare(); else _cmStopShare();
     if(cmIsActive()) _cmAttachLive(); else _cmDetachLive();
+    if(cmIsActive()&&cmIsMissing()&&myUnit()===cmLeadUnit()) _cmStartAutoNudge(); else _cmStopAutoNudge();
     _cmRenderBanner(); _cmSyncSettingsButton(); _cmSyncCommsButton();
     if(document.getElementById('cmOverlay')){ if(!cmCanView()) closeCommandView(); else _cmRefreshView(); }
+  }
+  // ── Auto-nudge: while the lead's device is open during a Missing Person search, ping
+  // anyone whose GPS has gone stale to reopen the app — no need to tap Nudge manually.
+  // Runs only on the lead's device so it never double-sends from multiple viewers.
+  var _cmNudgeTimer=null, _cmLastNudge={};
+  var CM_NUDGE_STALE_MS=3*60*1000, CM_NUDGE_COOLDOWN_MS=5*60*1000, CM_NUDGE_TICK_MS=60*1000;
+  function _cmStartAutoNudge(){ if(_cmNudgeTimer) return; _cmNudgeTimer=setInterval(_cmAutoNudgeTick,CM_NUDGE_TICK_MS); }
+  function _cmStopAutoNudge(){ if(_cmNudgeTimer){ clearInterval(_cmNudgeTimer); _cmNudgeTimer=null; } }
+  function _cmAutoNudgeTick(){
+    if(!cmIsActive()||!cmIsMissing()||myUnit()!==cmLeadUnit()) return;
+    var now=Date.now();
+    cmMembers().forEach(function(mm){
+      var u=U(mm.unit); if(u===cmLeadUnit()) return;
+      var loc=_cmLocs[u]; var staleFor=loc?(now-(loc.at||0)):Infinity;
+      if(staleFor<CM_NUDGE_STALE_MS) return;
+      if(now-(_cmLastNudge[u]||0)<CM_NUDGE_COOLDOWN_MS) return;
+      _cmLastNudge[u]=now;
+      try{ sendPush({ target:'unit', unit:u, title:'🔍 Search — check in', body:'Reopen the app to resume sharing your location. Tip: send 2 members per call — one keeps this app open (screen won\'t lock while it\'s open), the other navigates.', url:'/cobc-dispatch/', urgent:false }); _cmAddLog('📍 Auto-nudged BC-'+u+' (no signal '+Math.round(staleFor/60000)+'m)','roster'); }catch(e){}
+    });
   }
   function _cmAttachLive(){
     if(!_cmUnsub.locs){
@@ -82,37 +106,82 @@
 
   // ── Location sharing + breadcrumb trail ────────────────────────────────────
   function _cmStartShare(){
-    if(_cmShareTimer||!navigator.geolocation) return;
-    var write=function(){
-      navigator.geolocation.getCurrentPosition(function(pos){
-        var u=myUnit(); if(!u) return;
-        var ref=db().collection('commandLocations').doc(u);
-        var pt={lat:pos.coords.latitude,lng:pos.coords.longitude,at:Date.now()};
-        var base={unit:u,name:(SESSION&&SESSION.name)||'',lat:pt.lat,lng:pt.lng,at:pt.at};
-        // append to trail (capped) for breadcrumbs
-        base.trail=firebase.firestore.FieldValue.arrayUnion(pt);
-        ref.set(base,{merge:true}).then(function(){
-          // trim trail length occasionally
-          ref.get().then(function(d){ var t=(d.data()||{}).trail||[]; if(t.length>CM_TRAIL_MAX){ ref.update({trail:t.slice(-CM_TRAIL_MAX)}).catch(function(){}); } });
-        }).catch(function(){});
-      }, function(){}, {enableHighAccuracy:true,maximumAge:20000,timeout:30000});
-    };
-    write(); _cmShareTimer=setInterval(write,CM_SHARE_MS);
+    if(_cmShareTimer||_cmWatchId!=null||!navigator.geolocation) return;
+    var MOVE_M=25; // meters of movement (e.g. a turn) that trigger an early write, ahead of the 30s heartbeat
+    var lastWrite=null; // {lat,lng,at}
+    var pendingPos=null;
+    function dist(a,b){ var R=6371000,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180,la=a.lat*Math.PI/180,lb=b.lat*Math.PI/180; var h=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(la)*Math.cos(lb)*Math.sin(dLng/2)*Math.sin(dLng/2); return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
+    function doWrite(pos,appendTrail){
+      var u=myUnit(); if(!u) return;
+      var ref=db().collection('commandLocations').doc(u);
+      var pt={lat:pos.lat,lng:pos.lng,at:Date.now()};
+      var base={unit:u,name:(SESSION&&SESSION.name)||'',lat:pt.lat,lng:pt.lng,at:pt.at};
+      if(appendTrail) base.trail=firebase.firestore.FieldValue.arrayUnion(pt);
+      ref.set(base,{merge:true}).then(function(){
+        if(appendTrail) ref.get().then(function(d){ var t=(d.data()||{}).trail||[]; if(t.length>CM_TRAIL_MAX){ ref.update({trail:t.slice(-CM_TRAIL_MAX)}).catch(function(){}); } });
+      }).catch(function(){});
+      lastWrite=pt;
+    }
+    _cmWatchId=navigator.geolocation.watchPosition(function(pos){
+      pendingPos={lat:pos.coords.latitude,lng:pos.coords.longitude};
+      // No point on file yet, or moved far enough to matter (e.g. turned a corner) — write now
+      // instead of waiting for the 30s heartbeat, so the breadcrumb trail catches the turn.
+      if(!lastWrite||dist(lastWrite,pendingPos)>=MOVE_M) doWrite(pendingPos,true);
+    }, function(){}, {enableHighAccuracy:true,maximumAge:10000,timeout:30000});
+    // 30s heartbeat: keeps "last update" fresh (for staleness/no-signal) even while
+    // stationary or moving less than MOVE_M — skips if a movement-triggered write already
+    // covered this window, so it never doubles up the write cost.
+    _cmShareTimer=setInterval(function(){
+      if(pendingPos&&(!lastWrite||Date.now()-lastWrite.at>=CM_SHARE_MS-500)) doWrite(pendingPos,false);
+    },CM_SHARE_MS);
+    _cmRequestWakeLock();
   }
-  function _cmStopShare(){ if(_cmShareTimer){ clearInterval(_cmShareTimer); _cmShareTimer=null; } }
+  // Keeps the screen on while a roster member has this app in the foreground, so a dashboard-
+  // mounted phone doesn't sleep mid-drive. Wake locks auto-release when the tab is hidden
+  // (e.g. switching to a maps app), so we re-request on visibilitychange while still sharing.
+  function _cmRequestWakeLock(){
+    try{
+      if(!('wakeLock' in navigator)||!_cmWakeLockPref()) return;
+      navigator.wakeLock.request('screen').then(function(wl){ _cmWakeLock=wl; wl.addEventListener('release',function(){ _cmWakeLock=null; }); }).catch(function(){});
+    }catch(e){}
+  }
+  function _cmWakeLockPref(){ try{ return localStorage.getItem('cmWakeLockOff')!=='1'; }catch(e){ return true; } }
+  function cmToggleWakeLock(checked){
+    try{ localStorage.setItem('cmWakeLockOff', checked?'0':'1'); }catch(e){}
+    if(checked) _cmRequestWakeLock(); else _cmReleaseWakeLock();
+  }
+  function _cmReleaseWakeLock(){ try{ if(_cmWakeLock){ _cmWakeLock.release().catch(function(){}); } }catch(e){} _cmWakeLock=null; }
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'&&_cmShareTimer&&!_cmWakeLock) _cmRequestWakeLock(); });
+  function _cmStopShare(){ if(_cmShareTimer){ clearInterval(_cmShareTimer); _cmShareTimer=null; } if(_cmWatchId!=null&&navigator.geolocation){ navigator.geolocation.clearWatch(_cmWatchId); _cmWatchId=null; } _cmReleaseWakeLock(); }
 
   // ── Member banner ──────────────────────────────────────────────────────────
   function _cmRenderBanner(){
-    var show=cmIsActive()&&cmIsMember()&&!cmCanView();
+    var iAmStaff=cmAmAdmin()||cmAmDispatcher();
+    var amMember=cmIsMember()||iAmStaff;
+    var amWatcherOnly=!amMember&&cmIsViewer();
+    var show=cmIsActive()&&(amMember||amWatcherOnly)&&!document.getElementById('cmOverlay');
     var el=document.getElementById('cmMemberBanner');
     if(!show){ if(el) el.remove(); return; }
     if(!el){ el=document.createElement('div'); el.id='cmMemberBanner';
       el.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9600;background:linear-gradient(90deg,#7f1d1d,#b91c1c);color:#fff;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3);';
       document.body.appendChild(el);
     }
+    if(amWatcherOnly){
+      el.style.background='linear-gradient(90deg,#1e3a5f,#0e7490)';
+      el.innerHTML='<span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:#93c5fd;box-shadow:0 0 0 3px rgba(147,197,253,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(cmIsMissing()?'Watching the Missing Person search':'Watching Command Mode')+'</span></span>'
+        +'<button onclick="openCommandView()" style="background:#fff;color:#0e7490;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">👁 Watch Map</button>';
+      if(!document.getElementById('cmPulseStyle')){ var s0=document.createElement('style'); s0.id='cmPulseStyle'; s0.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'
+        +'@keyframes cmSlideDown{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}'
+        +'@keyframes cmGrad{0%{background-position:0% 50%}100%{background-position:200% 50%}}'
+        +'.cmCommsPulse{background-image:linear-gradient(90deg,#1d4ed8,#22d3ee,#1d4ed8,#22d3ee)!important;background-size:200% 100%!important;animation:cmGrad 1.1s linear infinite!important;box-shadow:0 0 0 2px rgba(34,211,238,.5)!important;}';
+        document.head.appendChild(s0); }
+      return;
+    }
+    el.style.background='linear-gradient(90deg,#7f1d1d,#b91c1c)';
     var label=cmIsMissing()?'Missing Person search active':'Command Mode active';
+    var wlOn=_cmWakeLockPref();
     el.innerHTML='<span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:#fca5a5;box-shadow:0 0 0 3px rgba(252,165,165,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+' — sharing your location</span></span>'
-      +'<span style="display:flex;gap:8px;flex-shrink:0;"><button onclick="cmMemberChat()" id="cmBannerChatBtn" style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">💬 Join Chat</button><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
+      +'<span style="display:flex;gap:8px;align-items:center;flex-shrink:0;"><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;"><span style="position:relative;width:32px;height:18px;flex-shrink:0;"><input type="checkbox" onchange="cmToggleWakeLock(this.checked)" '+(wlOn?'checked':'')+' style="opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1;"><span style="position:absolute;inset:0;background:'+(wlOn?'#22c55e':'rgba(255,255,255,.25)')+';border-radius:10px;transition:background .15s;"></span><span style="position:absolute;top:2px;left:'+(wlOn?'16px':'2px')+';width:14px;height:14px;background:#fff;border-radius:50%;transition:left .15s;"></span></span>Screen awake</label><button onclick="cmMemberChat()" id="cmBannerChatBtn" style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">💬 Join Chat</button><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
     if(!document.getElementById('cmPulseStyle')){ var s=document.createElement('style'); s.id='cmPulseStyle'; s.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'
       +'@keyframes cmSlideDown{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}'
       +'@keyframes cmGrad{0%{background-position:0% 50%}100%{background-position:200% 50%}}'
@@ -120,10 +189,19 @@
       document.head.appendChild(s); }
   }
   function cmMemberSignOut(){
-    if(!confirm('Sign out? You will stop sharing your location.')) return;
+    if(!confirm('Sign out? You will stop sharing your location and be taken off the roster and any calls.')) return;
     var u=myUnit(); _cmStopShare();
     try{ db().collection('commandLocations').doc(u).delete().catch(function(){}); }catch(e){}
     try{ db().collection('config').doc('commandMode').update({ members:cmMembers().filter(function(m){ return U(m.unit)!==u; }) }); }catch(e){}
+    if(_cmState) _cmState.members=cmMembers().filter(function(m){ return U(m.unit)!==u; });
+    (STATE.calls||[]).forEach(function(c){
+      if(c.status!=='open'&&c.status!=='active') return;
+      if(!(c.responders||[]).some(function(r){ return U(r.unit)===u; })) return;
+      _cmAutoRemoved[c.id+'|'+u]=1;
+      c.responders=(c.responders||[]).filter(function(r){ return U(r.unit)!==u; });
+      try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
+    });
+    try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
     showToast('Signed out');
   }
 
@@ -139,19 +217,68 @@
     if(!defs.some(function(d){ return d.k===_cmMChatTab; })) _cmMChatTab=defs[0].k;
     var tabs=defs.map(function(d){ var on=_cmMChatTab===d.k; return '<button onclick="cmMemberChatTab(\''+d.k+'\')" style="flex:1;padding:9px 6px;border:none;border-radius:9px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;background:'+(on?'#1e3a5f':'#f1f5f9')+';color:'+(on?'#fff':'#64748b')+';">'+d.label+'</button>'; }).join('');
     var msgs=(_cmLog||[]).filter(function(e){ return (e.channel||'note')===_cmMChatTab; }).slice().reverse();
-    var list=msgs.map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var mine=U(e.by)===myUnit(); return '<div style="display:flex;flex-direction:column;align-items:'+(mine?'flex-end':'flex-start')+';margin-bottom:8px;"><div style="max-width:82%;background:'+(mine?'#dbeafe':'#f1f5f9')+';color:#0f172a;border-radius:12px;padding:8px 11px;font-size:13px;line-height:1.4;">'+_cmBoldCalls(escapeHTML(e.text||''))+'</div><div style="font-size:10px;color:#94a3b8;margin-top:2px;">'+(e.by?'BC-'+U(e.by)+' · ':'')+t+'</div></div>'; }).join('')||'<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">No messages yet.</div>';
+    var list=msgs.map(function(e){ var t=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var mine=U(e.by)===myUnit(); var inner=e.photo?('<img src="'+e.photo+'" onclick="window.open(\''+e.photo+'\',\'_blank\')" style="max-width:200px;max-height:240px;border-radius:10px;display:block;cursor:pointer;"/>'):('<div style="max-width:82%;background:'+(mine?'#dbeafe':'#f1f5f9')+';color:#0f172a;border-radius:12px;padding:8px 11px;font-size:13px;line-height:1.4;">'+_cmBoldCalls(escapeHTML(e.text||''))+'</div>'); return '<div style="display:flex;flex-direction:column;align-items:'+(mine?'flex-end':'flex-start')+';margin-bottom:8px;">'+inner+'<div style="font-size:10px;color:#94a3b8;margin-top:2px;">'+(e.by?'BC-'+U(e.by)+' · ':'')+t+'</div></div>'; }).join('')||'<div style="padding:16px;color:#9ca3af;font-size:13px;text-align:center;">No messages yet.</div>';
     p.innerHTML='<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eef2f7;"><div style="font-size:15px;font-weight:800;color:#0f172a;">🎖️ Command Chat</div><button onclick="cmMemberChat()" style="background:#f1f5f9;border:none;border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer;color:#64748b;">✕</button></div>'
       +'<div style="flex-shrink:0;display:flex;gap:6px;padding:10px 12px 0;">'+tabs+'</div>'
       +'<div id="cmMChatList" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;">'+list+'</div>'
-      +'<div style="flex-shrink:0;display:flex;gap:8px;padding:10px 12px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid #eef2f7;"><input id="cmMChatInput" placeholder="Message '+(_cmMChatTab==='dispatch'?'dispatch':'members')+'…" onkeydown="if(event.key===\'Enter\')cmMemberChatSend()" style="flex:1;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;box-sizing:border-box;"/><button onclick="cmMemberChatSend()" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:0 18px;font-weight:800;font-size:14px;cursor:pointer;">Send</button></div>';
+      +'<div style="flex-shrink:0;display:flex;gap:8px;align-items:center;padding:10px 12px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid #eef2f7;"><label style="flex-shrink:0;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;border-radius:10px;font-size:19px;cursor:pointer;">📷<input type="file" accept="image/*" onchange="cmMemberChatPhoto(event)" style="display:none;"/></label><input id="cmMChatInput" placeholder="Message '+(_cmMChatTab==='dispatch'?'dispatch':'members')+'…" onkeydown="if(event.key===\'Enter\')cmMemberChatSend()" style="flex:1;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;box-sizing:border-box;"/><button onclick="cmMemberChatSend()" style="background:#1e3a5f;color:#fff;border:none;border-radius:10px;padding:0 18px;font-weight:800;font-size:14px;cursor:pointer;">Send</button></div>';
     setTimeout(function(){ var l=document.getElementById('cmMChatList'); if(l) l.scrollTop=l.scrollHeight; var i=document.getElementById('cmMChatInput'); if(i) i.focus(); },30);
   }
   function cmMemberChatSend(){ var i=document.getElementById('cmMChatInput'); if(!i) return; var t=(i.value||'').trim(); if(!t) return; var isNote=_cmMChatTab==='note'; var entry={ at:Date.now(), text:t, kind:isNote?'note':'chat', channel:_cmMChatTab, by:myUnit() }; _cmLog=_cmLog||[]; _cmLog.unshift(entry); _cmAddLog(t,isNote?'note':'chat',_cmMChatTab); i.value=''; _cmRenderMemberChat(); }
+  // Anyone in an active op can attach a photo to the chat (downscaled JPEG stored inline).
+  function cmMemberChatPhoto(ev){
+    var f=ev&&ev.target&&ev.target.files&&ev.target.files[0]; if(f){ _cmReadChatPhoto(f, _cmMChatTab); } if(ev&&ev.target) ev.target.value='';
+  }
+  function _cmReadChatPhoto(f, channel){
+    var rd=new FileReader();
+    rd.onload=function(){ var img=new Image(); img.onload=function(){
+      var max=1000, sc=Math.min(1, max/Math.max(img.width,img.height));
+      var cv=document.createElement('canvas'); cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc);
+      cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+      var data=cv.toDataURL('image/jpeg',0.6);
+      var isNote=channel==='note'; var entry={ at:Date.now(), text:'📷 Photo', kind:isNote?'note':'chat', channel:channel, by:myUnit(), photo:data };
+      _cmLog=_cmLog||[]; _cmLog.unshift(entry); _cmAddLog('📷 Photo',isNote?'note':'chat',channel,data); _cmRenderMemberChat();
+    }; img.src=rd.result; };
+    rd.readAsDataURL(f);
+  }
   // Chat button pinned to the top of the Open Calls / Dispatch tabs during an active op.
   function _cmSyncCommsButton(){
     var on=cmIsActive(); var all=_cmCanSeeAllChats();
-    var html=on?('<button class="cmChatTopBtn" onclick="cmMemberChat()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 3px 12px rgba(37,99,235,.3);font-family:inherit;">💬 '+(cmIsMissing()?'Search Chat':'Command Chat')+(all?' · Dispatch·Members·Notes':'')+'</button>'):'';
+    // Missing-person op: the top button opens the subject info sheet (the banner above already has Join Chat).
+    // Command op: keep the chat shortcut.
+    var html='';
+    if(on){
+      if(cmIsMissing()){
+        html='<button onclick="cmMissingInfo()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#7f1d1d,#b91c1c);color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 3px 12px rgba(185,28,28,.3);font-family:inherit;">🔍 Missing Person Info</button>';
+      } else {
+        html='<button class="cmChatTopBtn" onclick="cmMemberChat()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 3px 12px rgba(37,99,235,.3);font-family:inherit;">💬 Command Chat'+(all?' · Dispatch·Members·Notes':'')+'</button>';
+      }
+    }
     ['cmChatMountHome','cmChatMountDispatch'].forEach(function(id){ var el=document.getElementById(id); if(!el) return; el.innerHTML=html; el.style.display=on?'block':'none'; });
+  }
+  // Read-only subject profile sheet (photo + all details), opened from the Open Calls / Home top button.
+  function cmMissingInfo(){
+    var p=document.getElementById('cmMissingInfoPanel'); if(p){ p.remove(); return; }
+    var s=(_cmState&&_cmState.subject)||{};
+    var linked=(STATE.calls||[]).find(function(c){ return c.id===((_cmState&&_cmState.linkedCallId)); });
+    var callNo=linked&&linked.callNum?('#'+linked.callNum):'';
+    function row(icon,label,val,color){ if(!val) return ''; return '<div style="display:flex;gap:10px;padding:10px 0;border-top:1px solid #f1f5f9;"><span style="font-size:16px;flex-shrink:0;">'+icon+'</span><div style="min-width:0;"><div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">'+label+'</div><div style="font-size:14px;color:'+(color||'#0f172a')+';line-height:1.4;">'+escapeHTML(val)+'</div></div></div>'; }
+    var canEdit=(cmAmAdmin()||myUnit()===cmLeadUnit());
+    p=document.createElement('div'); p.id='cmMissingInfoPanel'; p.style.cssText='position:fixed;left:0;right:0;bottom:0;max-height:82vh;z-index:9650;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden;';
+    p.innerHTML='<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eef2f7;"><div style="font-size:15px;font-weight:800;color:#7f1d1d;">🔍 Missing Person '+callNo+'</div><button onclick="cmMissingInfo()" style="background:#f1f5f9;border:none;border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer;color:#64748b;">✕</button></div>'
+      +'<div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;">'
+        +'<div style="display:flex;gap:14px;align-items:center;margin-bottom:6px;">'
+          +(s.photo?'<img src="'+s.photo+'" style="width:88px;height:88px;border-radius:14px;object-fit:cover;flex-shrink:0;border:2px solid #fecaca;"/>':'<div style="width:88px;height:88px;border-radius:14px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0;">👤</div>')
+          +'<div style="min-width:0;"><div style="font-size:20px;font-weight:800;color:#0f172a;">'+escapeHTML(s.name||'Unknown')+'</div>'+(s.age?'<div style="font-size:14px;color:#64748b;margin-top:2px;">Age '+escapeHTML(s.age)+'</div>':'')+'</div>'
+        +'</div>'
+        +row('📍','Last seen',(s.lastSeenAddr||'')+(s.lastSeenTime?(' · '+s.lastSeenTime):''),'#b91c1c')
+        +row('👤','Description',s.desc)
+        +row('👕','Clothing',s.clothing)
+        +row('⚕️','Medical / cognitive',s.medical,'#b91c1c')
+        +(!(s.lastSeenAddr||s.desc||s.clothing||s.medical)?'<div style="padding:16px 0;color:#9ca3af;font-size:13px;">No additional details recorded yet.</div>':'')
+      +'</div>'
+      +(canEdit?'<div style="flex-shrink:0;padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);border-top:1px solid #eef2f7;"><button onclick="cmMissingInfo();cmEditReport();" style="width:100%;background:#f1f5f9;color:#0f172a;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">✎ Edit report</button></div>':'');
+    document.body.appendChild(p);
   }
 
   // ── Settings entry points ──────────────────────────────────────────────────
@@ -321,6 +448,15 @@
         var writeIt=function(){
           try{ STATE.calls=STATE.calls||[]; STATE.calls.unshift(call); if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); }catch(e){}
           try{ db().collection('calls').doc(String(call.id)).set(call); }catch(e){}
+          // URGENT broadcast — a command/missing-person op is a real call; notify everyone.
+          try{
+            var _t=(type==='missing'?'🔍 Missing Person':'🎖️ Command Event');
+            var _loc=call.town?(call.address?(call.address+', '+call.town):call.town):(call.address||'');
+            var _body=(type==='missing'
+              ? ('Search started'+(subject&&subject.name?(' — '+subject.name):'')+(_loc?(' · last seen '+_loc):''))
+              : ('Command event started'+(_loc?(' — '+_loc):'')));
+            setTimeout(function(){ try{ sendPush({ target:'all', title:'🚨 '+_t+' #'+(call.callNum||''), body:_body, url:'/cobc-dispatch/', callId:call.id, urgent:'true' }); }catch(e){} }, 200);
+          }catch(e){}
           resolve(call.id);
         };
         if(typeof _nextCallNumAtomic==='function'){ _nextCallNumAtomic().then(function(n){ call.callNum=n; writeIt(); }).catch(writeIt); }
@@ -362,7 +498,7 @@
   }
 
   // ── Incident log ────────────────────────────────────────────────────────────
-  function _cmAddLog(text,kind,channel){ try{ db().collection('commandLog').add({ at:Date.now(), text:String(text||''), kind:kind||'note', channel:channel||'note', by:myUnit() }).catch(function(){}); }catch(e){} }
+  function _cmAddLog(text,kind,channel,photo){ try{ var doc={ at:Date.now(), text:String(text||''), kind:kind||'note', channel:channel||'note', by:myUnit() }; if(photo) doc.photo=photo; db().collection('commandLog').add(doc).catch(function(){}); }catch(e){} }
   function _cmBoldCalls(s){ return String(s==null?'':s).replace(/#(\d+)/g,'<b>#$1</b>'); }
   var _cmChatTab='dispatch';
   function cmChatTab(t){ _cmChatTab=t; cmAddNote(); }
@@ -446,8 +582,8 @@
         +'<div id="cmMapWrap" style="flex:1;position:relative;min-width:0;"><div id="cmMap" style="position:absolute;inset:0;"></div>'
           +'<button onclick="cmToggleMapExpand()" id="cmMapExpandBtn" title="Expand map" style="position:absolute;top:10px;right:10px;z-index:6;background:rgba(11,18,32,.9);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:9px;width:40px;height:40px;font-size:17px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);">⤢</button>'
           +'<div style="position:absolute;left:10px;bottom:10px;z-index:5;background:rgba(11,18,32,.85);color:#fff;border-radius:10px;padding:8px 11px;font-size:11px;line-height:1.7;">'
-            +'<div><b style="color:#22c55e;">BC-##</b> on call &nbsp; <b style="color:#eab308;">BC-##</b> idle</div>'
-            +'<div><b style="color:#9ca3af;">BC-##</b> stale &nbsp; <b style="color:#3b82f6;">BC-##</b> lead &nbsp; <b style="color:#ef4444;">▮</b> call</div>'
+            +'<div><b style="color:#22c55e;">BC-##</b> responding &nbsp; <b style="color:#9ca3af;">BC-##</b> no signal</div>'
+            +'<div><b style="color:#3b82f6;">BC-##</b> lead &nbsp; <b style="color:#ef4444;">▮</b> call</div>'
           +'</div>'
         +'</div>'
       +'</div>';
@@ -516,7 +652,7 @@
     var calls=(STATE.calls||[]).filter(function(c){ return c.status==='open'||c.status==='active'; });
     var urgent=calls.filter(function(c){ return c.priority==='urgent'; }).length;
     var respSet={}; calls.forEach(function(c){ (c.responders||[]).forEach(function(r){ respSet[U(r.unit)]=1; }); });
-    var mem=cmMembers(), idle=0, nosig=0; mem.forEach(function(mm){ var col=_cmMemberColor(U(mm.unit),_cmLocs[U(mm.unit)]); if(col==='#eab308')idle++; else if(col==='#9ca3af')nosig++; });
+    var mem=cmMembers(), nosig=0; mem.forEach(function(mm){ var col=_cmMemberColor(U(mm.unit),_cmLocs[U(mm.unit)]); if(col==='#9ca3af')nosig++; });
     var gps=0, now=Date.now(); Object.keys(_cmLocs).forEach(function(u){ var l=_cmLocs[u]; if(l&&(now-(l.at||0))<CM_STALE_MS) gps++; });
     var t0=new Date(); t0.setHours(0,0,0,0); t0=t0.getTime();
     var times=(STATE.calls||[]).filter(function(c){ return c.status==='done'&&c.completedAt>=t0&&c.createdAt; }).map(function(c){ return (c.completedAt-c.createdAt)/60000; }).filter(function(m){ return m>0&&m<300; });
@@ -524,8 +660,7 @@
     function stat(n,l,color){ return '<div class="cmStat"><div class="n" style="color:'+(color||'#fff')+';">'+n+'</div><div class="l">'+l+'</div></div>'; }
     el.innerHTML=stat(calls.length,'Active',calls.length?'#f87171':'#fff')
       +stat(urgent,'Urgent',urgent?'#ef4444':'#64748b')
-      +stat(Object.keys(respSet).length,'Responding','#22c55e')
-      +stat(idle,'Idle','#eab308')
+      +stat(Object.keys(respSet).length,'On a call','#22c55e')
       +stat(nosig,'No signal','#9ca3af')
       +stat(gps+'/'+mem.length,'GPS live','#3b82f6');
   }
@@ -787,7 +922,7 @@
   function _transIcon(){ return { url:'data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'), size:new google.maps.Size(1,1), anchor:new google.maps.Point(0,0) }; }
   function _cmDotIcon(color,big){ var r=big?7:6, s=big?20:18, c=s/2; var svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+s+'" height="'+s+'"><circle cx="'+c+'" cy="'+c+'" r="'+r+'" fill="'+color+'" stroke="#fff" stroke-width="2.5"/></svg>'; return { url:'data:image/svg+xml;base64,'+btoa(svg), size:new google.maps.Size(s,s), anchor:new google.maps.Point(c,c), labelOrigin:new google.maps.Point(c,s+8) }; }
   function _cmUnitOnCall(u){ try{ return (STATE.calls||[]).some(function(c){ if(c.status!=='open'&&c.status!=='active') return false; return (c.responders||[]).some(function(r){ return U(r.unit)===u; }); }); }catch(e){ return false; } }
-  function _cmMemberColor(u,loc){ if(u===cmLeadUnit()) return '#3b82f6'; if(!loc||(Date.now()-(loc.at||0))>CM_STALE_MS) return '#9ca3af'; return _cmUnitOnCall(u)?'#22c55e':'#eab308'; }
+  function _cmMemberColor(u,loc){ if(u===cmLeadUnit()) return '#3b82f6'; if(!loc||(Date.now()-(loc.at||0))>CM_STALE_MS) return '#9ca3af'; return '#22c55e'; }
   function _cmCallLatLng(call){
     if(_cmCallCoords[call.id]) return _cmCallCoords[call.id];
     var m=String(call.address||'').match(/(-?\d{1,3}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);
@@ -810,12 +945,12 @@
       mk.setPosition({lat:loc.lat,lng:loc.lng});
       mk.setIcon(_cmDotIcon(color));
       mk.setLabel({ text:'BC-'+u, color:color, fontWeight:'800', fontSize:'13px' });
-      if(cmIsMissing() && Array.isArray(loc.trail) && loc.trail.length>1){
+      if(cmIsMissing() && _cmBreadcrumbSel[u] && Array.isArray(loc.trail) && loc.trail.length>1){
         var path=loc.trail.map(function(p){ return {lat:p.lat,lng:p.lng}; });
         if(_cmTrails[u]) _cmTrails[u].setPath(path);
         else _cmTrails[u]=new G.Polyline({ map:_cmMap, path:path, strokeColor:color, strokeOpacity:0.6, strokeWeight:3 });
         _cmTrails[u].setOptions({strokeColor:color});
-      }
+      } else if(_cmTrails[u]){ _cmTrails[u].setMap(null); delete _cmTrails[u]; }
     });
     Object.keys(_cmMarkers).forEach(function(u){ if(!seen[u]){ _cmMarkers[u].setMap(null); delete _cmMarkers[u]; if(_cmTrails[u]){ _cmTrails[u].setMap(null); delete _cmTrails[u]; } } });
     // Calls
@@ -869,12 +1004,27 @@
     var sseen={};
     ((_cmState&&_cmState.sectors)||[]).forEach(function(s){ sseen[s.id]=1; var mk=_cmSectorMarkers[s.id]; if(!mk){ mk=new G.Marker({ map:_cmMap, icon:_transIcon() }); _cmSectorMarkers[s.id]=mk; } mk.setPosition({lat:s.lat,lng:s.lng}); mk.setLabel({ text:'⬡ '+s.label, color:'#a78bfa', fontWeight:'800', fontSize:'13px' }); });
     Object.keys(_cmSectorMarkers).forEach(function(id){ if(!sseen[id]){ _cmSectorMarkers[id].setMap(null); delete _cmSectorMarkers[id]; } });
-    // Lead auto-logs new calls
+    // Lead auto-logs new calls + keeps every roster member added as a responder on all open/active calls
     if(myUnit()===cmLeadUnit()){
       (STATE.calls||[]).forEach(function(c){
         if((c.status==='open'||c.status==='active')&&!_cmLoggedCalls[c.id]&&(c.createdAt||0)>=((_cmState&&_cmState.startedAt)||0)){
           _cmLoggedCalls[c.id]=1; var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||'');
           _cmAddLog('🔴 Call '+(c.callNum?('#'+c.callNum+' '):'')+tl+' — '+(c.town||'')+(c.caller?(' · '+c.caller):'')+(c.phone?(' · ☎ '+c.phone):''),'call');
+        }
+        if(c.status!=='open'&&c.status!=='active') return;
+        var changed=false;
+        cmMembers().forEach(function(mm){
+          var u=U(mm.unit); c.responders=c.responders||[];
+          if(_cmAutoRemoved[c.id+'|'+u]) return;
+          if(c.responders.some(function(r){ return U(r.unit)===u; })) return;
+          var m=(STATE.members||[]).find(function(x){ return U(x.unit||x.id)===u; });
+          c.responders.push({ unit:u, name:mm.name||(m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():''), time:Date.now(), status:'approved', approvedBy:myUnit(), approvedAt:Date.now(), viaCommand:true });
+          changed=true;
+        });
+        if(changed){
+          if(c.status!=='done'&&c.status!=='cancelled') c.status='active';
+          try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders, status:c.status }); }catch(e){}
+          try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
         }
       });
     }
@@ -884,12 +1034,13 @@
   // ── Sidebar ────────────────────────────────────────────────────────────────
   function _cmBuildSidebar(){
     var sb=document.getElementById('cmSidebar'); if(!sb) return;
-    var mem=cmMembers(), onCall=0,idle=0,stale=0;
-    mem.forEach(function(mm){ var col=_cmMemberColor(U(mm.unit),_cmLocs[U(mm.unit)]); if(col==='#22c55e')onCall++; else if(col==='#eab308')idle++; else if(col==='#9ca3af')stale++; });
-    var hc=document.getElementById('cmHeadcount'); if(hc) hc.textContent=mem.length+' members · '+onCall+' on call · '+idle+' idle';
+    var mem=cmMembers(), responding=0,stale=0;
+    mem.forEach(function(mm){ var col=_cmMemberColor(U(mm.unit),_cmLocs[U(mm.unit)]); if(col==='#22c55e')responding++; else if(col==='#9ca3af')stale++; });
+    var hc=document.getElementById('cmHeadcount'); if(hc) hc.textContent=mem.length+' members · '+responding+' responding · '+stale+' no signal';
     var missing=cmIsMissing();
+    var isWatcherOnly=cmIsViewer()&&!cmAmAdmin()&&myUnit()!==cmLeadUnit();
     sb.innerHTML=''
-      +'<div style="padding:12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);">'
+      +(isWatcherOnly?'':'<div style="padding:12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);">'
         +'<button onclick="cmAddMembers()" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#1e3a5f;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">＋ Members</button>'
         +((missing&&(cmAmAdmin()||myUnit()===cmLeadUnit()))?'<button onclick="cmManageViewers()" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#0e7490;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">👁 Watchers</button>':'')
         +(missing?'<button onclick="cmToggleDraw()" id="cmDrawBtn" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Draw</button>':'')
@@ -897,11 +1048,22 @@
         +'<button onclick="cmBroadcast()" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#065f46;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;">📣 Broadcast</button>'
         +'<button onclick="cmAddNote()" id="cmNoteBtn" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#374151;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;position:relative;">✎ Note/Log</button>'
         +'<button onclick="cmChatMenu()" id="cmChatBtn" style="flex:1 1 calc(50% - 6px);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;position:relative;">💬 Chat</button>'
-      +'</div>'
+      +'</div>')
       +'<div style="flex:1;overflow-y:auto;">'
+        +(missing&&(cmAmAdmin()||myUnit()===cmLeadUnit())?(function(){
+          var pendAll=[];
+          (STATE.calls||[]).forEach(function(c){ if(c.status!=='open'&&c.status!=='active') return; (c.pendingResponders||[]).forEach(function(r){ pendAll.push({call:c,r:r}); }); });
+          if(!pendAll.length) return '';
+          return '<div style="padding:10px 12px 4px;font-size:11px;font-weight:800;color:#f59e0b;text-transform:uppercase;letter-spacing:.05em;">⏳ Pending requests ('+pendAll.length+')</div><div>'
+            +pendAll.map(function(p){ var u=U(p.r.unit); var nm=p.r.name||''; return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(245,158,11,.08);"><span style="flex:1;min-width:0;font-size:12px;color:#fde68a;"><b style="color:#fbbf24;">BC-'+u+'</b> '+escapeHTML(nm)+' wants to respond'+(p.call.callNum?(' · #'+p.call.callNum):'')+'</span><button onclick="event.stopPropagation();cmApproveResp(\''+p.call.id+'\',\''+u+'\')" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:800;cursor:pointer;">✓</button><button onclick="event.stopPropagation();cmRejectResp(\''+p.call.id+'\',\''+u+'\')" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:800;cursor:pointer;">✕</button></div>'; }).join('')
+            +'</div>';
+        })():'')
         +'<div style="padding:10px 12px 4px;font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Roster ('+mem.length+')</div>'
-        +'<div>'+mem.map(function(mm){ var u=U(mm.unit); var col=_cmMemberColor(u,_cmLocs[u]); var lbl=col==='#22c55e'?'on call':col==='#eab308'?'idle':col==='#9ca3af'?'no signal':'lead';
-            return '<div onclick="cmFocusMember(\''+u+'\')" style="display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);"><span style="width:9px;height:9px;border-radius:50%;background:'+col+';flex-shrink:0;"></span><span style="font-weight:800;color:'+col+';">BC-'+u+'</span><span style="color:#94a3b8;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+escapeHTML(mm.name||'')+'</span><span style="color:#64748b;font-size:11px;flex-shrink:0;">'+lbl+'</span></div>';
+        +'<div>'+mem.map(function(mm){ var u=U(mm.unit); var col=_cmMemberColor(u,_cmLocs[u]); var lbl=col==='#22c55e'?'responding':col==='#9ca3af'?'no signal':'lead';
+            var cb=missing?('<input type="checkbox" onclick="event.stopPropagation();cmToggleBreadcrumb(\''+u+'\',this.checked)" '+(_cmBreadcrumbSel[u]?'checked':'')+' title="Show breadcrumb trail on map" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;">'):'';
+            var canRemove=(cmAmAdmin()||myUnit()===cmLeadUnit())&&u!==cmLeadUnit();
+            var rm=canRemove?('<button onclick="event.stopPropagation();cmRemoveMember(\''+u+'\')" title="Remove from roster" style="flex-shrink:0;background:none;border:none;color:#64748b;font-size:15px;font-weight:800;cursor:pointer;padding:0 2px;">✕</button>'):'';
+            return '<div onclick="cmFocusMember(\''+u+'\')" style="display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);">'+cb+'<span style="width:9px;height:9px;border-radius:50%;background:'+col+';flex-shrink:0;"></span><span style="font-weight:800;color:'+col+';">BC-'+u+'</span><span style="color:#94a3b8;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+escapeHTML(mm.name||'')+'</span><span style="color:#64748b;font-size:11px;flex-shrink:0;">'+lbl+'</span>'+rm+'</div>';
           }).join('')||'<div style="padding:12px;color:#64748b;font-size:12px;">No members yet — tap ＋ Members.</div>'+'</div>'
         +'<div style="padding:12px 12px 4px;font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Incident Log</div>'
         +'<div id="cmLogList"></div>'
@@ -914,7 +1076,7 @@
   function _cmMemberPopup(u){
     var mm=cmMembers().find(function(x){ return U(x.unit)===u; }); var loc=_cmLocs[u];
     var m=(STATE.members||[]).find(function(x){ return U(x.unit||x.id)===u; }); var phone=m&&m.phone?m.phone:'';
-    var status=u===cmLeadUnit()?'Command Lead':(!loc||(Date.now()-(loc.at||0))>CM_STALE_MS?'No recent signal':(_cmUnitOnCall(u)?'On an active call':'Idle / available'));
+    var status=u===cmLeadUnit()?'Command Lead':(!loc||(Date.now()-(loc.at||0))>CM_STALE_MS?'No recent signal':'Active — responding');
     var when=loc&&loc.at?new Date(loc.at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'—';
     // Calls this member is currently on (kick-off targets)
     var onCalls=(STATE.calls||[]).filter(function(c){ return (c.status==='open'||c.status==='active')&&(c.responders||[]).some(function(r){ return U(r.unit)===u; }); });
@@ -923,12 +1085,23 @@
     function _clbl(c){ var tl=cleanLabel?cleanLabel(CALL_TYPE_LABELS[c.type]||c.type||''):(c.type||''); var st=String(c.address||'').replace(/\s*—?\s*📍.*$/,'').split(',')[0].trim(); return '#'+(c.callNum||'')+' '+tl+(st?(' · '+st):''); }
     var onHtml=onCalls.map(function(c){ return '<div style="display:flex;align-items:center;gap:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:8px 10px;margin-bottom:6px;"><span style="flex:1;min-width:0;font-size:12px;font-weight:700;color:#166534;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHTML(_clbl(c))+'</span><button onclick="cmRemoveResp(\''+c.id+'\',\''+u+'\')" style="flex-shrink:0;background:#fee2e2;color:#b91c1c;border:none;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;">Remove</button></div>'; }).join('');
     var assignHtml=openCalls.slice(0,8).map(function(c){ var urg=c.priority==='urgent'; return '<div style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:8px 10px;margin-bottom:6px;"><span style="flex:1;min-width:0;font-size:12px;font-weight:700;color:'+(urg?'#b91c1c':'#334155')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(urg?'🔴 ':'')+escapeHTML(_clbl(c))+'</span><button onclick="cmAssignUnitToCall(\''+c.id+'\',\''+u+'\')" style="flex-shrink:0;background:#e0e7ff;color:#3730a3;border:none;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:800;cursor:pointer;">Assign</button></div>'; }).join('');
+    var stale=!loc||(Date.now()-(loc.at||0))>CM_STALE_MS;
     _cmSheet('BC-'+u+(mm&&mm.name?' · '+escapeHTML(mm.name):''),
       '<div style="font-size:13px;color:#374151;margin-bottom:4px;">'+status+'</div><div style="font-size:12px;color:#6b7280;margin-bottom:14px;">Last update: '+when+'</div>'
+      +((stale&&u!==cmLeadUnit())?'<button onclick="cmNudgeMember(\''+u+'\')" style="width:100%;background:#b45309;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;margin-bottom:12px;cursor:pointer;">📍 Nudge to resume GPS</button>':'')
       +(phone?'<div style="display:flex;gap:8px;margin-bottom:16px;"><a href="tel:'+phone+'" style="flex:1;text-align:center;background:#065f46;color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:800;">📞 Call</a><a href="sms:'+phone+'" style="flex:1;text-align:center;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:10px;padding:12px;font-weight:800;">💬 Text</a></div>':'<div style="color:#9ca3af;font-size:12px;margin-bottom:16px;">No phone on file</div>')
       +(onHtml?'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">On call — tap to remove</div>'+onHtml:'')
       +'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin:12px 0 6px;">Assign to call</div>'
       +(assignHtml||'<div style="color:#9ca3af;font-size:12px;">No open calls to assign.</div>'));
+  }
+  // Push a member to reopen the app so their GPS stream (watchPosition + wake lock) resumes.
+  function cmNudgeMember(u){
+    u=U(u);
+    try{
+      sendPush({ target:'unit', unit:u, title:(cmIsMissing()?'🔍 Search':'🎖️ Command')+' — check in', body:'Reopen the app to resume sharing your location. Tip: send 2 members per call — one keeps this app open (screen won\'t lock while it\'s open), the other navigates.', url:'/cobc-dispatch/', urgent:false });
+      _cmAddLog('📍 Nudged BC-'+u+' to resume GPS by BC-'+myUnit(),'roster');
+      showToast('Nudge sent to BC-'+u);
+    }catch(e){ showToast('Could not send nudge'); }
   }
   function _cmCallPopup(id){
     var c=(STATE.calls||[]).find(function(x){ return x.id===id; }); if(!c) return;
@@ -1004,7 +1177,7 @@
     return best;
   }
   function cmAssignNearest(callId){
-    var n=_cmNearestIdle(callId); if(!n){ showToast('No idle unit to assign'); return; }
+    var n=_cmNearestIdle(callId); if(!n){ showToast('No available unit to assign'); return; }
     var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return;
     var m=(STATE.members||[]).find(function(x){ return U(x.unit||x.id)===n.unit; });
     c.responders=c.responders||[]; if(c.responders.some(function(r){ return U(r.unit)===n.unit; })){ showToast('BC-'+n.unit+' already on this call'); var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); return; }
@@ -1041,8 +1214,8 @@
   function _cmRaise(id){ var m=document.getElementById(id); if(m){ m.style.zIndex='9800'; } return m; }
   function cmNewCall(){ _cmRaise('newCallModal'); try{ if(typeof showModal==='function') showModal('newCallModal'); else { var m=document.getElementById('newCallModal'); if(m) m.classList.remove('hidden'); } }catch(e){ showToast('New call unavailable'); } }
   function cmAssignMember(callId){ var s=document.getElementById('cmSheet'); if(s) s.remove(); _cmRaise('radioModal'); try{ if(typeof openRadioModal==='function'){ openRadioModal(callId); } else { showToast('Assign unavailable'); } }catch(e){ showToast('Assign unavailable'); } }
-  function cmApproveResp(callId,unit){ try{ if(typeof approveResponder==='function') approveResponder(callId,U(unit)); }catch(e){} _cmAddLog('✔️ Approved BC-'+U(unit)+' on call by BC-'+myUnit(),'assign'); setTimeout(function(){ _cmRenderCallRows(); if(document.getElementById('cmSheet')) _cmCallPopup(callId); },350); }
-  function cmRejectResp(callId,unit){ try{ if(typeof rejectResponder==='function') rejectResponder(callId,U(unit)); }catch(e){} _cmAddLog('✖️ Rejected BC-'+U(unit)+' on call by BC-'+myUnit(),'assign'); setTimeout(function(){ _cmRenderCallRows(); if(document.getElementById('cmSheet')) _cmCallPopup(callId); },350); }
+  function cmApproveResp(callId,unit){ try{ if(typeof approveResponder==='function') approveResponder(callId,U(unit)); }catch(e){} _cmAddLog('✔️ Approved BC-'+U(unit)+' on call by BC-'+myUnit(),'assign'); setTimeout(function(){ _cmRenderCallRows(); _cmBuildSidebar(); if(document.getElementById('cmSheet')) _cmCallPopup(callId); },350); }
+  function cmRejectResp(callId,unit){ try{ if(typeof rejectResponder==='function') rejectResponder(callId,U(unit)); }catch(e){} _cmAddLog('✖️ Rejected BC-'+U(unit)+' on call by BC-'+myUnit(),'assign'); setTimeout(function(){ _cmRenderCallRows(); _cmBuildSidebar(); if(document.getElementById('cmSheet')) _cmCallPopup(callId); },350); }
 
   // ── Add members mid-op (click-to-toggle, robust) ────────────────────────────
   function cmAddMembers(){
@@ -1256,16 +1429,68 @@
     _cmSheet('📄 '+escapeHTML(v.title||'Incident'), body);
   }
   function cmCallResp(u){ var m=(STATE.members||[]).find(function(x){ return U(x.unit||x.id)===U(u); }); var ph=m&&m.phone?m.phone:''; if(!ph){ showToast('No phone on file for BC-'+U(u)); return; } try{ window.location.href='tel:'+ph; }catch(e){} }
-  function cmRemoveResp(callId,u){ u=U(u); var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return; var r=(c.responders||[]).find(function(x){ return U(x.unit)===u; }); var nm=r&&r.name?(' '+r.name):''; if(!confirm('Take BC-'+u+nm+' off this call?\n\nThey will be notified not to respond.')) return; try{ if(typeof removeApprovedResponder==='function'){ removeApprovedResponder(callId,u); } else { c.responders=(c.responders||[]).filter(function(x){ return U(x.unit)!==u; }); try{ db().collection('calls').doc(String(callId)).update({ responders:c.responders }); }catch(e){} if(typeof save==='function') save(); } }catch(e){}
+  function cmRemoveResp(callId,u){ u=U(u); var c=(STATE.calls||[]).find(function(x){ return x.id===callId; }); if(!c) return; var r=(c.responders||[]).find(function(x){ return U(x.unit)===u; }); var nm=r&&r.name?(' '+r.name):''; if(!confirm('Take BC-'+u+nm+' off this call?\n\nThey will be notified not to respond.')) return; if(cmIsActive()) _cmAutoRemoved[callId+'|'+u]=1; try{ if(typeof removeApprovedResponder==='function'){ removeApprovedResponder(callId,u); } else { c.responders=(c.responders||[]).filter(function(x){ return U(x.unit)!==u; }); try{ db().collection('calls').doc(String(callId)).update({ responders:c.responders }); }catch(e){} if(typeof save==='function') save(); } }catch(e){}
     _cmAddLog('➖ BC-'+u+' taken off call '+(c.callNum?('#'+c.callNum):'')+' by BC-'+myUnit(),'assign');
     setTimeout(function(){ if(document.getElementById('cmSheet')) _cmCallPopup(callId); _cmRenderCallRows(); },350); }
   function cmHistDelete(i){ var v=_cmHist[i]; if(!v||!v._id) return; if(!(cmAmAdmin()||myUnit()===U(v.leadUnit||''))){ showToast('Only an admin or the op lead can delete a log'); return; } if(!confirm('⚠️ Delete this log permanently?\n\n“'+((v.title||'Incident'))+'”\n\nThis removes the full report, notes, and activity log from Command Operation Logs for everyone. This cannot be undone.')) return; try{ db().collection('commandHistory').doc(v._id).delete().then(function(){ _cmHist.splice(i,1); showToast('🗑️ Log deleted'); openCommandLogs(); }).catch(function(e){ showToast('Delete failed — '+((e&&e.code)||'error')); }); }catch(e){ showToast('Delete failed'); } }
   function cmHistWhatsApp(i){ var v=_cmHist[i]; if(!v) return; var txt=_cmHistText(v); try{ sendWA({ target:'all', message:txt }); showToast('📱 Sent'); }catch(e){ try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }catch(_){} } }
+  // Remove a member from the roster entirely — also strips them off any open/active
+  // call's responders (undoing the auto-sync) so they drop off the call card too.
+  function cmRemoveMember(u){
+    u=U(u);
+    if(!(cmAmAdmin()||myUnit()===cmLeadUnit())){ showToast('Only an admin or the op lead can remove members'); return; }
+    if(u===cmLeadUnit()){ showToast('Lead can\'t be removed — end the op instead'); return; }
+    if(!confirm('Remove BC-'+u+' from the roster?\n\nThey will also be taken off any open/active call they were added to through this op.')) return;
+    var members=cmMembers().filter(function(m){ return U(m.unit)!==u; });
+    db().collection('config').doc('commandMode').update({ members:members }).then(function(){
+      if(_cmState) _cmState.members=members;
+      (STATE.calls||[]).forEach(function(c){
+        if(c.status!=='open'&&c.status!=='active') return;
+        if(!(c.responders||[]).some(function(r){ return U(r.unit)===u; })) return;
+        _cmAutoRemoved[c.id+'|'+u]=1;
+        c.responders=(c.responders||[]).filter(function(r){ return U(r.unit)!==u; });
+        try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
+      });
+      try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
+      if(_cmMarkers[u]){ _cmMarkers[u].setMap(null); delete _cmMarkers[u]; }
+      if(_cmTrails[u]){ _cmTrails[u].setMap(null); delete _cmTrails[u]; }
+      showToast('BC-'+u+' removed from roster');
+      var sh=document.getElementById('cmSheet'); if(sh) sh.remove();
+      _cmRefreshView();
+    }).catch(function(){ showToast('Failed to remove'); });
+  }
+  function cmToggleBreadcrumb(u,checked){ _cmBreadcrumbSel[U(u)]=!!checked; _cmRefreshView(); }
+  // Called from index.html whenever a dispatcher/member adds someone as a responder
+  // on a call (approve, radio, retro, urgent auto-approve) — keeps the missing-person
+  // roster in sync so anyone actually on the call is also tracked/sharing location.
+  function cmSyncMember(unit,name,phone){
+    try{
+      if(!cmIsActive()||!cmIsMissing()) return;
+      var u=U(unit); if(!u) return;
+      if(cmMembers().some(function(m){ return U(m.unit)===u; })) return;
+      var members=cmMembers().concat([{unit:u,name:name||''}]);
+      db().collection('config').doc('commandMode').update({ members:members }).then(function(){
+        if(_cmState) _cmState.members=members;
+        showToast('BC-'+u+' added to missing-person roster');
+      }).catch(function(){});
+    }catch(e){}
+  }
+  function cmRosterBadgesHTML(){
+    if(!cmIsActive()) return '';
+    var mem=cmMembers(); if(!mem.length) return '';
+    var lead=cmLeadUnit();
+    var pills=mem.map(function(mm){
+      var u=U(mm.unit); var loc=_cmLocs[u]; var stale=!loc||(Date.now()-(loc.at||0))>CM_STALE_MS;
+      var isLead=u===lead; var color=isLead?'#3b82f6':(stale?'#9ca3af':'#22c55e'); var label=isLead?'lead':(stale?'no signal':'responding');
+      return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+color+';color:#fff;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:800;white-space:nowrap;flex:0 0 auto;">BC-'+u+'<span style="font-weight:600;font-size:9.5px;opacity:.9;">'+label+'</span></span>';
+    }).join('');
+    return '<div style="display:flex;flex-wrap:nowrap;align-items:center;gap:5px;margin:1px 0 5px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;"><span style="font-size:10px;font-weight:800;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.05em;flex:0 0 auto;">'+(cmIsMissing()?'🔍':'🎖️')+' On this call</span>'+pills+'</div>';
+  }
   function cmHistEmail(i){ var v=_cmHist[i]; if(!v) return; var txt=_cmHistText(v); try{ window.location.href='mailto:?subject='+encodeURIComponent(v.title||'Incident Report')+'&body='+encodeURIComponent(txt); }catch(e){} }
 
   Object.assign(window, {
     initCommandMode:initCommandMode, openCommandModeAdmin:openCommandModeAdmin, openMissingPersonAdmin:openMissingPersonAdmin,
-    openCommandView:openCommandView, closeCommandView:closeCommandView, cmToggleMapExpand:cmToggleMapExpand, cmMemberSignOut:cmMemberSignOut, cmMemberChat:cmMemberChat, cmMemberChatTab:cmMemberChatTab, cmMemberChatSend:cmMemberChatSend,
+    openCommandView:openCommandView, closeCommandView:closeCommandView, cmToggleMapExpand:cmToggleMapExpand, cmMemberSignOut:cmMemberSignOut, cmMemberChat:cmMemberChat, cmMemberChatTab:cmMemberChatTab, cmMissingInfo:cmMissingInfo, cmMemberChatPhoto:cmMemberChatPhoto, cmMemberChatSend:cmMemberChatSend,
     cmSetLinkMode:cmSetLinkMode, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
     cmFilterSetup:cmFilterSetup, cmAddMembers:cmAddMembers, cmFilterAdd:cmFilterAdd, cmConfirmAdd:cmConfirmAdd,
     cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAssignUnitToCall:cmAssignUnitToCall, cmAssignMember:cmAssignMember, cmApproveResp:cmApproveResp, cmRejectResp:cmRejectResp, cmBroadcast:cmBroadcast,
@@ -1275,7 +1500,8 @@
     cmManageViewers:cmManageViewers, cmFilterViewers:cmFilterViewers, cmConfirmViewers:cmConfirmViewers, cmRemoveViewer:cmRemoveViewer,
     cmNewCall:cmNewCall,
     cmReportWhatsApp:cmReportWhatsApp, cmReportEmail:cmReportEmail, cmReportSave:cmReportSave, cmReportEndConfirm:cmReportEndConfirm,
-    openCommandLogs:openCommandLogs, cmOpenLog:cmOpenLog, cmArchTab:cmArchTab, cmHistWhatsApp:cmHistWhatsApp, cmHistEmail:cmHistEmail, cmHistDelete:cmHistDelete, cmLogExternal:cmLogExternal, cmExternalComplete:cmExternalComplete
+    openCommandLogs:openCommandLogs, cmOpenLog:cmOpenLog, cmArchTab:cmArchTab, cmHistWhatsApp:cmHistWhatsApp, cmHistEmail:cmHistEmail, cmHistDelete:cmHistDelete, cmLogExternal:cmLogExternal, cmExternalComplete:cmExternalComplete,
+    cmToggleBreadcrumb:cmToggleBreadcrumb, cmRosterBadgesHTML:cmRosterBadgesHTML, cmIsActive:cmIsActive, cmSyncMember:cmSyncMember, cmRemoveMember:cmRemoveMember, cmNudgeMember:cmNudgeMember, cmToggleWakeLock:cmToggleWakeLock
   });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(initCommandMode,1200); });
   else setTimeout(initCommandMode,1200);

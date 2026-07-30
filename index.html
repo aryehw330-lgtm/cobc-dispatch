@@ -7920,6 +7920,7 @@ function callCardHTML(call, mini=false) {
         ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:0 13px 0 0;margin:2px 0 4px;">${_respNumBadges(call)?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">${_respNumBadges(call)}</div>`:`<span></span>`}${etaWrap}</div>
+      ${(typeof cmRosterBadgesHTML==='function')?cmRosterBadgesHTML():''}
       ${cornerMeta}
       ${(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();dialWithName('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
     </div>`;
@@ -9024,7 +9025,8 @@ function confirmRespond() {
   const isObserver=SESSION.role==='observer';
 
   // 🚨 URGENT calls: skip approval queue — auto-approve member responders
-  if(call.priority==='urgent' && !isObserver) {
+  // (Missing Person searches always require dispatch approval, even when urgent.)
+  if(call.priority==='urgent' && !isObserver && call.type!=='missing_person') {
     call.responders=call.responders||[];
     if(!call.responders.find(r=>String(r.unit)===String(SESSION.unit))) {
       call.responders.push({
@@ -9032,6 +9034,7 @@ function confirmRespond() {
         isObserver:false,time:Date.now(),status:'approved',
         approvedBy:'AUTO (urgent)',approvedAt:Date.now(),autoApproved:true
       });
+      try{ if(typeof cmSyncMember==='function') cmSyncMember(SESSION.unit,SESSION.name,SESSION.phone); }catch(e){}
       if(call.status==='open') { call.status='active'; call.activatedAt=call.activatedAt||Date.now(); }
       logCallEvent(call, 'auto_approved', {responder:SESSION.unit, eta, urgent:true});
     }
@@ -9338,6 +9341,7 @@ function _doApproveResponder(callId, unit, call, req) {
   call.responders=call.responders||[];
   const _approvedEntry = {...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
   call.responders.push(_approvedEntry);
+  try{ if(typeof cmSyncMember==='function') cmSyncMember(unit,req.name,req.phone); }catch(e){}
   if(!call.callNum) call.callNum = _nextCallNum();
   call.status='active';
   call.activatedAt=call.activatedAt||Date.now();
@@ -9659,6 +9663,7 @@ async function submitRadioResponders() {
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
       const _entry={unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:'radio',status:'approved',time:Date.now()};
       call.responders.push(_entry); _radioAdded.push(_entry);
+      try{ if(typeof cmSyncMember==='function') cmSyncMember(m.unit,_entry.name,m.phone); }catch(e){}
     }
   });
   if(!call.callNum) call.callNum = _nextCallNum();
@@ -10375,6 +10380,7 @@ function confirmWhoResponded(id){
     const m=(STATE.members||[]).find(x=>String(x.unit||'').replace(/^BC-?/i,'').trim()===u);
     const nm=m?((m.first||m.firstName||'')+' '+(m.last||m.lastName||'')).trim():'';
     call.responders.push({unit:u, name:nm, phone:(m&&m.phone)||'', eta:'', via:'retro', status:'approved', time:Date.now()});
+    try{ if(typeof cmSyncMember==='function') cmSyncMember(u,nm,m&&m.phone); }catch(e){}
   });
   const modal=document.getElementById('whoRespondedModal'); if(modal) modal.remove();
   // Proceed to the normal complete modal
