@@ -48,7 +48,10 @@
   function cmAmAdmin(){ return typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin'; }
   function cmAmDispatcher(){ return typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='dispatch'; }
   function cmAmOnDuty(){ try{ return (_onDutyDispatchUnits()||[]).map(U).indexOf(myUnit())>=0; }catch(e){ return false; } }
-  function cmCanView(){ return cmIsActive()&&(cmAmAdmin()||cmAmDispatcher()||myUnit()===cmLeadUnit()||cmAmOnDuty()||cmIsViewer()); }
+  // Missing Person: admins AND on-duty dispatchers get automatic staff access (off-duty
+  // dispatchers still need the roster). Command Mode: any admin or dispatcher, on-duty or not.
+  function _cmAutoStaff(){ return cmIsMissing()?(cmAmAdmin()||cmAmOnDuty()):(cmAmAdmin()||cmAmDispatcher()); }
+  function cmCanView(){ return cmIsActive()&&(_cmAutoStaff()||myUnit()===cmLeadUnit()||cmIsMember()||cmIsViewer()); }
 
   // ── Init ──────────────────────────────────────────────────────────────────
   function initCommandMode(){
@@ -65,6 +68,7 @@
     if(shouldShare) _cmStartShare(); else _cmStopShare();
     if(cmIsActive()) _cmAttachLive(); else _cmDetachLive();
     if(cmIsActive()&&cmIsMissing()&&myUnit()===cmLeadUnit()) _cmStartAutoNudge(); else _cmStopAutoNudge();
+    if(cmIsActive()&&myUnit()===cmLeadUnit()) _cmStartDispatchSync(); else _cmStopDispatchSync();
     _cmRenderBanner(); _cmSyncSettingsButton(); _cmSyncCommsButton();
     if(document.getElementById('cmOverlay')){ if(!cmCanView()) closeCommandView(); else _cmRefreshView(); }
   }
@@ -86,6 +90,27 @@
       _cmLastNudge[u]=now;
       try{ sendPush({ target:'unit', unit:u, title:'🔍 Search — check in', body:'Reopen the app to resume sharing your location. Tip: send 2 members per call — one keeps this app open (screen won\'t lock while it\'s open), the other navigates.', url:'/cobc-dispatch/', urgent:false }); _cmAddLog('📍 Auto-nudged BC-'+u+' (no signal '+Math.round(staleFor/60000)+'m)','roster'); }catch(e){}
     });
+  }
+  // ── Dispatcher shift-change sync: as new dispatchers come on duty during an active op,
+  // add them to the roster too — old dispatchers/members already on it are NEVER removed,
+  // this only appends anyone newly on-duty who isn't already there. Runs on the lead's device.
+  var _cmDispatchSyncTimer=null;
+  function _cmStartDispatchSync(){ if(_cmDispatchSyncTimer) return; _cmDispatchSyncTimer=setInterval(_cmDispatchSyncTick,5*60*1000); }
+  function _cmStopDispatchSync(){ if(_cmDispatchSyncTimer){ clearInterval(_cmDispatchSyncTimer); _cmDispatchSyncTimer=null; } }
+  function _cmDispatchSyncTick(){
+    if(!cmIsActive()||myUnit()!==cmLeadUnit()) return;
+    try{
+      var onDuty=(_onDutyDispatchUnits()||[]).map(U);
+      var have={}; cmMembers().forEach(function(m){ have[U(m.unit)]=1; });
+      var toAdd=onDuty.filter(function(u){ return u&&!have[u]; });
+      if(!toAdd.length) return;
+      var mem=(STATE.members||[]);
+      var members=cmMembers().concat(toAdd.map(function(u){ var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); return { unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'' }; }));
+      db().collection('config').doc('commandMode').update({ members:members }).then(function(){
+        if(_cmState) _cmState.members=members;
+        _cmAddLog('👥 Added incoming on-duty dispatcher(s) to roster: '+toAdd.map(function(u){ return 'BC-'+u; }).join(', '),'roster');
+      }).catch(function(){});
+    }catch(e){}
   }
   function _cmAttachLive(){
     if(!_cmUnsub.locs){
@@ -156,20 +181,22 @@
 
   // ── Member banner ──────────────────────────────────────────────────────────
   function _cmRenderBanner(){
-    var iAmStaff=cmAmAdmin()||cmAmDispatcher();
-    var amMember=cmIsMember()||iAmStaff;
+    var iAmStaff=_cmAutoStaff();
+    // Banners + Join Chat are only for roster members/lead, or staff (admin/dispatcher)
+    // who get it automatically — a plain viewer/watcher who is neither gets nothing.
+    var amMember=cmIsMember()||myUnit()===cmLeadUnit()||iAmStaff;
     var amWatcherOnly=!amMember&&cmIsViewer();
     var show=cmIsActive()&&(amMember||amWatcherOnly)&&!document.getElementById('cmOverlay');
     var el=document.getElementById('cmMemberBanner');
     if(!show){ if(el) el.remove(); return; }
     if(!el){ el=document.createElement('div'); el.id='cmMemberBanner';
-      el.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9600;background:linear-gradient(90deg,#7f1d1d,#b91c1c);color:#fff;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+      el.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9600;background:linear-gradient(90deg,#7f1d1d,#b91c1c);color:#fff;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:700;box-shadow:0 -2px 8px rgba(0,0,0,.3);padding-bottom:calc(8px + env(safe-area-inset-bottom));';
       document.body.appendChild(el);
     }
     if(amWatcherOnly){
       el.style.background='linear-gradient(90deg,#1e3a5f,#0e7490)';
       el.innerHTML='<span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:#93c5fd;box-shadow:0 0 0 3px rgba(147,197,253,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(cmIsMissing()?'Watching the Missing Person search':'Watching Command Mode')+'</span></span>'
-        +'<button onclick="openCommandView()" style="background:#fff;color:#0e7490;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">👁 Watch Map</button>';
+        +'<button onclick="openCommandView()" style="background:#fff;color:#0e7490;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">🗺️ Open Map</button>';
       if(!document.getElementById('cmPulseStyle')){ var s0=document.createElement('style'); s0.id='cmPulseStyle'; s0.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'
         +'@keyframes cmSlideDown{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}'
         +'@keyframes cmGrad{0%{background-position:0% 50%}100%{background-position:200% 50%}}'
@@ -181,7 +208,7 @@
     var label=cmIsMissing()?'Missing Person search active':'Command Mode active';
     var wlOn=_cmWakeLockPref();
     el.innerHTML='<span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:#fca5a5;box-shadow:0 0 0 3px rgba(252,165,165,.35);flex-shrink:0;animation:cmPulse 1.6s infinite;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+' — sharing your location</span></span>'
-      +'<span style="display:flex;gap:8px;align-items:center;flex-shrink:0;"><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;"><span style="position:relative;width:32px;height:18px;flex-shrink:0;"><input type="checkbox" onchange="cmToggleWakeLock(this.checked)" '+(wlOn?'checked':'')+' style="opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1;"><span style="position:absolute;inset:0;background:'+(wlOn?'#22c55e':'rgba(255,255,255,.25)')+';border-radius:10px;transition:background .15s;"></span><span style="position:absolute;top:2px;left:'+(wlOn?'16px':'2px')+';width:14px;height:14px;background:#fff;border-radius:50%;transition:left .15s;"></span></span>Screen awake</label><button onclick="cmMemberChat()" id="cmBannerChatBtn" style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">💬 Join Chat</button><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
+      +'<span style="display:flex;gap:8px;align-items:center;flex-shrink:0;"><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;"><span style="position:relative;width:32px;height:18px;flex-shrink:0;"><input type="checkbox" onchange="cmToggleWakeLock(this.checked)" '+(wlOn?'checked':'')+' style="opacity:0;position:absolute;inset:0;margin:0;cursor:pointer;z-index:1;"><span style="position:absolute;inset:0;background:'+(wlOn?'#22c55e':'rgba(255,255,255,.25)')+';border-radius:10px;transition:background .15s;"></span><span style="position:absolute;top:2px;left:'+(wlOn?'16px':'2px')+';width:14px;height:14px;background:#fff;border-radius:50%;transition:left .15s;"></span></span>Screen awake</label><button onclick="cmMemberSignOut()" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;">Sign out</button></span>';
     if(!document.getElementById('cmPulseStyle')){ var s=document.createElement('style'); s.id='cmPulseStyle'; s.textContent='@keyframes cmPulse{0%,100%{opacity:1}50%{opacity:.35}}'
       +'@keyframes cmSlideDown{from{transform:translateY(-16px);opacity:0}to{transform:translateY(0);opacity:1}}'
       +'@keyframes cmGrad{0%{background-position:0% 50%}100%{background-position:200% 50%}}'
@@ -243,16 +270,21 @@
   }
   // Chat button pinned to the top of the Open Calls / Dispatch tabs during an active op.
   function _cmSyncCommsButton(){
-    var on=cmIsActive(); var all=_cmCanSeeAllChats();
-    // Missing-person op: the top button opens the subject info sheet (the banner above already has Join Chat).
-    // Command op: keep the chat shortcut.
+    // This row (context button + Join Chat) is only for roster members/lead, or staff
+    // (admin/dispatcher) who get it automatically regardless of roster — not plain on-duty
+    // units who merely happen to have view access.
+    var iAmEligible=cmIsMember()||myUnit()===cmLeadUnit()||_cmAutoStaff();
+    var on=cmIsActive()&&iAmEligible; var all=_cmCanSeeAllChats();
     var html='';
     if(on){
+      var leftBtn='';
       if(cmIsMissing()){
-        html='<button onclick="cmMissingInfo()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#7f1d1d,#b91c1c);color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 3px 12px rgba(185,28,28,.3);font-family:inherit;">🔍 Missing Person Info</button>';
-      } else {
-        html='<button class="cmChatTopBtn" onclick="cmMemberChat()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 3px 12px rgba(37,99,235,.3);font-family:inherit;">💬 Command Chat'+(all?' · Dispatch·Members·Notes':'')+'</button>';
+        leftBtn='<button onclick="cmMissingInfo()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#7f1d1d,#b91c1c);color:#fff;border:none;border-radius:12px;padding:12px 8px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(185,28,28,.3);font-family:inherit;">🔍 Missing Person Info</button>';
+      } else if(cmCanView()){
+        leftBtn='<button onclick="openCommandView()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#374151,#1f2937);color:#fff;border:none;border-radius:12px;padding:12px 8px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(31,41,55,.3);font-family:inherit;">🗺️ Open Map</button>';
       }
+      var joinBtn='<button class="cmChatTopBtn" onclick="cmMemberChat()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border:none;border-radius:12px;padding:12px 8px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(37,99,235,.3);font-family:inherit;">💬 Join Chat'+(all?' · D·M·N':'')+'</button>';
+      html='<div style="display:flex;gap:8px;margin-bottom:12px;">'+leftBtn+joinBtn+'</div>';
     }
     ['cmChatMountHome','cmChatMountDispatch'].forEach(function(id){ var el=document.getElementById(id); if(!el) return; el.innerHTML=html; el.style.display=on?'block':'none'; });
   }
@@ -408,6 +440,11 @@
     var mem=(STATE.members||[]);
     var members=Object.keys(_cmPick).map(function(u){ var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); return { unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'' }; });
     var me=myUnit();
+    // Auto-add the leader + every on-duty dispatcher to the roster at start.
+    var seen={}; members.forEach(function(m){ seen[U(m.unit)]=1; });
+    function addAuto(u){ u=U(u); if(!u||seen[u]) return; seen[u]=1; var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); members.push({ unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'' }); }
+    addAuto(me);
+    try{ (_onDutyDispatchUnits()||[]).forEach(addAuto); }catch(e){}
     var payload={ active:true, type:type, startedBy:me, startedByName:(SESSION&&SESSION.name)||'', leadUnit:me, leadName:(SESSION&&SESSION.name)||'', startedAt:Date.now(), members:members, sectors:[], grid:[], linkedCallId:null, subject:null, endedAt:null };
     if(type==='missing'){
       payload.subject={
@@ -538,8 +575,8 @@
     if(hasDispatch||hasMembers||hasNote){ document.querySelectorAll('.cmChatTopBtn').forEach(function(b){ b.classList.add('cmCommsPulse'); }); }
     // Animate the member banner's Join Chat button + drop a banner alert
     var last=fresh[fresh.length-1];
-    if(hasMembers){ _cmCommsBanner('💬 New member chat', last.text||'', 'members'); _cmPulse('cmBannerChatBtn'); }
-    if(hasDispatch && _cmIsDispatchOrAdmin()){ _cmCommsBanner('💬 Dispatch chat', last.text||'', 'dispatch'); _cmPulse('cmBannerChatBtn'); }
+    if(hasMembers){ _cmCommsBanner('💬 New member chat', 'BC-'+U(last.by)+': '+(last.text||''), 'members'); _cmPulse('cmBannerChatBtn'); }
+    if(hasDispatch && _cmIsDispatchOrAdmin()){ _cmCommsBanner('💬 Dispatch chat', 'BC-'+U(last.by)+': '+(last.text||''), 'dispatch'); _cmPulse('cmBannerChatBtn'); }
   }
   function _cmPulse(id){ var el=document.getElementById(id); if(!el) return; el.classList.add('cmCommsPulse'); }
   function _cmClearPulse(id){ var el=document.getElementById(id); if(el) el.classList.remove('cmCommsPulse'); }
