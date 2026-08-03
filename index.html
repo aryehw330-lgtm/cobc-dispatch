@@ -18510,10 +18510,14 @@ function _subscribeCarScheduleFromFirestore_DISABLED() {
   } catch(e) { console.warn('subscribeCarScheduleFromFirestore:', e); window._carSchedSubActive = false; }
 }
 
-// Auto-cancel bookings whose shift window has passed without the car being taken out.
-// Runs on schedule load and every 5 minutes while the Car tab is open.
+// Disabled — the server already auto-cancels expired pending/approved rows on every
+// schedule read (autoCancelExpiredShifts in Apps Script), matching the Equipment app,
+// which has no client-side auto-expire at all. Running a second, independent
+// cancellation path here could race with the server's own and was unnecessary
+// complexity. Kept as a no-op so any stray call site doesn't throw.
 var _autoExpireTimer = null;
-function autoExpireCarShifts() {
+function autoExpireCarShifts() { return; }
+function _autoExpireCarShifts_DISABLED() {
   var now = new Date();
   var expired = carSchedule.filter(function(b) {
     if (b.status !== 'approved' && b.status !== 'pending') return false;
