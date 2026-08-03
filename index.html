@@ -10820,6 +10820,7 @@ async function openAddressPreview(call) {
   const addr = _stripCoordSuffix(rawAddr);            // display: name/street, no coord suffix
   const navTarget = navQuery(rawAddr, town);          // nav: exact coords if embedded, else text
   const enc = encodeURIComponent(navTarget);
+  const isCoordTarget = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(navTarget.trim());
   const key = window.MAPS_API_KEY || '';
 
   let ov = document.getElementById('addrPreviewModal');
@@ -10863,7 +10864,7 @@ async function openAddressPreview(call) {
       <div style="background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.6);border-radius:14px;overflow:hidden;">
         <a href="https://maps.apple.com/?daddr=${enc}&dirflg=d" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;border-bottom:1px solid #e6e6e8;">Maps</a>
         <a href="https://www.google.com/maps/dir/?api=1&destination=${enc}&travelmode=driving" target="_blank" rel="noopener" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;border-bottom:1px solid #e6e6e8;">Google Maps</a>
-        <a id="__ap_waze" href="https://waze.com/ul?q=${enc}&navigate=yes" target="_blank" rel="noopener" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;">Waze</a>
+        <a id="__ap_waze" href="https://waze.com/ul?${isCoordTarget?'ll='+navTarget.trim():'q='+enc}&navigate=yes" target="_blank" rel="noopener" style="display:block;padding:16px;font-size:17px;color:#111;text-decoration:none;">Waze</a>
       </div>
     </div>`;
 
@@ -11347,7 +11348,7 @@ function openMaps(addr) {
   const enc=encodeURIComponent(q);
   const isCoords=/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(q.trim());
   // Waze's q= param is a text search and often fails to resolve raw "lat,lng" — coordinates need ll=.
-  const wazeUrl=isCoords?('https://waze.com/ul?ll='+enc+'&navigate=yes'):('https://waze.com/ul?q='+enc+'&navigate=yes');
+  const wazeUrl=isCoords?('https://waze.com/ul?ll='+q.trim()+'&navigate=yes'):('https://waze.com/ul?q='+enc+'&navigate=yes');
   const gmapsUrl='https://maps.google.com/?q='+enc;
   const amapsUrl='https://maps.apple.com/?daddr='+enc+'&dirflg=d';
   // Show choice bottom sheet
