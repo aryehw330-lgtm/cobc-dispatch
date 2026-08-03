@@ -4240,7 +4240,6 @@ function sheetGET(params={}){
 // (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
 function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...body, authToken: window._fbIdToken||undefined})}).then(r=>r.json()).then(res=>{
   try{_mirrorMemberWrite(body,res);}catch(e){}
-  try{_mirrorCarShiftWrite(body,res);}catch(e){}
   // App-level failure: the Sheet responded 200 but reports it did NOT save. Surface it
   // (no more silent lost records) and queue idempotent writes for retry. Only treat an
   // EXPLICIT failure as failure — responses that simply omit `success` are left alone.
@@ -18426,14 +18425,15 @@ function renderCarItemStatus() {
 }
 
 function loadCarSchedule(cb, forceFetch) {
-  // Real-time Firestore listener (subscribeCarScheduleFromFirestore) is the source of
-  // truth now — no more Sheet polling/cache/staleness races. This just ensures the
-  // listener is running (idempotent) and shows whatever cache we have instantly.
+  // Direct Sheet polling — matches the production Equipment app exactly. It reads the
+  // Sheet fresh every time with no separate cache layer to drift out of sync (the
+  // Firestore mirror this used to read from could silently disagree with the Sheet —
+  // the app would show a slot as free while the Sheet still held a row blocking it).
   try {
     var raw = localStorage.getItem(CAR_SCHED_CACHE_KEY);
     if (raw) {
       var cache = JSON.parse(raw);
-      if (cache.bookings && !carSchedule.length) {
+      if (cache.bookings) {
         carSchedule = cache.bookings;
         autoExpireCarShifts();
         renderCarCalendar();
@@ -18441,13 +18441,49 @@ function loadCarSchedule(cb, forceFetch) {
         renderCarItemStatus();
         if (carSelectedDate) renderCarDay(carSelectedDate);
         updateGlobalShiftBanner();
+        if (!forceFetch && (Date.now() - (cache.savedAt||0)) < CAR_SCHED_CACHE_TTL) { if (cb) cb(); return; }
       }
     }
   } catch(e) {}
-  try { subscribeCarScheduleFromFirestore(); } catch(e) { console.warn('subscribeCarSchedule:', e); }
-  if (cb) cb();
+  if (_carSchedInFlight) { if (cb) cb(); return; }
+  _carSchedInFlight = true;
+  sheetGET({action:'getCarSchedule'})
+    .then(function(d) {
+      var freshBookings = d.bookings || [];
+      if (!freshBookings.length && carSchedule && carSchedule.length && (window._pendingStartShiftId || window._pendingEndShiftId)) {
+        _carSchedInFlight = false; if (cb) cb();
+        return;
+      }
+      var _pendId = window._pendingStartShiftId || window._pendingEndShiftId;
+      if (_pendId && carSchedule && carSchedule.length) {
+        var _localPending = carSchedule.find(function(b){ return b.id===_pendId; });
+        var _stillThere = freshBookings.some(function(b){ return b.id===_pendId; });
+        if (_localPending && !_stillThere) freshBookings = freshBookings.concat([_localPending]);
+      }
+      carSchedule = freshBookings;
+      try { localStorage.setItem(CAR_SCHED_CACHE_KEY, JSON.stringify({bookings: carSchedule, savedAt: Date.now()})); } catch(e) {}
+      if (SESSION && SESSION.unit) {
+        var me = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'') === String(SESSION.unit); });
+        if (me) SESSION.carAccess = me.carAccess === true || String(me.carAccess||'').toLowerCase() === 'true' || SESSION.role === 'admin';
+      }
+      autoExpireCarShifts();
+      renderCarCalendar();
+      renderCarHistory();
+      renderCarItemStatus();
+      if (carSelectedDate) renderCarDay(carSelectedDate);
+      updateGlobalShiftBanner();
+      _carSchedInFlight = false;
+      if (cb) cb();
+    }).catch(function(){ _carSchedInFlight = false; if (cb) cb(); });
 }
 function subscribeCarScheduleFromFirestore() {
+  // Disabled — car schedule now reads straight from the Sheet (loadCarSchedule above)
+  // to match the Equipment app and eliminate the Firestore/Sheet drift bug. Left as a
+  // no-op instead of deleting so any stray call site doesn't throw.
+  return;
+}
+// eslint-disable-next-line no-unreachable
+function _subscribeCarScheduleFromFirestore_DISABLED() {
   if (window._carSchedSubActive) return;
   try {
     if (typeof firebase === 'undefined' || !_firebaseReady) return;
