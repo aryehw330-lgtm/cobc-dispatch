@@ -9758,6 +9758,13 @@ function tryOpenPendingDeepLink() {
   if (!call) return; // data not loaded yet — will retry on next snapshot
   window._pendingDeepLink = null;
   try { sessionStorage.removeItem('cobc_pending_call'); } catch(e) {}
+  // A push can arrive/be tapped after the call already wrapped up — opening its detail
+  // card then just shows a stale "done" call. Send them to Open Calls instead.
+  if (call.status === 'done' || call.status === 'cancelled') {
+    showTab('dispatch');
+    showToast('That call has already been completed — showing Open Calls');
+    return;
+  }
   openCallDetail(callId);
 }
 
@@ -18398,7 +18405,17 @@ function loadCarSchedule(cb, forceFetch) {
   // Fetch fresh in background
   sheetGET({action:'getCarSchedule'})
     .then(function(d) {
-      carSchedule = d.bookings || [];
+      var freshBookings = d.bookings || [];
+      // Defensive: a background refresh that comes back empty while we already have
+      // bookings loaded — and a sign-out/sign-in is actively in progress — is far more
+      // likely a flaky/partial server response than a real "you have zero shifts now".
+      // Applying it would wipe the shift the Start/Return banner depends on and make
+      // it vanish mid-flow. Skip this response and try again on the next refresh.
+      if (!freshBookings.length && carSchedule && carSchedule.length && (window._pendingStartShiftId || window._pendingEndShiftId)) {
+        _carSchedInFlight = false; if (cb) cb();
+        return;
+      }
+      carSchedule = freshBookings;
       // Save to cache
       try { localStorage.setItem(CAR_SCHED_CACHE_KEY, JSON.stringify({bookings: carSchedule, savedAt: Date.now()})); } catch(e) {}
       // Always refresh carAccess from sheet member data — Firestore doc may lack this field
@@ -18708,7 +18725,10 @@ function submitCarBooking() {
     if (bE <= bS) bE += 1440; // existing overnight booking
     return startMin < bE && endMin > bS;
   });
-  if (conflict) { showToast('⚠️ Overlaps BC-'+conflict.memberId+'\'s shift ('+conflict.startTime+' – '+conflict.endTime+')'); return; }
+  if (conflict) {
+    pwaAlert('BC-'+conflict.memberId+' already has '+_selectedVehicle+' booked '+conflict.startTime+' – '+conflict.endTime+' on this day. Pick a different time or vehicle.', {title:'⚠️ Time already booked'});
+    return;
+  }
   var memberId   = SESSION ? String(SESSION.unit||'') : '';
   var memberName = SESSION ? (SESSION.name||SESSION.firstName||'').trim() : '';
   // Admin booking for another member
@@ -18806,6 +18826,23 @@ function pwaConfirm(message, onYes, opts) {
   overlay.addEventListener('click',function(e){ if(e.target===overlay) close(); });
   overlay.querySelector('#__pwac_no').onclick=close;
   overlay.querySelector('#__pwac_yes').onclick=function(){ close(); onYes(); };
+}
+// Reusable custom alert (single OK button) — native alert() can silently no-op in an
+// iOS PWA, which is why a blocked action (e.g. a time conflict) needs a real popup
+// instead of a toast that's easy to miss.
+function pwaAlert(message, opts) {
+  opts = opts || {};
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10500;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:320px;width:88%;text-align:center;">'
+    +(opts.title?'<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:8px;">'+opts.title+'</div>':'')
+    +'<div style="font-size:14px;font-weight:600;color:rgba(255,255,255,.9);margin-bottom:18px;line-height:1.4;">'+message+'</div>'
+    +'<button id="__pwaa_ok" style="width:100%;padding:13px;background:var(--navy,#1a3a5c);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">'+(opts.okLabel||'OK')+'</button>'
+    +'</div>';
+  document.body.appendChild(overlay);
+  var close=function(){ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); if(opts.onClose) opts.onClose(); };
+  overlay.addEventListener('click',function(e){ if(e.target===overlay) close(); });
+  overlay.querySelector('#__pwaa_ok').onclick=close;
 }
 function startCarShift(bookingId) {
   var bkg = carSchedule.find(function(x){ return x.id===bookingId; });
@@ -19459,6 +19496,13 @@ function _doUpdateGlobalShiftBanner() {
     _renderShiftSlots(compactS, largeS);
     return;
   }
+
+  // Last-line-of-defense: a sign-out/sign-in is actively in progress (banner was tapped
+  // and the user hasn't finished the Inventory checkout yet). None of the states above
+  // matched \u2014 almost always a transient render pass (e.g. carSchedule mid-refresh) \u2014
+  // so keep whatever banner is already on screen instead of clearing it. It'll resolve
+  // itself once the checkout completes (or the user actually cancels the shift).
+  if (window._pendingStartShiftId || window._pendingEndShiftId) return;
 
   _hideShiftSlots();
 }
