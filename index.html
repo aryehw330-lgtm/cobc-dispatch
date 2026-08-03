@@ -3657,6 +3657,7 @@ async function initFirebaseApp() {
       try { subscribeAppFlags(); } catch(e){ console.warn('subscribeAppFlags:', e); }
       try { subscribeVehiclesFromFirestore(); } catch(e){ console.warn('subscribeVehicles:', e); }
       try { subscribeCommonCallsFromFirestore(); } catch(e){ console.warn('subscribeCommonCalls:', e); }
+      try { subscribeCarScheduleFromFirestore(); } catch(e){ console.warn('subscribeCarSchedule:', e); }
       // Always-on equipment-history listener for dispatch/admin so check-in/out push
       // notifications fire without needing the activity-history accordion open.
       try { if(SESSION && (SESSION.role==='admin'||SESSION.role==='dispatch')) _ensureEqActivityHistorySub(); } catch(e){ console.warn('eqHistBoot:', e); }
@@ -4239,6 +4240,7 @@ function sheetGET(params={}){
 // (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
 function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...body, authToken: window._fbIdToken||undefined})}).then(r=>r.json()).then(res=>{
   try{_mirrorMemberWrite(body,res);}catch(e){}
+  try{_mirrorCarShiftWrite(body,res);}catch(e){}
   // App-level failure: the Sheet responded 200 but reports it did NOT save. Surface it
   // (no more silent lost records) and queue idempotent writes for retry. Only treat an
   // EXPLICIT failure as failure — responses that simply omit `success` are left alone.
@@ -4375,6 +4377,48 @@ function _fsMemberDocId(raw){
   const num=s.replace(/\D+/g,'');
   if(!num) return s||null;
   return 'BC-'+(num.length<2?num.padStart(2,'0'):num);
+}
+function _mirrorCarShiftWrite(body,res){
+  try{
+    if(!res||res.success===false) return;
+    if(!window.firebase||!_firebaseReady) return;
+    if(!body||!body.action) return;
+    var col=firebase.firestore().collection('carSchedule');
+    switch(body.action){
+      case 'bookCarShift':
+        if(!res.id) return;
+        col.doc(String(res.id)).set({id:String(res.id), memberId:body.memberId, memberName:body.memberName||'', date:body.date, startTime:body.startTime, endTime:body.endTime, note:body.note||'', status:'pending', bookedBy:body.bookedBy||null, vehicle:body.vehicle||'COBC 4'},{merge:true}).catch(function(){});
+        break;
+      case 'approveCarShift':
+        if(!body.id) return;
+        col.doc(String(body.id)).set({status:'approved'},{merge:true}).catch(function(){});
+        break;
+      case 'cancelCarShift':
+        if(!body.id) return;
+        col.doc(String(body.id)).set({status:'cancelled'},{merge:true}).catch(function(){});
+        break;
+      case 'deleteCarShift':
+        if(!body.id) return;
+        col.doc(String(body.id)).delete().catch(function(){});
+        break;
+      case 'startCarShift':
+        if(!body.id) return;
+        col.doc(String(body.id)).set({status:'active'},{merge:true}).catch(function(){});
+        break;
+      case 'endCarShift':
+        if(!body.id) return;
+        col.doc(String(body.id)).set({status:'done', actualSignIn:new Date().toISOString()},{merge:true}).catch(function(){});
+        break;
+      case 'revertCarShift':
+        if(!body.id) return;
+        col.doc(String(body.id)).set({status:'approved'},{merge:true}).catch(function(){});
+        break;
+      case 'updateCarShiftNote':
+        if(!body.id) return;
+        col.doc(String(body.id)).set({note:body.note||''},{merge:true}).catch(function(){});
+        break;
+    }
+  }catch(e){}
 }
 function _mirrorMemberWrite(body,res){
   try{
@@ -18382,12 +18426,14 @@ function renderCarItemStatus() {
 }
 
 function loadCarSchedule(cb, forceFetch) {
-  // Show cached data instantly
+  // Real-time Firestore listener (subscribeCarScheduleFromFirestore) is the source of
+  // truth now — no more Sheet polling/cache/staleness races. This just ensures the
+  // listener is running (idempotent) and shows whatever cache we have instantly.
   try {
     var raw = localStorage.getItem(CAR_SCHED_CACHE_KEY);
     if (raw) {
       var cache = JSON.parse(raw);
-      if (cache.bookings) {
+      if (cache.bookings && !carSchedule.length) {
         carSchedule = cache.bookings;
         autoExpireCarShifts();
         renderCarCalendar();
@@ -18395,61 +18441,37 @@ function loadCarSchedule(cb, forceFetch) {
         renderCarItemStatus();
         if (carSelectedDate) renderCarDay(carSelectedDate);
         updateGlobalShiftBanner();
-        // Skip network if cache is fresh — UNLESS this is a forced refresh (periodic heartbeat
-        // poll), since another admin approving/rejecting on their device doesn't touch our
-        // local cache timestamp at all, so this check alone could stall approve/reject button
-        // updates here for up to the full 5-min TTL.
-        if (!forceFetch && (Date.now() - (cache.savedAt||0)) < CAR_SCHED_CACHE_TTL) { if (cb) cb(); return; }
       }
     }
   } catch(e) {}
-
-  // Dedupe concurrent fetches — one in-flight request at a time.
-  if (_carSchedInFlight) { if (cb) cb(); return; }
-  _carSchedInFlight = true;
-
-  // Fetch fresh in background
-  sheetGET({action:'getCarSchedule'})
-    .then(function(d) {
-      var freshBookings = d.bookings || [];
-      // Defensive: a background refresh that comes back empty while we already have
-      // bookings loaded — and a sign-out/sign-in is actively in progress — is far more
-      // likely a flaky/partial server response than a real "you have zero shifts now".
-      // Applying it would wipe the shift the Start/Return banner depends on and make
-      // it vanish mid-flow. Skip this response and try again on the next refresh.
-      if (!freshBookings.length && carSchedule && carSchedule.length && (window._pendingStartShiftId || window._pendingEndShiftId)) {
-        _carSchedInFlight = false; if (cb) cb();
-        return;
-      }
-      // Same defensive logic, narrower case: the response isn't empty, but the ONE booking
-      // a sign-out/sign-in is actively pending on (Start Shift tapped, not yet signed out —
-      // or Return tapped, not yet signed in) is missing from it. A Google Sheets read can
-      // lag just behind its own just-completed write, so a background refresh mid-flow can
-      // come back without the very row we're waiting on — applying it wholesale silently
-      // erased that shift from the calendar/banner. Keep our local copy of just that booking.
-      var _pendId = window._pendingStartShiftId || window._pendingEndShiftId;
-      if (_pendId && carSchedule && carSchedule.length) {
-        var _localPending = carSchedule.find(function(b){ return b.id===_pendId; });
-        var _stillThere = freshBookings.some(function(b){ return b.id===_pendId; });
-        if (_localPending && !_stillThere) freshBookings = freshBookings.concat([_localPending]);
-      }
-      carSchedule = freshBookings;
-      // Save to cache
+  try { subscribeCarScheduleFromFirestore(); } catch(e) { console.warn('subscribeCarSchedule:', e); }
+  if (cb) cb();
+}
+function subscribeCarScheduleFromFirestore() {
+  if (window._carSchedSubActive) return;
+  try {
+    if (typeof firebase === 'undefined' || !_firebaseReady) return;
+    window._carSchedSubActive = true;
+    firebase.firestore().collection('carSchedule').onSnapshot(function(snap) {
+      var rows = [];
+      snap.forEach(function(d){ var x = d.data()||{}; x.id = x.id || d.id; rows.push(x); });
+      carSchedule = rows;
       try { localStorage.setItem(CAR_SCHED_CACHE_KEY, JSON.stringify({bookings: carSchedule, savedAt: Date.now()})); } catch(e) {}
-      // Always refresh carAccess from sheet member data — Firestore doc may lack this field
       if (SESSION && SESSION.unit) {
         var me = (STATE.members||[]).find(function(m){ return String(m.unit||m.id||'') === String(SESSION.unit); });
         if (me) SESSION.carAccess = me.carAccess === true || String(me.carAccess||'').toLowerCase() === 'true' || SESSION.role === 'admin';
       }
-      autoExpireCarShifts();
-      renderCarCalendar();
-      renderCarHistory();
-      renderCarItemStatus();
-      if (carSelectedDate) renderCarDay(carSelectedDate);
-      updateGlobalShiftBanner();
-      _carSchedInFlight = false;
-      if (cb) cb();
-    }).catch(function(){ _carSchedInFlight = false; if (cb) cb(); });
+      try { autoExpireCarShifts(); } catch(e){}
+      try { renderCarCalendar(); } catch(e){}
+      try { renderCarHistory(); } catch(e){}
+      try { renderCarItemStatus(); } catch(e){}
+      try { if (carSelectedDate) renderCarDay(carSelectedDate); } catch(e){}
+      try { updateGlobalShiftBanner(); } catch(e){}
+      try { checkPendingShiftRequests(); } catch(e){}
+      try { if (typeof renderAdminCarHistory==='function') renderAdminCarHistory(); } catch(e){}
+      try { if (typeof renderAdminCarHistory2==='function') renderAdminCarHistory2(); } catch(e){}
+    }, function(e){ console.warn('carSchedule listener error:', e); window._carSchedSubActive = false; });
+  } catch(e) { console.warn('subscribeCarScheduleFromFirestore:', e); window._carSchedSubActive = false; }
 }
 
 // Auto-cancel bookings whose shift window has passed without the car being taken out.
@@ -18459,6 +18481,10 @@ function autoExpireCarShifts() {
   var now = new Date();
   var expired = carSchedule.filter(function(b) {
     if (b.status !== 'approved' && b.status !== 'pending') return false;
+    // Never auto-expire the shift a sign-out/sign-in is actively in progress for (Start
+    // Shift tapped, car not yet signed out — or Return tapped, not yet signed in). Getting
+    // cancelled out from under the user mid-flow is exactly the vanishing-shift glitch.
+    if (window._pendingStartShiftId === b.id || window._pendingEndShiftId === b.id) return false;
     // Build the scheduled end datetime
     var end24 = parse12to24C(b.endTime);
     var endDt  = new Date(b.date + 'T' + end24 + ':00');
@@ -18750,18 +18776,7 @@ function submitCarBooking() {
     pwaAlert('BC-'+conflict.memberId+' already has '+_selectedVehicle+' booked '+conflict.startTime+' – '+conflict.endTime+' on this day. Pick a different time or vehicle.', {title:'⚠️ Time already booked'});
     return;
   }
-  // Local carSchedule can be a stale cache (another device may have booked/approved
-  // this exact slot since we last loaded) — that's how a real conflict was slipping
-  // through silently. Re-check against a fresh fetch right before submitting.
-  var _btnPre = document.getElementById('car-submit-btn');
-  if (_btnPre) { _btnPre.textContent='...'; _btnPre.disabled=true; }
-  sheetGET({action:'getCarSchedule'}).then(function(d){
-    if (d && d.bookings) {
-      carSchedule = d.bookings;
-      try { localStorage.setItem(CAR_SCHED_CACHE_KEY, JSON.stringify({bookings:carSchedule, savedAt:Date.now()})); } catch(e){}
-    }
-  }).catch(function(){ /* offline — fall back to what we already have */ })
-  .then(function(){ _submitCarBookingAfterFreshCheck(_findBookingConflict, startDisp, endDisp, note); });
+  _submitCarBookingAfterFreshCheck(_findBookingConflict, startDisp, endDisp, note);
 }
 function _submitCarBookingAfterFreshCheck(_findBookingConflict, startDisp, endDisp, note) {
   var btn = document.getElementById('car-submit-btn');
