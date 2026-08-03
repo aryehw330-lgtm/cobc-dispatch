@@ -18768,6 +18768,10 @@ function submitCarBooking() {
       if (b.status==='cancelled'||b.status==='done') return false;
       var bS = _toMin(parse12to24C(b.startTime),false), bE = _toMin(parse12to24C(b.endTime),true);
       if (bE <= bS) bE += 1440; // existing overnight booking
+      // A booking whose scheduled end has already passed is stale — even if its status
+      // never got flipped to cancelled/done server-side, it should never block a new
+      // request. This is the "old times still conflicting" ghost-row bug.
+      try { var bEndDt = new Date(b.date+'T'+parse12to24C(b.endTime)+':00'); if (new Date() >= bEndDt) return false; } catch(e){}
       return startMin < bE && endMin > bS;
     });
   };
@@ -18915,13 +18919,23 @@ function startCarShift(bookingId) {
     }, {yesLabel:'Sign Out'});
     return;
   }
-  // Do NOT mark the shift active yet — that only happens once the car is actually
-  // signed OUT in inventory (handled in submitCO). Until then the shift stays
-  // 'approved' so the Start Shift button keeps showing. This prevents a shift being
-  // "started" when the user taps the button but never signs the car out.
+  // Mark the shift active on the server the moment Start Shift is tapped — matches
+  // the proven production Equipment app. Status now lives server-side (not a local
+  // "pending" flag that resets on navigation/reload), so the banner just reads
+  // carSchedule truth on every render and can't lose track of an in-progress shift
+  // if the user navigates away before actually signing the car out.
   pwaConfirm('Start your shift? You\'ll be taken to sign '+_veh+' out in Inventory.', function(){
-    window._pendingStartShiftId = bookingId;
+    window._pendingStartShiftId = bookingId; // still consumed by submitCO as a backup
     window._carCobc4Auth = 'OUT';
+    postJ('startCarShift', {id:bookingId}).then(function(d){
+      if (d && d.success) {
+        var b2 = carSchedule.find(function(x){ return x.id===bookingId; });
+        if (b2) b2.status = 'active';
+        try { localStorage.removeItem(CAR_SCHED_CACHE_KEY); } catch(e){}
+        renderCarCalendar(); if (carSelectedDate) renderCarDay(carSelectedDate);
+        updateGlobalShiftBanner();
+      }
+    }).catch(function(){});
     showToast('🔑 Sign '+_veh+' OUT in Inventory to start your shift');
     setTimeout(function(){ navigateToCarCheckout('OUT', _veh); }, 400);
   }, {yesLabel:'Start Shift'});
@@ -19141,6 +19155,7 @@ function approveCarShift(bookingId) {
     if (x.status!=='approved' && x.status!=='active') return false;
     var xS = _toMinA(parse12to24C(x.startTime),false), xE = _toMinA(parse12to24C(x.endTime),true);
     if (xE <= xS) xE += 1440;
+    try { var xEndDt = new Date(x.date+'T'+parse12to24C(x.endTime)+':00'); if (new Date() >= xEndDt) return false; } catch(e){}
     return bS < xE && bE > xS;
   });
   if (_apprConflict) {
