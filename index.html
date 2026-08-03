@@ -18421,6 +18421,18 @@ function loadCarSchedule(cb, forceFetch) {
         _carSchedInFlight = false; if (cb) cb();
         return;
       }
+      // Same defensive logic, narrower case: the response isn't empty, but the ONE booking
+      // a sign-out/sign-in is actively pending on (Start Shift tapped, not yet signed out —
+      // or Return tapped, not yet signed in) is missing from it. A Google Sheets read can
+      // lag just behind its own just-completed write, so a background refresh mid-flow can
+      // come back without the very row we're waiting on — applying it wholesale silently
+      // erased that shift from the calendar/banner. Keep our local copy of just that booking.
+      var _pendId = window._pendingStartShiftId || window._pendingEndShiftId;
+      if (_pendId && carSchedule && carSchedule.length) {
+        var _localPending = carSchedule.find(function(b){ return b.id===_pendId; });
+        var _stillThere = freshBookings.some(function(b){ return b.id===_pendId; });
+        if (_localPending && !_stillThere) freshBookings = freshBookings.concat([_localPending]);
+      }
       carSchedule = freshBookings;
       // Save to cache
       try { localStorage.setItem(CAR_SCHED_CACHE_KEY, JSON.stringify({bookings: carSchedule, savedAt: Date.now()})); } catch(e) {}
@@ -19492,15 +19504,16 @@ function _doUpdateGlobalShiftBanner() {
       if (endTimeExpired) {
         var pad2 = function(n){return String(n).padStart(2,'0');};
         var todayForBook = now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
+        var _urgVeh = (carItem && carItem.name) ? carItem.name.trim() : 'COBC 4';
         var urgentCompact = '<div style="background:linear-gradient(90deg,#7b0000,#c0392b);color:#fff;padding:8px 12px;border-radius:10px;margin-bottom:10px;">'
-          +'<div style="font-size:12px;font-weight:800;margin-bottom:6px;">⚠️ COBC 4 is out — please return immediately</div>'
+          +'<div style="font-size:12px;font-weight:800;margin-bottom:6px;">⚠️ '+_urgVeh+' is out — please return immediately</div>'
           +'<div style="display:flex;gap:6px;">'
           +'<button onclick="navigateToCarCheckout(\'IN\')" style="flex:1;padding:6px 0;background:#fff;color:#c0392b;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer;">Return Car →</button>'
           +'<button onclick="openCarTabAndBook(\''+todayForBook+'\')" style="flex:1;padding:6px 0;background:rgba(255,255,255,.2);color:#fff;border:1.5px solid rgba(255,255,255,.5);border-radius:7px;font-size:11px;font-weight:800;cursor:pointer;">Book New Shift →</button>'
           +'</div></div>';
         var urgentLarge = '<div style="background:linear-gradient(135deg,#7b0000,#c0392b);border-radius:14px;padding:16px 18px;color:#fff;margin-bottom:14px;box-shadow:0 4px 20px rgba(192,57,43,.5);">'
-          +'<div style="font-size:16px;font-weight:800;margin-bottom:4px;">⚠️ COBC 4 overdue — return immediately</div>'
-          +'<div style="font-size:12px;opacity:.85;margin-bottom:12px;">Your shift has ended but COBC 4 is still out. Please return it or book a new shift.</div>'
+          +'<div style="font-size:16px;font-weight:800;margin-bottom:4px;">⚠️ '+_urgVeh+' overdue — return immediately</div>'
+          +'<div style="font-size:12px;opacity:.85;margin-bottom:12px;">Your shift has ended but '+_urgVeh+' is still out. Please return it or book a new shift.</div>'
           +'<div style="display:flex;gap:8px;">'
           +'<button onclick="navigateToCarCheckout(\'IN\')" style="flex:1;padding:10px 0;background:#fff;color:#c0392b;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;">Return Car →</button>'
           +'<button onclick="openCarTabAndBook(\''+todayForBook+'\')" style="flex:1;padding:10px 0;background:rgba(255,255,255,.18);color:#fff;border:1.5px solid rgba(255,255,255,.55);border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;">Book New Shift →</button>'
@@ -19511,8 +19524,9 @@ function _doUpdateGlobalShiftBanner() {
       // Shift not yet expired — fall through to show normal Return Car banner
     }
 
-    var compact = '<div onclick="'+retCall+'" style="cursor:pointer;background:linear-gradient(90deg,#e65100,#bf360c);color:#fff;padding:7px 12px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(191,54,43,.35);"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🚗 COBC 4 is out'+endInfo+'</span><span style="background:#fff;color:#bf360c;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;flex-shrink:0;">Return →</span></div>';
-    var large = '<div onclick="'+retCall+'" style="cursor:pointer;background:linear-gradient(135deg,#c0392b,#e74c3c);border-radius:14px;padding:16px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;box-shadow:0 4px 16px rgba(192,57,43,.3);"><div style="min-width:0;"><div style="font-size:15px;font-weight:800;">🏁 COBC 4 is out'+endInfo+'</div><div style="font-size:12px;opacity:.85;margin-top:2px;">Tap to return it &amp; sign IN</div></div><span style="background:#fff;color:#c0392b;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:800;white-space:nowrap;flex-shrink:0;">Return Car</span></div>';
+    var _retVeh = activeShift ? _vehOfBooking(activeShift) : ((carItem && carItem.name) ? carItem.name.trim() : 'COBC 4');
+    var compact = '<div onclick="'+retCall+'" style="cursor:pointer;background:linear-gradient(90deg,#e65100,#bf360c);color:#fff;padding:7px 12px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(191,54,43,.35);"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🚗 '+_retVeh+' is out'+endInfo+'</span><span style="background:#fff;color:#bf360c;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;flex-shrink:0;">Return →</span></div>';
+    var large = '<div onclick="'+retCall+'" style="cursor:pointer;background:linear-gradient(135deg,#c0392b,#e74c3c);border-radius:14px;padding:16px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;box-shadow:0 4px 16px rgba(192,57,43,.3);"><div style="min-width:0;"><div style="font-size:15px;font-weight:800;">🏁 '+_retVeh+' is out'+endInfo+'</div><div style="font-size:12px;opacity:.85;margin-top:2px;">Tap to return it &amp; sign IN</div></div><span style="background:#fff;color:#c0392b;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:800;white-space:nowrap;flex-shrink:0;">Return Car</span></div>';
     _renderShiftSlots(compact, large);
     return;
   }
@@ -19520,8 +19534,9 @@ function _doUpdateGlobalShiftBanner() {
   // ── Active shift but car not yet signed out ────────────────────────────────
   // Banner stays visible until car is actually signed OUT in inventory.
   if (activeShift && !carIsOut) {
-    var compactA = '<div onclick="navigateToCarCheckout(\'OUT\')" style="cursor:pointer;background:linear-gradient(90deg,#1a237e,#283593);color:#fff;padding:7px 12px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(26,35,126,.35);"><span>🔑 Sign out COBC 4 to begin</span><span style="background:linear-gradient(180deg,#e6c463,#b8962e);color:#1a1a1a;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;flex-shrink:0;">Start →</span></div>';
-    var largeA = '<div onclick="navigateToCarCheckout(\'OUT\')" style="cursor:pointer;background:linear-gradient(135deg,#1a3a5c,#2a5a8c);border-radius:14px;padding:16px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;box-shadow:0 4px 16px rgba(26,58,92,.3);"><div><div style="font-size:15px;font-weight:800;">🔑 Sign out COBC 4 to begin</div><div style="font-size:12px;opacity:.85;margin-top:2px;">Tap to sign the car OUT in inventory</div></div><span style="background:#fff;color:#1a3a5c;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:800;white-space:nowrap;flex-shrink:0;">Start Shift</span></div>';
+    var _startVeh = _vehOfBooking(activeShift);
+    var compactA = '<div onclick="navigateToCarCheckout(\'OUT\')" style="cursor:pointer;background:linear-gradient(90deg,#1a237e,#283593);color:#fff;padding:7px 12px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(26,35,126,.35);"><span>🔑 Sign out '+_startVeh+' to begin</span><span style="background:linear-gradient(180deg,#e6c463,#b8962e);color:#1a1a1a;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;flex-shrink:0;">Start →</span></div>';
+    var largeA = '<div onclick="navigateToCarCheckout(\'OUT\')" style="cursor:pointer;background:linear-gradient(135deg,#1a3a5c,#2a5a8c);border-radius:14px;padding:16px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;box-shadow:0 4px 16px rgba(26,58,92,.3);"><div><div style="font-size:15px;font-weight:800;">🔑 Sign out '+_startVeh+' to begin</div><div style="font-size:12px;opacity:.85;margin-top:2px;">Tap to sign the car OUT in inventory</div></div><span style="background:#fff;color:#1a3a5c;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:800;white-space:nowrap;flex-shrink:0;">Start Shift</span></div>';
     _renderShiftSlots(compactA, largeA);
     return;
   }
@@ -19542,8 +19557,9 @@ function _doUpdateGlobalShiftBanner() {
   });
   if (upcomingShift && !carIsOut) {
     var mTxt = minUntil<=0 ? 'now' : 'in '+Math.round(minUntil)+'m';
-    var compactS = '<div onclick="startCarShift(\''+upcomingShift.id+'\')" style="cursor:pointer;background:linear-gradient(90deg,#1a237e,#283593);color:#fff;padding:7px 12px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(26,35,126,.35);"><span>🔑 Your shift '+mTxt+'</span><span style="background:linear-gradient(180deg,#e6c463,#b8962e);color:#1a1a1a;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;flex-shrink:0;">Start →</span></div>';
-    var largeS = '<div onclick="startCarShift(\''+upcomingShift.id+'\')" style="cursor:pointer;background:linear-gradient(135deg,#1a3a5c,#2a5a8c);border-radius:14px;padding:16px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;box-shadow:0 4px 16px rgba(26,58,92,.3);"><div><div style="font-size:15px;font-weight:800;">🔑 Your shift is ready</div><div style="font-size:12px;opacity:.85;margin-top:2px;">Starts '+mTxt+' · tap to start &amp; sign COBC 4 out</div></div><span style="background:#fff;color:#1a3a5c;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:800;white-space:nowrap;flex-shrink:0;">Start Shift</span></div>';
+    var _upVeh = _vehOfBooking(upcomingShift);
+    var compactS = '<div onclick="startCarShift(\''+upcomingShift.id+'\')" style="cursor:pointer;background:linear-gradient(90deg,#1a237e,#283593);color:#fff;padding:7px 12px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(26,35,126,.35);"><span>🔑 Your '+_upVeh+' shift '+mTxt+'</span><span style="background:linear-gradient(180deg,#e6c463,#b8962e);color:#1a1a1a;border-radius:7px;padding:3px 10px;font-size:11px;font-weight:800;white-space:nowrap;flex-shrink:0;">Start →</span></div>';
+    var largeS = '<div onclick="startCarShift(\''+upcomingShift.id+'\')" style="cursor:pointer;background:linear-gradient(135deg,#1a3a5c,#2a5a8c);border-radius:14px;padding:16px 18px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;box-shadow:0 4px 16px rgba(26,58,92,.3);"><div><div style="font-size:15px;font-weight:800;">🔑 Your '+_upVeh+' shift is ready</div><div style="font-size:12px;opacity:.85;margin-top:2px;">Starts '+mTxt+' · tap to start &amp; sign '+_upVeh+' out</div></div><span style="background:#fff;color:#1a3a5c;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:800;white-space:nowrap;flex-shrink:0;">Start Shift</span></div>';
     _renderShiftSlots(compactS, largeS);
     return;
   }
