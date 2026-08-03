@@ -17096,11 +17096,17 @@ async function submitCO(action){
         // to finding any active shift (for admin direct sign-in).
         const pendingId = window._pendingEndShiftId || null;
         window._pendingEndShiftId = null; // consume immediately — never double-end
+        // endCarShift() (banner tap) already posts endCarShift to the backend for
+        // pendingId before routing here — this block used to fire a SECOND endCarShift
+        // for the same booking because activeBkg.status hadn't flipped to 'done' yet
+        // (the first postJ was still in flight). Skip when this is the endCarShift-initiated
+        // path; only run the backend call here for the admin/direct-sign-in fallback path.
+        const _alreadyEndingViaBanner = !!pendingId;
         const _inVeh = ((itemsSnapshot.find(function(it){return isCarItem(it.name);})||{}).name||'').trim();
         const activeBkg = pendingId
           ? (carSchedule||[]).find(function(b){ return b.id===pendingId; })
           : (carSchedule||[]).find(function(b){ return b.status==='active' && _vehOfBooking(b)===_inVeh; });
-        if (activeBkg && (activeBkg.status==='active'||activeBkg.status==='approved')) {
+        if (activeBkg && !_alreadyEndingViaBanner && (activeBkg.status==='active'||activeBkg.status==='approved')) {
           const myUnit2 = SESSION&&SESSION.unit ? String(SESSION.unit) : '';
           const bMember2Num = parseInt((activeBkg.memberId||'').toString().replace(/^BC-?/i,''),10);
           const myUnit2Num = parseInt(myUnit2.replace(/^BC-?/i,''),10);
@@ -18717,16 +18723,41 @@ function submitCarBooking() {
   var startMin=_toMin(start24,false), endMin=_toMin(end24,true);
   if (endMin === startMin) { showToast('End time must be after start time'); return; }
   if (endMin < startMin) endMin += 1440; // overnight shift — ends the next day
-  var conflict = carSchedule.find(function(b) {
-    if (b.date !== carSelectedDate) return false;
-    if (_vehOfBooking(b) !== _selectedVehicle) return false;
-    if (b.status==='cancelled'||b.status==='done') return false;
-    var bS = _toMin(parse12to24C(b.startTime),false), bE = _toMin(parse12to24C(b.endTime),true);
-    if (bE <= bS) bE += 1440; // existing overnight booking
-    return startMin < bE && endMin > bS;
-  });
+  var _findBookingConflict = function() {
+    return carSchedule.find(function(b) {
+      if (b.date !== carSelectedDate) return false;
+      if (_vehOfBooking(b) !== _selectedVehicle) return false;
+      if (b.status==='cancelled'||b.status==='done') return false;
+      var bS = _toMin(parse12to24C(b.startTime),false), bE = _toMin(parse12to24C(b.endTime),true);
+      if (bE <= bS) bE += 1440; // existing overnight booking
+      return startMin < bE && endMin > bS;
+    });
+  };
+  var conflict = _findBookingConflict();
   if (conflict) {
     pwaAlert('BC-'+conflict.memberId+' already has '+_selectedVehicle+' booked '+conflict.startTime+' – '+conflict.endTime+' on this day. Pick a different time or vehicle.', {title:'⚠️ Time already booked'});
+    return;
+  }
+  // Local carSchedule can be a stale cache (another device may have booked/approved
+  // this exact slot since we last loaded) — that's how a real conflict was slipping
+  // through silently. Re-check against a fresh fetch right before submitting.
+  var _btnPre = document.getElementById('car-submit-btn');
+  if (_btnPre) { _btnPre.textContent='...'; _btnPre.disabled=true; }
+  sheetGET({action:'getCarSchedule'}).then(function(d){
+    if (d && d.bookings) {
+      carSchedule = d.bookings;
+      try { localStorage.setItem(CAR_SCHED_CACHE_KEY, JSON.stringify({bookings:carSchedule, savedAt:Date.now()})); } catch(e){}
+    }
+  }).catch(function(){ /* offline — fall back to what we already have */ })
+  .then(function(){ _submitCarBookingAfterFreshCheck(_findBookingConflict, startDisp, endDisp, note); });
+}
+function _submitCarBookingAfterFreshCheck(_findBookingConflict, startDisp, endDisp, note) {
+  var btn = document.getElementById('car-submit-btn');
+  var freshConflict = _findBookingConflict();
+  if (freshConflict) {
+    if (btn) { btn.textContent='Request Shift'; btn.disabled=false; }
+    try{ renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); }catch(e){}
+    pwaAlert('BC-'+freshConflict.memberId+' already has '+_selectedVehicle+' booked '+freshConflict.startTime+' – '+freshConflict.endTime+' on this day. Pick a different time or vehicle.', {title:'⚠️ Time already booked'});
     return;
   }
   var memberId   = SESSION ? String(SESSION.unit||'') : '';
@@ -18741,8 +18772,7 @@ function submitCarBooking() {
     memberId   = bfVal;
     memberName = bfMem ? ((bfMem.firstName||bfMem.name||'')+' '+(bfMem.lastName||'')).trim() : ('BC-'+bfVal);
   }
-  if (!memberId) { showToast('No member logged in'); return; }
-  var btn = document.getElementById('car-submit-btn');
+  if (!memberId) { showToast('No member logged in'); if (btn) { btn.textContent='Request Shift'; btn.disabled=false; } return; }
   if (btn) { btn.textContent='...'; btn.disabled=true; }
   // Watchdog: never let the button hang on "..." — if the request doesn't settle
   // within 15s, re-enable it and tell the user.
@@ -19068,10 +19098,31 @@ function markCarShiftNoShow(bookingId) {
   });
 }
 function approveCarShift(bookingId) {
-  // Optimistic: flip status + re-render immediately so the tap feels instant.
   var b = carSchedule.find(function(x){ return x.id===bookingId; });
-  var prev = b ? b.status : null;
-  if (b) b.status='approved';
+  if (!b) return;
+  // Guard: approving this request might conflict with a shift that's already
+  // approved/active for the same vehicle/day/time (e.g. two pending requests for
+  // the same slot, or the other one got approved first). Warn instead of silently
+  // double-booking.
+  var _toMinA=function(hhmm,isEnd){ var p=(hhmm||'').split(':'); var m=parseInt(p[0],10)*60+parseInt(p[1],10); if(isEnd&&m===0)m=1440; return m; };
+  var bS = _toMinA(parse12to24C(b.startTime),false), bE = _toMinA(parse12to24C(b.endTime),true);
+  if (bE <= bS) bE += 1440;
+  var _apprConflict = carSchedule.find(function(x){
+    if (x.id===b.id) return false;
+    if (x.date !== b.date) return false;
+    if (_vehOfBooking(x) !== _vehOfBooking(b)) return false;
+    if (x.status!=='approved' && x.status!=='active') return false;
+    var xS = _toMinA(parse12to24C(x.startTime),false), xE = _toMinA(parse12to24C(x.endTime),true);
+    if (xE <= xS) xE += 1440;
+    return bS < xE && bE > xS;
+  });
+  if (_apprConflict) {
+    pwaAlert('BC-'+_apprConflict.memberId+' already has '+_vehOfBooking(b)+' booked '+_apprConflict.startTime+' – '+_apprConflict.endTime+' on this day. Deny or reschedule this request instead.', {title:'⚠️ Time already booked'});
+    return;
+  }
+  // Optimistic: flip status + re-render immediately so the tap feels instant.
+  var prev = b.status;
+  b.status='approved';
   try { renderCarCalendar(); if(carSelectedDate) renderCarDay(carSelectedDate); } catch(e){}
   showToast('✅ Shift approved');
   postJ('approveCarShift', {id:bookingId})
