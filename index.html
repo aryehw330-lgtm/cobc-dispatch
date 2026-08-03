@@ -296,6 +296,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .section-label{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px;}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;z-index:1000;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
 #liveMapModal{z-index:2000;}/* Always on top of other modals */
+#ezSpareModal{z-index:2001;}/* Must appear above newCallModal/callEditModal, which stay open behind it */
 .modal-overlay.hidden{display:none;}
 .modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:20px 20px;padding-bottom:calc(20px + env(safe-area-inset-bottom));}
 .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
@@ -7879,8 +7880,11 @@ function callCardHTML(call, mini=false) {
     const pendingBadge = pending
       ? `<span style="background:var(--amber);color:#fff;padding:5px 12px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.3px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);animation:pendingPulse 1.8s ease-in-out infinite;white-space:nowrap;">⏳ ${pending} pending</span>`
       : '';
+    // Missing Person linked call: members only ever get a Details button — joining/leaving
+    // the roster happens in Missing Person mode, not via the normal Respond/Complete flow.
+    const _isLinkedMissing = (typeof cmIsLinkedMissingCall==='function') && cmIsLinkedMissingCall(call.id);
     // Respond action for the Open Calls (mini) card — shown for ALL members
-    const miniRespond = (call.status!=='done' && !isDraft)
+    const miniRespond = (_isLinkedMissing) ? '' : (call.status!=='done' && !isDraft)
       ? (iAmApproved
           ? ``
           : iAmPending
@@ -7890,7 +7894,7 @@ function callCardHTML(call, mini=false) {
     // Completion-request state (member reports CC/CNC, dispatch must approve)
     const _cr = call.completionRequest;
     // Member's own "Mark Complete" button — only for approved responders on a live call
-    const miniComplete = (iAmApproved && call.status!=='done' && !isDraft)
+    const miniComplete = (_isLinkedMissing) ? '' : (iAmApproved && call.status!=='done' && !isDraft)
       ? (_cr
           ? `<div style="flex:1 1 calc(50% - 3px);text-align:center;padding:7px 10px;font-size:12px;font-weight:700;color:#7c3aed;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:8px;">⏳ ${_cr.outcome} sent — awaiting dispatch</div>`
           : `<button class="call-action" style="background:#7c3aed;color:#fff;flex:1 1 calc(50% - 3px);font-weight:700;" onclick="event.stopPropagation();openMemberCompleteModal('${call.id}')">✓ Mark CC or CNC</button>`)
@@ -7922,7 +7926,8 @@ function callCardHTML(call, mini=false) {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:0 13px 0 0;margin:2px 0 4px;">${_respNumBadges(call)?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">${_respNumBadges(call)}</div>`:`<span></span>`}${etaWrap}</div>
       ${(typeof cmRosterBadgesHTML==='function')?cmRosterBadgesHTML(call):''}
       ${cornerMeta}
-      ${(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();dialWithName('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
+      ${_isLinkedMissing?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;"><button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button></div>`
+      :(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();dialWithName('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
     </div>`;
   }
 
@@ -8157,15 +8162,15 @@ async function fillCardETAs() {
     try {
       const pt = await _geocode(call.address, call.town||'');
       if (!pt) { span.style.display='none'; if(wrap) wrap.style.display='none'; continue; }
-      const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
-      const mins = _etaMin(mi);
-      const color = mins<=5?'var(--green)':mins<=12?'var(--amber)':'#6b7280';
-      const bg    = mins<=5?'#dcfce7':mins<=12?'#fef3c7':'#f3f4f6';
+      // Straight-line distance is misleading wherever the real drive isn't a straight shot
+      // (river crossings, limited-access parkways, etc.) — e.g. a point across the Hudson
+      // from a Bergen County unit looks close as-the-crow-flies but requires a bridge.
+      // Show "Calculating…" and only ever paint a number once the real traffic-aware
+      // Google route comes back, so dispatch/units never see a bogus low ETA.
       if(wrap) wrap.style.display='flex';
       span.style.display = 'inline-flex';
-      span.style.cssText += `display:inline-flex;align-items:center;gap:0;background:${bg};color:${color};padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;`;
-      span.textContent = `Your ETA: ${mins} min`;
-      // Upgrade the straight-line estimate to a real traffic-aware Google driving ETA
+      span.style.cssText += `display:inline-flex;align-items:center;gap:0;background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;`;
+      span.textContent = `Your ETA: …`;
       const _origin = { lat:_myLoc.lat, lng:_myLoc.lng };
       _googleDriveMins(_origin, pt).then(gm => {
         if (!document.body.contains(span)) return;
@@ -8173,7 +8178,14 @@ async function fillCardETAs() {
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
         span.style.cssText += `background:${gbg};color:${gc};`;
         span.textContent = `Your ETA: ${gm} min`;
-      }).catch(()=>{}); // keep the instant estimate if Google routing is unavailable
+      }).catch(()=>{
+        // Google routing failed — fall back to the straight-line estimate rather than
+        // leaving the chip stuck on "…" forever.
+        if (!document.body.contains(span)) return;
+        const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
+        const mins = _etaMin(mi);
+        span.textContent = `Your ETA: ~${mins} min`;
+      });
       // Tap to open Google Maps directions
       span.onclick = function(e) {
         e.stopPropagation();
@@ -8207,17 +8219,21 @@ async function fillDetailETA(call) {
   try {
     const pt = await _geocode(call.address, call.town||'');
     if (!pt) return;
-    const paint = (m) => {
+    const paint = (m, approx) => {
       if (!document.getElementById('detail-eta-'+call.id)) return;
       const color = m<=5?'var(--green)':m<=12?'var(--amber)':'#6b7280';
       const bg    = m<=5?'#dcfce7':m<=12?'#fef3c7':'#f3f4f6';
       box.style.display = 'block';
-      box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:#0f172a;padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📍 Your Est. ETA: ${m} min</span>`;
+      box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:#0f172a;padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">📍 Your Est. ETA: ${approx?'~':''}${m} min</span>`;
       box.firstChild.onclick = (e) => { e.stopPropagation(); openMyRouteMap(call); };
     };
-    paint(_etaMin(_haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng)));
-    // Upgrade straight-line estimate to traffic-aware Google driving ETA
-    _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(gm => paint(gm)).catch(()=>{});
+    box.style.display = 'block';
+    box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:#f3f4f6;color:#6b7280;padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;">📍 Your Est. ETA: …</span>`;
+    // Straight-line distance is misleading for river crossings / limited-access parkways —
+    // wait for the real traffic-aware Google route rather than showing a bogus number first.
+    _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(gm => paint(gm,false)).catch(()=>{
+      paint(_etaMin(_haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng)), true);
+    });
   } catch(e) {}
 }
 
@@ -10311,6 +10327,11 @@ function saveCallEdit() {
 
 // ── CALL COMPLETE WITH CC/CNC ──
 function openCompleteModal(id) {
+  if(typeof cmIsLinkedMissingCall==='function' && cmIsLinkedMissingCall(id)){
+    hideModal('callDetailModal');
+    showToast('Please end the operation in Missing Person mode');
+    return;
+  }
   const _c=STATE.calls.find(c=>c.id===id);
   // Completing an OPEN call → ask who responded first (multi-select), since an open
   // call may have no one formally assigned yet. Active calls skip this (responders known).
@@ -11399,7 +11420,6 @@ function _appHeartbeatRun(){
   _appTick++;
   try { tickOpenTimers(); } catch(e){}
   try { checkReRequests(); } catch(e){}
-  try { checkPendingShiftRequests(); } catch(e){}
   try { checkWaitingEscalation(); } catch(e){}
   try { checkShiftSignInOutReminders(); } catch(e){}
   try { updateTelzioBtnStatus(); } catch(e){}
@@ -11411,8 +11431,12 @@ function _appHeartbeatRun(){
   // Refresh the car schedule so the shift banner and pending-approval requests
   // reflect other devices. Poll every tick (~30s) while the Car tab is open so an
   // admin sees a new request's Approve button quickly; every other tick otherwise.
+  // checkPendingShiftRequests runs AFTER the fresh fetch lands (not before, which was
+  // checking last tick's stale carSchedule and could delay/skip the admin popup by a
+  // full cycle — the likely cause of the desktop "requests never pop up" report).
   var _carTabOpen = (function(){ var t=document.getElementById('page-equipment'); var c=document.getElementById('car-live-status'); return t && !t.classList.contains('hidden') && c && c.offsetParent!==null; })();
-  if (_carTabOpen || _appTick % 2 === 0) { try { loadCarSchedule(); } catch(e){} }
+  if (_carTabOpen || _appTick % 2 === 0) { try { loadCarSchedule(function(){ try{ checkPendingShiftRequests(); }catch(e){} }, true); } catch(e){ try{ checkPendingShiftRequests(); }catch(e2){} } }
+  else { try { checkPendingShiftRequests(); } catch(e){} }
 }
 function startAppHeartbeat(){
   if (_appHeartbeatTimer) return;
@@ -18344,7 +18368,7 @@ function renderCarItemStatus() {
   el.innerHTML = picker + statusHtml;
 }
 
-function loadCarSchedule(cb) {
+function loadCarSchedule(cb, forceFetch) {
   // Show cached data instantly
   try {
     var raw = localStorage.getItem(CAR_SCHED_CACHE_KEY);
@@ -18358,8 +18382,11 @@ function loadCarSchedule(cb) {
         renderCarItemStatus();
         if (carSelectedDate) renderCarDay(carSelectedDate);
         updateGlobalShiftBanner();
-        // Skip network if cache is fresh
-        if ((Date.now() - (cache.savedAt||0)) < CAR_SCHED_CACHE_TTL) { if (cb) cb(); return; }
+        // Skip network if cache is fresh — UNLESS this is a forced refresh (periodic heartbeat
+        // poll), since another admin approving/rejecting on their device doesn't touch our
+        // local cache timestamp at all, so this check alone could stall approve/reject button
+        // updates here for up to the full 5-min TTL.
+        if (!forceFetch && (Date.now() - (cache.savedAt||0)) < CAR_SCHED_CACHE_TTL) { if (cb) cb(); return; }
       }
     }
   } catch(e) {}
@@ -18745,7 +18772,7 @@ function showCarBookingSuccess(startTime, endTime, date, memberName, note) {
 // Reset a stuck 'active' shift (Start Shift tapped but car never signed out) back to
 // 'approved' via the backend's revertCarShift action, so it stops showing as active.
 function revertCarShift(bookingId) {
-  if (!confirm('Reset this shift? Use this if the car was never actually signed out.')) return;
+  pwaConfirm('Reset this shift? Use this if the car was never actually signed out.', function(){
   postJ('revertCarShift', {id:bookingId})
     .then(function(d){
       if (d && d.success) {
@@ -18758,8 +18785,28 @@ function revertCarShift(bookingId) {
         setTimeout(function(){ loadCarSchedule&&loadCarSchedule(); }, 800);
       } else { showToast('Could not reset: ' + ((d&&d.error)||'not found on server')); }
     }).catch(function(){ showToast('Network error — reset not saved'); });
+  }, {yesLabel:'Reset'});
 }
 
+// Reusable custom confirm — native confirm() can freeze/silently no-op in an iOS PWA.
+// pwaConfirm(message, onYes, {yesLabel, noLabel, danger})
+function pwaConfirm(message, onYes, opts) {
+  opts = opts || {};
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10500;display:flex;align-items:center;justify-content:center;';
+  var yesBg = opts.danger ? 'var(--red,#dc2626)' : 'var(--green,#16a34a)';
+  overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:320px;width:88%;text-align:center;">'
+    +'<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:18px;line-height:1.4;">'+message+'</div>'
+    +'<div style="display:flex;gap:10px;">'
+    +'<button id="__pwac_no" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">'+(opts.noLabel||'Cancel')+'</button>'
+    +'<button id="__pwac_yes" style="flex:1;padding:13px;background:'+yesBg+';color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">'+(opts.yesLabel||'OK')+'</button>'
+    +'</div></div>';
+  document.body.appendChild(overlay);
+  var close=function(){ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+  overlay.addEventListener('click',function(e){ if(e.target===overlay) close(); });
+  overlay.querySelector('#__pwac_no').onclick=close;
+  overlay.querySelector('#__pwac_yes').onclick=function(){ close(); onYes(); };
+}
 function startCarShift(bookingId) {
   var bkg = carSchedule.find(function(x){ return x.id===bookingId; });
   var _veh = _vehOfBooking(bkg);
@@ -18768,25 +18815,27 @@ function startCarShift(bookingId) {
   // Already marked active but the car was never actually signed OUT → don't re-hit the
   // backend (it would error / double-count). Just route them to sign the vehicle out.
   if (bkg && bkg.status === 'active' && !carIsOutNow) {
-    if (!confirm('Sign '+_veh+' out for your shift now?')) return;
-    showToast('🔑 Sign '+_veh+' OUT in Inventory now');
-    setTimeout(function(){ navigateToCarCheckout('OUT', _veh); }, 500);
+    pwaConfirm('Sign '+_veh+' out for your shift now?', function(){
+      showToast('🔑 Sign '+_veh+' OUT in Inventory now');
+      setTimeout(function(){ navigateToCarCheckout('OUT', _veh); }, 500);
+    }, {yesLabel:'Sign Out'});
     return;
   }
-  if (!confirm('Start your shift? You\'ll be taken to sign '+_veh+' out in Inventory.')) return;
   // Do NOT mark the shift active yet — that only happens once the car is actually
   // signed OUT in inventory (handled in submitCO). Until then the shift stays
   // 'approved' so the Start Shift button keeps showing. This prevents a shift being
   // "started" when the user taps the button but never signs the car out.
-  window._pendingStartShiftId = bookingId;
-  window._carCobc4Auth = 'OUT';
-  showToast('🔑 Sign '+_veh+' OUT in Inventory to start your shift');
-  setTimeout(function(){ navigateToCarCheckout('OUT', _veh); }, 400);
+  pwaConfirm('Start your shift? You\'ll be taken to sign '+_veh+' out in Inventory.', function(){
+    window._pendingStartShiftId = bookingId;
+    window._carCobc4Auth = 'OUT';
+    showToast('🔑 Sign '+_veh+' OUT in Inventory to start your shift');
+    setTimeout(function(){ navigateToCarCheckout('OUT', _veh); }, 400);
+  }, {yesLabel:'Start Shift'});
 }
 
 function endCarShift(bookingId) {
   var _rveh = _vehOfBooking(carSchedule.find(function(x){return x.id===bookingId;}));
-  if (!confirm('Return '+_rveh+'? You\'ll be taken to sign it back IN in Inventory.')) return;
+  pwaConfirm('Return '+_rveh+'? You\'ll be taken to sign it back IN in Inventory.', function(){
   // Mirror the equipment app: persist the shift end to the backend FIRST (marks
   // CarSchedule done + ActualSignIn on the sheet), THEN send them to inventory to
   // physically sign the vehicle in. Deferring this to submitCO meant nothing persisted
@@ -18807,10 +18856,11 @@ function endCarShift(bookingId) {
     }).catch(function(){ showToast('Network error ending shift — try again'); });
   // Go sign the car in physically regardless (checkInOut persists separately).
   setTimeout(function(){ navigateToCarCheckout('IN'); }, 700);
+  }, {yesLabel:'Return Car'});
 }
 
 function cancelCarShift(bookingId) {
-  if (!confirm('Cancel this booking?')) return;
+  pwaConfirm('Cancel this booking?', function(){
   postJ('cancelCarShift', {id:bookingId})
     .then(function(d) {
       if (d.success) {
@@ -18819,10 +18869,11 @@ function cancelCarShift(bookingId) {
         renderCarHistory(); showToast('Booking cancelled');
       } else { showToast('Error: '+(d.error||'Unknown')); }
     }).catch(function(){ showToast('Network error'); });
+  }, {yesLabel:'Cancel Booking', danger:true});
 }
 
 function deleteCarShift(bookingId, fromAdminHistory) {
-  if (!confirm('Permanently delete this booking? This cannot be undone.')) return;
+  pwaConfirm('Permanently delete this booking? This cannot be undone.', function(){
   var bkg = carSchedule.find(function(x){ return x.id===bookingId; });
   // Old bookings created offline have a local-only id the Sheet never stored, so the
   // backend can't match them. Send matching fields as a fallback so the server can
@@ -18846,6 +18897,7 @@ function deleteCarShift(bookingId, fromAdminHistory) {
         showToast('Could not delete: ' + ((d&&d.error) || 'not found on server'));
       }
     }).catch(function(){ showToast('Network error — delete not saved'); });
+  }, {yesLabel:'Delete', danger:true});
 }
 
 // Notify admins/dispatch of new pending shift requests (once per request id).
@@ -18923,7 +18975,7 @@ function _showShiftApprovalPopup(b){
   function close(){ try{ document.body.removeChild(ov); }catch(e){} _shiftPopupOpen=false; var nx=_shiftPopupQueue.shift(); if(nx) setTimeout(function(){ _showShiftApprovalPopup(nx); },200); }
   ov.querySelector('#__sa_later').onclick = close;
   ov.querySelector('#__sa_ok').onclick = function(){ try{ approveCarShift(b.id); }catch(e){} close(); };
-  ov.querySelector('#__sa_deny').onclick = function(){ if(confirm('Deny and delete BC-'+String(b.memberId||'').replace(/^BC-?/i,'')+"'s "+veh+' request?')){ try{ deleteCarShift(b.id); }catch(e){} close(); } };
+  ov.querySelector('#__sa_deny').onclick = function(){ pwaConfirm('Deny and delete BC-'+String(b.memberId||'').replace(/^BC-?/i,'')+"'s "+veh+' request?', function(){ try{ deleteCarShift(b.id); }catch(e){} close(); }, {yesLabel:'Deny', danger:true}); };
 }
 function _updateCarReqBadge(n) {
   var isPriv = isAdminUser() || (typeof isDispatchUser==='function' && isDispatchUser());
@@ -18970,12 +19022,13 @@ function editCarShiftNote(bookingId) {
 function markCarShiftNoShow(bookingId) {
   var bkg = carSchedule.find(function(x){return x.id===bookingId;});
   if (!bkg) return;
-  if (!confirm('Log this shift as "car not taken out" and move it to history?')) return;
+  pwaConfirm('Log this shift as "car not taken out" and move it to history?', function(){
   var note = ((bkg.note?bkg.note+' · ':'')+'Not taken out').trim();
   postJ('updateCarShiftNote', {id:bookingId, note:note});
   bkg.status='done'; bkg.note=note; bkg.notTakenOut=true;
   renderCarDay(carSelectedDate); if(typeof renderCarHistory==='function') renderCarHistory();
   showToast('Logged as not taken out');
+  });
 }
 function approveCarShift(bookingId) {
   // Optimistic: flip status + re-render immediately so the tap feels instant.

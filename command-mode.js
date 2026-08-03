@@ -385,7 +385,7 @@
       + '</div>'
       + '<input id="mpDesc" placeholder="Physical description (height, build, hair)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:8px;box-sizing:border-box;"/>'
       + '<input id="mpClothing" placeholder="Clothing last worn" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:8px;box-sizing:border-box;"/>'
-      + '<input id="mpLastSeenAddr" placeholder="Last seen — address / place" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:8px;box-sizing:border-box;"/>'
+      + '<div style="position:relative;margin-bottom:8px;"><input id="mpLastSeenAddr" placeholder="Last seen — address / place" autocomplete="off" oninput="addrAutoLookup(this,\'\',\'\')" onblur="setTimeout(()=>{var b=document.getElementById(\'mpLastSeenAddrSuggest\');if(b)b.style.display=\'none\';},200)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;box-sizing:border-box;"/><div id="mpLastSeenAddrSuggest" class="addr-suggest" style="display:none;"></div></div>'
       + '<input id="mpLastSeenTime" placeholder="Last seen — time (e.g. 6:30 PM)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:8px;box-sizing:border-box;"/>'
       + '<textarea id="mpMedical" rows="2" placeholder="Medical / cognitive notes (dementia, autism, meds)" style="width:100%;padding:9px 11px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:6px;box-sizing:border-box;resize:vertical;"></textarea>'
     ) : '';
@@ -665,7 +665,7 @@
     }
     try{ if(_cmMap&&_cmMap._isGoogle){ setTimeout(function(){ google.maps.event.trigger(_cmMap,'resize'); },60); } }catch(e){}
   }
-  function closeCommandView(){ if(_cmTick){ clearInterval(_cmTick); _cmTick=null; } var o=document.getElementById('cmOverlay'); if(o) o.remove(); _cmMap=null; _cmMarkers={}; _cmCallMarkers={}; _cmGridShapes={}; _cmTrails={}; _cmLastSeenMk=null; _cmSelCall=null; }
+  function closeCommandView(){ if(_cmTick){ clearInterval(_cmTick); _cmTick=null; } var o=document.getElementById('cmOverlay'); if(o) o.remove(); _cmMap=null; _cmMarkers={}; _cmCallMarkers={}; _cmRenderBanner(); _cmGridShapes={}; _cmTrails={}; _cmLastSeenMk=null; _cmSelCall=null; }
 
   // ── Responsive EOC layout: style + view toggle (Calls / Map / Roster on narrow) ──
   function _cmInjectStyle(){
@@ -785,7 +785,7 @@
         +'<div style="flex:1;">'+fld('mpeName','Name',s.name,'Full name')+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:10px;"><div style="flex:1;">'+fld('mpeAge','Age',s.age,'e.g. 74')+'</div></div>'
-      +fld('mpeAddr','Last seen — address',s.lastSeenAddr,'Street, town')
+      +'<label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block;margin-top:10px;">Last seen — address</label><div style="position:relative;margin-top:4px;"><input id="mpeAddr" value="'+escapeHTML(s.lastSeenAddr||'')+'" placeholder="Street, town" autocomplete="off" oninput="addrAutoLookup(this,\'\',\'\')" onblur="setTimeout(()=>{var b=document.getElementById(\'mpeAddrSuggest\');if(b)b.style.display=\'none\';},200)" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;box-sizing:border-box;"/><div id="mpeAddrSuggest" class="addr-suggest" style="display:none;"></div></div>'
       +fld('mpeTime','Last seen — time',s.lastSeenTime,'e.g. 3:15 PM')
       +fld('mpeDesc','Description',s.desc,'Height, build, hair…')
       +fld('mpeClothing','Clothing',s.clothing,'What they were wearing')
@@ -1459,7 +1459,7 @@
       +'<button onclick="cmReportEndConfirm()" style="width:100%;background:#7f1d1d;color:#fff;border:none;border-radius:12px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;margin-top:6px;">🏁 End Operation</button>';
     _cmSheet((cmIsMissing()?'🔍':'🎖️')+' End & Report', body);
   }
-  function cmReportWhatsApp(){ var txt=_cmReportText(); try{ sendWA({ target:'all', message:txt }); showToast('📱 Report sent to WhatsApp'); }catch(e){ try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }catch(_){} } _cmAddLog('📱 Report sent via WhatsApp by BC-'+myUnit(),'end'); }
+  function cmReportWhatsApp(){ var txt=_cmReportText(); try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }catch(e){ showToast('Could not open WhatsApp'); } _cmAddLog('📱 Report sent via WhatsApp by BC-'+myUnit(),'end'); }
   function cmReportEmail(){ var txt=_cmReportText(); var subj=(cmIsMissing()?'Missing Person Search':'Command Operation')+' Report — '+new Date().toLocaleDateString(); try{ window.location.href='mailto:?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(txt); }catch(e){} _cmAddLog('✉️ Report emailed by BC-'+myUnit(),'end'); }
   function cmReportSave(){ _cmSaveHistory(function(){ alert('✅ Saved.\n\nThis end-of-operation report is stored in Command Operation Logs (Settings → Command Center Logs), where you can reopen, WhatsApp, or email it anytime.'); showToast('💾 Saved to Command Logs'); }); }
   function cmReportEndConfirm(){ if(!confirm('End this operation? Members stop sharing their location.')) return; _cmDoEnd(); }
@@ -1544,31 +1544,49 @@
     _cmAddLog('➖ BC-'+u+' taken off call '+(c.callNum?('#'+c.callNum):'')+' by BC-'+myUnit(),'assign');
     setTimeout(function(){ if(document.getElementById('cmSheet')) _cmCallPopup(callId); _cmRenderCallRows(); },350); }
   function cmHistDelete(i){ var v=_cmHist[i]; if(!v||!v._id) return; if(!(cmAmAdmin()||myUnit()===U(v.leadUnit||''))){ showToast('Only an admin or the op lead can delete a log'); return; } if(!confirm('⚠️ Delete this log permanently?\n\n“'+((v.title||'Incident'))+'”\n\nThis removes the full report, notes, and activity log from Command Operation Logs for everyone. This cannot be undone.')) return; try{ db().collection('commandHistory').doc(v._id).delete().then(function(){ _cmHist.splice(i,1); showToast('🗑️ Log deleted'); openCommandLogs(); }).catch(function(e){ showToast('Delete failed — '+((e&&e.code)||'error')); }); }catch(e){ showToast('Delete failed'); } }
-  function cmHistWhatsApp(i){ var v=_cmHist[i]; if(!v) return; var txt=_cmHistText(v); try{ sendWA({ target:'all', message:txt }); showToast('📱 Sent'); }catch(e){ try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }catch(_){} } }
+  function cmHistWhatsApp(i){ var v=_cmHist[i]; if(!v) return; var txt=_cmHistText(v); try{ window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank'); }catch(e){ showToast('Could not open WhatsApp'); } }
   // Remove a member from the roster entirely — also strips them off any open/active
   // call's responders (undoing the auto-sync) so they drop off the call card too.
   function cmRemoveMember(u){
     u=U(u);
     if(!(cmAmAdmin()||myUnit()===cmLeadUnit())){ showToast('Only an admin or the op lead can remove members'); return; }
     if(u===cmLeadUnit()){ showToast('Lead can\'t be removed — end the op instead'); return; }
-    if(!confirm('Remove BC-'+u+' from the roster?\n\nThey will also be taken off any open/active call they were added to through this op.')) return;
-    var members=cmMembers().filter(function(m){ return U(m.unit)!==u; });
-    db().collection('config').doc('commandMode').update({ members:members }).then(function(){
-      if(_cmState) _cmState.members=members;
-      (STATE.calls||[]).forEach(function(c){
-        if(c.status!=='open'&&c.status!=='active') return;
-        if(!(c.responders||[]).some(function(r){ return U(r.unit)===u; })) return;
-        _cmAutoRemoved[c.id+'|'+u]=1;
-        c.responders=(c.responders||[]).filter(function(r){ return U(r.unit)!==u; });
-        try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
-      });
-      try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
-      if(_cmMarkers[u]){ _cmMarkers[u].setMap(null); delete _cmMarkers[u]; }
-      if(_cmTrails[u]){ _cmTrails[u].setMap(null); delete _cmTrails[u]; }
-      showToast('BC-'+u+' removed from roster');
-      var sh=document.getElementById('cmSheet'); if(sh) sh.remove();
-      _cmRefreshView();
-    }).catch(function(){ showToast('Failed to remove'); });
+    // Custom confirm overlay — native confirm() can freeze/hang in an iOS PWA (esp. inside
+    // the cmOverlay full-screen map view, where it was silently swallowed).
+    var overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10500;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML='<div style="background:#1c1c1e;border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:24px 20px;max-width:300px;width:88%;text-align:center;">'
+      +'<div style="font-size:32px;margin-bottom:10px;">✕</div>'
+      +'<div style="font-size:16px;font-weight:800;color:#fff;margin-bottom:6px;">Remove BC-'+u+'?</div>'
+      +'<div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:18px;">They\'ll be taken off any open/active call added through this op.</div>'
+      +'<div style="display:flex;gap:10px;">'
+      +'<button id="__cmrm_no" style="flex:1;padding:13px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Keep</button>'
+      +'<button id="__cmrm_yes" style="flex:1;padding:13px;background:var(--red,#dc2626);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Remove</button>'
+      +'</div></div>';
+    document.body.appendChild(overlay);
+    var close=function(){ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+    overlay.addEventListener('click',function(e){ if(e.target===overlay) close(); });
+    overlay.querySelector('#__cmrm_no').addEventListener('click',close);
+    overlay.querySelector('#__cmrm_yes').addEventListener('click',function(){
+      close();
+      var members=cmMembers().filter(function(m){ return U(m.unit)!==u; });
+      db().collection('config').doc('commandMode').update({ members:members }).then(function(){
+        if(_cmState) _cmState.members=members;
+        (STATE.calls||[]).forEach(function(c){
+          if(c.status!=='open'&&c.status!=='active') return;
+          if(!(c.responders||[]).some(function(r){ return U(r.unit)===u; })) return;
+          _cmAutoRemoved[c.id+'|'+u]=1;
+          c.responders=(c.responders||[]).filter(function(r){ return U(r.unit)!==u; });
+          try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
+        });
+        try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
+        if(_cmMarkers[u]){ _cmMarkers[u].setMap(null); delete _cmMarkers[u]; }
+        if(_cmTrails[u]){ _cmTrails[u].setMap(null); delete _cmTrails[u]; }
+        showToast('BC-'+u+' removed from roster');
+        var sh=document.getElementById('cmSheet'); if(sh) sh.remove();
+        _cmRefreshView();
+      }).catch(function(){ showToast('Failed to remove'); });
+    });
   }
   function cmToggleBreadcrumb(u,checked){ _cmBreadcrumbSel[U(u)]=!!checked; _cmRefreshView(); }
   // Called from index.html whenever a dispatcher/member adds someone as a responder
@@ -1600,6 +1618,9 @@
     }).join('');
     return '<div style="display:flex;flex-wrap:nowrap;align-items:center;gap:5px;margin:1px 0 5px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;"><span style="font-size:10px;font-weight:800;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.05em;flex:0 0 auto;">'+(cmIsMissing()?'🔍':'🎖️')+' On this call</span>'+pills+'</div>';
   }
+  // Guard used by the main dispatch UI: the missing-person linked call can only be closed
+  // by ending the operation in Missing Person mode, never via the normal Complete button.
+  function cmIsLinkedMissingCall(id){ return !!(cmIsActive()&&cmIsMissing()&&_cmState&&_cmState.linkedCallId===id); }
   function cmHistEmail(i){ var v=_cmHist[i]; if(!v) return; var txt=_cmHistText(v); try{ window.location.href='mailto:?subject='+encodeURIComponent(v.title||'Incident Report')+'&body='+encodeURIComponent(txt); }catch(e){} }
 
   Object.assign(window, {
@@ -1615,7 +1636,7 @@
     cmNewCall:cmNewCall,
     cmReportWhatsApp:cmReportWhatsApp, cmReportEmail:cmReportEmail, cmReportSave:cmReportSave, cmReportEndConfirm:cmReportEndConfirm,
     openCommandLogs:openCommandLogs, cmOpenLog:cmOpenLog, cmArchTab:cmArchTab, cmHistWhatsApp:cmHistWhatsApp, cmHistEmail:cmHistEmail, cmHistDelete:cmHistDelete, cmLogExternal:cmLogExternal, cmExternalComplete:cmExternalComplete,
-    cmToggleBreadcrumb:cmToggleBreadcrumb, cmRosterBadgesHTML:cmRosterBadgesHTML, cmIsActive:cmIsActive, cmSyncMember:cmSyncMember, cmRemoveMember:cmRemoveMember, cmNudgeMember:cmNudgeMember, cmToggleWakeLock:cmToggleWakeLock
+    cmToggleBreadcrumb:cmToggleBreadcrumb, cmRosterBadgesHTML:cmRosterBadgesHTML, cmIsLinkedMissingCall:cmIsLinkedMissingCall, cmIsActive:cmIsActive, cmSyncMember:cmSyncMember, cmRemoveMember:cmRemoveMember, cmNudgeMember:cmNudgeMember, cmToggleWakeLock:cmToggleWakeLock
   });
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(initCommandMode,1200); });
   else setTimeout(initCommandMode,1200);
