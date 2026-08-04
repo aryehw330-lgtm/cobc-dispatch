@@ -4171,7 +4171,7 @@ function _waMsgComplete(call) {
   const responders = (call.responders||[]);
   if (responders.length) {
     const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
-    msg += `\nOn call: ${names}`;
+    msg += `\nThank you for responding: ${names}`;
   }
   return msg;
 }
