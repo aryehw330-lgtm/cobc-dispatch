@@ -8900,7 +8900,14 @@ function sendCallToInterstate(id){
 function buildDispatchWhatsApp(call) {
   // Strip emoji from type label (e.g. "Vehicle: Flat Tire" → "Flat Tire")
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  const mapLink=`https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
+  // Common Calls/i911 carry an exact "— 📍 lat,lng" suffix — use those coordinates
+  // directly for the map link so members land on the precise spot, not a text-geocode
+  // of the friendly name (which can be off, especially for gas stations/highway spots).
+  const _navTarget=(typeof navQuery==='function')?navQuery(call.address,call.town):'';
+  const _isCoords=/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(_navTarget||'').trim());
+  const mapLink=_isCoords
+    ? `https://maps.google.com/?q=${_navTarget.trim()}`
+    : `https://maps.google.com/?q=${encodeURIComponent(call.address+' '+call.town+' NJ')}`;
   const appLink='tinyurl.com/cobc-dispatch';
   const time=new Date(call.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 
