@@ -6185,16 +6185,33 @@ function initFirestore(){
   window._forceCallsResync=function(){
     if(_resyncInFlight || Date.now()<_resyncSkipUntil) return;
     _resyncInFlight=true; _resyncSkipUntil=Date.now()+4000; // throttle to ≤1 / 4s
+    // Force a real server read here (not cache) — right after the app resumes from
+    // background, Firestore can briefly still think it's offline and hand back a stale
+    // cached snapshot on a plain .get(), which could resurrect a call that was already
+    // completed on another device/session. This resync is the "catch up" pass, so it
+    // must be authoritative.
     Promise.all([
-      db.collection('calls').where('createdAt','>=',_recentStart).get(),
-      db.collection('calls').where('status','in',['open','active','draft']).get()
+      db.collection('calls').where('createdAt','>=',_recentStart).get({source:'server'}),
+      db.collection('calls').where('status','in',['open','active','draft']).get({source:'server'})
     ]).then(([r,o])=>{
       try{ if(typeof SESSION==='undefined')return;
         const dr=_snapDocs(r), do_=_snapDocs(o);
         if(dr!==null)_bufRecent=dr; if(do_!==null)_bufOpen=do_;
         _applyCallsMerge();
       }catch(e){ console.warn('calls resync merge:',e); }
-    }).catch(e=>console.warn('calls resync:',e)).finally(()=>{ _resyncInFlight=false; });
+    }).catch(e=>{
+      console.warn('calls resync (server) failed, falling back to cache-or-server:',e);
+      Promise.all([
+        db.collection('calls').where('createdAt','>=',_recentStart).get(),
+        db.collection('calls').where('status','in',['open','active','draft']).get()
+      ]).then(([r,o])=>{
+        try{ if(typeof SESSION==='undefined')return;
+          const dr=_snapDocs(r), do_=_snapDocs(o);
+          if(dr!==null)_bufRecent=dr; if(do_!==null)_bufOpen=do_;
+          _applyCallsMerge();
+        }catch(e2){ console.warn('calls resync merge (fallback):',e2); }
+      }).catch(e2=>console.warn('calls resync fallback:',e2));
+    }).finally(()=>{ _resyncInFlight=false; });
   };
   // Members loaded from Google Sheet (loadMembersFromSheet) — Sheet is source of truth.
   // Start fallback timer: if onSnapshot hasn't fired in 5s, begin get() polling
