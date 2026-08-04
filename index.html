@@ -3449,7 +3449,6 @@ function _buildToken(s){ const m=String(s||'').match(/(\d{4}-\d{2}-\d{2}[a-z]?)/
 let _verChecked=false;
 function _checkAppVersion(){
   try{
-    if(_verChecked) return;
     if(typeof firebase==='undefined' || !_firebaseReady) return;
     _verChecked=true;
     firebase.firestore().collection('config').doc('appVersion').get().then(doc=>{
@@ -3654,6 +3653,12 @@ async function initFirebaseApp() {
       try { subscribeTelzioCallsFromFirestore(); } catch(e){ console.warn('subscribeTelzioCalls:', e); }
       try { if(['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'')) subscribeZelloConfig(); } catch(e){ console.warn('subscribeZello:', e); }
       try { _checkAppVersion(); } catch(e){ console.warn('versionCheck:', e); }
+      // React faster to a fresh deploy: also re-check whenever the app returns to the
+      // foreground, not just at cold start. Still never force-reloads mid-session — it
+      // only tells the service worker to refresh its cache so the NEXT launch is current.
+      document.addEventListener('visibilitychange', function(){
+        if(document.visibilityState==='visible'){ try{ _checkAppVersion(); }catch(e){} }
+      });
       try { subscribeAppFlags(); } catch(e){ console.warn('subscribeAppFlags:', e); }
       try { subscribeVehiclesFromFirestore(); } catch(e){ console.warn('subscribeVehicles:', e); }
       try { subscribeCommonCallsFromFirestore(); } catch(e){ console.warn('subscribeCommonCalls:', e); }
