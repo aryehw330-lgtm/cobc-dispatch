@@ -8822,9 +8822,11 @@ async function createCall() {
       let m = urg ? `${_tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${_tp}*COBC Call #${call.callNum||''}*\n\n`;
       m += `*Call Type:* ${_typeLabel}\n\n`;
       m += `${fmtLoc(call)}\n`;
+      (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
       if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
       m += `\n`;
       if (call.caller||call.phone) m += `${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
+      if (call.notes) m += `📝 ${call.notes}\n\n`;
       m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
       m += `${'tinyurl.com/cobc-dispatch'}`;
       return m;
@@ -10081,11 +10083,13 @@ async function publishCall(id) {
     let m = urg ? `${call.isTest?'🧪 TEST — ':''}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${call.isTest?'🧪 TEST — ':''}*COBC Call #${call.callNum||''}*\n\n`;
     m += `*Call Type:* ${_typeLabel}\n\n`;
     m += `${fmtLoc(call)}\n`;
+    (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
     if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
     m += `\n`;
     if (call.caller) m += `Caller: ${call.caller}`;
     if (call.phone)  m += ` · ${call.phone}`;
     if (call.caller||call.phone) m += `\n\n`;
+    if (call.notes) m += `📝 ${call.notes}\n\n`;
     m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
     m += `Open COBC Dispatch: tinyurl.com/cobc-dispatch`;
     return m;
