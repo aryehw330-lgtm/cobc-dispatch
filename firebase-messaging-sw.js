@@ -142,9 +142,9 @@ messaging.onBackgroundMessage((payload) => {
   self.registration.showNotification(title, {
     body,
     icon: '/cobc-dispatch/icon-192.png',
-    badge: '/cobc-dispatch/icon-192.png',
     tag: payload.data?.tag || 'cobc-' + Date.now(),
     requireInteraction: payload.data?.urgent === 'true',
+    vibrate: payload.data?.urgent === 'true' ? [200, 100, 200, 100, 200] : [100, 50, 100],
     data: { url, callId: payload.data?.callId || null }
   });
 });
@@ -156,8 +156,8 @@ self.addEventListener('message', (event) => {
     self.registration.showNotification(title || 'COBC Dispatch', {
       body: body || '',
       icon: '/cobc-dispatch/icon-192.png',
-      badge: '/cobc-dispatch/icon-192.png',
       tag: 'cobc-fg-' + Date.now(),
+      vibrate: data?.urgent === 'true' ? [200, 100, 200, 100, 200] : [100, 50, 100],
       data: { url: data?.url || '/cobc-dispatch/', callId: data?.callId || null }
     });
   }
