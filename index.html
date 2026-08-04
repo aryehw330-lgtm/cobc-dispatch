@@ -8822,8 +8822,8 @@ async function createCall() {
       let m = urg ? `${_tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${_tp}*COBC Call #${call.callNum||''}*\n\n`;
       m += `*Call Type:* ${_typeLabel}\n`;
       if (call.carMake) { const _cs=[call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+      if (call.notes) m += `Note: ${call.notes}\n`;
       m += `\n`;
-      if (call.notes) m += `Note: ${call.notes}\n\n`;
       m += `${fmtLoc(call)}\n`;
       (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
       if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
@@ -10085,8 +10085,8 @@ async function publishCall(id) {
     let m = urg ? `${call.isTest?'🧪 TEST — ':''}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${call.isTest?'🧪 TEST — ':''}*COBC Call #${call.callNum||''}*\n\n`;
     m += `*Call Type:* ${_typeLabel}\n`;
     if (call.carMake) { const _cs=[call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+    if (call.notes) m += `Note: ${call.notes}\n`;
     m += `\n`;
-    if (call.notes) m += `Note: ${call.notes}\n\n`;
     m += `${fmtLoc(call)}\n`;
     (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
     if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
