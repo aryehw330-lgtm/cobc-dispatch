@@ -8,7 +8,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-comp
 // ── Offline app-shell cache ──────────────────────────────────────────────────
 // Lets the app open (showing last roster/calls from localStorage) even with no
 // signal. Bump CACHE_VERSION to force every device to rebuild its cached shell.
-const CACHE_VERSION = 'cobc-shell-v1';
+const CACHE_VERSION = 'cobc-shell-v3';
 const BASE = '/cobc-dispatch/';
 const PRECACHE_URLS = [
   BASE,
@@ -16,6 +16,7 @@ const PRECACHE_URLS = [
   BASE + 'manifest.json',
   BASE + 'icon-192.png',
   BASE + 'icon-512.png',
+  BASE + 'icon-badge-mono.png',
   'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap',
   'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js',
@@ -142,6 +143,7 @@ messaging.onBackgroundMessage((payload) => {
   self.registration.showNotification(title, {
     body,
     icon: '/cobc-dispatch/icon-192.png',
+    badge: '/cobc-dispatch/icon-badge-mono.png',
     tag: payload.data?.tag || 'cobc-' + Date.now(),
     requireInteraction: payload.data?.urgent === 'true',
     vibrate: payload.data?.urgent === 'true' ? [200, 100, 200, 100, 200] : [100, 50, 100],
@@ -156,6 +158,7 @@ self.addEventListener('message', (event) => {
     self.registration.showNotification(title || 'COBC Dispatch', {
       body: body || '',
       icon: '/cobc-dispatch/icon-192.png',
+      badge: '/cobc-dispatch/icon-badge-mono.png',
       tag: 'cobc-fg-' + Date.now(),
       vibrate: data?.urgent === 'true' ? [200, 100, 200, 100, 200] : [100, 50, 100],
       data: { url: data?.url || '/cobc-dispatch/', callId: data?.callId || null }

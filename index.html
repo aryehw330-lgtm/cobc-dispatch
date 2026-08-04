@@ -19092,7 +19092,7 @@ function checkPendingShiftRequests() {
     var when = new Date(b.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
     try {
       if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🙋 Car Shift Request', { body: who+' requested '+when+' · '+b.startTime+'–'+b.endTime+'. Tap to approve.', tag: 'shift-request-'+b.id });
+        new Notification('🙋 Car Shift Request', { body: who+' requested '+when+' · '+b.startTime+'–'+b.endTime+'. Tap to approve.', tag: 'shift-request-'+b.id, icon:'/cobc-dispatch/icon-192.png' });
       }
     } catch(e){}
     // Admins get an in-app approval popup they can act on right away.
@@ -19691,7 +19691,7 @@ function _fireCarStartReminder(veh, mins) {
   try { showToast('⏰ '+v+' shift starts in '+(mins||10)+' min'); } catch(e){}
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('🔑 '+v+' shift starting soon', { body: msg, tag: 'car-start-'+v });
+      new Notification('🔑 '+v+' shift starting soon', { body: msg, tag: 'car-start-'+v, icon:'/cobc-dispatch/icon-192.png' });
     }
   } catch(e){}
 }
@@ -19701,7 +19701,7 @@ function _fireCarReminder(mins, veh) {
   try { showToast('⏰ '+mins+' min left on '+v+' — please return or extend'); } catch(e){}
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(v+' — '+mins+' min left', { body: msg, tag: 'car-reminder-'+v+'-'+mins });
+      new Notification(v+' — '+mins+' min left', { body: msg, tag: 'car-reminder-'+v+'-'+mins, icon:'/cobc-dispatch/icon-192.png' });
     }
   } catch(e){}
 }
