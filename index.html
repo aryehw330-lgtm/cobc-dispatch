@@ -8829,7 +8829,8 @@ async function createCall() {
       const _tp = call.isTest ? '🧪 TEST — ' : '';
       let m = urg ? `${_tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${_tp}*COBC Call #${call.callNum||''}*\n\n`;
       m += `*Call Type:* ${_typeLabel}\n`;
-      if (call.carMake) { const _cs=[call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+      if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+      (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
       if (call.notes) m += `Note: ${call.notes}\n`;
       m += `\n`;
       m += `${fmtLoc(call)}\n`;
@@ -10092,7 +10093,8 @@ async function publishCall(id) {
     const urg = (call.priority === 'high' || call.priority === 'urgent');
     let m = urg ? `${call.isTest?'🧪 TEST — ':''}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${call.isTest?'🧪 TEST — ':''}*COBC Call #${call.callNum||''}*\n\n`;
     m += `*Call Type:* ${_typeLabel}\n`;
-    if (call.carMake) { const _cs=[call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+    if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+    (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
     if (call.notes) m += `Note: ${call.notes}\n`;
     m += `\n`;
     m += `${fmtLoc(call)}\n`;
