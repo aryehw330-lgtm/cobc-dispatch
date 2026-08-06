@@ -15352,6 +15352,22 @@ function setStatsYear(yr,el) {
     _statsRenderT = setTimeout(()=>{ try{ _renderStatsYear(yr); }catch(e){ console.warn('stats render:',e); } }, 0);
   });
 }
+let _telzioYearCounts={};
+async function _loadTelzioYearCount(yr){
+  try{
+    if(typeof firebase==='undefined') return;
+    if(_telzioYearCounts[yr]!=null){ const e=document.getElementById('kpiTelzioCount'); if(e) e.textContent=_telzioYearCounts[yr].toLocaleString(); return; }
+    let q = firebase.firestore().collection('telzioCalls');
+    if(yr!=='all'){
+      const from=new Date(Number(yr),0,1).getTime(), to=new Date(Number(yr)+1,0,1).getTime();
+      q = q.where('at','>=',from).where('at','<',to);
+    }
+    const snap = await q.count().get();
+    const n = snap.data().count;
+    _telzioYearCounts[yr]=n;
+    const e=document.getElementById('kpiTelzioCount'); if(e) e.textContent=n.toLocaleString();
+  }catch(e){ console.warn('telzioYearCount:',e); const e2=document.getElementById('kpiTelzioCount'); if(e2) e2.textContent='—'; }
+}
 function _renderStatsYear(yr){
   const el = document.querySelector('.yr-btn.active');
   // Use ONLY live app data — no historical HIST merging
@@ -15373,7 +15389,9 @@ function _renderStatsYear(yr){
       <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Total Calls — ${yrLabel}</div><div class="kpi-sub">${d.cancelled} cancelled</div></div>
       <div class="kpi-card kpi-green"><div class="kpi-num">${d.members}</div><div class="kpi-lbl">Active Members</div><div class="kpi-sub">Responded via app</div></div>
       <div class="kpi-card kpi-amber"><div class="kpi-num">${d.rt.avg||'—'}</div><div class="kpi-lbl">Avg Min/Call</div><div class="kpi-sub">${d.rt.under30}% under 30min</div></div>
-      <div class="kpi-card kpi-red"><div class="kpi-num">${d.top_type_cnt||'—'}</div><div class="kpi-lbl">Top Call Type</div><div class="kpi-sub">${(d.top_type||'').replace('/',' / ')}</div></div>`;
+      <div class="kpi-card kpi-red"><div class="kpi-num">${d.top_type_cnt||'—'}</div><div class="kpi-lbl">Top Call Type</div><div class="kpi-sub">${(d.top_type||'').replace('/',' / ')}</div></div>
+      <div class="kpi-card kpi-blue"><div class="kpi-num" id="kpiTelzioCount">…</div><div class="kpi-lbl">Telzio Calls In — ${yrLabel}</div><div class="kpi-sub">Inbound phone calls</div></div>`;
+    _loadTelzioYearCount(yr);
   } else if (SESSION.role==='dispatch') {
     document.getElementById('st-kpis').innerHTML=`
       <div class="kpi-card kpi-blue"><div class="kpi-num">${d.total.toLocaleString()}</div><div class="kpi-lbl">Total Calls — ${yrLabel}</div><div class="kpi-sub">${d.cancelled} cancelled</div></div>
