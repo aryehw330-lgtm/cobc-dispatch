@@ -2650,16 +2650,28 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
 
+    <!-- CALLER INFO in one row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label class="input-label">Caller Name</label>
+        <input class="input" type="text" id="callCaller" placeholder="Name"/>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label class="input-label">Caller Phone</label>
+        <input class="input" type="tel" id="callPhone" placeholder="Phone"/>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;position:relative;">
+      <button type="button" onclick="toggleCommonCalls(this)" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📍 Common Calls ▾</button>
+      <button type="button" id="i911Btn" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
+      <div id="commonCallsMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;background:var(--card,#fff);border:1.5px solid var(--border2,#e2e2e2);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:6px;max-height:280px;overflow-y:auto;"></div>
+    </div>
     <!-- ADDRESS + TOWN in one row -->
     <div class="input-group" style="position:relative;">
       <label class="input-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Address <span id="callZoneBadge" style="display:none;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;white-space:nowrap;"></span></label>
       <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>{document.getElementById('callAddressSuggest').style.display='none';geocodeCallAddressForZone();},200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
       <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;position:relative;">
-      <button type="button" onclick="toggleCommonCalls(this)" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📍 Common Calls ▾</button>
-      <button type="button" id="i911Btn" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
-      <div id="commonCallsMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;background:var(--card,#fff);border:1.5px solid var(--border2,#e2e2e2);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:6px;max-height:280px;overflow-y:auto;"></div>
     </div>
     <!-- Town is auto-detected from the address; hidden from the UI but still stored for color-coding, maps & ETA -->
     <div style="display:none;">
@@ -2673,18 +2685,11 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="callTownOther"><input type="text" id="callTownText"/></div>
     </div>
 
-    <!-- CALLER INFO in one row -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-      <div class="input-group" style="margin-bottom:0;">
-        <label class="input-label">Caller Name</label>
-        <input class="input" type="text" id="callCaller" placeholder="Name"/>
-      </div>
-      <div class="input-group" style="margin-bottom:0;">
-        <label class="input-label">Caller Phone</label>
-        <input class="input" type="tel" id="callPhone" placeholder="Phone"/>
-      </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="flex:1;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
+      <button type="button" id="recentCallsBtn" onclick="toggleRecentCallsPicker()" style="flex:1;padding:11px;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">🕐 Recent Calls</button>
     </div>
-    <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="width:100%;margin-bottom:12px;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
+    <div id="recentCallsPicker" style="display:none;margin-bottom:12px;"></div>
 
     <div class="input-group">
       <label class="input-label">Notes</label>
@@ -13902,6 +13907,37 @@ function renderTelzioRecentList(calls){
       +(c.phone?'<button onclick="_newCallFromRecent(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+c.phone+'\')" style="background:var(--navy,#0f2540);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">+ Call</button>':'')
       +'</div>';
   }).join('');
+}
+// Inline "Recent Calls" picker inside the New Call modal — same 5 calls as the dispatch-tab panel
+function toggleRecentCallsPicker(){
+  const box=document.getElementById('recentCallsPicker');
+  if(!box) return;
+  const open = box.style.display==='block';
+  if(open){ box.style.display='none'; return; }
+  let calls = window._telzioMergedRecent || [];
+  if(!calls.length){ try{ calls = JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null')||[]; }catch(e){} }
+  if(!calls.length){ showToast('No recent calls yet'); box.style.display='none'; return; }
+  box.innerHTML = calls.map(c=>{
+    const pretty=_telzioFmtPhone(c.phone);
+    const label=c.name||pretty||'Unknown';
+    return '<div onclick="_fillFromRecentPick(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+(c.phone||'')+'\')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;margin-bottom:6px;cursor:pointer;">'
+      +'<div style="font-size:15px;">📞</div>'
+      +'<div style="flex:1;min-width:0;">'
+      +  '<div style="font-size:14px;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+label+'</div>'
+      +  (c.name&&pretty?'<div style="font-size:12px;color:#64748b;margin-top:1px;">'+pretty+'</div>':'')
+      +'</div>'
+      +'<div style="font-size:11px;font-weight:600;color:#64748b;white-space:nowrap;">'+_telzioFmtWhen(c.at)+'</div>'
+      +'</div>';
+  }).join('');
+  box.style.display='block';
+}
+function _fillFromRecentPick(name, phone){
+  const nameEl=document.getElementById('callCaller'), phoneEl=document.getElementById('callPhone');
+  if(nameEl) nameEl.value=name||'';
+  if(phoneEl) phoneEl.value=phone||'';
+  const box=document.getElementById('recentCallsPicker');
+  if(box) box.style.display='none';
+  showToast('📞 Filled'+(name?' — '+name:''));
 }
 // Start a New Call pre-filled from a recent-calls row
 function toggleTelzioRecentPanel(){
