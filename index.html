@@ -4169,7 +4169,7 @@ function _waMsgResponderUpdate(call, newResponder) {
 // "🆘 BACKUP NEEDED"
 function _waMsgBackup(call, backupReq) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  let msg = `🆘 *BACKUP NEEDED — Call #${call.callNum||''}*\n`;
+  let msg = `*BACKUP NEEDED — Call #${call.callNum||''}*\n`;
   msg += `${typeLabel}\n📍 ${fmtLoc(call)}`;
   if (backupReq.equipment) msg += `\n🧰 ${backupReq.equipment}`;
   if (backupReq.notes)     msg += `\n📝 ${backupReq.notes}`;
