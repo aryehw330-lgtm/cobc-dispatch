@@ -2664,7 +2664,7 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="flex:1;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
-      <button type="button" id="recentCallsBtn" onclick="toggleRecentCallsPicker()" style="flex:1;padding:11px;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">🕐 Recent Calls</button>
+      <button type="button" id="recentCallsBtn" onclick="toggleRecentCallsPicker()" style="flex:1;padding:11px;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">🕐 Recent Calls <span id="recentCallsCaret" style="font-size:10px;transition:transform .15s;">▾</span></button>
     </div>
     <div id="recentCallsPicker" style="display:none;margin-bottom:12px;"></div>
     <!-- ADDRESS -->
@@ -13915,8 +13915,9 @@ function renderTelzioRecentList(calls){
 function toggleRecentCallsPicker(){
   const box=document.getElementById('recentCallsPicker');
   if(!box) return;
+  const caret=document.getElementById('recentCallsCaret');
   const open = box.style.display==='block';
-  if(open){ box.style.display='none'; return; }
+  if(open){ box.style.display='none'; if(caret) caret.style.transform='rotate(0deg)'; return; }
   let calls = window._telzioMergedRecent || [];
   if(!calls.length){ try{ calls = JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null')||[]; }catch(e){} }
   if(!calls.length){ showToast('No recent calls yet'); box.style.display='none'; return; }
@@ -13933,6 +13934,7 @@ function toggleRecentCallsPicker(){
       +'</div>';
   }).join('');
   box.style.display='block';
+  if(caret) caret.style.transform='rotate(180deg)';
 }
 function _fillFromRecentPick(name, phone){
   const nameEl=document.getElementById('callCaller'), phoneEl=document.getElementById('callPhone');
@@ -13940,6 +13942,8 @@ function _fillFromRecentPick(name, phone){
   if(phoneEl) phoneEl.value=phone||'';
   const box=document.getElementById('recentCallsPicker');
   if(box) box.style.display='none';
+  const caret=document.getElementById('recentCallsCaret');
+  if(caret) caret.style.transform='rotate(0deg)';
   showToast('📞 Filled'+(name?' — '+name:''));
 }
 // Start a New Call pre-filled from a recent-calls row
