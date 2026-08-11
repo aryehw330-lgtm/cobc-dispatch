@@ -1203,8 +1203,16 @@ textarea.input{min-height:80px;resize:vertical;}
       <!-- DASHBOARD -->
       <div id="eq-dashboard">
         <div id="eq-out-wrap" style="display:none;"><div class="section-label">Currently Out</div><div id="eq-out-list"></div></div>
-        <div id="eq-alerts-wrap" style="display:none;"><div class="section-label">Active Alerts</div><div id="eq-alerts-list"></div></div>
-        <div class="eq-acc" style="margin-top:4px;">
+        <div id="eq-alerts-wrap" class="eq-acc" style="display:none;margin-bottom:10px;">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this)">
+            <span>🚨 Active Alerts</span>
+            <span class="eq-acc-arrow">▾</span>
+          </button>
+          <div class="eq-acc-body">
+            <div id="eq-alerts-list"></div>
+          </div>
+        </div>
+        <div class="eq-acc open" style="margin-top:4px;">
           <button class="eq-acc-head" onclick="_toggleEqAcc(this)">
             <span>🕒 Recent Activity</span>
             <span class="eq-acc-arrow">▾</span>
