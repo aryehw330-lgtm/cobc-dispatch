@@ -8012,7 +8012,7 @@ function callCardHTML(call, mini=false) {
     if(iAmApproved) {
       respondBtn = `<div class="approved-badge" style="padding:7px 12px;font-size:12px;">Approved to respond</div>`;
     } else if(iAmPending) {
-      respondBtn = `<div class="pending-badge" style="padding:7px 12px;font-size:12px;">Pending approval...</div>`;
+      respondBtn = `<div class="pending-badge" style="padding:7px 12px;font-size:12px;cursor:pointer;" onclick="event.stopPropagation();showToast('⏳ Waiting on dispatch to approve your request');">Pending approval...</div>`;
     } else {
       const isUrgent = call.priority==='urgent' && call.status!=='done';
       const btnBg = isUrgent ? 'var(--red)' : 'var(--green)';
@@ -8242,22 +8242,23 @@ async function fillCardETAs() {
       // Google route comes back, so dispatch/units never see a bogus low ETA.
       if(wrap) wrap.style.display='flex';
       span.style.display = 'inline-flex';
-      span.style.cssText += `display:inline-flex;align-items:center;justify-content:center;gap:0;background:#f3f4f6;color:#6b7280;padding:5px 9px;border-radius:8px;font-size:12px;font-weight:800;white-space:nowrap;min-width:88px;box-sizing:border-box;border:1px solid rgba(0,0,0,.08);cursor:pointer;`;
-      span.textContent = `ETA …`;
+      const _stColor = call.status==='active' ? 'var(--green,#16a34a)' : call.status==='open' ? 'var(--amber,#d97706)' : '#cbd5e1';
+      span.style.cssText += `display:inline-flex;align-items:center;justify-content:center;gap:0;background:#f3f4f6;color:#6b7280;padding:4px 7px;border-radius:8px;font-size:11.5px;font-weight:800;white-space:nowrap;min-width:88px;box-sizing:border-box;border:1.5px solid ${_stColor};cursor:pointer;`;
+      span.textContent = `Your ETA: …`;
       const _origin = { lat:_myLoc.lat, lng:_myLoc.lng };
       _googleDriveMins(_origin, pt).then(gm => {
         if (!document.body.contains(span)) return;
         const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
         span.style.cssText += `background:${gbg};color:${gc};`;
-        span.textContent = `ETA ${gm}m`;
+        span.textContent = `Your ETA: ${gm}m`;
       }).catch(()=>{
         // Google routing failed — fall back to the straight-line estimate rather than
         // leaving the chip stuck on "…" forever.
         if (!document.body.contains(span)) return;
         const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
         const mins = _etaMin(mi);
-        span.textContent = `ETA ~${mins}m`;
+        span.textContent = `Your ETA: ~${mins}m`;
       });
       // Tap to open Google Maps directions
       span.onclick = function(e) {
