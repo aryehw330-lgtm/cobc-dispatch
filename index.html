@@ -723,7 +723,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card-type{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.3px;line-height:1.1;}
 .call-card-addr{font-size:17px;font-weight:600;color:var(--text2);margin-top:0;line-height:1.2;white-space:normal;overflow:hidden;overflow-wrap:break-word;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:1px;}
-.call-card-corner{font-size:14px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 13px 4px;letter-spacing:.2px;flex-wrap:wrap;}
+.call-card-corner{font-size:14px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 13px 4px;letter-spacing:.2px;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
 .call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .cc-foot-fill{display:flex;flex-wrap:wrap;gap:6px;}
@@ -7931,7 +7931,8 @@ function callCardHTML(call, mini=false) {
   // Status color
   const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
   const sc = statusColors[call.status]||'var(--text3)';
-  const cornerMeta = `<div class="call-card-corner"><span style="display:inline-flex;align-items:center;gap:6px;">${townChipInline}<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span></span><span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;margin-left:auto;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
+  const etaChip = `<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span>`;
+  const cornerMeta = `<div class="call-card-corner" style="flex-direction:row;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;">${townChipInline?`<div style="display:flex;align-items:center;gap:6px;">${townChipInline}</div>`:'<span></span>'}<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
   const etaWrap = '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
   // Boost calls: show the vehicle inline next to the call type after a small dash
@@ -7993,7 +7994,7 @@ function callCardHTML(call, mini=false) {
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
           </div>
         </div>
-        ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${pendingBadge}</div>`:''}
+        ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><span style="font-size:14px;font-weight:800;letter-spacing:.5px;color:${sc};text-shadow:0 1px 2px rgba(0,0,0,.35);white-space:nowrap;">● ${call.status.toUpperCase()}</span>${openTimerHTML(call)}${activeTimerHTML(call)}${etaChip}${pendingBadge}</div>`:''}
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:0 13px 0 0;margin:2px 0 4px;">${_respNumBadges(call)?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">${_respNumBadges(call)}</div>`:`<span></span>`}${etaWrap}</div>
       ${(typeof cmRosterBadgesHTML==='function')?cmRosterBadgesHTML(call):''}
@@ -8040,7 +8041,7 @@ function callCardHTML(call, mini=false) {
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         ${isDispatch&&(call.pendingBackups||[]).length>0?(call.pendingBackups||[]).map(b=>`<div style="margin-top:6px;background:#fef2f2;border:1px solid rgba(220,80,80,.4);border-radius:10px;padding:8px 10px;" onclick="event.stopPropagation();"><div style="font-size:12px;font-weight:700;color:var(--red);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup${b.equipment?' · '+b.equipment:''}${b.notes?' · '+b.notes:''}</div><div style="display:flex;gap:6px;margin-top:7px;"><button onclick="event.stopPropagation();approveBackup('${call.id}',${b.time})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve Backup</button><button onclick="event.stopPropagation();rejectBackup('${call.id}',${b.time})" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Deny</button></div></div>`).join(''):''}
       </div>
-      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><div style="background:${sc};color:#fff;padding:5px 13px;border-radius:8px;font-size:14px;font-weight:800;letter-spacing:.5px;box-shadow:0 1px 3px rgba(0,0,0,.25);text-shadow:0 1px 1px rgba(0,0,0,.3);">${call.status.toUpperCase()}</div>${openTimerHTML(call)}${activeTimerHTML(call)}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:''}</div>`:''}
+      ${call.status!=='done'?`<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><span style="font-size:14px;font-weight:800;letter-spacing:.5px;color:${sc};text-shadow:0 1px 2px rgba(0,0,0,.35);white-space:nowrap;">● ${call.status.toUpperCase()}</span>${openTimerHTML(call)}${activeTimerHTML(call)}${etaChip}${iAmPending?`<div style="font-size:11px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:7px;padding:4px 8px;white-space:nowrap;text-align:center;">⏳ Pending</div>`:''}</div>`:''}
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;padding:0 13px 0 0;margin:2px 0 4px;">${_respNumBadges(call)?`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;">${_respNumBadges(call)}</div>`:`<span></span>`}${etaWrap}</div>
     ${cornerMeta}
@@ -8241,22 +8242,22 @@ async function fillCardETAs() {
       // Google route comes back, so dispatch/units never see a bogus low ETA.
       if(wrap) wrap.style.display='flex';
       span.style.display = 'inline-flex';
-      span.style.cssText += `display:inline-flex;align-items:center;gap:0;background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;`;
-      span.textContent = `Your ETA: …`;
+      span.style.cssText += `display:inline-flex;align-items:center;justify-content:center;gap:0;background:#f3f4f6;color:#6b7280;padding:5px 9px;border-radius:8px;font-size:12px;font-weight:800;white-space:nowrap;min-width:88px;box-sizing:border-box;border:1px solid rgba(0,0,0,.08);cursor:pointer;`;
+      span.textContent = `ETA …`;
       const _origin = { lat:_myLoc.lat, lng:_myLoc.lng };
       _googleDriveMins(_origin, pt).then(gm => {
         if (!document.body.contains(span)) return;
         const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
         span.style.cssText += `background:${gbg};color:${gc};`;
-        span.textContent = `Your ETA: ${gm} min`;
+        span.textContent = `ETA ${gm}m`;
       }).catch(()=>{
         // Google routing failed — fall back to the straight-line estimate rather than
         // leaving the chip stuck on "…" forever.
         if (!document.body.contains(span)) return;
         const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
         const mins = _etaMin(mi);
-        span.textContent = `Your ETA: ~${mins} min`;
+        span.textContent = `ETA ~${mins}m`;
       });
       // Tap to open Google Maps directions
       span.onclick = function(e) {
