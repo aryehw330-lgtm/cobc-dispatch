@@ -2664,7 +2664,7 @@ textarea.input{min-height:80px;resize:vertical;}
 
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="flex:1;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
-      <button type="button" id="recentCallsBtn" onclick="toggleRecentCallsPicker()" style="flex:1;padding:11px;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">🕐 Recent Calls <span id="recentCallsCaret" style="font-size:10px;transition:transform .15s;">▾</span></button>
+      <button type="button" id="recentCallsBtn" onclick="toggleRecentCallsPicker()" style="flex:1;padding:11px;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">🕐 Recent Calls <span id="recentCallsCaret" style="font-size:14px;font-weight:900;transition:transform .15s;">▾</span></button>
     </div>
     <div id="recentCallsPicker" style="display:none;margin-bottom:12px;"></div>
     <!-- ADDRESS -->
@@ -8828,10 +8828,10 @@ async function createCall() {
       const _tp = call.isTest ? '🧪 TEST — ' : '';
       let m = urg ? `${_tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${_tp}*COBC Call #${call.callNum||''}*\n\n`;
       m += `*Call Type:* ${_typeLabel}\n`;
+      if (call.notes) m += `Note: ${call.notes}\n`;
       if (call.noSpareAction==='plug') m += `🔧 Possible Plug\n`;
       if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
       (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
-      if (call.notes) m += `Note: ${call.notes}\n`;
       m += `\n`;
       m += `${fmtLoc(call)}\n`;
       (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
@@ -10093,10 +10093,10 @@ async function publishCall(id) {
     const urg = (call.priority === 'high' || call.priority === 'urgent');
     let m = urg ? `${call.isTest?'🧪 TEST — ':''}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${call.isTest?'🧪 TEST — ':''}*COBC Call #${call.callNum||''}*\n\n`;
     m += `*Call Type:* ${_typeLabel}\n`;
+    if (call.notes) m += `Note: ${call.notes}\n`;
     if (call.noSpareAction==='plug') m += `🔧 Possible Plug\n`;
     if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
     (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
-    if (call.notes) m += `Note: ${call.notes}\n`;
     m += `\n`;
     m += `${fmtLoc(call)}\n`;
     (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
@@ -10322,6 +10322,10 @@ function selectEditNoSpareAction(action, btn) {
   } else {
     ezSec.style.display='none';
   }
+  // Reflect immediately on the call card behind the modal, don't make them wait for full Save
+  const id=document.getElementById('editCallId')?.value;
+  const call=id&&STATE.calls.find(c=>c.id===id);
+  if(call){ call.noSpareAction=action; renderCalls(); renderHome(); }
 }
 async function refreshEditEzSpareInventory(){renderInventory&&renderInventory();}
 function onEditEzSpareSizeChange(preselectUnitId) {
