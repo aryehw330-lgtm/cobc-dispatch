@@ -723,7 +723,7 @@ textarea.input{min-height:80px;resize:vertical;}
 .call-card-type{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.3px;line-height:1.1;}
 .call-card-addr{font-size:17px;font-weight:600;color:var(--text2);margin-top:0;line-height:1.2;white-space:normal;overflow:hidden;overflow-wrap:break-word;}
 .call-card-meta{font-size:12px;color:var(--text3);margin-top:1px;}
-.call-card-corner{font-size:14px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 13px 4px;letter-spacing:.2px;}
+.call-card-corner{font-size:14px;font-weight:700;color:var(--text3);display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 13px 4px;letter-spacing:.2px;flex-wrap:wrap;}
 .call-card-footer{padding:6px 10px;border-top:1px solid var(--border2);display:flex;gap:5px;background:rgba(0,0,0,.02);flex-wrap:wrap;}
 .call-action{flex:1;padding:5px 6px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;white-space:nowrap;min-width:0;}
 .cc-foot-fill{display:flex;flex-wrap:wrap;gap:6px;}
@@ -2625,7 +2625,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="noSpareSection" style="display:none;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.3);border-radius:10px;padding:10px;margin-bottom:10px;">
         <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Recommended Action</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-          <button type="button" class="qtype-btn ns-btn" onclick="selectNoSpareAction('plug',this)">Plug Kit</button>
+          <button type="button" class="qtype-btn ns-btn" onclick="selectNoSpareAction('plug',this)">Possible Plug</button>
           <button type="button" class="qtype-btn ns-btn" onclick="selectNoSpareAction('ezspare',this)">EZ-Spare</button>
           <button type="button" class="qtype-btn ns-btn" onclick="selectNoSpareAction('tow',this)">Tow</button>
         </div>
@@ -2920,7 +2920,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div id="editNoSpareSection" style="display:none;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.3);border-radius:10px;padding:10px;margin-bottom:10px;">
       <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Recommended Action</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-        <button type="button" class="qtype-btn ns-btn" data-action="plug" onclick="selectEditNoSpareAction('plug',this)">Plug Kit</button>
+        <button type="button" class="qtype-btn ns-btn" data-action="plug" onclick="selectEditNoSpareAction('plug',this)">Possible Plug</button>
         <button type="button" class="qtype-btn ns-btn" data-action="ezspare" onclick="selectEditNoSpareAction('ezspare',this)">EZ-Spare</button>
         <button type="button" class="qtype-btn ns-btn" data-action="tow" onclick="selectEditNoSpareAction('tow',this)">Tow</button>
       </div>
@@ -7931,7 +7931,7 @@ function callCardHTML(call, mini=false) {
   // Status color
   const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
   const sc = statusColors[call.status]||'var(--text3)';
-  const cornerMeta = `<div class="call-card-corner">${townChipInline}<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span><span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
+  const cornerMeta = `<div class="call-card-corner"><span style="display:inline-flex;align-items:center;gap:6px;">${townChipInline}<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span></span><span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;margin-left:auto;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
   const etaWrap = '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
   // Boost calls: show the vehicle inline next to the call type after a small dash
@@ -8828,6 +8828,7 @@ async function createCall() {
       const _tp = call.isTest ? '🧪 TEST — ' : '';
       let m = urg ? `${_tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${_tp}*COBC Call #${call.callNum||''}*\n\n`;
       m += `*Call Type:* ${_typeLabel}\n`;
+      if (call.noSpareAction==='plug') m += `🔧 Possible Plug\n`;
       if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
       (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
       if (call.notes) m += `Note: ${call.notes}\n`;
@@ -8941,7 +8942,7 @@ function buildDispatchWhatsApp(call) {
   msg+=`Nature:${nature}\n\n`;
   // EZ-Spare / Plug / Tow action
   if(call.noSpareAction==='plug') {
-    msg+=`*Action: PLUG KIT*\n\n`;
+    msg+=`*Action: POSSIBLE PLUG*\n\n`;
   } else if(call.noSpareAction==='tow') {
     msg+=`*Action: TOW NEEDED*\n\n`;
   } else if(call.noSpareAction==='ezspare') {
@@ -9892,7 +9893,7 @@ function openCallDetail(id) {
     ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="javascript:void(0)" onclick="callCaller('${call.phone}','${(call.caller||'').replace(/'/g,'')}')" style="color:var(--blue);text-decoration:none;">${formatPhone(call.phone)}</a></span></div>`:''}
     ${call.carMake?`<div class="detail-row"><span class="detail-key">Vehicle</span><span class="detail-val">${[call.carYear,call.carMake?.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ')}</span></div>`:''}
     ${(call.floodNeeds&&call.floodNeeds.length)?`<div class="detail-row"><span class="detail-key">Needs</span><span class="detail-val">${call.floodNeeds.join(', ')}</span></div>`:''}
-    ${call.noSpareAction==='plug'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--orange);font-weight:700;">🔧 Plug Kit</span></div>`:''}
+    ${call.noSpareAction==='plug'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--orange);font-weight:700;">🔧 Possible Plug</span></div>`:''}
     ${call.noSpareAction==='tow'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--red);font-weight:700;">🚛 Tow Needed</span></div>`:''}
     ${typeof ezfDetailBlockHTML==='function'?ezfDetailBlockHTML(call):''}
     ${(call.assignedVehicles||[]).length?`<div class="detail-row"><span class="detail-key">Fleet</span><span class="detail-val">${call.assignedVehicles.join(', ')}</span></div>`:''}
@@ -10092,6 +10093,7 @@ async function publishCall(id) {
     const urg = (call.priority === 'high' || call.priority === 'urgent');
     let m = urg ? `${call.isTest?'🧪 TEST — ':''}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${call.isTest?'🧪 TEST — ':''}*COBC Call #${call.callNum||''}*\n\n`;
     m += `*Call Type:* ${_typeLabel}\n`;
+    if (call.noSpareAction==='plug') m += `🔧 Possible Plug\n`;
     if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
     (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
     if (call.notes) m += `Note: ${call.notes}\n`;
