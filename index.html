@@ -13381,9 +13381,36 @@ function subscribeSchedOverridesFromFirestore() {
 // and the BC-Dispatch app (same Telzio phone account). The worker takes plain
 // requests at /proxy/calls/* — no token needed.
 var TELZIO_PROXY_URL = 'https://cobc.shmueleidelman-work.workers.dev/proxy';
-// Authenticated fetch helper — all Telzio proxy calls go through here
+// Authenticated fetch helper — ALL Telzio proxy calls go through here.
+// Telzio enforces API rate limits: requests must be serialized with a minimum
+// 5-second gap between them (per Telzio support, Aug 2026). This gate is the
+// single choke point — never call the proxy with a bare fetch().
+var TELZIO_MIN_GAP_MS = 5000;
+var _telzioGateChain = Promise.resolve();
+var _telzioLastReqAt = 0;
+var _telzioQueueDepth = 0;
+var _telzioPending = {};   // path -> in-flight promise (coalesce duplicate polls)
 function telzioFetch(path) {
-  return fetch(TELZIO_PROXY_URL + path, { cache: 'no-store' });
+  // A repeat of a path already queued/in-flight rides along instead of adding load
+  if (_telzioPending[path]) return _telzioPending[path].then(function(r){ return r.clone(); });
+  // Hard backpressure: if callers outpace the gate, drop rather than pile up
+  if (_telzioQueueDepth >= 3) return Promise.reject(new Error('Telzio rate gate: queue full'));
+  _telzioQueueDepth++;
+  var p = _telzioGateChain.then(function(){
+    var wait = Math.max(0, TELZIO_MIN_GAP_MS - (Date.now() - _telzioLastReqAt));
+    return new Promise(function(res){ setTimeout(res, wait); });
+  }).then(function(){
+    _telzioLastReqAt = Date.now();
+    return fetch(TELZIO_PROXY_URL + path, { cache: 'no-store' });
+  });
+  // Chain the gate on completion (success or failure) so spacing always holds
+  _telzioGateChain = p.then(function(){}, function(){});
+  _telzioPending[path] = p;
+  p.then(function(){}, function(){}).then(function(){
+    _telzioQueueDepth--;
+    delete _telzioPending[path];
+  });
+  return p.then(function(r){ return r.clone(); });
 }
 let _lastTelzioCall = null;        // { name, phone, at }
 let _telzioFirstSnap = true;       // skip banner on the initial load
@@ -13813,7 +13840,7 @@ function startTelzioLivePolling() {
   }
 
   poll(); // first poll immediately
-  _telzioLivePollTimer = setInterval(poll, 3000); // poll every 3 s (skips when hidden / in-flight / backing off)
+  _telzioLivePollTimer = setInterval(poll, 6000); // 6 s tick — the 5 s rate gate in telzioFetch spaces actual requests
 }
 
 function stopTelzioLivePolling() {
@@ -13833,10 +13860,10 @@ function subscribeTelzioRecentList() {
     var cached = JSON.parse(localStorage.getItem('cobc_telzio_recent')||'null');
     if(cached && cached.length) renderTelzioRecentList(cached);
   } catch(e){}
-  // Fetch immediately, then refresh every 8s while logged in
+  // Fetch immediately, then refresh every 30s while logged in (Telzio rate limits)
   _loadTelzioRecent();
   if(_telzioRecentTimer) clearInterval(_telzioRecentTimer);
-  _telzioRecentTimer = setInterval(_loadTelzioRecent, 8000);
+  _telzioRecentTimer = setInterval(_loadTelzioRecent, 30000);
 }
 async function _loadTelzioRecent() {
   // Dispatch/admin only — skip the network call entirely for members
