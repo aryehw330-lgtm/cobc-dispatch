@@ -1204,7 +1204,17 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="shiftSlotEquipment" style="display:none;"></div>
       <!-- DASHBOARD -->
       <div id="eq-dashboard" style="margin-top:6px;">
+        <div id="eq-glance-wrap" style="margin-bottom:12px;"><div class="section-label">At a Glance</div><div id="eq-glance-list" style="display:flex;flex-direction:column;gap:6px;"></div></div>
         <div id="eq-out-wrap" style="display:none;margin-bottom:10px;"><div class="section-label">Currently Out</div><div id="eq-out-list"></div></div>
+        <div class="eq-acc open" style="margin-bottom:10px;">
+          <button class="eq-acc-head" onclick="_toggleEqAcc(this)">
+            <span>🕒 Recent Activity</span>
+            <span class="eq-acc-arrow">▾</span>
+          </button>
+          <div class="eq-acc-body open">
+            <div id="eq-recent-list"></div>
+          </div>
+        </div>
         <div id="eq-alerts-wrap" class="eq-acc" style="display:none;margin-bottom:10px;">
           <button class="eq-acc-head" onclick="_toggleEqAcc(this)">
             <span>🚨 Active Alerts</span>
@@ -1212,15 +1222,6 @@ textarea.input{min-height:80px;resize:vertical;}
           </button>
           <div class="eq-acc-body">
             <div id="eq-alerts-list"></div>
-          </div>
-        </div>
-        <div class="eq-acc open" style="margin-top:4px;">
-          <button class="eq-acc-head" onclick="_toggleEqAcc(this)">
-            <span>🕒 Recent Activity</span>
-            <span class="eq-acc-arrow">▾</span>
-          </button>
-          <div class="eq-acc-body open">
-            <div id="eq-recent-list"></div>
           </div>
         </div>
         <!-- Equipment Activity History — synced from Firestore (Apps Script writes events) -->
@@ -3223,10 +3224,7 @@ textarea.input{min-height:80px;resize:vertical;}
 <div class="modal-overlay hidden" id="addMemberModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:18px;font-weight:700;color:var(--text);">➕ Add New Member</div>
-      <button onclick="hideModal('addMemberModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);">×</button>
-    </div>
+    <div style="font-size:18px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text);margin-bottom:16px;">Add New Member</div>
     <div class="input-group"><label class="input-label">BC # (Unit)</label><input class="input" type="text" inputmode="numeric" id="addMbrUnit" placeholder="e.g. 42"/></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div class="input-group"><label class="input-label">First Name</label><input class="input" type="text" id="addMbrFirst" placeholder="First"/></div>
@@ -3242,8 +3240,11 @@ textarea.input{min-height:80px;resize:vertical;}
         <option value="Admin">Admin</option>
       </select>
     </div>
-    <button class="btn-full btn-primary" onclick="submitAddMember()" style="margin-bottom:8px;">Add Member</button>
-    <button class="btn-full btn-ghost" onclick="hideModal('addMemberModal')">Cancel</button>
+    <div style="padding:11px 13px;border:1px solid var(--border2);border-radius:10px;font-size:13px;color:var(--text2);line-height:1.45;margin-bottom:16px;">New members get PIN <b style="color:var(--gold-deep,#b8902a);">1234</b> — they can change it after first login.</div>
+    <div style="display:grid;grid-template-columns:1fr 1.8fr;gap:10px;">
+      <button class="btn-full btn-ghost" onclick="hideModal('addMemberModal')" style="margin:0;">Cancel</button>
+      <button class="btn-full btn-primary" onclick="submitAddMember()" style="margin:0;">Add Member</button>
+    </div>
   </div>
 </div>
 
@@ -12224,6 +12225,7 @@ function _showSuccessModal(icon, title, detail) {
 }
 
 function submitAddMember(){
+  if(SESSION.role!=='admin'){ showToast('Only admins can add members'); hideModal('addMemberModal'); return; }
   const btn = document.querySelector('#addMemberModal .btn-primary');
   const unlock = _btnLock(btn, 'Adding…');
   const unit=(document.getElementById('addMbrUnit')?.value||'').trim().toUpperCase();
@@ -12291,26 +12293,7 @@ function renderMemberDir() {
       </div>
     </div>`).join('');
   if(SESSION.role==='admin') {
-    el.innerHTML += `<div style="margin-top:14px;padding:15px;background:linear-gradient(160deg,rgba(124,58,237,.30),rgba(18,12,30,.72));-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);border:1px solid rgba(167,139,250,.42);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.4);">
-      <div style="font-size:13px;font-weight:800;margin-bottom:10px;color:#e9d5ff;display:flex;align-items:center;gap:6px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(180deg,#a78bfa,#7c3aed);color:#fff;font-size:14px;">+</span> Add Member</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <input class="input" id="newMemberUnitInline" type="text" inputmode="numeric" placeholder="BC #" style="padding:10px 12px;font-size:13px;"/>
-        <input class="input" id="newMemberFirstInline" type="text" placeholder="First name" style="padding:10px 12px;font-size:13px;"/>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <input class="input" id="newMemberLastInline" type="text" placeholder="Last name" style="padding:10px 12px;font-size:13px;"/>
-        <input class="input" id="newMemberPhoneInline" type="tel" placeholder="Phone" style="padding:10px 12px;font-size:13px;"/>
-      </div>
-      <select class="input" id="newMemberRoleInline" style="padding:10px 12px;font-size:13px;margin-bottom:10px;">
-        <option value="Member">Member</option>
-        <option value="Observer">Observer</option>
-        <option value="Dispatch">Dispatch</option>
-        <option value="Equipment Team">Equipment Team</option>
-        <option value="Admin">Admin</option>
-      </select>
-      <button class="btn-full" onclick="addMemberInline()" style="font-size:14px;font-weight:800;color:#fff;border:none;border-radius:10px;padding:12px;cursor:pointer;background:linear-gradient(180deg,#a78bfa,#7c3aed);box-shadow:0 3px 12px rgba(124,58,237,.45);">Add Member</button>
-      <div style="font-size:11px;color:rgba(216,180,254,.85);margin-top:7px;text-align:center;">New members get PIN <b>1234</b> — they can change it after first login.</div>
-    </div>`;
+    el.innerHTML += `<button type="button" onclick="showModal('addMemberModal')" style="margin-top:14px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;border-radius:12px;border:1.5px dashed rgba(212,169,58,.55);background:rgba(212,169,58,.08);color:var(--gold-light,#e6c463);font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">+ Add Member</button>`;
   }
 }
 
@@ -16708,7 +16691,45 @@ async function deleteEquipmentItem(id){
     renderEqAdminList&&renderEqAdminList();renderInventory&&renderInventory();save();
   }catch(e){showToast('Error');console.error(e);}
 }
+function _eqGlanceCat(n){ n=String(n||''); if(/ez.?spare/i.test(n)) return 'EZ Spares'; if(/\bac\b|a\/c|air cond/i.test(n)) return 'AC Units'; if(/heat/i.test(n)) return 'Heaters'; if(/\bfan/i.test(n)) return 'Fans'; if(/spare/i.test(n)) return 'Spares'; if(/generator/i.test(n)) return 'Generators'; if(/light tower|tower light/i.test(n)) return 'Light Towers'; if(/shop.?vac/i.test(n)) return 'Shop Vacs'; if(/pump/i.test(n)) return 'Pumps'; if(/chainsaw|chain saw/i.test(n)) return 'Chainsaws'; if(/truck/i.test(n)) return 'Trucks'; return n.replace(/\s*[-#(]?\s*[A-Z]{0,3}-?\d+\)?\s*$/i,'').trim()||n.trim()||'Other'; }
+window._eqGlanceOpen = window._eqGlanceOpen || {};
+function _eqGlanceToggle(k){ window._eqGlanceOpen[k]=!window._eqGlanceOpen[k]; renderEqGlance(); }
+function renderEqGlance(){
+  const el=document.getElementById('eq-glance-list'); if(!el) return;
+  const items=(STATE.equipment||[]).filter(e=>e.equipStatus!=='Not Active');
+  if(!items.length){ el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 2px;">No equipment loaded</div>'; return; }
+  const groups={};
+  items.forEach(e=>{ const k=_eqGlanceCat(e.name); (groups[k]=groups[k]||[]).push(e); });
+  const state=e=>['Damaged','Missing'].includes(e.equipStatus)?'broken':(e.status==='out'?'out':'avail');
+  const pill=(n,label,fg,bg,bd)=>n?`<span style="display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap;color:${fg};background:${bg};border:1px solid ${bd};">${n} ${label}</span>`:'';
+  const order=['AC Units','EZ Spares','Heaters','Fans','Spares'];
+  const keys=Object.keys(groups).sort((a,b)=>{ const ia=order.indexOf(a), ib=order.indexOf(b); if(ia>-1||ib>-1) return (ia<0?99:ia)-(ib<0?99:ib); return a.localeCompare(b); });
+  el.innerHTML=keys.map(k=>{
+    const g=groups[k]; const c={avail:0,out:0,broken:0}; g.forEach(e=>c[state(e)]++);
+    const open=!!window._eqGlanceOpen[k]; const kEsc=k.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    let h=`<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden;">`
+      +`<button type="button" onclick="_eqGlanceToggle('${kEsc}')" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 12px;background:transparent;border:none;color:#fff;cursor:pointer;font-family:inherit;text-align:left;">`
+      +`<span style="flex:1;min-width:0;font-size:14px;font-weight:700;line-height:1.25;">${k} <span style="font-size:11px;opacity:.55;display:inline-block;transition:transform .15s;${open?'transform:rotate(180deg);':''}">▾</span></span>`
+      +`<span style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;">`
+      +pill(c.avail,'in','#86efac','rgba(34,197,94,.14)','rgba(34,197,94,.35)')
+      +pill(c.out,'out','#e6c463','rgba(212,169,58,.16)','rgba(212,169,58,.45)')
+      +pill(c.broken,'broken','#fca5a5','rgba(220,38,38,.16)','rgba(248,113,113,.45)')
+      +pill(g.length,'total','rgba(255,255,255,.7)','rgba(255,255,255,.06)','rgba(255,255,255,.14)')
+      +`</span></button>`;
+    if(open){
+      const rank={out:0,broken:1,avail:2};
+      h+=`<div style="border-top:1px solid rgba(255,255,255,.08);padding:4px 12px 8px;">`+g.slice().sort((a,b)=>rank[state(a)]-rank[state(b)]||String(a.name).localeCompare(String(b.name))).map(e=>{
+        const s=state(e);
+        const tag=s==='out'?'<span class="badge badge-amber" style="font-size:10px;">OUT</span>':s==='broken'?`<span class="badge badge-red" style="font-size:10px;">${String(e.equipStatus).toUpperCase()}</span>`:'<span class="badge badge-green" style="font-size:10px;">IN</span>';
+        const meta=[e.location, s==='out'&&e.checkedOutBy?fmtEqHolder(e):'', s==='out'&&e.callNum?'Call #'+e.callNum:''].filter(Boolean).join(' · ');
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:#fff;line-height:1.25;">${e.name}</div><div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:1px;line-height:1.3;">${meta}</div></div>${tag}</div>`;
+      }).join('')+`</div>`;
+    }
+    return h+`</div>`;
+  }).join('');
+}
 function renderEquipmentDashboard() {
+  try{ renderEqGlance(); }catch(e){ console.warn('glance',e); }
   const active=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
   const total=active.length;
   const out=active.filter(e=>e.status==='out').length;
