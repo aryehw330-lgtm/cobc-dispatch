@@ -2541,6 +2541,36 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <input type="hidden" id="callPriority" value="normal"/>
 
+
+    <!-- CALLER INFO in one row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div class="input-group" style="margin-bottom:0;">
+        <label class="input-label">Caller Name</label>
+        <input class="input" type="text" id="callCaller" placeholder="Name"/>
+      </div>
+      <div class="input-group" style="margin-bottom:0;">
+        <label class="input-label">Caller Phone</label>
+        <input class="input" type="tel" id="callPhone" placeholder="Phone"/>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="flex:1;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
+      <button type="button" id="recentCallsBtn" onclick="toggleRecentCallsPicker()" style="flex:1;padding:11px;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">🕐 Recent Calls <span id="recentCallsCaret" style="font-size:14px;font-weight:900;transition:transform .15s;">▾</span></button>
+    </div>
+    <div id="recentCallsPicker" style="display:none;margin-bottom:12px;"></div>
+    <div id="repeatCallerBox" style="display:none;margin-bottom:10px;"></div>
+    <!-- ADDRESS -->
+    <div class="input-group" style="position:relative;">
+      <label class="input-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Address <span id="callZoneBadge" style="display:none;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;white-space:nowrap;"></span></label>
+      <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>{document.getElementById('callAddressSuggest').style.display='none';geocodeCallAddressForZone();},200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
+      <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;position:relative;">
+      <button type="button" onclick="toggleCommonCalls(this)" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📍 Common Calls ▾</button>
+      <button type="button" id="i911Btn" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
+      <div id="commonCallsMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;background:var(--card,#fff);border:1.5px solid var(--border2,#e2e2e2);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:6px;max-height:280px;overflow-y:auto;"></div>
+    </div>
     <!-- QUICK TYPE GRID -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;" id="callTypeGrid">
       <button class="qtype-btn" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
@@ -2569,7 +2599,6 @@ textarea.input{min-height:80px;resize:vertical;}
       </select>
     </div>
     <input type="hidden" id="callType" value=""/>
-
     <!-- EQUIPMENT QTY (A/C, Fans, Heaters) -->
     <div id="eqQtySection" style="display:none;" class="input-group">
       <label class="input-label" id="eqQtyLabel">How many needed?</label>
@@ -2661,35 +2690,6 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
 
-    <!-- CALLER INFO in one row -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-      <div class="input-group" style="margin-bottom:0;">
-        <label class="input-label">Caller Name</label>
-        <input class="input" type="text" id="callCaller" placeholder="Name"/>
-      </div>
-      <div class="input-group" style="margin-bottom:0;">
-        <label class="input-label">Caller Phone</label>
-        <input class="input" type="tel" id="callPhone" placeholder="Phone"/>
-      </div>
-    </div>
-
-    <div id="repeatCallerBox" style="display:none;margin-bottom:10px;"></div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
-      <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="flex:1;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
-      <button type="button" id="recentCallsBtn" onclick="toggleRecentCallsPicker()" style="flex:1;padding:11px;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">🕐 Recent Calls <span id="recentCallsCaret" style="font-size:14px;font-weight:900;transition:transform .15s;">▾</span></button>
-    </div>
-    <div id="recentCallsPicker" style="display:none;margin-bottom:12px;"></div>
-    <!-- ADDRESS -->
-    <div class="input-group" style="position:relative;">
-      <label class="input-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Address <span id="callZoneBadge" style="display:none;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;white-space:nowrap;"></span></label>
-      <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>{document.getElementById('callAddressSuggest').style.display='none';geocodeCallAddressForZone();},200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
-      <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;position:relative;">
-      <button type="button" onclick="toggleCommonCalls(this)" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📍 Common Calls ▾</button>
-      <button type="button" id="i911Btn" onclick="requestViaI911()" style="padding:11px;background:transparent;border:1.5px dashed var(--blue,#2563eb);border-radius:10px;color:var(--blue,#2563eb);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">➤ Request via i911</button>
-      <div id="commonCallsMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;background:var(--card,#fff);border:1.5px solid var(--border2,#e2e2e2);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:6px;max-height:280px;overflow-y:auto;"></div>
-    </div>
     <!-- Town is auto-detected from the address; hidden from the UI but still stored for color-coding, maps & ETA -->
     <div style="display:none;">
       <select id="callTown">
@@ -5216,6 +5216,42 @@ async function requestViaI911(){
     showToast('i911 request failed — '+(e.message||'try again'));
   }
 }
+// Address predictions: Places API (New) first, legacy AutocompleteService fallback, hard timeout so it never hangs on "Searching…"
+function _addrTimeout(p, ms){ return Promise.race([p, new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),ms))]); }
+let _addrNewToken=null;
+async function _fetchAddrPredictions(q, bounds, legacySvc){
+  try{
+    const lib = await google.maps.importLibrary('places');
+    if(lib.AutocompleteSuggestion){
+      if(!_addrNewToken) _addrNewToken = new lib.AutocompleteSessionToken();
+      const r = await _addrTimeout(lib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+        input:q, sessionToken:_addrNewToken, includedRegionCodes:['us'],
+        locationBias:{ south:ADDR_BOUNDS.south, west:ADDR_BOUNDS.west, north:ADDR_BOUNDS.north, east:ADDR_BOUNDS.east }
+      }), 5000);
+      return (r.suggestions||[]).filter(x=>x.placePrediction).map(x=>{ const p=x.placePrediction; return {
+        description:p.text.text, place_id:p.placeId, _new:p,
+        structured_formatting:{ main_text:(p.mainText&&p.mainText.text)||p.text.text.split(',')[0], secondary_text:(p.secondaryText&&p.secondaryText.text)||'' } }; });
+    }
+  }catch(e){ console.warn('Places (New) failed, trying legacy:', e.message); }
+  return _addrTimeout(new Promise(res=>{
+    legacySvc.getPlacePredictions({ input:q, sessionToken:_getSessionToken(), bounds:bounds, componentRestrictions:{country:'us'} },
+      (p, st)=> res(st===google.maps.places.PlacesServiceStatus.OK ? (p||[]) : []));
+  }), 5000);
+}
+function _getAddrDetails(prediction, cb){
+  const OK = google.maps.places.PlacesServiceStatus.OK;
+  if(prediction._new){
+    const place = prediction._new.toPlace();
+    _addrTimeout(place.fetchFields({fields:['addressComponents','formattedAddress','location','displayName']}), 6000).then(()=>{
+      _addrNewToken=null;
+      cb({ address_components:(place.addressComponents||[]).map(c=>({long_name:c.longText,short_name:c.shortText,types:c.types})),
+           formatted_address:place.formattedAddress, geometry:{location:place.location}, name:place.displayName }, OK);
+    }).catch(e=>{ console.warn('Place details failed', e.message); _addrNewToken=null; cb(null,'ERROR'); });
+    return;
+  }
+  const svc = new google.maps.places.PlacesService(document.createElement('div'));
+  svc.getDetails({ placeId:prediction.place_id, sessionToken:_sessionToken, fields:['address_components','formatted_address','geometry','name'] }, cb);
+}
 function addrAutoLookup(inputEl, townSelId, townTextId) {
   const q = (inputEl.value||'').trim();
   const suggestId = inputEl.id + 'Suggest';
@@ -5244,19 +5280,14 @@ function addrAutoLookup(inputEl, townSelId, townTextId) {
         new google.maps.LatLng(ADDR_BOUNDS.south, ADDR_BOUNDS.west),
         new google.maps.LatLng(ADDR_BOUNDS.north, ADDR_BOUNDS.east)
       );
-      svc.getPlacePredictions({
-        input: q,
-        sessionToken: _getSessionToken(),
-        bounds: bounds,
-        componentRestrictions: { country: 'us' }
-      }, (predictions, status) => {
-        if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
-          box.innerHTML='<div class="addr-suggest-empty">No matches — type address manually</div>';
-          return;
-        }
-        _addrCache[q] = predictions;
-        renderAddrSuggestions(predictions, box, inputEl, townSelId, townTextId);
-      });
+      const predictions = await _fetchAddrPredictions(q, bounds, svc);
+      if (inputEl.value.trim() !== q) return; // user kept typing
+      if (!predictions || !predictions.length) {
+        box.innerHTML='<div class="addr-suggest-empty">No matches — type address manually</div>';
+        return;
+      }
+      _addrCache[q] = predictions;
+      renderAddrSuggestions(predictions, box, inputEl, townSelId, townTextId);
     } catch(e) {
       box.innerHTML='<div class="addr-suggest-empty">⚠️ Lookup failed — type manually</div>';
     }
@@ -5286,13 +5317,7 @@ function addrPickSuggestion(idx, boxId, inputId, townSelId, townTextId) {
   if(!prediction) return;
   box.style.display='none';
 
-  const mapDiv = document.createElement('div');
-  const svc = new google.maps.places.PlacesService(mapDiv);
-  svc.getDetails({
-    placeId: prediction.place_id,
-    sessionToken: _sessionToken,
-    fields: ['address_components','formatted_address','geometry','name']
-  }, (place, status) => {
+  _getAddrDetails(prediction, (place, status) => {
     _sessionToken = null;
     if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
       inputEl.value = prediction.description;
@@ -8812,6 +8837,7 @@ async function createCall() {
     _queueCallNumReconcile(call.id); try{ _drainCallNumQueue(); }catch(e){}
   }
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish, silent:_silent});
+  if(!call.isTest) _rcSaveFromCall(call);
   if(_silent) logCallEvent(call, 'completed', {outcome:'CC', silent:true, responders:0, durationMin:0});
   try{ _maybeSaveCustomCar(carMake, carModel, _usedOtherMake, _usedOtherModel); }catch(e){}
   hideModal('newCallModal');
@@ -14022,6 +14048,27 @@ async function createSilentCall(){
 }
 function _rcCarStr(c){ return [c.carYear,c.carColor,(c.carMake||'').replace(/_/g,' '),c.carModel].filter(Boolean).join(' '); }
 let _rcLastDigits='', _rcMatch=null;
+const _rcProfiles={}; // digits -> profile doc (null = none)
+async function _rcLoadProfile(d){
+  if(d in _rcProfiles) return _rcProfiles[d];
+  try{ if(window.firebase&&_firebaseReady){ const doc=await firebase.firestore().collection('callerProfiles').doc(d).get(); _rcProfiles[d]=doc.exists?doc.data():null; } }catch(e){ console.warn('callerProfile load',e); }
+  if(!(d in _rcProfiles)) _rcProfiles[d]=null;
+  return _rcProfiles[d];
+}
+async function _rcSaveProfile(d, data){
+  const p=Object.assign({}, _rcProfiles[d]||{}, data, {updatedAt:Date.now(), by:SESSION.unit||''});
+  _rcProfiles[d]=p;
+  try{ await firebase.firestore().collection('callerProfiles').doc(d).set(p,{merge:true}); }catch(e){ console.warn('callerProfile save',e); showToast('Saved on this device only — sync failed'); }
+}
+// Every new call refreshes the number's profile with what was entered
+function _rcSaveFromCall(call){
+  try{
+    const d=_rcDigits(call.phone); if(d.length<10) return;
+    const data={}; if(call.caller) data.caller=call.caller; if(call.address){ data.address=call.address; data.town=call.town||''; }
+    if(call.carMake&&_RC_CAR_TYPES.includes(String(call.type||'').split(':')[0])) Object.assign(data,{carYear:call.carYear||'',carColor:call.carColor||'',carMake:call.carMake||'',carModel:call.carModel||'',carType:String(call.type||'').split(':')[0]});
+    if(Object.keys(data).length) _rcSaveProfile(d,data);
+  }catch(e){}
+}
 function checkRepeatCaller(){
   const box=document.getElementById('repeatCallerBox'); const phoneEl=document.getElementById('callPhone');
   if(!box||!phoneEl) return;
@@ -14030,35 +14077,73 @@ function checkRepeatCaller(){
   _rcLastDigits=d;
   if(d.length<10){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
   const past=(STATE.calls||[]).filter(c=>c&&!c.isTest&&_rcDigits(c.phone)===d).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  if(!past.length){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
-  const last=past[0];
+  _rcBuild(d,past);
+  _rcLoadProfile(d).then(()=>{ if(_rcLastDigits===d && !(_rcMatch&&_rcMatch.editing)) _rcBuild(d,past); });
+}
+function _rcBuild(d,past){
+  const box=document.getElementById('repeatCallerBox'); if(!box) return;
+  const prof=_rcProfiles[d]||null;
+  if(!past.length&&!prof){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
+  const last=past[0]||null;
   const carCall=past.find(c=>_RC_CAR_TYPES.includes(String(c.type||'').split(':')[0])&&c.carMake);
-  _rcMatch={last,carCall};
-  const when=last.createdAt?new Date(last.createdAt).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}):'';
+  const car=(prof&&prof.carMake)?{carYear:prof.carYear,carColor:prof.carColor,carMake:prof.carMake,carModel:prof.carModel,type:prof.carType||(carCall&&carCall.type)||''}:(carCall?{carYear:carCall.carYear,carColor:carCall.carColor,carMake:carCall.carMake,carModel:carCall.carModel,type:carCall.type}:null);
+  const addr=(prof&&prof.address)?{address:prof.address,town:prof.town||''}:(last&&last.address?{address:last.address,town:last.town||''}:null);
+  const caller=(prof&&prof.caller)||(last&&last.caller)||'';
+  _rcMatch={d,past,last,car,addr,caller,editing:false};
   const nameEl=document.getElementById('callCaller');
-  if(nameEl&&!nameEl.value&&last.caller) nameEl.value=last.caller;
+  if(nameEl&&!nameEl.value&&caller) nameEl.value=caller;
+  _rcRender();
+}
+function _rcRender(){
+  const box=document.getElementById('repeatCallerBox'); const m=_rcMatch; if(!box||!m) return;
+  const when=m.last&&m.last.createdAt?new Date(m.last.createdAt).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}):'';
+  const btn='flex:1;min-width:110px;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;';
   let h='<div style="border:1.5px solid var(--gold,#d4a93a);background:rgba(212,169,58,.08);border-radius:12px;padding:10px 12px;">'
-    +'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;"><div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--gold-deep,#b8902a);">Called before · '+past.length+' call'+(past.length>1?'s':'')+'</div><div style="font-size:11px;font-weight:600;color:var(--text2);">Last '+_rcEsc(when)+'</div></div>'
-    +'<div style="font-size:13px;color:var(--text);line-height:1.5;">'
-    +(last.caller?'<div style="font-weight:700;">'+_rcEsc(last.caller)+'</div>':'')
-    +'<div>'+_rcEsc(_rcTypeLabel(last.type))+(last.callNum?' · #'+_rcEsc(last.callNum):'')+'</div>'
-    +(last.address?'<div style="color:var(--text2);">'+_rcEsc(last.address)+'</div>':'')
-    +'</div>';
-  if(carCall){
-    h+='<div style="margin-top:8px;padding:8px 10px;background:var(--card,#fff);border:1px solid var(--border2,#e2e2e2);border-radius:9px;"><div style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);margin-bottom:2px;">Car on file</div><div style="font-size:14px;font-weight:700;color:var(--text);">'+_rcEsc(_rcCarStr(carCall))+'</div></div>';
+    +'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;"><div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--gold-deep,#b8902a);">'+(m.past.length?'Called before · '+m.past.length+' call'+(m.past.length>1?'s':''):'Saved caller')+'</div>'+(when?'<div style="font-size:11px;font-weight:600;color:var(--text2);">Last '+_rcEsc(when)+'</div>':'')+'</div>';
+  if(m.editing){
+    const inp='width:100%;padding:9px 10px;border:1px solid var(--border2,#e2e2e2);border-radius:8px;background:var(--card,#fff);color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;';
+    const lab='font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);margin:8px 0 3px;';
+    const c=m.car||{}, a=m.addr||{};
+    h+='<div style="'+lab+'">Address</div><input id="rcEdAddr" style="'+inp+'" value="'+_rcEsc(a.address)+'" placeholder="Street address"/>'
+      +'<input id="rcEdTown" style="'+inp+'margin-top:6px;" value="'+_rcEsc(a.town)+'" placeholder="Town"/>'
+      +'<div style="'+lab+'">Car</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+      +'<input id="rcEdYear" inputmode="numeric" style="'+inp+'" value="'+_rcEsc(c.carYear)+'" placeholder="Year"/>'
+      +'<input id="rcEdColor" style="'+inp+'" value="'+_rcEsc(c.carColor)+'" placeholder="Color"/>'
+      +'<input id="rcEdMake" style="'+inp+'" value="'+_rcEsc((c.carMake||'').replace(/_/g,' '))+'" placeholder="Make"/>'
+      +'<input id="rcEdModel" style="'+inp+'" value="'+_rcEsc(c.carModel)+'" placeholder="Model"/></div>'
+      +'<div style="display:flex;gap:6px;margin-top:10px;"><button type="button" onclick="_rcSaveEdit()" style="'+btn+'border:none;background:var(--gold,#d4a93a);color:#000;">Save</button><button type="button" onclick="_rcMatch.editing=false;_rcRender()" style="'+btn+'flex:0 0 auto;border:none;background:transparent;color:var(--text2);">Cancel</button></div></div>';
+    box.innerHTML=h; box.style.display='block'; return;
   }
+  h+='<div style="font-size:13px;color:var(--text);line-height:1.5;">'
+    +(m.caller?'<div style="font-weight:700;">'+_rcEsc(m.caller)+'</div>':'')
+    +(m.last?'<div>'+_rcEsc(_rcTypeLabel(m.last.type))+(m.last.callNum?' · #'+_rcEsc(m.last.callNum):'')+'</div>':'')
+    +(m.addr?'<div style="color:var(--text2);">'+_rcEsc(m.addr.address)+(m.addr.town&&m.addr.address.indexOf(m.addr.town)<0?', '+_rcEsc(m.addr.town):'')+'</div>':'')
+    +'</div>';
+  if(m.car) h+='<div style="margin-top:8px;padding:8px 10px;background:var(--card,#fff);border:1px solid var(--border2,#e2e2e2);border-radius:9px;"><div style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);margin-bottom:2px;">Car on file</div><div style="font-size:14px;font-weight:700;color:var(--text);">'+_rcEsc(_rcCarStr(m.car))+'</div></div>';
   h+='<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
-    +(carCall?'<button type="button" onclick="applyRepeatCar()" style="flex:1;min-width:120px;padding:10px;border:none;border-radius:9px;background:var(--gold,#d4a93a);color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">Use this car</button>':'')
-    +(last.address?'<button type="button" onclick="applyRepeatAddress()" style="flex:1;min-width:120px;padding:10px;border:1px solid var(--border2,#e2e2e2);border-radius:9px;background:var(--card,#fff);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Use address</button>':'')
+    +(m.car?'<button type="button" onclick="applyRepeatCar()" style="'+btn+'border:none;background:var(--gold,#d4a93a);color:#000;">Use this car</button>':'')
+    +(m.addr?'<button type="button" onclick="applyRepeatAddress()" style="'+btn+'border:1px solid var(--border2,#e2e2e2);background:var(--card,#fff);color:var(--text);">Use address</button>':'')
+    +'<button type="button" onclick="_rcMatch.editing=true;_rcRender()" style="padding:10px 12px;border:1px solid var(--border2,#e2e2e2);border-radius:9px;background:transparent;color:var(--text);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Edit</button>'
     +'<button type="button" onclick="dismissRepeatCaller()" style="padding:10px 12px;border:none;border-radius:9px;background:transparent;color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Dismiss</button>'
     +'</div></div>';
   box.innerHTML=h; box.style.display='block';
 }
+async function _rcSaveEdit(){
+  const m=_rcMatch; if(!m) return;
+  const v=id=>(document.getElementById(id)?.value||'').trim();
+  const addr=v('rcEdAddr'), town=v('rcEdTown'), carMake=v('rcEdMake');
+  const data={address:addr,town:town,carYear:v('rcEdYear'),carColor:v('rcEdColor'),carMake:carMake,carModel:v('rcEdModel')};
+  if(carMake&&!(_rcProfiles[m.d]&&_rcProfiles[m.d].carType)) data.carType=String((m.car&&m.car.type)||'').split(':')[0]||'';
+  m.editing=false;
+  await _rcSaveProfile(m.d,data);
+  _rcBuild(m.d,m.past);
+  showToast('Caller info updated');
+}
 function applyRepeatCar(){
-  const c=_rcMatch&&_rcMatch.carCall; if(!c) return;
+  const c=_rcMatch&&_rcMatch.car; if(!c) return;
   const cur=document.getElementById('callType').value;
   if(!_RC_CAR_TYPES.includes(String(cur||'').split(':')[0])){
-    const t=String(c.type||'').split(':')[0];
+    const t=String(c.type||'').split(':')[0]||'flat_tire_spare';
     const b=document.querySelector('.qtype-btn[onclick*="\''+t+'\'"]');
     selectCallType(t,b);
   }
@@ -14066,14 +14151,12 @@ function applyRepeatCar(){
   if(makeSel&&makeSel.options.length<=1&&typeof populateCarMakeSelect==='function') populateCarMakeSelect('carMake');
   if(typeof populateCarYearSelect==='function'){ const ys=document.getElementById('carYear'); if(ys&&ys.options.length<=1) populateCarYearSelect('carYear'); }
   const make=(c.carMake||'').replace(/_/g,' ').trim();
+  const pick=(sel,val)=>{ const o=Array.from(sel.options).find(o=>o.value.toLowerCase()===String(val).toLowerCase()); if(o){ sel.value=o.value; return true; } return false; };
   if(makeSel){
-    if(Array.from(makeSel.options).some(o=>o.value===make)){
-      makeSel.value=make; onCarMakeChange('carMake','carModel','carMakeOther','carModelOther');
+    if(make&&pick(makeSel,make)){
+      onCarMakeChange('carMake','carModel','carMakeOther','carModelOther');
       const modelSel=document.getElementById('carModel'); const model=(c.carModel||'').trim();
-      if(model&&modelSel){
-        if(Array.from(modelSel.options).some(o=>o.value===model)) modelSel.value=model;
-        else { modelSel.value='Other'; onCarModelChange('carModel','carModelOther'); const mo=document.getElementById('carModelOther'); if(mo) mo.value=model; }
-      }
+      if(model&&modelSel&&!pick(modelSel,model)){ modelSel.value='Other'; onCarModelChange('carModel','carModelOther'); const mo=document.getElementById('carModelOther'); if(mo) mo.value=model; }
     } else if(make){
       makeSel.value='Other'; onCarMakeChange('carMake','carModel','carMakeOther','carModelOther');
       const mk=document.getElementById('carMakeOther'); if(mk) mk.value=make;
@@ -14085,7 +14168,7 @@ function applyRepeatCar(){
   showToast('Car filled — '+_rcCarStr(c));
 }
 function applyRepeatAddress(){
-  const l=_rcMatch&&_rcMatch.last; if(!l) return;
+  const l=_rcMatch&&_rcMatch.addr; if(!l) return;
   const a=document.getElementById('callAddress'); if(a) a.value=l.address||'';
   const ts=document.getElementById('callTown'); if(ts&&l.town){ if(Array.from(ts.options).some(o=>o.value===l.town)) ts.value=l.town; else { ts.value='Other'; const tt=document.getElementById('callTownText'); if(tt) tt.value=l.town; } }
   try{ geocodeCallAddressForZone(); }catch(e){}
