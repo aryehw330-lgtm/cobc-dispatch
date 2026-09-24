@@ -8804,7 +8804,7 @@ async function createCall() {
     completedAt: _silent?Date.now():null,
     completionOutcome: _silent?'CC':null,
     createdAt: Date.now(),
-    responders: [],
+    responders: _silent?(window._silentResponders||[]).slice():[],
     pendingResponders: [],
     rejectedResponders: [],
     backupRequests: [],
@@ -8838,7 +8838,7 @@ async function createCall() {
   }
   logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish, silent:_silent});
   if(!call.isTest) _rcSaveFromCall(call);
-  if(_silent) logCallEvent(call, 'completed', {outcome:'CC', silent:true, responders:0, durationMin:0});
+  if(_silent) logCallEvent(call, 'completed', {outcome:'CC', silent:true, responders:(call.responders||[]).length, by:(call.responders||[]).map(r=>r.unit).join(','), durationMin:0});
   try{ _maybeSaveCustomCar(carMake, carModel, _usedOtherMake, _usedOtherModel); }catch(e){}
   hideModal('newCallModal');
   ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther','callTown','callTownText'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
@@ -14041,10 +14041,50 @@ const _RC_CAR_TYPES=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lo
 function _rcDigits(p){ let d=String(p||'').replace(/\D+/g,''); if(d.length===11&&d[0]==='1') d=d.slice(1); return d; }
 function _rcEsc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function _rcTypeLabel(t){ try{ if(String(t||'').startsWith('other:')) return String(t).slice(6); t=String(t||'').split(':')[0]; return cleanLabel(CALL_TYPE_LABELS[t]||t.replace(/_/g,' ')); }catch(e){ return String(t||''); } }
-async function createSilentCall(){
+// Silent dispatch: first ask who completed the call, then log it (no alerts)
+let _silentPick=new Set();
+function _silentMemberName(m){ return m.name||[m.firstName,m.lastName].filter(Boolean).join(' ')||''; }
+function createSilentCall(){
+  if(!document.getElementById('callType').value){ showToast('Pick a call type first'); return; }
+  let ov=document.getElementById('silentWhoModal');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='silentWhoModal'; ov.className='modal-overlay hidden';
+    ov.innerHTML='<div class="modal"><div class="modal-handle"></div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px;">Who completed this call?</div>'
+      +'<div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Logged as completed · no notifications sent</div>'
+      +'<input class="input" id="silentWhoSearch" placeholder="Search name or BC #" autocomplete="off" oninput="_silentRenderList()" style="margin-bottom:10px;"/>'
+      +'<div id="silentWhoChosen" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>'
+      +'<div id="silentWhoList" style="max-height:300px;overflow-y:auto;border:1px solid var(--border2,#e2e2e2);border-radius:10px;margin-bottom:14px;"></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1.8fr;gap:10px;"><button class="btn-full btn-ghost" style="margin:0;" onclick="hideModal(\'silentWhoModal\')">Cancel</button><button class="btn-full btn-primary" id="silentWhoGo" style="margin:0;" onclick="_silentConfirm()">Log Silent Call</button></div></div>';
+    document.body.appendChild(ov);
+  }
+  _silentPick=new Set(); document.getElementById('silentWhoSearch').value='';
+  _silentRenderList(); showModal('silentWhoModal');
+}
+function _silentToggle(u){ u=String(u); _silentPick.has(u)?_silentPick.delete(u):_silentPick.add(u); _silentRenderList(); }
+function _silentRenderList(){
+  const q=(document.getElementById('silentWhoSearch').value||'').trim().toLowerCase();
+  const mem=(STATE.members||[]).filter(m=>m&&m.unit!=null&&!m.inactive);
+  const list=mem.filter(m=>!q||String(m.unit).toLowerCase().includes(q)||_silentMemberName(m).toLowerCase().includes(q))
+    .sort((a,b)=>(parseInt(a.unit)||9999)-(parseInt(b.unit)||9999));
+  document.getElementById('silentWhoList').innerHTML=list.length?list.map(m=>{ const on=_silentPick.has(String(m.unit));
+    return '<button type="button" onclick="_silentToggle(\''+_rcEsc(m.unit)+'\')" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;min-height:44px;border:none;border-bottom:1px solid var(--border,#eee);background:'+(on?'rgba(212,169,58,.14)':'transparent')+';color:var(--text);font-family:inherit;font-size:14px;text-align:left;cursor:pointer;">'
+      +'<span style="width:20px;height:20px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;'+(on?'background:var(--gold,#d4a93a);color:#000;':'border:1.5px solid var(--border2,#ccc);')+'">'+(on?'✓':'')+'</span>'
+      +'<span style="font-weight:800;min-width:44px;">BC '+_rcEsc(m.unit)+'</span><span style="flex:1;min-width:0;">'+_rcEsc(_silentMemberName(m))+'</span></button>'; }).join('')
+    :'<div style="padding:14px;font-size:13px;color:var(--text3);">No members match</div>';
+  const chosen=[..._silentPick];
+  document.getElementById('silentWhoChosen').innerHTML=chosen.map(u=>'<span style="padding:4px 10px;border-radius:999px;background:var(--gold,#d4a93a);color:#000;font-size:12px;font-weight:800;">BC '+_rcEsc(u)+'</span>').join('');
+  const go=document.getElementById('silentWhoGo'); if(go) go.textContent=chosen.length?'Log Silent Call ('+chosen.length+')':'Log Silent Call';
+}
+async function _silentConfirm(){
+  if(!_silentPick.size){ showToast('Pick who completed the call'); return; }
+  const mem=STATE.members||[];
+  window._silentResponders=[..._silentPick].map(u=>{ const m=mem.find(x=>String(x.unit)===u)||{};
+    return {unit:u,name:_silentMemberName(m),phone:m.phone||'',eta:'',via:'silent',status:'approved',time:Date.now(),approvedBy:SESSION.unit||'',approvedAt:Date.now()}; });
+  hideModal('silentWhoModal');
   const cb=document.getElementById('callDontPublish'); if(cb&&cb.checked){ cb.checked=false; if(typeof updateDispatchBtn==='function') updateDispatchBtn(); }
   window._silentDispatch=true;
-  try{ await createCall(); } finally { window._silentDispatch=false; }
+  try{ await createCall(); } finally { window._silentDispatch=false; window._silentResponders=null; }
 }
 function _rcCarStr(c){ return [c.carYear,c.carColor,(c.carMake||'').replace(/_/g,' '),c.carModel].filter(Boolean).join(' '); }
 let _rcLastDigits='', _rcMatch=null;
