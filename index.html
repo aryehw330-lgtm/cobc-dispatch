@@ -130,18 +130,19 @@ button,a,[onclick],.tab,.call-card,.modal-handle,.chip,.btn,.btn-sm,.btn-primary
   --shadow-md:0 4px 6px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.06);
   --radius:12px;--radius-sm:8px;--radius-lg:16px;
 }
-#app{display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;bottom:0;height:100vh;height:100lvh;background:var(--bg);overflow:hidden;}
-html,body{background:#000;}
+#app{display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;height:var(--app-h,100%);background:var(--bg);overflow:hidden;}
+html,body{background:#000;}</style><script>(function(){function setH(){var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;document.documentElement.style.setProperty('--app-h',Math.round(h)+'px');}setH();window.addEventListener('resize',setH);window.addEventListener('orientationchange',function(){setTimeout(setH,300);});if(window.visualViewport)window.visualViewport.addEventListener('resize',setH);document.addEventListener('visibilitychange',setH);})();</script><style>
 .topbar{background-color:#0e0e0e;background-image:linear-gradient(135deg,#1c1c1c 0%,#000 100%);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px 12px;padding-top:calc(20px + env(safe-area-inset-top));height:calc(74px + env(safe-area-inset-top));flex-shrink:0;position:relative;overflow:hidden;border-bottom:1px solid rgba(212,169,58,.4);box-shadow:0 1px 0 rgba(0,0,0,.2),inset 0 -1px 0 rgba(212,169,58,.15);touch-action:none;z-index:50;}
 .topbar::before{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent 0%,var(--gold) 20%,var(--gold-light) 50%,var(--gold) 80%,transparent 100%);opacity:.7;}
-.topbar::after{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='white' fill-opacity='0.03'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E") repeat;pointer-events:none;}
+.topbar::after{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='white' fill-opacity='0.03'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E") repeat;pointer-events:none;z-index:0;}
+.topbar>*{position:relative;z-index:1;}
 .topbar-left{display:flex;align-items:center;gap:11px;min-width:0;flex:1 1 auto;}
 .topbar-logo{height:44px;width:auto;flex-shrink:0;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));}
 .topbar-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
 .topbar-title{font-size:15px;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:8px;color:#fff;text-transform:uppercase;white-space:nowrap;}
 .topbar-title-main{color:var(--gold-light);letter-spacing:.6px;}
 .topbar-badge{font-size:9px;background:rgba(212,169,58,.18);border:1px solid rgba(212,169,58,.4);color:var(--gold-light);padding:2px 7px;border-radius:4px;letter-spacing:.8px;font-weight:700;flex-shrink:0;}
-.topbar-sub{font-size:10px;color:rgba(255,255,255,.55);font-weight:500;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;max-width:150px;}
+.topbar-sub{font-size:10px;color:rgba(255,255,255,.82);font-weight:600;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;max-width:150px;}
 @keyframes topbarScroll{0%,15%{transform:translateX(0);}85%,100%{transform:translateX(var(--scroll-dist,0px));}}
 .topbar-sub.scrolling{animation:topbarScroll 4s ease-in-out infinite alternate;}
 .topbar-weather{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:#fff;background:rgba(212,169,58,.16);border:1px solid rgba(230,196,99,.4);border-radius:14px;padding:5px 10px;white-space:nowrap;line-height:1;flex-shrink:0;}
@@ -181,7 +182,7 @@ html,body{background:#000;}
 /* App-wide text-size control (A / A+ / A++) */
 #page-equipment.eq-ts-lg,#app.eq-ts-lg .pages{zoom:1.14;}
 #page-equipment.eq-ts-xl,#app.eq-ts-xl .pages{zoom:1.30;}
-.tabbar{background:linear-gradient(180deg,#141414,#000);display:flex;align-items:stretch;border-top:1px solid rgba(212,169,58,.3);padding-bottom:max(6px,calc(env(safe-area-inset-bottom) - 8px));flex-shrink:0;position:relative;z-index:200;overflow:visible;touch-action:none;}
+.tabbar{background:linear-gradient(180deg,#141414,#000);display:flex;align-items:stretch;border-top:1px solid rgba(212,169,58,.3);padding-bottom:max(8px,env(safe-area-inset-bottom));flex-shrink:0;position:relative;z-index:200;overflow:visible;touch-action:none;}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 4px;margin:6px 4px 2px;border-radius:16px;border:none;background:none;cursor:pointer;color:rgba(255,255,255,.78);font-size:11px;letter-spacing:.2px;position:relative;transition:transform .18s cubic-bezier(.2,.7,.2,1),background .2s;letter-spacing:.2px;font-weight:600;font-family:'DM Sans',sans-serif;letter-spacing:.2px;transition:color .15s;min-height:52px;position:relative;}
 .tab.active{color:var(--gold-light);font-weight:800;text-shadow:0 1px 6px rgba(212,169,58,.55);background:linear-gradient(180deg,rgba(255,243,204,.28),rgba(212,169,58,.16) 55%,rgba(120,90,10,.22));box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 -3px 6px rgba(0,0,0,.3),0 4px 12px rgba(212,169,58,.28),0 1px 0 rgba(230,196,99,.4);transform:translateY(-3px) scale(1.04);}
 .tab:active{transform:scale(.93);}
@@ -2671,6 +2672,7 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
 
+    <div id="repeatCallerBox" style="display:none;margin-bottom:10px;"></div>
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <button type="button" id="telzioPullBtn" onclick="autofillFromLastCall()" style="flex:1;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">📞 Pull from last call</button>
       <button type="button" id="recentCallsBtn" onclick="toggleRecentCallsPicker()" style="flex:1;padding:11px;background:#eef2ff;color:#1d4ed8;border:1px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">🕐 Recent Calls <span id="recentCallsCaret" style="font-size:14px;font-weight:900;transition:transform .15s;">▾</span></button>
@@ -2711,6 +2713,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <button id="callSubmitBtn" class="btn-full btn-primary metal-gold" onclick="createCall()" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);font-size:16px;font-weight:700;padding:16px;letter-spacing:-.2px;">Dispatch Call</button>
+    <button type="button" class="btn-full" onclick="createSilentCall()" style="margin-top:8px;background:transparent;color:var(--text);border:1.5px solid var(--border2,#e2e2e2);font-size:15px;font-weight:700;padding:13px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:inherit;"><span>Silent Dispatch</span><span style="font-size:11px;font-weight:500;color:var(--text3);">Counts as a completed call · no notifications</span></button>
     <button type="button" class="btn-full" onclick="sendToInterstate()" style="margin-top:8px;background:linear-gradient(135deg,#047857,#059669);color:#fff;border:none;font-size:15px;font-weight:700;padding:14px;border-radius:12px;">🌐 Send to Interstate</button>
     <button class="btn-full btn-ghost" onclick="hideModal('newCallModal')" style="margin-top:8px;">Cancel</button>
   </div>
@@ -8746,6 +8749,7 @@ async function createCall() {
   const priority=document.getElementById('callPriority').value;
   const notes=document.getElementById('callNotes').value.trim();
   const dontPublish=document.getElementById('callDontPublish').checked;
+  const _silent=!!window._silentDispatch && !dontPublish; // logged + numbered, instantly completed, NO push/WhatsApp
   let carMake=(document.getElementById('carMake')?.value||'').trim();
   const _usedOtherMake=(carMake==='Other');
   if(carMake==='Other') carMake=(document.getElementById('carMakeOther')?.value||'').trim();
@@ -8769,7 +8773,10 @@ async function createCall() {
     callNumPending: _callNumPending,
     isTest: !!window._testMode,
     type, address, town, caller, phone, priority, notes,
-    status: dontPublish?'draft':'open',
+    status: dontPublish?'draft':(_silent?'done':'open'),
+    silent: _silent,
+    completedAt: _silent?Date.now():null,
+    completionOutcome: _silent?'CC':null,
     createdAt: Date.now(),
     responders: [],
     pendingResponders: [],
@@ -8781,7 +8788,7 @@ async function createCall() {
     assignedEquipment: [],
     createdBy: SESSION.unit,
     rrCount: 0,
-    rrLastSent: dontPublish?null:Date.now(),
+    rrLastSent: (dontPublish||_silent)?null:Date.now(),
     carMake:carMake||null, carModel:carModel||null, carYear:carYear||null, carColor:carColor||null,
     floodNeeds: (type==='flood' && floodNeeds.length) ? floodNeeds : null,
     noSpareAction: (type==='flat_tire_no_spare' ? (document.getElementById('noSpareAction')?.value || null) : null),
@@ -8803,7 +8810,8 @@ async function createCall() {
     // mint again here or every call burns a second number, skipping the sequence.)
     _queueCallNumReconcile(call.id); try{ _drainCallNumQueue(); }catch(e){}
   }
-  logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish});
+  logCallEvent(call, 'created', {dispatcher:SESSION.unit, draft:dontPublish, silent:_silent});
+  if(_silent) logCallEvent(call, 'completed', {outcome:'CC', silent:true, responders:0, durationMin:0});
   try{ _maybeSaveCustomCar(carMake, carModel, _usedOtherMake, _usedOtherModel); }catch(e){}
   hideModal('newCallModal');
   ['callAddress','callCaller','callPhone','callNotes','carYear','carColor','carMakeOther','carModelOther','callTown','callTownText'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
@@ -8830,6 +8838,8 @@ async function createCall() {
 
   if (dontPublish) {
     showToast('Notes: Call saved as draft');
+  } else if (_silent) {
+    showToast('Silent call'+(call.callNum?' #'+call.callNum:'')+' logged — no alerts sent');
   } else {
     showToast('✅ Call created & dispatched');
     // PUSH HOOK #1 — new call → all members (WA dispatch piggybacked server-side)
@@ -14017,6 +14027,90 @@ function _applyTelzioToForm(force) {
   if(phoneEl && _lastTelzioCall.phone && (force || !phoneEl.value)) { phoneEl.value = _lastTelzioCall.phone; filled = true; }
   return filled;
 }
+// ── Repeat caller: when the phone matches a past call, show its info + offer to reuse car details ──
+const _RC_CAR_TYPES=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas','vehicle_stalled','vehicle_pullout','stuck_snow','bumper_hanging','plastic_hanging'];
+function _rcDigits(p){ let d=String(p||'').replace(/\D+/g,''); if(d.length===11&&d[0]==='1') d=d.slice(1); return d; }
+function _rcEsc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function _rcTypeLabel(t){ try{ if(String(t||'').startsWith('other:')) return String(t).slice(6); t=String(t||'').split(':')[0]; return cleanLabel(CALL_TYPE_LABELS[t]||t.replace(/_/g,' ')); }catch(e){ return String(t||''); } }
+async function createSilentCall(){
+  const cb=document.getElementById('callDontPublish'); if(cb&&cb.checked){ cb.checked=false; if(typeof updateDispatchBtn==='function') updateDispatchBtn(); }
+  window._silentDispatch=true;
+  try{ await createCall(); } finally { window._silentDispatch=false; }
+}
+function _rcCarStr(c){ return [c.carYear,c.carColor,(c.carMake||'').replace(/_/g,' '),c.carModel].filter(Boolean).join(' '); }
+let _rcLastDigits='', _rcMatch=null;
+function checkRepeatCaller(){
+  const box=document.getElementById('repeatCallerBox'); const phoneEl=document.getElementById('callPhone');
+  if(!box||!phoneEl) return;
+  const d=_rcDigits(phoneEl.value);
+  if(d===_rcLastDigits) return;
+  _rcLastDigits=d;
+  if(d.length<10){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
+  const past=(STATE.calls||[]).filter(c=>c&&!c.isTest&&_rcDigits(c.phone)===d).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(!past.length){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
+  const last=past[0];
+  const carCall=past.find(c=>_RC_CAR_TYPES.includes(String(c.type||'').split(':')[0])&&c.carMake);
+  _rcMatch={last,carCall};
+  const when=last.createdAt?new Date(last.createdAt).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}):'';
+  const nameEl=document.getElementById('callCaller');
+  if(nameEl&&!nameEl.value&&last.caller) nameEl.value=last.caller;
+  let h='<div style="border:1.5px solid var(--gold,#d4a93a);background:rgba(212,169,58,.08);border-radius:12px;padding:10px 12px;">'
+    +'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;"><div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--gold-deep,#b8902a);">Called before · '+past.length+' call'+(past.length>1?'s':'')+'</div><div style="font-size:11px;font-weight:600;color:var(--text2);">Last '+_rcEsc(when)+'</div></div>'
+    +'<div style="font-size:13px;color:var(--text);line-height:1.5;">'
+    +(last.caller?'<div style="font-weight:700;">'+_rcEsc(last.caller)+'</div>':'')
+    +'<div>'+_rcEsc(_rcTypeLabel(last.type))+(last.callNum?' · #'+_rcEsc(last.callNum):'')+'</div>'
+    +(last.address?'<div style="color:var(--text2);">'+_rcEsc(last.address)+'</div>':'')
+    +'</div>';
+  if(carCall){
+    h+='<div style="margin-top:8px;padding:8px 10px;background:var(--card,#fff);border:1px solid var(--border2,#e2e2e2);border-radius:9px;"><div style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);margin-bottom:2px;">Car on file</div><div style="font-size:14px;font-weight:700;color:var(--text);">'+_rcEsc(_rcCarStr(carCall))+'</div></div>';
+  }
+  h+='<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
+    +(carCall?'<button type="button" onclick="applyRepeatCar()" style="flex:1;min-width:120px;padding:10px;border:none;border-radius:9px;background:var(--gold,#d4a93a);color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">Use this car</button>':'')
+    +(last.address?'<button type="button" onclick="applyRepeatAddress()" style="flex:1;min-width:120px;padding:10px;border:1px solid var(--border2,#e2e2e2);border-radius:9px;background:var(--card,#fff);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Use address</button>':'')
+    +'<button type="button" onclick="dismissRepeatCaller()" style="padding:10px 12px;border:none;border-radius:9px;background:transparent;color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Dismiss</button>'
+    +'</div></div>';
+  box.innerHTML=h; box.style.display='block';
+}
+function applyRepeatCar(){
+  const c=_rcMatch&&_rcMatch.carCall; if(!c) return;
+  const cur=document.getElementById('callType').value;
+  if(!_RC_CAR_TYPES.includes(String(cur||'').split(':')[0])){
+    const t=String(c.type||'').split(':')[0];
+    const b=document.querySelector('.qtype-btn[onclick*="\''+t+'\'"]');
+    selectCallType(t,b);
+  }
+  const makeSel=document.getElementById('carMake');
+  if(makeSel&&makeSel.options.length<=1&&typeof populateCarMakeSelect==='function') populateCarMakeSelect('carMake');
+  if(typeof populateCarYearSelect==='function'){ const ys=document.getElementById('carYear'); if(ys&&ys.options.length<=1) populateCarYearSelect('carYear'); }
+  const make=(c.carMake||'').replace(/_/g,' ').trim();
+  if(makeSel){
+    if(Array.from(makeSel.options).some(o=>o.value===make)){
+      makeSel.value=make; onCarMakeChange('carMake','carModel','carMakeOther','carModelOther');
+      const modelSel=document.getElementById('carModel'); const model=(c.carModel||'').trim();
+      if(model&&modelSel){
+        if(Array.from(modelSel.options).some(o=>o.value===model)) modelSel.value=model;
+        else { modelSel.value='Other'; onCarModelChange('carModel','carModelOther'); const mo=document.getElementById('carModelOther'); if(mo) mo.value=model; }
+      }
+    } else if(make){
+      makeSel.value='Other'; onCarMakeChange('carMake','carModel','carMakeOther','carModelOther');
+      const mk=document.getElementById('carMakeOther'); if(mk) mk.value=make;
+      const mo=document.getElementById('carModelOther'); if(mo) mo.value=c.carModel||'';
+    }
+  }
+  const y=document.getElementById('carYear'); if(y) y.value=c.carYear||'';
+  if(typeof setColorPick==='function') setColorPick('carColorPick', c.carColor||'');
+  showToast('Car filled — '+_rcCarStr(c));
+}
+function applyRepeatAddress(){
+  const l=_rcMatch&&_rcMatch.last; if(!l) return;
+  const a=document.getElementById('callAddress'); if(a) a.value=l.address||'';
+  const ts=document.getElementById('callTown'); if(ts&&l.town){ if(Array.from(ts.options).some(o=>o.value===l.town)) ts.value=l.town; else { ts.value='Other'; const tt=document.getElementById('callTownText'); if(tt) tt.value=l.town; } }
+  try{ geocodeCallAddressForZone(); }catch(e){}
+  showToast('Address filled');
+}
+function dismissRepeatCaller(){ const b=document.getElementById('repeatCallerBox'); if(b){ b.style.display='none'; b.innerHTML=''; } }
+// Watch the phone field (catches typing AND autofill from Telzio / Recent Calls)
+setInterval(function(){ const m=document.getElementById('newCallModal'); if(m&&!m.classList.contains('hidden')) checkRepeatCaller(); else if(_rcLastDigits){ _rcLastDigits=''; dismissRepeatCaller(); } }, 700);
 // Button handler: 📞 Pull from last call — instant live data first, then direct Telzio proxy
 async function autofillFromLastCall(){
   const btn=document.getElementById('telzioPullBtn');
