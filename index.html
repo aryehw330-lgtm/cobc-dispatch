@@ -4451,18 +4451,15 @@ function _mirrorMemberWrite(body,res){
     if(!id) return;
     const col=firebase.firestore().collection('members');
     if(body.action==='deleteMember'){ col.doc(id).delete().catch(()=>{}); return; }
+    // Only non-PII fields go to Firestore (names/phone/email/PIN live ONLY in the
+    // private Sheet). Sending any of them makes the security rules reject the WHOLE
+    // write, which is why role edits made in the app never reached Firestore.
     const data={unit:id};
-    if(body.firstName!=null){data.firstName=body.firstName;data.first=body.firstName;}
-    if(body.lastName!=null){data.lastName=body.lastName;data.last=body.lastName;}
-    if(body.phone!=null)data.phone=body.phone;
-    if(body.role!=null)data.role=body.role;
-    // SECURITY: never mirror PINs into Firestore (it is world-readable). PINs live
-    // ONLY in the private Google Sheet and are verified server-side via getMemberByPin.
-    // Actively delete any pin field that may exist on the doc from older versions.
-    try{ data.pin=firebase.firestore.FieldValue.delete(); }catch(e){}
-    if(body.email!=null)data.email=body.email;
+    if(body.role!=null)data.role=String(body.role).toLowerCase().trim(); // same format as the Sheet→Firestore sync
     if(body.carAccess!=null)data.carAccess=body.carAccess;
-    col.doc(id).set(data,{merge:true}).catch(()=>{});
+    // Strip any PIN/PII left on the doc by older versions (deleted fields pass the rules).
+    try{ ['pin','firstName','lastName','first','last','name','phone','email'].forEach(k=>{ data[k]=firebase.firestore.FieldValue.delete(); }); }catch(e){}
+    col.doc(id).set(data,{merge:true}).catch(e=>console.warn('member mirror:',e));
   }catch(e){}
 }
 function _memberIsReal(m){
