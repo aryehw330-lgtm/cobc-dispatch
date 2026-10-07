@@ -4251,9 +4251,10 @@ function sheetGET(params={}){
   const _tok = window._fbIdToken ? '&authToken='+encodeURIComponent(window._fbIdToken) : '';
   const url=EQ_SCRIPT_URL+(qs?'?'+qs:'?')+_tok;
   // credentials:'omit' avoids iOS ITP blocking cross-origin requests
-  // AbortController gives a 12-second timeout so it fails fast on mobile
+  // AbortController timeout. 30 s, not 12: Google's Apps Script web app sometimes takes
+  // 10–25 s to answer, and a 12 s cut-off made the Equip tab come back empty.
   const ctrl=new AbortController();
-  const tid=setTimeout(()=>ctrl.abort(),12000);
+  const tid=setTimeout(()=>ctrl.abort(),30000);
   return fetch(url,{redirect:'follow',mode:'cors',credentials:'omit',signal:ctrl.signal})
     .then(r=>{clearTimeout(tid);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
     .catch(e=>{clearTimeout(tid);throw e;});
