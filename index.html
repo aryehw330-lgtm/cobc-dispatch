@@ -15602,13 +15602,24 @@ async function _loadTelzioYearCount(yr){
   try{
     if(typeof firebase==='undefined') return;
     if(_telzioYearCounts[yr]!=null){ const e=document.getElementById('kpiTelzioCount'); if(e) e.textContent=_telzioYearCounts[yr].toLocaleString(); return; }
-    let q = firebase.firestore().collection('telzioCalls');
+    // Count via the Firestore REST aggregation endpoint: the compat SDK loaded
+    // here (10.7.1) has no Query.count(), which left this KPI stuck on "—".
+    const structuredQuery={from:[{collectionId:'telzioCalls'}]};
     if(yr!=='all'){
       const from=new Date(Number(yr),0,1).getTime(), to=new Date(Number(yr)+1,0,1).getTime();
-      q = q.where('at','>=',from).where('at','<',to);
+      structuredQuery.where={compositeFilter:{op:'AND',filters:[
+        {fieldFilter:{field:{fieldPath:'at'},op:'GREATER_THAN_OR_EQUAL',value:{integerValue:String(from)}}},
+        {fieldFilter:{field:{fieldPath:'at'},op:'LESS_THAN',value:{integerValue:String(to)}}}]}};
     }
-    const snap = await q.count().get();
-    const n = snap.data().count;
+    const tok=await _fsIdToken();
+    const opts=Object.assign({}, _fsRestOpts(tok));
+    opts.method='POST';
+    opts.headers=Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+    opts.body=JSON.stringify({structuredAggregationQuery:{aggregations:[{alias:'n',count:{}}],structuredQuery}});
+    const res=await fetch('https://firestore.googleapis.com/v1/projects/cobc-dispatch/databases/(default)/documents:runAggregationQuery',opts).then(r=>r.json());
+    const agg=Array.isArray(res)&&res[0]&&res[0].result&&res[0].result.aggregateFields&&res[0].result.aggregateFields.n;
+    if(!agg) throw new Error('count failed: '+JSON.stringify(res).slice(0,200));
+    const n = Number(agg.integerValue||0);
     _telzioYearCounts[yr]=n;
     const e=document.getElementById('kpiTelzioCount'); if(e) e.textContent=n.toLocaleString();
   }catch(e){ console.warn('telzioYearCount:',e); const e2=document.getElementById('kpiTelzioCount'); if(e2) e2.textContent='—'; }
