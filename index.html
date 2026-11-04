@@ -2413,6 +2413,7 @@ textarea.input{min-height:80px;resize:vertical;}
     document.querySelectorAll('.modal-overlay').forEach(function(overlay){
       if(overlay.dataset.swipeClose) return;
       if(overlay.id==='liveMapModal') { overlay.dataset.swipeClose='1'; return; } // map: pinch-zoom shouldn't trigger close — use the X
+      if(overlay.id==='newCallModal') { overlay.dataset.swipeClose='1'; return; } // new call: a stray swipe was wiping a half-typed call — close with X / Cancel only
       overlay.dataset.swipeClose='1';
       var modal = overlay.querySelector('.modal');
       if(!modal) return;
@@ -5813,6 +5814,28 @@ function load() {
 
 // STATE init moved here so all default-data constants above are declared before load() runs
 let STATE = load();
+// ── No stale-call flash on open ──────────────────────────────────────────────
+// The phone's saved copy of calls can be out of date (calls closed since the last
+// visit). Hold it back and show "Loading calls…" until the server answers; fall back
+// to the saved copy after a few seconds so the app still works offline.
+var _bootCachedCalls = (Array.isArray(STATE.calls) && STATE.calls.length) ? STATE.calls : null;
+var _callsLoading = !!_bootCachedCalls;
+if (_bootCachedCalls) STATE.calls = [];
+function _restoreBootCalls(){
+  if(!_bootCachedCalls) return;
+  const ids=new Set((STATE.calls||[]).map(c=>c&&c.id));
+  STATE.calls=[...(STATE.calls||[]), ..._bootCachedCalls.filter(c=>c&&!ids.has(c.id))];
+  _bootCachedCalls=null;
+}
+function _markCallsLive(){
+  if(!_callsLoading) return;
+  _callsLoading=false;
+  setTimeout(function(){ try{renderCalls();}catch(e){} try{renderHome();}catch(e){} },0);
+}
+setTimeout(function(){ if(_callsLoading){ _restoreBootCalls(); _markCallsLive(); } }, 6000);
+function _callsLoadingHTML(){
+  return '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Loading calls…</div></div>';
+}
 // ── Firestore real-time sync ──────────────────────────────
 let _db = null;
 let _unsubscribeCalls = null;
@@ -6077,6 +6100,7 @@ function initFirestore(){
       if(_isFirst)console.log('REST sync: '+fsCalls.length+' calls, '+fsMembers.length+' members');
       clearSyncError();
       if(typeof SESSION==='undefined')return;
+      _restoreBootCalls(); _markCallsLive();
       const firestoreIds=new Set(fsCalls.map(c=>c.id));
       const localOnly=(Array.isArray(STATE.calls)?STATE.calls:[]).filter(c=>c.id&&!firestoreIds.has(c.id)&&!_deletedCallIds.has(c.id)&&!_isResetPurged(c));
       localOnly.forEach(call=>firestoreUpsertCall(call));
@@ -6124,14 +6148,15 @@ function initFirestore(){
   let _bufRecent=null, _bufOpen=null, _unsubRecent=null, _unsubOpen=null, _fellBack=false, _lastCallsSig='';
   function _snapDocs(snap){
     if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
-    if(!snap.metadata.fromCache)clearSyncError();
+    if(!snap.metadata.fromCache){clearSyncError();_markCallsLive();}
     const docs=snap.docs.map(d=>({id:d.id,...d.data()}));
     // Skip the empty cached snapshot iOS fires before real server data arrives
-    if(snap.metadata.fromCache && docs.length===0 && (STATE.calls||[]).length>0) return null;
+    if(snap.metadata.fromCache && docs.length===0 && ((STATE.calls||[]).length>0 || _bootCachedCalls)) return null;
     return docs;
   }
   function _applyCallsMerge(){
     if(_bufRecent===null && _bufOpen===null) return;
+    _restoreBootCalls();
     const map=new Map();
     (_bufOpen||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
     (_bufRecent||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
@@ -6288,7 +6313,7 @@ function save() {
   _savePending = true;
   setTimeout(function(){
     _savePending = false;
-    try { localStorage.setItem('cobc_v21', JSON.stringify(STATE)); } catch(e){}
+    try { const _st=_bootCachedCalls?Object.assign({},STATE,{calls:_bootCachedCalls}):STATE; localStorage.setItem('cobc_v21', JSON.stringify(_st)); } catch(e){}
   }, 0);
 }
   // ── CALL SYNC ── push one call to shared backend ──────────────────────────
@@ -7436,7 +7461,7 @@ function renderHome() {
   const recent = (STATE.calls||[])
     .filter(c=>c.status!=='done' && c.status!=='draft' && c.status!=='cancelled')
     .sort((a,b)=>_hSort(a)-_hSort(b) || (b.createdAt-a.createdAt));
-  el.innerHTML=recent.length?recent.map(c=>callCardHTML(c,true)).join(''):homeEmptyCallsHTML();
+  el.innerHTML=_callsLoading?_callsLoadingHTML():(recent.length?recent.map(c=>callCardHTML(c,true)).join(''):homeEmptyCallsHTML());
   setTimeout(fitCardAddresses, 0);
   setTimeout(fillCardETAs, 50); // async fill ETAs after cards render
 
@@ -8425,6 +8450,7 @@ function renderCalls() {
       list = list.filter(c=>c.status===dispatchFilter);
     }
   }
+  if (_callsLoading) { el.innerHTML=_callsLoadingHTML(); return; }
   if (!list.length) {
     el.innerHTML='<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No calls</div><div class="empty-sub">Create a call with the + button</div></div>';
     return;
@@ -14215,10 +14241,48 @@ function applyRepeatAddress(){
 function dismissRepeatCaller(){ const b=document.getElementById('repeatCallerBox'); if(b){ b.style.display='none'; b.innerHTML=''; } }
 // Watch the phone field (catches typing AND autofill from Telzio / Recent Calls)
 setInterval(function(){ const m=document.getElementById('newCallModal'); if(m&&!m.classList.contains('hidden')) checkRepeatCaller(); else if(_rcLastDigits){ _rcLastDigits=''; dismissRepeatCaller(); } }, 700);
+// Newest hotline call from the Telzio webhook log (telzioCalls), with its REAL call
+// time. This is the authoritative "last caller": the in-memory copy, the 30 s recent
+// list and the rate-limited proxy could each be stale or busy, which made the button
+// fill an older caller some of the time.
+async function _newestHotlineCall(){
+  try{
+    if(typeof firebase==='undefined' || !_firebaseReady) return null;
+    const snap=await firebase.firestore().collection('telzioCalls').orderBy('at','desc').limit(1).get();
+    if(snap.empty) return null;
+    const d=snap.docs[0].data()||{};
+    let phone=String(d.phone||d.From||'').replace(/\D+/g,'');
+    if(phone.length===11 && phone.charAt(0)==='1') phone=phone.substring(1);
+    const at=Number(d.at)||0;
+    return phone ? {name:d.name||d.FromCnam||'', phone:phone, at:at} : null;
+  }catch(e){ console.warn('newestHotlineCall',e); return null; }
+}
+function _agoLabel(at){
+  if(!at) return '';
+  const m=Math.round((Date.now()-at)/60000);
+  if(m<1) return 'just now';
+  if(m<60) return m+' min ago';
+  const h=Math.floor(m/60);
+  if(h<24) return h+' hr ago';
+  return new Date(at).toLocaleDateString([], {month:'short', day:'numeric'});
+}
 // Button handler: 📞 Pull from last call — instant live data first, then direct Telzio proxy
 async function autofillFromLastCall(){
   const btn=document.getElementById('telzioPullBtn');
   const orig=btn?btn.innerHTML:'';
+  // 1) Authoritative: newest call in the hotline log
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ Getting last caller…'; }
+  const newest=await _newestHotlineCall();
+  if(btn){ btn.disabled=false; btn.innerHTML=orig; }
+  if(newest){
+    const nameEl=document.getElementById('callCaller'), phoneEl=document.getElementById('callPhone');
+    if(phoneEl) phoneEl.value=newest.phone;
+    if(nameEl) nameEl.value=newest.name||'';
+    _lastTelzioCall=newest;
+    showToast('📞 Filled from last call'+(newest.name?' — '+newest.name:'')+' · '+_agoLabel(newest.at));
+    return;
+  }
+  // 2) Fallbacks (hotline log unreachable)
   if(_applyTelzioToForm(true)){
     showToast('📞 Filled from last call'+(_lastTelzioCall&&_lastTelzioCall.name?' — '+_lastTelzioCall.name:''));
     return;
@@ -14267,6 +14331,17 @@ async function autofillFromLastCall(){
 // 1) Use live webhook data instantly (Option A).  2) If none, quietly pull via Telzio (Option B).
 async function autoPullCallerOnOpen(){
   if(window._i911BannerPinned) return; // opened from a banner — fields already pinned to that caller
+  // Newest hotline call, only if it actually came in within the last 15 min (real call time)
+  const _n=await _newestHotlineCall();
+  if(_n){
+    if(Date.now()-_n.at <= 15*60*1000){
+      const _nm=document.getElementById('callCaller'), _ph=document.getElementById('callPhone');
+      if(_ph && !_ph.value) _ph.value=_n.phone;
+      if(_nm && !_nm.value && _n.name) _nm.value=_n.name;
+      _lastTelzioCall=_n;
+    }
+    return; // log reachable: don't fall back to the in-memory copy or proxy (they may be stale)
+  }
   // Option A: instant live data already in memory
   if(_applyTelzioToForm(false)) return;
   // Option B: silent background pull (no toasts, no button spinner)
