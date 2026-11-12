@@ -2640,7 +2640,8 @@ textarea.input{min-height:80px;resize:vertical;}
     <!-- OTHER TYPE WRITE-IN -->
     <div id="otherTypeGroup" style="display:none;" class="input-group">
       <label class="input-label">Describe Call Type</label>
-      <input class="input" type="text" id="otherTypeText" placeholder="e.g. Welfare check, stuck in mud..."/>
+      <input class="input" type="text" id="otherTypeText" placeholder="Start typing… e.g. Stuck in Mud" autocomplete="off" oninput="_otherTypeSuggest(this)" onfocus="_otherTypeSuggest(this)" onblur="setTimeout(function(){var s=document.getElementById('otherTypeSuggest');if(s)s.style.display='none';},180)"/>
+      <div id="otherTypeSuggest" style="display:none;margin-top:4px;border:1px solid var(--border2,#e2e2e2);border-radius:10px;background:var(--card,#fff);max-height:220px;overflow-y:auto;box-shadow:0 6px 18px rgba(0,0,0,.12);"></div>
     </div>
 
     <!-- CAR INFO (shown for tire/lockout/jump) -->
@@ -8727,6 +8728,22 @@ function selectCallType(type, btn) {
   if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn && b.id!=='callTypeMore') b.style.display='none'; }); btn.style.display=''; const _mS=document.getElementById('callTypeMore'); if(_mS) _mS.style.display=((type==='other'||_mS.value===type) && type)?'':'none'; _grid.dataset.collapsed='1'; }
 }
 
+// "Other…" call type: type-ahead list of common call natures. Typing filters the
+// list; tapping one fills the box. Anything else can still be typed freely.
+const OTHER_CALL_TYPES=['AC Request','Boost / Jump Start','Bumper Hanging','Cut a Lock','Cut a Tree','EDP Situation','Flat Tire','Flood','Garage Dropoff','Garage Pickup','Heater Request','Lockout','Missing Person','Out of Gas','Party Trapped','Party Trapped in Vehicle','Plastic Hanging','Smell of Gas','Stuck in Mud','Stuck in Snow','Stuck on a Rock','Traffic Control','Vehicle Pullout','Vehicle Stalled'];
+function _otherTypeSuggest(inp){
+  const box=document.getElementById('otherTypeSuggest'); if(!box) return;
+  const q=(inp.value||'').trim().toLowerCase();
+  let list=OTHER_CALL_TYPES.filter(n=>!q || n.toLowerCase().includes(q));
+  list.sort((a,b)=>{ const as=a.toLowerCase().startsWith(q)?0:1, bs=b.toLowerCase().startsWith(q)?0:1; return as-bs || a.localeCompare(b); });
+  if(!list.length || (list.length===1 && list[0].toLowerCase()===q)){ box.style.display='none'; box.innerHTML=''; return; }
+  box.innerHTML=list.map(n=>'<button type="button" onmousedown="event.preventDefault()" onclick="_pickOtherType(this.textContent)" style="display:block;width:100%;text-align:left;padding:11px 12px;border:none;border-bottom:1px solid var(--border,#eee);background:transparent;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">'+n.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</button>').join('');
+  box.style.display='block';
+}
+function _pickOtherType(n){
+  const inp=document.getElementById('otherTypeText'); if(inp) inp.value=n;
+  const box=document.getElementById('otherTypeSuggest'); if(box){ box.style.display='none'; box.innerHTML=''; }
+}
 // Flood equipment-needed multi-select toggle + per-item quantity steppers
 function toggleFloodNeed(btn){ btn.classList.toggle('active'); if(!btn.classList.contains('active')) btn.dataset.qty=''; renderFloodQty(); }
 function renderFloodQty(){
