@@ -706,6 +706,10 @@ textarea.input{min-height:80px;resize:vertical;}
 .addr-suggest-loading{padding:10px 14px;font-size:12px;color:var(--text3);text-align:center;font-style:italic;}
 .addr-suggest-empty{padding:10px 14px;font-size:12px;color:var(--text3);text-align:center;}
 
+.safe-btn{padding:7px 16px;border-radius:8px;border:1.5px solid var(--border,#d5d9e0);background:var(--card,#fff);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+.safe-btn.on-yes{background:#16a34a;border-color:#16a34a;color:#fff;}
+.safe-btn.on-no{background:#dc2626;border-color:#dc2626;color:#fff;}
+.qtype-btn.qtype-back{opacity:.75;}
 .eta-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
 .eta-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
 .eta-btn.eta-custom{text-align:center;-webkit-appearance:none;appearance:none;-moz-appearance:textfield;min-width:0;}
@@ -2566,6 +2570,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <label class="input-label" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Address <span id="callZoneBadge" style="display:none;font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px;white-space:nowrap;"></span></label>
       <input class="input" type="text" id="callAddress" placeholder="Start typing… e.g. 123 Cedar Ln Teaneck" autocomplete="off" oninput="addrAutoLookup(this,'callTown','callTownText')" onblur="setTimeout(()=>{document.getElementById('callAddressSuggest').style.display='none';geocodeCallAddressForZone();},200)" onfocus="if(this.value.length>=3)document.getElementById('callAddressSuggest').style.display='block'"/>
       <div id="callAddressSuggest" class="addr-suggest" style="display:none;"></div>
+      <div id="i911Choice" style="display:none;margin-top:8px;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;position:relative;">
       <button type="button" onclick="toggleCommonCalls(this)" style="padding:11px;background:transparent;border:1.5px dashed var(--gold,#d4a93a);border-radius:10px;color:var(--gold-deep,#b8902a);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;">📍 Common Calls ▾</button>
@@ -2574,30 +2579,35 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <!-- QUICK TYPE GRID -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;" id="callTypeGrid">
-      <button class="qtype-btn" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
-      <button class="qtype-btn" onclick="selectCallType('flat_tire_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">Has Spare</span></button>
-      <button class="qtype-btn" onclick="selectCallType('jump_start',this)">Boost</button>
-      <button class="qtype-btn" onclick="selectCallType('car_lockout',this)">Car Lockout</button>
-      <button class="qtype-btn" onclick="selectCallType('lockout',this)">House Lockout</button>
-      <button class="qtype-btn qtype-btn-urgent" onclick="selectCallType('child_lockout',this)">🚨 Child<br><span style="font-size:10px;opacity:.9;">Locked in Car</span></button>
-      <button class="qtype-btn" onclick="selectCallType('missing_person',this)">Missing Person</button>
-      <button class="qtype-btn" onclick="selectCallType('flood',this)">Flood</button>
-      <button class="qtype-btn" onclick="selectCallType('out_of_gas',this)">⛽ Out Of Gas</button>
-      <button class="qtype-btn" onclick="selectCallType('needs_ac',this)">❄️ Needs A/C<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
-      <button class="qtype-btn" onclick="selectCallType('needs_heat',this)">🔥 Needs Heater<br><span style="font-size:10px;opacity:.7;">Select qty</span></button>
-      <button class="qtype-btn" onclick="selectCallType('other',this)">Other...</button>
-      <select id="callTypeMore" onchange="if(this.value){selectCallType(this.value,null);highlightMoreType(this);}" class="qtype-btn" style="display:none;font-family:inherit;font-size:12px;font-weight:600;text-align:center;cursor:pointer;-webkit-appearance:none;appearance:none;">
-        <option value="">More…</option>
-        <option value="needs_fan">💨 Needs Fans</option>
-        <option value="generator">🔌 Generator</option>
-        <option value="transport">📦 Transport</option>
-        <option value="welfare">🏥 Welfare Check</option>
-        <option value="stuck_snow">❄️ Stuck in Snow/Ice</option>
-        <option value="vehicle_stalled">⚙️ Vehicle Stalled</option>
-        <option value="vehicle_pullout">🚙 Vehicle Pull Out</option>
-        <option value="bumper_hanging">🚗 Bumper Hanging</option>
-        <option value="plastic_hanging">🚗 Plastic Hanging</option>
-      </select>
+      <!-- Top level: urgent Child-in-Car pinned first, then A–Z. "▸" opens a group. -->
+      <button class="qtype-btn qtype-btn-urgent" data-top="1" onclick="selectCallType('child_lockout',this)">🚨 Child<br><span style="font-size:10px;opacity:.9;">Locked in Car</span></button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('jump_start',this)">Boost</button>
+      <button class="qtype-btn qtype-group" data-top="1" onclick="openCallTypeGroup('equip')">Equipment ▸<br><span style="font-size:10px;opacity:.7;">A/C · Heat · Fans</span></button>
+      <button class="qtype-btn qtype-group" data-top="1" onclick="openCallTypeGroup('tire')">Flat Tire ▸<br><span style="font-size:10px;opacity:.7;">Spare · No Spare</span></button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('flood',this)">Flood</button>
+      <button class="qtype-btn qtype-group" data-top="1" onclick="openCallTypeGroup('lockout')">Lockout ▸<br><span style="font-size:10px;opacity:.7;">Car · House</span></button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('missing_person',this)">Missing Person</button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('out_of_gas',this)">⛽ Out Of Gas</button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('transport',this)">📦 Transport</button>
+      <button class="qtype-btn qtype-group" data-top="1" onclick="openCallTypeGroup('vehicle')">Vehicle ▸<br><span style="font-size:10px;opacity:.7;">Stalled · Snow · More</span></button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('welfare',this)">🏥 Welfare Check</button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('other',this)">Other...</button>
+      <!-- Group members: hidden until their group is opened -->
+      <button type="button" class="qtype-btn qtype-back" data-group-back="1" style="display:none;" onclick="_ctShowTop()">‹ Back</button>
+      <button class="qtype-btn" data-group="tire" style="display:none;" onclick="selectCallType('flat_tire_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">Has Spare</span></button>
+      <button class="qtype-btn" data-group="tire" style="display:none;" onclick="selectCallType('flat_tire_no_spare',this)">Flat Tire<br><span style="font-size:10px;opacity:.7;">No Spare</span></button>
+      <button class="qtype-btn" data-group="lockout" style="display:none;" onclick="selectCallType('car_lockout',this)">Car Lockout</button>
+      <button class="qtype-btn qtype-btn-urgent" data-group="lockout" style="display:none;" onclick="selectCallType('child_lockout',this)">🚨 Child<br><span style="font-size:10px;opacity:.9;">Locked in Car</span></button>
+      <button class="qtype-btn" data-group="lockout" style="display:none;" onclick="selectCallType('lockout',this)">House Lockout</button>
+      <button class="qtype-btn" data-group="equip" style="display:none;" onclick="selectCallType('generator',this)">🔌 Generator</button>
+      <button class="qtype-btn" data-group="equip" style="display:none;" onclick="selectCallType('needs_ac',this)">❄️ Needs A/C</button>
+      <button class="qtype-btn" data-group="equip" style="display:none;" onclick="selectCallType('needs_fan',this)">💨 Needs Fans</button>
+      <button class="qtype-btn" data-group="equip" style="display:none;" onclick="selectCallType('needs_heat',this)">🔥 Needs Heater</button>
+      <button class="qtype-btn" data-group="vehicle" style="display:none;" onclick="selectCallType('bumper_hanging',this)">🚗 Bumper Hanging</button>
+      <button class="qtype-btn" data-group="vehicle" style="display:none;" onclick="selectCallType('plastic_hanging',this)">🚗 Plastic Hanging</button>
+      <button class="qtype-btn" data-group="vehicle" style="display:none;" onclick="selectCallType('stuck_snow',this)">❄️ Stuck in Snow/Ice</button>
+      <button class="qtype-btn" data-group="vehicle" style="display:none;" onclick="selectCallType('vehicle_pullout',this)">🚙 Vehicle Pull Out</button>
+      <button class="qtype-btn" data-group="vehicle" style="display:none;" onclick="selectCallType('vehicle_stalled',this)">⚙️ Vehicle Stalled</button>
     </div>
     <input type="hidden" id="callType" value=""/>
     <!-- EQUIPMENT QTY (A/C, Fans, Heaters) -->
@@ -2662,6 +2672,21 @@ textarea.input{min-height:80px;resize:vertical;}
         </div>
       </div>
 
+      <!-- TRIM (Flat Tire, No Spare only) -->
+      <div id="carTrimGroup" class="input-group" style="display:none;margin-bottom:10px;">
+        <label class="input-label">Trim <span style="font-weight:500;color:var(--text3);">(for the right spare / lug size)</span></label>
+        <input class="input" type="text" id="carTrim" placeholder="e.g. LX, Sport, Limited" autocomplete="off"/>
+      </div>
+      <!-- SAFE LOCATION -->
+      <div id="safeLocRow" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;padding:10px 12px;border-radius:10px;background:var(--border2,#eef0f3);">
+        <span style="font-size:13px;font-weight:700;color:var(--text);">Is the vehicle in a safe location?</span>
+        <span style="display:flex;gap:6px;flex-shrink:0;">
+          <button type="button" class="safe-btn" data-safe="yes" onclick="setSafeLoc('yes',this)">Yes</button>
+          <button type="button" class="safe-btn" data-safe="no" onclick="setSafeLoc('no',this)">No</button>
+        </span>
+      </div>
+      <input type="hidden" id="carSafeLoc" value=""/>
+
       <!-- NO-SPARE ACTION PICKER -->
       <div id="noSpareSection" style="display:none;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.3);border-radius:10px;padding:10px;margin-bottom:10px;">
         <div style="font-size:11px;font-weight:700;color:var(--orange);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Recommended Action</div>
@@ -2715,7 +2740,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
 
     <button id="callSubmitBtn" class="btn-full btn-primary metal-gold" onclick="createCall()" style="background:linear-gradient(135deg,#1d4ed8,#2563eb);font-size:16px;font-weight:700;padding:16px;letter-spacing:-.2px;">Dispatch Call</button>
-    <button type="button" class="btn-full" onclick="createSilentCall()" style="margin-top:8px;background:transparent;color:var(--text);border:1.5px solid var(--border2,#e2e2e2);font-size:15px;font-weight:700;padding:13px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:inherit;"><span>Silent Dispatch</span><span style="font-size:11px;font-weight:500;color:var(--text3);">Counts as a completed call · no notifications</span></button>
+    <button type="button" class="btn-full" onclick="createSilentCall()" style="margin-top:8px;background:transparent;color:var(--text2);border:1px solid var(--border2,#e2e2e2);font-size:12.5px;font-weight:700;padding:7px 10px;border-radius:10px;font-family:inherit;">Silent Dispatch <span style="font-weight:500;color:var(--text3);">· logged as done, no alerts</span></button>
     <button type="button" class="btn-full" onclick="sendToInterstate()" style="margin-top:8px;background:linear-gradient(135deg,#047857,#059669);color:#fff;border:none;font-size:15px;font-weight:700;padding:14px;border-radius:12px;">🌐 Send to Interstate</button>
     <button class="btn-full btn-ghost" onclick="hideModal('newCallModal')" style="margin-top:8px;">Cancel</button>
   </div>
@@ -2766,6 +2791,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="eta-btn" onclick="setETA(15,this)">15 min</button>
       <input class="eta-btn eta-custom" id="respondETACustom" type="number" min="1" inputmode="numeric" placeholder="Custom" oninput="setCustomETA(this)"/>
     </div>
+    <div id="respondETASuggest" style="display:none;margin:-6px 0 12px;font-size:12px;font-weight:600;color:#15803d;"></div>
     <input type="hidden" id="respondETA" value="5"/>
     <!-- Bringing a fleet vehicle? — multi-select checkmarks -->
     <div class="input-label" style="margin-bottom:6px;font-size:11px;">Bringing a vehicle? <span style="font-weight:500;color:var(--text3);">(tap any)</span></div>
@@ -3202,6 +3228,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <label class="role-chk"><input type="checkbox" value="Dispatch" onchange="_autoSaveMemberRoles()"/> Dispatch</label>
         <label class="role-chk"><input type="checkbox" value="Equipment Team" onchange="_autoSaveMemberRoles()"/> Equipment Team</label>
         <label class="role-chk"><input type="checkbox" value="Admin" onchange="_autoSaveMemberRoles()"/> Admin</label>
+        <label class="role-chk"><input type="checkbox" value="Search Supervisor" onchange="_autoSaveMemberRoles()"/> Search Supervisor</label>
       </div>
     </div>
     <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="editMbrPhone" placeholder="555-000-0000" onchange="_autoSaveMemberField('phone',this.value)"/></div>
@@ -5187,18 +5214,20 @@ async function requestViaI911(){
               // On a highway, prefer a saved common location's directional label (it has
               // North/South-bound, which Google's road name lacks) when the point is near one.
               const _near=(isHwy||isRoadOnly)?_nearestCommonLoc(lat,lng):null;
-              if(_near){ input.value=_near.label+' — 📍 '+coordStr; }
+              let exactVal;
+              if(_near){ exactVal=_near.label+' — 📍 '+coordStr; }
               else if(isHwy || isRoadOnly){
                 // Append an inferred direction word (from nearest same-highway anchor).
                 const _dir=_highwayDirection(lat,lng,r.formatted_address);
                 const _roadName=r.formatted_address+(_dir&&r.formatted_address.toLowerCase().indexOf(_dir.toLowerCase())<0?' '+_dir:'');
-                input.value = _roadName+' — 📍 '+coordStr;
+                exactVal = _roadName+' — 📍 '+coordStr;
               }
-              else { input.value = r.formatted_address; }
-              addrAutoLookup(input,'callTown','callTownText');
+              else { exactVal = r.formatted_address+' — 📍 '+coordStr; }
+              // Dispatcher confirms which one to use (nothing is filled until they pick).
+              _showI911Choice(lat, lng, exactVal, r.formatted_address, !isRoadOnly && !isHwy);
             }
           }
-          else if(input){ input.value=coordStr; }
+          else if(input){ _showI911Choice(lat, lng, coordStr, '', false); }
           // Always classify by the EXACT i911 coordinates (addrAutoLookup just nulled
           // _lastCallLatLng) so the in/out-territory badge is right even on a highway.
           _lastCallLatLng={lat,lng};
@@ -5206,7 +5235,7 @@ async function requestViaI911(){
         });
         filled=true;
       }catch(e){}
-      if(!filled && input){ input.value=lat.toFixed(6)+', '+lng.toFixed(6); try{updateCallZoneBadge();}catch(e){} }
+      if(!filled && input){ _showI911Choice(lat, lng, lat.toFixed(6)+', '+lng.toFixed(6), '', false); try{updateCallZoneBadge();}catch(e){} }
       setTimeout(()=>_setI911Btn('➤ Request via i911', false), 4000);
     });
   }catch(e){
@@ -5214,6 +5243,63 @@ async function requestViaI911(){
     _setI911Btn('➤ Request via i911', false);
     showToast('i911 request failed — '+(e.message||'try again'));
   }
+}
+// i911 location arrived → let the dispatcher choose: the EXACT GPS spot (members
+// navigate to the coordinates) or the CLOSEST street address. Nothing is filled
+// into the address box until one is picked.
+let _i911Pending=null;
+function _showI911Choice(lat, lng, exactVal, addrVal, addrIsPrecise){
+  const box=document.getElementById('i911Choice'); if(!box) return;
+  _i911Pending={lat, lng, exactVal, addrVal};
+  const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const btn='display:block;width:100%;text-align:left;padding:10px 12px;border-radius:10px;font-family:inherit;cursor:pointer;margin-top:6px;';
+  box.innerHTML='<div style="border:1.5px solid #2563eb;background:rgba(37,99,235,.07);border-radius:12px;padding:10px 12px;">'
+    +'<div style="font-size:12px;font-weight:800;color:#1d4ed8;letter-spacing:.3px;">📍 CALLER LOCATION RECEIVED — WHICH ONE?</div>'
+    +'<button type="button" onclick="_pickI911(\'exact\')" style="'+btn+'border:none;background:#1d4ed8;color:#fff;"><div style="font-size:14px;font-weight:800;">Use exact GPS spot</div><div style="font-size:12px;opacity:.85;">'+esc(exactVal)+'</div></button>'
+    +(addrVal?'<button type="button" onclick="_pickI911(\'addr\')" style="'+btn+'border:1.5px solid var(--border2,#d5d9e0);background:var(--card,#fff);color:var(--text);"><div style="font-size:14px;font-weight:800;">Use closest address'+(addrIsPrecise?'':' <span style="font-size:11px;font-weight:700;color:#b45309;">(approximate)</span>')+'</div><div style="font-size:12px;color:var(--text2);">'+esc(addrVal)+'</div></button>':'')
+    +'</div>';
+  box.style.display='block';
+  showToast('📍 Caller location received — pick exact spot or closest address');
+}
+function _pickI911(which){
+  const p=_i911Pending; if(!p) return;
+  const input=document.getElementById('callAddress');
+  if(input){
+    input.value = which==='addr' && p.addrVal ? p.addrVal : p.exactVal;
+    try{ addrAutoLookup(input,'callTown','callTownText'); }catch(e){}
+    try{ const s=document.getElementById('callAddressSuggest'); if(s) s.style.display='none'; }catch(e){}
+  }
+  _lastCallLatLng={lat:p.lat,lng:p.lng};
+  try{ updateCallZoneBadge(); }catch(e){}
+  _clearI911Choice();
+  showToast(which==='addr'?'🏠 Closest address used':'📍 Exact GPS spot used');
+}
+function _clearI911Choice(){ _i911Pending=null; const b=document.getElementById('i911Choice'); if(b){ b.style.display='none'; b.innerHTML=''; } }
+function setSafeLoc(v, btn){
+  const h=document.getElementById('carSafeLoc'); if(!h) return;
+  const same=(h.value===v); h.value = same ? '' : v;   // tap again to clear
+  document.querySelectorAll('.safe-btn').forEach(b=>b.classList.remove('on-yes','on-no'));
+  if(!same && btn) btn.classList.add(v==='yes'?'on-yes':'on-no');
+}
+function _resetSafeLocAndTrim(){
+  const h=document.getElementById('carSafeLoc'); if(h) h.value='';
+  document.querySelectorAll('.safe-btn').forEach(b=>b.classList.remove('on-yes','on-no'));
+  const tr=document.getElementById('carTrim'); if(tr) tr.value='';
+}
+function _showGasFeePopup(){
+  let ov=document.getElementById('gasFeePopup');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='gasFeePopup';
+    ov.style.cssText='position:fixed;inset:0;z-index:6000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px;';
+    ov.innerHTML='<div style="background:var(--card,#fff);color:var(--text,#111);border-radius:16px;padding:20px;max-width:340px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.3);">'
+      +'<div style="font-size:40px;line-height:1;">⛽</div>'
+      +'<div style="font-size:18px;font-weight:800;margin:8px 0 6px;">$20 gas fee</div>'
+      +'<div style="font-size:14px;color:var(--text2,#555);line-height:1.5;margin-bottom:16px;">Let the caller know there is a <b>$20 fee</b> for the gas.</div>'
+      +'<button type="button" onclick="document.getElementById(\'gasFeePopup\').style.display=\'none\'" style="width:100%;padding:13px;border:none;border-radius:12px;background:#1d4ed8;color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;">OK — caller was told</button>'
+      +'</div>';
+    document.body.appendChild(ov);
+  }
+  ov.style.display='flex';
 }
 // Address predictions: Places API (New) first, legacy AutocompleteService fallback, hard timeout so it never hangs on "Searching…"
 function _addrTimeout(p, ms){ return Promise.race([p, new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),ms))]); }
@@ -5444,9 +5530,11 @@ function populateCarMakeSelect(makeId) {
   if(!makeSelect || makeSelect.tagName !== 'SELECT') return;
   if(makeSelect.dataset.populated === '1') return;
   if(typeof CAR_DATA === 'undefined') return;
-  Object.keys(CAR_DATA).filter(k=>k!=='Other').sort().forEach(m=>{
+  makeSelect.innerHTML='<option value="">Select make...</option>'; // rebuild (avoids duplicates after Clear)
+  const _labels=new Set(Object.keys(CAR_DATA).filter(k=>k!=='Other').map(m=>m.replace('_',' ')));
+  _NHTSA_EXTRA_MAKES.forEach(m=>_labels.add(m));
+  [..._labels].sort((a,b)=>a.localeCompare(b)).forEach(label=>{
     const o=document.createElement('option');
-    const label=m.replace('_',' ');
     o.value=label; o.textContent=label;
     makeSelect.appendChild(o);
   });
@@ -5472,6 +5560,61 @@ function onCarMakeChange(makeId, modelId, makeOtherId, modelOtherId) {
   const models = (CAR_DATA[key] || CAR_DATA[val] || []);
   models.forEach(m => modelSel.appendChild(new Option(m, m)));
   modelSel.appendChild(new Option('Other...','Other'));
+  if(val!=='Other') _nhtsaEnrichModelSelect(makeId||'carMake', modelId||'carModel', modelOtherId||'carModelOther', val);
+}
+// ── NHTSA vPIC: full make → model lists (free US-government API, no key, CORS-open) ──
+// The short built-in list shows instantly; the full NHTSA list (cars, SUVs/vans,
+// pickups) merges in a moment later and is cached on the device for 30 days.
+// Offline / API down → the built-in list + "Other..." work exactly as before.
+const _NHTSA_MAKE_ALIAS={'mercedes':'mercedes-benz'};
+const _NHTSA_EXTRA_MAKES=['Alfa Romeo','Audi','Fiat','Genesis','Hummer','Jaguar','Lucid','Mercury','Mini','Polestar','Pontiac','Porsche','Rivian','Saturn'];
+const _NHTSA_CACHE_KEY='cobc_nhtsa_models_v1';
+const _nhtsaInflight={};
+function _nhtsaCache(){ try{ return JSON.parse(localStorage.getItem(_NHTSA_CACHE_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function _nhtsaSort(a,b){ return a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}); }
+function _nhtsaModels(make){
+  const key=String(make||'').replace(/_/g,' ').trim().toLowerCase();
+  if(!key||key==='other') return Promise.resolve([]);
+  const c=_nhtsaCache()[key];
+  if(c && Array.isArray(c.m) && c.m.length && Date.now()-(c.t||0) < 30*864e5) return Promise.resolve(c.m);
+  if(_nhtsaInflight[key]) return _nhtsaInflight[key];
+  const q=encodeURIComponent(_NHTSA_MAKE_ALIAS[key]||key);
+  const get=vt=>fetch('https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/'+q+'/vehicletype/'+vt+'?format=json')
+    .then(r=>r.ok?r.json():null).then(d=>d?(d.Results||[]).map(x=>String(x.Model_Name||'').trim()).filter(Boolean):null).catch(()=>null);
+  _nhtsaInflight[key]=Promise.all(['car','mpv','truck'].map(get)).then(parts=>{
+    delete _nhtsaInflight[key];
+    if(parts.every(p=>p===null)) return [];            // network failure → don't cache
+    const seen=new Set(), out=[];
+    parts.forEach(p=>(p||[]).forEach(m=>{ const k=m.toLowerCase(); if(!seen.has(k)){ seen.add(k); out.push(m); } }));
+    out.sort(_nhtsaSort);
+    if(out.length){ try{ const all=_nhtsaCache(); all[key]={t:Date.now(),m:out}; localStorage.setItem(_NHTSA_CACHE_KEY,JSON.stringify(all)); }catch(e){} }
+    return out;
+  });
+  return _nhtsaInflight[key];
+}
+function _nhtsaEnrichModelSelect(makeId, modelId, modelOtherId, make){
+  _nhtsaModels(make).then(list=>{
+    if(!list||!list.length) return;
+    const makeSel=document.getElementById(makeId), modelSel=document.getElementById(modelId), modelOther=document.getElementById(modelOtherId);
+    if(!makeSel||!modelSel||makeSel.value!==make) return; // make changed meanwhile
+    const cur=modelSel.value, typed=((modelOther&&modelOther.value)||'').trim();
+    // Merge built-in + NHTSA; names differing only by dashes/spaces ("CRV" vs "CR-V") count
+    // as one, and the official NHTSA spelling wins.
+    const nk=s=>String(s).toLowerCase().replace(/[^a-z0-9]/g,'');
+    const byKey=new Map();
+    Array.from(modelSel.options).map(o=>o.value).forEach(m=>{ if(m&&m!=='Other') byKey.set(nk(m),m); });
+    list.forEach(m=>byKey.set(nk(m),m));
+    const merged=[...byKey.values()].sort(_nhtsaSort);
+    modelSel.innerHTML=''; modelSel.appendChild(new Option('Select model...',''));
+    merged.forEach(m=>modelSel.appendChild(new Option(m,m)));
+    modelSel.appendChild(new Option('Other...','Other'));
+    if(cur==='Other' && typed){
+      const hit=merged.find(m=>nk(m)===nk(typed));
+      if(hit){ modelSel.value=hit; if(modelOther){ modelOther.style.display='none'; modelOther.value=''; } return; }
+    }
+    modelSel.value=cur;
+    if(modelSel.value!==cur){ const alt=merged.find(m=>nk(m)===nk(cur)); modelSel.value=alt||''; }
+  });
 }
 function onCarModelChange(modelId, modelOtherId) {
   const modelSel = document.getElementById(modelId||'carModel');
@@ -6569,7 +6712,7 @@ function _sheetMemberToApp(sm){
     firstName:first, lastName:last,
     name:(first+' '+last).trim(),
     first:first, last:last,
-    phone:sm.phone||sm.Phone||sm.PHONE||'', role:role,
+    phone:sm.phone||sm.Phone||sm.PHONE||'', role:role, roleStr:_rawRole, // roleStr keeps extra roles (e.g. "search supervisor")
     // SECURITY: do NOT keep PINs in client state or localStorage. They're verified
     // server-side at login and never needed on the device afterward.
     pin:'',
@@ -6718,7 +6861,7 @@ function doLogin(){
 // ═══════════════════════════════════════════════════════════════════════════
 // §LOGIN  finishLogin, _applyRoleUI, PIN auth
 // ═══════════════════════════════════════════════════════════════════════════
-function finishLogin(member){const role=(member.role||'member').toLowerCase();SESSION={unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||'',phone:member.phone||'',carAccess:member.carAccess===true||member.carAccess==='TRUE'||role==='admin'};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}const _loginScr=document.getElementById('login-screen');_loginScr.style.display='none';_loginScr.style.pointerEvents='none';_loginScr.style.visibility='hidden';_loginScr.style.zIndex='-1';_loginScr.style.transform='translateX(-110vw)';_loginScr.style.position='static';_loginScr.style.height='0';_loginScr.style.overflow='hidden';_loginScr.classList.add('hidden');const _appEl=document.getElementById('app');_appEl.classList.remove('hidden');_appEl.style.display='';const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=SESSION.name+' · '+(SESSION.unit||'');const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';
+function finishLogin(member){const _rawRole=(member.roleStr||member.role||'member').toString().toLowerCase();const role=_rawRole.includes('admin')?'admin':_rawRole.includes('dispatch')?'dispatch':_rawRole.includes('equipment')?'equipment':_rawRole.includes('observer')?'observer':'member';SESSION={roleStr:_rawRole,unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||'',phone:member.phone||'',carAccess:member.carAccess===true||member.carAccess==='TRUE'||role==='admin'};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}const _loginScr=document.getElementById('login-screen');_loginScr.style.display='none';_loginScr.style.pointerEvents='none';_loginScr.style.visibility='hidden';_loginScr.style.zIndex='-1';_loginScr.style.transform='translateX(-110vw)';_loginScr.style.position='static';_loginScr.style.height='0';_loginScr.style.overflow='hidden';_loginScr.classList.add('hidden');const _appEl=document.getElementById('app');_appEl.classList.remove('hidden');_appEl.style.display='';const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=SESSION.name+' · '+(SESSION.unit||'');const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';
 // Show Management Panel button for admins
 const mgmtBtn=document.getElementById('adminMgmtBtnWrap');if(mgmtBtn)mgmtBtn.style.display=(role==='admin')?'block':'none';
 // Hide draft filter chip for non-dispatch
@@ -7977,7 +8120,7 @@ function callCardHTML(call, mini=false) {
   const timeStr = (_dateLabel?_dateLabel+' · ':'') + ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   // Sequential call number — drafts have none yet; otherwise stored callNum or chronological position
   const callNumStr = call.status==='draft'
-    ? '—'
+    ? (call.needsApproval ? '— · 🔍 needs approval' : '—')
     : (call.callNum
         ? String(call.callNum)
         : (function(){
@@ -8003,7 +8146,7 @@ function callCardHTML(call, mini=false) {
   const etaChip = `<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span>`;
   const cornerMeta = `<div class="call-card-corner" style="flex-direction:row;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;">${townChipInline?`<div style="display:flex;align-items:center;gap:6px;">${townChipInline}</div>`:'<span></span>'}<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
   const etaWrap = '';
-  const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carColor].filter(Boolean).join(' ')}` : '';
+  const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carTrim,call.carColor].filter(Boolean).join(' ')}` : '';
   // Boost calls: show the vehicle inline next to the call type after a small dash
   const isBoostCard = (call.type==='jump_start');
   const typeLabelDisp = (isBoostCard && carInfo) ? `<span style="display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;">${typeLabel} <span style="font-weight:600;font-size:.7em;opacity:.85;">– ${carInfo}</span></span>` : typeLabel;
@@ -8432,7 +8575,7 @@ function renderCalls() {
   const isDispatch = isDispatchRole && isDispatchRole();
   const todayStart = _todayStartMs();
   let list = [...STATE.calls]
-    .filter(c=>isDispatch || c.status!=='draft') // drafts only visible to admin/dispatch
+    .filter(c=>isDispatch || c.status!=='draft' || (c.needsApproval && _canApproveMissing())) // drafts: admin/dispatch (+ approvers for Missing Person)
     // Hide completed/cancelled calls — cancelled always goes to history immediately, done only hides after today
     .filter(c=>c.status!=='cancelled' && (c.status!=='done' || (c.completedAt||c.createdAt||0) >= todayStart))
     .sort((a,b)=>sortRank(a)-sortRank(b)||(b.createdAt-a.createdAt));
@@ -8467,6 +8610,7 @@ function renderCalls() {
   setTimeout(fitCardAddresses, 0);
   document.getElementById('dispatchSubtitle').textContent=`${list.filter(c=>c.status==='active').length} active · ${list.filter(c=>c.status==='open').length} open`;
   setTimeout(fillCardETAs, 50); // async fill ETAs after cards render
+  setTimeout(_checkPendingApprovals, 0);
 }
 
 // ── Car fields ──
@@ -8493,15 +8637,27 @@ function clearNewCallForm() {
   const _mdo=document.getElementById('carModelOther'); if(_mdo)_mdo.style.display='none';
   const zb=document.getElementById('callZoneBadge'); if(zb){zb.style.display='none';zb.textContent='';}
   _lastCallLatLng=null;
+  try{ _resetSafeLocAndTrim(); _clearI911Choice(); }catch(e){}
   if(typeof resetCallTypeGrid==='function') resetCallTypeGrid();
   if(typeof populateCarMakeSelect==='function') populateCarMakeSelect();
   if(typeof setUrgentToggle==='function') setUrgentToggle(false);
   try{ document.getElementById('callAddressSuggest').style.display='none'; }catch(e){}
   showToast('Call form cleared');
 }
+// Call-type grid: top level (data-top) vs. grouped sub-types (data-group).
+function _ctShowTop(){
+  const g=document.getElementById('callTypeGrid'); if(!g) return;
+  g.querySelectorAll('.qtype-btn').forEach(b=>{ b.style.display = b.dataset.top ? '' : 'none'; });
+  g.dataset.collapsed=''; g.dataset.group='';
+}
+function openCallTypeGroup(name){
+  const g=document.getElementById('callTypeGrid'); if(!g) return;
+  g.querySelectorAll('.qtype-btn').forEach(b=>{ b.style.display = (b.dataset.group===name || b.dataset.groupBack) ? '' : 'none'; });
+  g.dataset.collapsed=''; g.dataset.group=name;
+}
 function resetCallTypeGrid() {
-  document.querySelectorAll('#callTypeGrid .qtype-btn').forEach(b=>{b.classList.remove('active','urgent-active');b.style.display='';});
-  const _g=document.getElementById('callTypeGrid'); if(_g) _g.dataset.collapsed='';
+  document.querySelectorAll('#callTypeGrid .qtype-btn').forEach(b=>{b.classList.remove('active','urgent-active');});
+  _ctShowTop();
   const ct=document.getElementById('callType'); if(ct) ct.value='';
   const ci=document.getElementById('carInfoSection'); if(ci) ci.style.display='none';
   const og=document.getElementById('otherTypeGroup'); if(og) og.style.display='none';
@@ -8519,7 +8675,7 @@ function selectCallType(type, btn) {
   const _grid=document.getElementById('callTypeGrid');
   // Tapping the already-selected button (grid collapsed) → re-expand to change type
   if(_grid && btn && btn.classList.contains('active') && _grid.dataset.collapsed==='1'){
-    _grid.querySelectorAll('.qtype-btn').forEach(b=>{ b.style.display=''; });
+    if(btn.dataset.group) openCallTypeGroup(btn.dataset.group); else _ctShowTop();
     const _mR=document.getElementById('callTypeMore'); if(_mR) _mR.style.display='none';
     _grid.dataset.collapsed='';
     return;
@@ -8550,6 +8706,11 @@ function selectCallType(type, btn) {
   // Show/hide no-spare action picker
   const nsSec = document.getElementById('noSpareSection');
   if(nsSec) nsSec.style.display = (type==='flat_tire_no_spare') ? 'block' : 'none';
+  // Trim matters for the right spare / lug size → only asked on Flat Tire, No Spare
+  const trimGrp = document.getElementById('carTrimGroup');
+  if(trimGrp) trimGrp.style.display = (type==='flat_tire_no_spare') ? 'block' : 'none';
+  // Out of Gas → remind the dispatcher to tell the caller about the $20 gas fee
+  if(type==='out_of_gas' && prevType!=='out_of_gas') { try{ _showGasFeePopup(); }catch(e){} }
   if(type !== 'flat_tire_no_spare') {
     document.getElementById('noSpareAction').value='';
     document.querySelectorAll('.ns-btn').forEach(b=>b.classList.remove('active'));
@@ -8563,7 +8724,7 @@ function selectCallType(type, btn) {
     else if(URGENT_TYPES.includes(prevType) && pri.value==='urgent') { if(typeof setUrgentToggle==='function') setUrgentToggle(false); else pri.value='normal'; }
   }
   // Collapse the grid to just the chosen type (tap it again to change)
-  if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn && b.id!=='callTypeMore') b.style.display='none'; }); const _mS=document.getElementById('callTypeMore'); if(_mS) _mS.style.display=((type==='other'||_mS.value===type) && type)?'':'none'; _grid.dataset.collapsed='1'; }
+  if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn && b.id!=='callTypeMore') b.style.display='none'; }); btn.style.display=''; const _mS=document.getElementById('callTypeMore'); if(_mS) _mS.style.display=((type==='other'||_mS.value===type) && type)?'':'none'; _grid.dataset.collapsed='1'; }
 }
 
 // Flood equipment-needed multi-select toggle + per-item quantity steppers
@@ -8806,7 +8967,11 @@ async function createCall() {
   const phone=document.getElementById('callPhone').value.trim();
   const priority=document.getElementById('callPriority').value;
   const notes=document.getElementById('callNotes').value.trim();
-  const dontPublish=document.getElementById('callDontPublish').checked;
+  let dontPublish=document.getElementById('callDontPublish').checked;
+  // Missing Person: only an Admin or Search Supervisor can send it out. Anyone else's
+  // call is saved as a draft that waits for their approval.
+  const _mpNeedsApproval = (type==='missing_person') && !_canApproveMissing();
+  if(_mpNeedsApproval) dontPublish=true;
   const _silent=!!window._silentDispatch && !dontPublish; // logged + numbered, instantly completed, NO push/WhatsApp
   let carMake=(document.getElementById('carMake')?.value||'').trim();
   const _usedOtherMake=(carMake==='Other');
@@ -8816,6 +8981,8 @@ async function createCall() {
   if(carModel==='Other') carModel=(document.getElementById('carModelOther')?.value||'').trim();
   const carYear=document.getElementById('carYear').value;
   const carColor=document.getElementById('carColor').value.trim();
+  const carTrim=(type==='flat_tire_no_spare') ? ((document.getElementById('carTrim')?.value||'').trim()) : '';
+  const safeLocation=(document.getElementById('carInfoSection')?.style.display==='block') ? (document.getElementById('carSafeLoc')?.value||'') : '';
   const floodNeeds=Array.from(document.querySelectorAll('.flood-need-btn.active')).map(b=>{const q=b.dataset.qty||'1';return b.dataset.need+' ×'+q;});
 
   if (!address) { showToast('⚠️ Enter an address'); return; }
@@ -8848,6 +9015,8 @@ async function createCall() {
     rrCount: 0,
     rrLastSent: (dontPublish||_silent)?null:Date.now(),
     carMake:carMake||null, carModel:carModel||null, carYear:carYear||null, carColor:carColor||null,
+    carTrim:carTrim||null, safeLocation:safeLocation||null,
+    needsApproval:_mpNeedsApproval||null,
     floodNeeds: (type==='flood' && floodNeeds.length) ? floodNeeds : null,
     noSpareAction: (type==='flat_tire_no_spare' ? (document.getElementById('noSpareAction')?.value || null) : null),
     ezSpareSize: ((window._pendingEzFitment&&window._pendingEzFitment.size_1) || document.getElementById('ezSpareSize')?.value || null),
@@ -8895,7 +9064,10 @@ async function createCall() {
   if(typeof updateDispatchBtn==='function') updateDispatchBtn();
   document.getElementById('carInfoSection').style.display='none';
 
-  if (dontPublish) {
+  try{ _resetSafeLocAndTrim(); _clearI911Choice(); }catch(e){}
+  if (_mpNeedsApproval) {
+    showToast('🔍 Missing Person saved — waiting for Admin / Search Supervisor approval');
+  } else if (dontPublish) {
     showToast('Notes: Call saved as draft');
   } else if (_silent) {
     showToast('Silent call'+(call.callNum?' #'+call.callNum:'')+' logged — no alerts sent');
@@ -8910,7 +9082,8 @@ async function createCall() {
       m += `*Call Type:* ${_typeLabel}\n`;
       if (call.notes) m += `Note: ${call.notes}\n`;
       if (call.noSpareAction==='plug') m += `🔧 Possible Plug\n`;
-      if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+      if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel,call.carTrim].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+      if (call.safeLocation==='no') m += `⚠️ Vehicle NOT in a safe location\n`;
       (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
       m += `\n`;
       m += `${fmtLoc(call)}\n`;
@@ -9015,10 +9188,11 @@ function buildDispatchWhatsApp(call) {
   if(call.type==='flat_tire_spare') nature='Flat Tire | With spare';
   else if(call.type==='flat_tire_no_spare') nature='Flat Tire | No spare';
   if(call.carMake){
-    const carStr=[call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' ');
+    const carStr=[call.carColor,call.carMake.replace('_',' '),call.carModel,call.carTrim].filter(Boolean).join(' ');
     if(carStr) nature+=' | '+carStr;
   }
   if(call.floodNeeds&&call.floodNeeds.length) nature+=' | '+call.floodNeeds.join(', ');
+  if(call.safeLocation==='no') nature+=' | ⚠️ NOT in a safe location';
   msg+=`Nature:${nature}\n\n`;
   // EZ-Spare / Plug / Tow action
   if(call.noSpareAction==='plug') {
@@ -9082,31 +9256,37 @@ function openRespondModal(id) {
     if(alreadyPending){showToast('⏳ Your request is pending dispatch approval');return;}
   }
   document.getElementById('respondCallId').value=id;
-  document.getElementById('respondETA').value='10';
+  // Default 10 min (button highlighted to match), then suggest from location if we can.
+  { const _b10=[...document.querySelectorAll('#respondModal .eta-btn')].find(b=>b.textContent.trim()==='10 min'); setETA(10,_b10); }
   {const _cc=document.getElementById('respondETACustom'); if(_cc) _cc.value='';}
+  { const _sg=document.getElementById('respondETASuggest'); if(_sg){ _sg.style.display='none'; _sg.textContent=''; } }
+  window._etaTouched=false;
+  window._etaSuggestFor=id;
   document.getElementById('respondNotes').value='';
   respondVehicles=[];
   renderRespondVehicles();
-  // Auto-fill ETA from member's live location via Google (traffic-aware driving route)
-  if (_myLoc && call && call.address) {
-    (async () => {
+  // Suggest an ETA from the member's location via Google (traffic-aware driving route).
+  // Shown as the selected Custom value; tapping 5/10/15 or typing overrides it.
+  if (call && call.address) {
+    const _suggest = async (loc) => {
       try {
         const dest = await geocodeCallAddress(call);
-        if (dest) {
-          const mins = await _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, dest);
-          document.getElementById('respondETA').value = String(mins);
-          {
-            // Highlight the auto-filled ETA
-            const etaInput = document.getElementById('respondETA');
-            if (etaInput) {
-              etaInput.style.background = '#dcfce7';
-              etaInput.title = 'Auto-calculated from your current location via Google route';
-              setTimeout(() => { etaInput.style.background = ''; }, 2000);
-            }
-          }
-        }
+        if (!dest) return;
+        let mins;
+        try { mins = await _googleDriveMins({ lat:loc.lat, lng:loc.lng }, dest); }
+        catch(e){ mins = _etaMin(_haversineMi(loc.lat, loc.lng, dest.lat, dest.lng)); }
+        mins = Math.max(1, Math.round(Number(mins)||0));
+        if (!mins || window._etaTouched || window._etaSuggestFor!==id) return;
+        const ci=document.getElementById('respondETACustom');
+        if (ci){ ci.value=String(mins); setCustomETA(ci); window._etaTouched=false; }
+        const sg=document.getElementById('respondETASuggest');
+        if (sg){ sg.textContent='📍 Suggested ~'+mins+' min from your location — tap another time or type to change'; sg.style.display='block'; }
       } catch(e) { /* keep default 10 min */ }
-    })();
+    };
+    if (_myLoc) _suggest(_myLoc);
+    else if (navigator.geolocation) {
+      try { navigator.geolocation.getCurrentPosition(p=>_suggest({lat:p.coords.latitude,lng:p.coords.longitude}), ()=>{}, {timeout:8000, maximumAge:120000}); } catch(e){}
+    }
   }
   // Update title/hint/submit based on urgency
   const isUrgent = call && call.priority==='urgent' && SESSION.role!=='observer';
@@ -9165,6 +9345,7 @@ function getOnDutyDispatcher() {
 
 
 function setETA(val, btn) {
+  window._etaTouched=true;
   document.getElementById('respondETA').value = val;
   document.querySelectorAll('.eta-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
@@ -9191,6 +9372,7 @@ function toggleRespondVehicle(name){
 }
 
 function setCustomETA(inp){
+  window._etaTouched=true;
   const v=parseInt(inp.value,10);
   document.querySelectorAll('.eta-btn').forEach(b=>b.classList.remove('active'));
   if(v>0){ document.getElementById('respondETA').value=String(v); inp.classList.add('active'); }
@@ -9971,7 +10153,8 @@ function openCallDetail(id) {
     <div class="detail-row"><span class="detail-key">Time</span><span class="detail-val">${timeStr}</span></div>
     ${call.caller?`<div class="detail-row"><span class="detail-key">Caller</span><span class="detail-val">${call.caller}</span></div>`:''}
     ${call.phone?`<div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val"><a href="javascript:void(0)" onclick="callCaller('${call.phone}','${(call.caller||'').replace(/'/g,'')}')" style="color:var(--blue);text-decoration:none;">${formatPhone(call.phone)}</a></span></div>`:''}
-    ${call.carMake?`<div class="detail-row"><span class="detail-key">Vehicle</span><span class="detail-val">${[call.carYear,call.carMake?.replace('_',' '),call.carModel,call.carColor].filter(Boolean).join(' ')}</span></div>`:''}
+    ${call.carMake?`<div class="detail-row"><span class="detail-key">Vehicle</span><span class="detail-val">${[call.carYear,call.carMake?.replace('_',' '),call.carModel,call.carTrim,call.carColor].filter(Boolean).join(' ')}</span></div>`:''}
+    ${call.safeLocation==='no'?`<div class="detail-row"><span class="detail-key">Safety</span><span class="detail-val" style="color:#dc2626;font-weight:800;">⚠️ Vehicle NOT in a safe location</span></div>`:''}
     ${(call.floodNeeds&&call.floodNeeds.length)?`<div class="detail-row"><span class="detail-key">Needs</span><span class="detail-val">${call.floodNeeds.join(', ')}</span></div>`:''}
     ${call.noSpareAction==='plug'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--orange);font-weight:700;">🔧 Possible Plug</span></div>`:''}
     ${call.noSpareAction==='tow'?`<div class="detail-row"><span class="detail-key">Action</span><span class="detail-val" style="color:var(--red);font-weight:700;">🚛 Tow Needed</span></div>`:''}
@@ -10135,7 +10318,17 @@ function openCallDetail(id) {
     }
   }
   // Bottom row: drafts get Make Real Call + Delete + Close side by side; others just Close.
-  if(call.status==='draft' && isDispatch){
+  if(call.status==='draft' && call.needsApproval && (isDispatch || _canApproveMissing())){
+    const _canAp=_canApproveMissing();
+    html+=`</div><div style="margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.1);border:1.5px solid rgba(37,99,235,.45);font-size:13px;font-weight:700;color:var(--text);">🔍 Missing Person — needs Admin or Search Supervisor approval before it goes out.</div>`
+      +`<div style="margin-top:8px;display:flex;gap:8px;">`
+      +(_canAp
+        ? `<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="publishCall('${id}');hideModal('callDetailModal')">✅ Approve &amp; Send Out</button>`
+        : `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:13px 6px;background:var(--border2,#eef0f3);color:var(--text2);font-weight:800;font-size:13px;">⏳ Waiting for approval</div>`)
+      +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="deleteCall('${id}')">🗑️ Delete Draft</button>`
+      +`</div>`
+      +`<div style="margin-top:8px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
+  } else if(call.status==='draft' && isDispatch){
     html+=`</div><div style="margin-top:12px;display:flex;gap:8px;">`
       +`<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#e6c463,#d4a93a);color:#3a2c05;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="publishCall('${id}');hideModal('callDetailModal')">📢 Make Real Call</button>`
       +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="deleteCall('${id}')">🗑️ Delete Draft</button>`
@@ -10155,9 +10348,33 @@ function openCallDetail(id) {
 
 function renderCallDetail(id) { openCallDetail(id); } // alias for re-render after status change
 
+// Who may send out a Missing Person call: Admins and Search Supervisors only.
+function _myRoleStr(){
+  let s=String((SESSION&&SESSION.roleStr)||'')+' '+String((SESSION&&SESSION.role)||'');
+  try{ const me=(STATE.members||[]).find(m=>_normUnit(m.unit)===_normUnit(SESSION.unit)); if(me) s+=' '+String(me.roleStr||'')+' '+String(me.role||me.status||''); }catch(e){}
+  return s.toLowerCase();
+}
+function _canApproveMissing(){ const r=_myRoleStr(); return r.includes('admin') || r.includes('search supervisor'); }
+// Let approvers know when a Missing Person call is waiting (once per call per session).
+const _mpNotified=new Set();
+function _checkPendingApprovals(){
+  try{
+    if(!_canApproveMissing()) return;
+    (STATE.calls||[]).forEach(c=>{
+      if(c && c.status==='draft' && c.needsApproval && !_mpNotified.has(c.id)){
+        _mpNotified.add(c.id);
+        if(String(c.createdBy||'')!==String(SESSION.unit||'')) showToast('🔍 Missing Person call waiting for your approval');
+      }
+    });
+  }catch(e){}
+}
 async function publishCall(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
+  if(call.needsApproval){
+    if(!_canApproveMissing()){ showToast('Only an Admin or Search Supervisor can send out a Missing Person call'); return; }
+    call.needsApproval=false; call.approvedBy=SESSION.unit; call.approvedAt=Date.now();
+  }
   // Atomic call number — same collision-proof path as the New Call button, so two
   // dispatchers publishing at the same moment can never land on the same number.
   if(!call.callNum){
@@ -10175,7 +10392,8 @@ async function publishCall(id) {
     m += `*Call Type:* ${_typeLabel}\n`;
     if (call.notes) m += `Note: ${call.notes}\n`;
     if (call.noSpareAction==='plug') m += `🔧 Possible Plug\n`;
-    if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+    if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel,call.carTrim].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
+      if (call.safeLocation==='no') m += `⚠️ Vehicle NOT in a safe location\n`;
     (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
     m += `\n`;
     m += `${fmtLoc(call)}\n`;
@@ -12107,7 +12325,7 @@ function openEditMemberRole(unit) {
   document.getElementById('editMbrUnit').value = unit;
   const fullName = `${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim();
   document.getElementById('editMbrInfo').innerHTML = `<b>${m.unit}</b> — ${fullName}`;
-  const roleStr=(m.role||'Member').toString();
+  const roleStr=(m.roleStr||m.role||'Member').toString(); // full list, so saving never drops a role
   const myRoles=roleStr.split(',').map(r=>r.trim()).filter(Boolean);
   document.querySelectorAll('#editMbrRoles input[type=checkbox]').forEach(cb=>{ cb.checked=myRoles.some(r=>r.toLowerCase()===cb.value.toLowerCase()); });
   document.getElementById('editMbrPhone').value = m.phone || '';
@@ -12231,7 +12449,7 @@ function _autoSaveMemberField(field, value) {
   const _u = _normUnit(unit);
   const _m = (STATE.members||[]).find(x=>_normUnit(x.unit)===_u);
   // Optimistic local update
-  if (_m) { _m[field] = field==='role' ? value.toLowerCase() : value; }
+  if (_m) { _m[field] = field==='role' ? value.toLowerCase() : value; if(field==='role') _m.roleStr=value.toLowerCase(); }
   renderAdminMembers&&renderAdminMembers();
   renderMemberDir&&renderMemberDir();
   // Sync to sheet silently
@@ -14136,8 +14354,8 @@ async function _rcSaveProfile(d, data){
 function _rcSaveFromCall(call){
   try{
     const d=_rcDigits(call.phone); if(d.length<10) return;
-    const data={}; if(call.caller) data.caller=call.caller; if(call.address){ data.address=call.address; data.town=call.town||''; }
-    if(call.carMake&&_RC_CAR_TYPES.includes(String(call.type||'').split(':')[0])) Object.assign(data,{carYear:call.carYear||'',carColor:call.carColor||'',carMake:call.carMake||'',carModel:call.carModel||'',carType:String(call.type||'').split(':')[0]});
+    // Name only — location and vehicle are no longer kept for auto-fill.
+    const data={}; if(call.caller) data.caller=call.caller;
     if(Object.keys(data).length) _rcSaveProfile(d,data);
   }catch(e){}
 }
@@ -14155,7 +14373,7 @@ function checkRepeatCaller(){
 function _rcBuild(d,past){
   const box=document.getElementById('repeatCallerBox'); if(!box) return;
   const prof=_rcProfiles[d]||null;
-  if(!past.length&&!prof){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
+  if(!past.length&&!(prof&&prof.flagged)){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
   const last=past[0]||null;
   const carCall=past.find(c=>_RC_CAR_TYPES.includes(String(c.type||'').split(':')[0])&&c.carMake);
   const car=(prof&&prof.carMake)?{carYear:prof.carYear,carColor:prof.carColor,carMake:prof.carMake,carModel:prof.carModel,type:prof.carType||(carCall&&carCall.type)||''}:(carCall?{carYear:carCall.carYear,carColor:carCall.carColor,carMake:carCall.carMake,carModel:carCall.carModel,type:carCall.type}:null);
@@ -14168,37 +14386,52 @@ function _rcBuild(d,past){
 }
 function _rcRender(){
   const box=document.getElementById('repeatCallerBox'); const m=_rcMatch; if(!box||!m) return;
+  const prof=_rcProfiles[m.d]||null;
+  const flagged=!!(prof&&prof.flagged);
+  const isAdmin=(SESSION.role||'').toLowerCase()==='admin';
+  // Location and vehicle from earlier calls are no longer offered (asked fresh every call).
+  if(!m.past.length && !flagged){ box.style.display='none'; box.innerHTML=''; return; }
   const when=m.last&&m.last.createdAt?new Date(m.last.createdAt).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}):'';
-  const btn='flex:1;min-width:110px;padding:10px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;';
-  let h='<div style="border:1.5px solid var(--gold,#d4a93a);background:rgba(212,169,58,.08);border-radius:12px;padding:10px 12px;">'
-    +'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;"><div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--gold-deep,#b8902a);">'+(m.past.length?'Called before · '+m.past.length+' call'+(m.past.length>1?'s':''):'Saved caller')+'</div>'+(when?'<div style="font-size:11px;font-weight:600;color:var(--text2);">Last '+_rcEsc(when)+'</div>':'')+'</div>';
-  if(m.editing){
-    const inp='width:100%;padding:9px 10px;border:1px solid var(--border2,#e2e2e2);border-radius:8px;background:var(--card,#fff);color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;';
-    const lab='font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);margin:8px 0 3px;';
-    const c=m.car||{}, a=m.addr||{};
-    h+='<div style="'+lab+'">Address</div><input id="rcEdAddr" style="'+inp+'" value="'+_rcEsc(a.address)+'" placeholder="Street address"/>'
-      +'<input id="rcEdTown" style="'+inp+'margin-top:6px;" value="'+_rcEsc(a.town)+'" placeholder="Town"/>'
-      +'<div style="'+lab+'">Car</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
-      +'<input id="rcEdYear" inputmode="numeric" style="'+inp+'" value="'+_rcEsc(c.carYear)+'" placeholder="Year"/>'
-      +'<input id="rcEdColor" style="'+inp+'" value="'+_rcEsc(c.carColor)+'" placeholder="Color"/>'
-      +'<input id="rcEdMake" style="'+inp+'" value="'+_rcEsc((c.carMake||'').replace(/_/g,' '))+'" placeholder="Make"/>'
-      +'<input id="rcEdModel" style="'+inp+'" value="'+_rcEsc(c.carModel)+'" placeholder="Model"/></div>'
-      +'<div style="display:flex;gap:6px;margin-top:10px;"><button type="button" onclick="_rcSaveEdit()" style="'+btn+'border:none;background:var(--gold,#d4a93a);color:#000;">Save</button><button type="button" onclick="_rcMatch.editing=false;_rcRender()" style="'+btn+'flex:0 0 auto;border:none;background:transparent;color:var(--text2);">Cancel</button></div></div>';
-    box.innerHTML=h; box.style.display='block'; return;
+  const sbtn='padding:9px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;';
+  let h='<div style="border:1.5px solid '+(flagged?'#dc2626':'var(--gold,#d4a93a)')+';background:'+(flagged?'rgba(220,38,38,.07)':'rgba(212,169,58,.08)')+';border-radius:12px;padding:10px 12px;">';
+  if(flagged){
+    const by=prof.flaggedBy?('BC-'+String(prof.flaggedBy).replace(/^BC-?/i,'')):'';
+    const on=prof.flaggedAt?new Date(prof.flaggedAt).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}):'';
+    h+='<div style="background:#dc2626;color:#fff;border-radius:9px;padding:8px 10px;margin-bottom:8px;">'
+      +'<div style="font-size:13px;font-weight:800;letter-spacing:.3px;">🚩 FLAGGED CALLER</div>'
+      +(prof.flagReason?'<div style="font-size:13px;font-weight:600;margin-top:2px;">'+_rcEsc(prof.flagReason)+'</div>':'')
+      +((by||on)?'<div style="font-size:11px;opacity:.85;margin-top:2px;">'+[by?('Flagged by '+_rcEsc(by)):'',_rcEsc(on)].filter(Boolean).join(' · ')+'</div>':'')
+      +'</div>';
+  }
+  if(m.past.length){
+    h+='<div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--gold-deep,#b8902a);margin-bottom:4px;">Called before · '+m.past.length+' call'+(m.past.length===1?'':'s')+(when?'<span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--text2);"> · last '+_rcEsc(when)+'</span>':'')+'</div>';
   }
   h+='<div style="font-size:13px;color:var(--text);line-height:1.5;">'
     +(m.caller?'<div style="font-weight:700;">'+_rcEsc(m.caller)+'</div>':'')
     +(m.last?'<div>'+_rcEsc(_rcTypeLabel(m.last.type))+(m.last.callNum?' · #'+_rcEsc(m.last.callNum):'')+'</div>':'')
-    +(m.addr?'<div style="color:var(--text2);">'+_rcEsc(m.addr.address)+(m.addr.town&&m.addr.address.indexOf(m.addr.town)<0?', '+_rcEsc(m.addr.town):'')+'</div>':'')
     +'</div>';
-  if(m.car) h+='<div style="margin-top:8px;padding:8px 10px;background:var(--card,#fff);border:1px solid var(--border2,#e2e2e2);border-radius:9px;"><div style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text2);margin-bottom:2px;">Car on file</div><div style="font-size:14px;font-weight:700;color:var(--text);">'+_rcEsc(_rcCarStr(m.car))+'</div></div>';
   h+='<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
-    +(m.car?'<button type="button" onclick="applyRepeatCar()" style="'+btn+'border:none;background:var(--gold,#d4a93a);color:#000;">Use this car</button>':'')
-    +(m.addr?'<button type="button" onclick="applyRepeatAddress()" style="'+btn+'border:1px solid var(--border2,#e2e2e2);background:var(--card,#fff);color:var(--text);">Use address</button>':'')
-    +'<button type="button" onclick="_rcMatch.editing=true;_rcRender()" style="padding:10px 12px;border:1px solid var(--border2,#e2e2e2);border-radius:9px;background:transparent;color:var(--text);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Edit</button>'
-    +'<button type="button" onclick="dismissRepeatCaller()" style="padding:10px 12px;border:none;border-radius:9px;background:transparent;color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Dismiss</button>'
+    +(isAdmin?'<button type="button" onclick="_rcToggleFlag()" style="'+sbtn+(flagged?'border:1px solid var(--border2,#e2e2e2);background:var(--card,#fff);color:var(--text);':'border:none;background:#dc2626;color:#fff;')+'">'+(flagged?'Remove flag':'🚩 Flag caller')+'</button>':'')
+    +'<button type="button" onclick="dismissRepeatCaller()" style="'+sbtn+'border:none;background:transparent;color:var(--text2);">Dismiss</button>'
     +'</div></div>';
   box.innerHTML=h; box.style.display='block';
+}
+// Admins flag a problem caller (stored on the callerProfiles doc for that number).
+async function _rcToggleFlag(){
+  const m=_rcMatch; if(!m) return;
+  if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Only admins can flag callers'); return; }
+  await _rcLoadProfile(m.d);
+  const prof=_rcProfiles[m.d]||{};
+  if(prof.flagged){
+    await _rcSaveProfile(m.d,{flagged:false,flagReason:'',unflaggedBy:SESSION.unit||'',unflaggedAt:Date.now()});
+    showToast('Flag removed');
+  } else {
+    const r=prompt('Why are you flagging this caller? Dispatchers will see this note.');
+    if(r===null) return;
+    await _rcSaveProfile(m.d,{flagged:true,flagReason:String(r).trim(),flaggedBy:SESSION.unit||'',flaggedAt:Date.now()});
+    showToast('🚩 Caller flagged');
+  }
+  _rcBuild(m.d,m.past);
 }
 async function _rcSaveEdit(){
   const m=_rcMatch; if(!m) return;
