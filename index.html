@@ -9067,6 +9067,15 @@ async function createCall() {
   try{ _resetSafeLocAndTrim(); _clearI911Choice(); }catch(e){}
   if (_mpNeedsApproval) {
     showToast('🔍 Missing Person saved — waiting for Admin / Search Supervisor approval');
+    // Phone alert to every Admin + Search Supervisor (not the person who made it).
+    try{
+      const _me=String(SESSION.unit||'').replace(/^BC-?/i,'');
+      const _apTitle=(call.isTest?'🧪 TEST — ':'')+'🔍 Missing Person — needs your approval';
+      const _apBody=(call.address?call.address+' · ':'')+'Created by BC-'+_me+'. Open the app to approve & send out.';
+      _dedupeUnits([..._adminUnits(), ..._searchSupUnits()])
+        .filter(u=>String(u)!==_me)
+        .forEach(u=>setTimeout(()=>{ try{ sendPush({ target:'unit', unit:String(u), title:_apTitle, body:_apBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true', callId:call.id }); }catch(e){} },0));
+    }catch(e){ console.warn('approval push', e); }
   } else if (dontPublish) {
     showToast('Notes: Call saved as draft');
   } else if (_silent) {
@@ -11989,6 +11998,15 @@ function _adminUnits(){
   try{
     return [...new Set((STATE.members||[])
       .filter(m=>String(m.role||m.status||'').toLowerCase().includes('admin'))
+      .map(m=>String(m.unit||m.id||'').replace(/^BC-?/i,''))
+      .filter(Boolean))];
+  }catch(e){ return []; }
+}
+// Units (BC numbers) of all SEARCH SUPERVISORS (can approve Missing Person calls).
+function _searchSupUnits(){
+  try{
+    return [...new Set((STATE.members||[])
+      .filter(m=>(String(m.roleStr||'')+' '+String(m.role||m.status||'')).toLowerCase().includes('search supervisor'))
       .map(m=>String(m.unit||m.id||'').replace(/^BC-?/i,''))
       .filter(Boolean))];
   }catch(e){ return []; }
