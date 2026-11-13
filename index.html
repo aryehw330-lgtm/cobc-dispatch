@@ -6504,6 +6504,7 @@ function _tryRestoreSession() {
       _applyRoleUI(s.role);
       try{ syncPushTopicsIfEnabled_(); }catch(e){}
       renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner();
+      try{ _startBackgroundOnce(); }catch(e){}
       // Cached app is now fully painted — lift the cover as soon as the minimum
       // on-screen time is met. We do NOT wait for the (slow) REST verify below;
       // waiting made the cover linger for seconds after the app was already visible,
@@ -6910,6 +6911,7 @@ setTimeout(()=>{
   setTimeout(function(){ renderNumbers&&renderNumbers(); }, 200);
   // Force fresh inventory from sheet on every login — banner must reflect real car status
   setTimeout(function(){ loadInventoryFromSheet&&loadInventoryFromSheet(true); }, 1500);
+  try{ _startBackgroundOnce(); }catch(e){}
   // Marquee topbar name if it overflows
   setTimeout(function(){
     var el=document.getElementById('topbarSub');
@@ -7061,6 +7063,26 @@ function unlockAdmin(){
     document.getElementById('adminPanel').style.display='block';
     renderAdminMembers(); initResetTab();
   } else { showToast('Incorrect password'); }
+}
+// Background work that initApp() used to start. initApp() has not been called since
+// the June 10 login refactor, so the 30 s heartbeat (escalations, re-requests, shift
+// reminders, retry queue, daily backup, car schedule), the inventory refresh on reopen
+// and the ?call= notification deep link were all silently off. Runs once per page load,
+// from both the cached-session restore and finishLogin.
+function _startBackgroundOnce(){
+  if(window._bgStarted) return; window._bgStarted=true;
+  try{ startAppHeartbeat(); }catch(e){ console.warn('heartbeat start:', e); }
+  try{ loadInventoryFromSheet(); }catch(e){}
+  try{
+    const params=new URLSearchParams(window.location.search);
+    const callId=params.get('call');
+    if(callId){
+      history.replaceState(null,'',window.location.pathname+window.location.hash);
+      window._pendingDeepLink=callId;
+      setTimeout(()=>{ try{ tryOpenPendingDeepLink(); }catch(e){} },600);
+      setTimeout(()=>{ try{ tryOpenPendingDeepLink(); }catch(e){} },2000);
+    }
+  }catch(e){}
 }
 function initApp() {
   // Initialize new call modal
