@@ -2637,6 +2637,9 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="floodQtyWrap" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;"></div>
     </div>
 
+    <!-- Where the needed equipment is right now (flood / A/C / fans / heaters / generator) -->
+    <div id="newCallEqAvail" style="display:none;margin:-4px 0 12px;"></div>
+
     <!-- OTHER TYPE WRITE-IN -->
     <div id="otherTypeGroup" style="display:none;" class="input-group">
       <label class="input-label">Describe Call Type</label>
@@ -4630,6 +4633,8 @@ async function loadInventoryFromSheet(forceRefresh=false){
       if (eqTab === 'dashboard')  renderEquipmentDashboard&&renderEquipmentDashboard();
       if (eqTab === 'car') { renderCarItemStatus&&renderCarItemStatus(); if(carSelectedDate) try{renderCarDay&&renderCarDay(carSelectedDate);}catch(e){} }
     }
+    try{ if(currentTab!=='equipment' && typeof renderCalls==='function') renderCalls(); }catch(e){}
+    try{ refreshNewCallEqAvail(); }catch(e){}
     updateGlobalShiftBanner&&updateGlobalShiftBanner();
     save();
     if(sub)sub.textContent='Live';
@@ -8083,6 +8088,64 @@ function _respNumBadges(call){
   }).join('');
   return `<div style="display:flex;flex-wrap:nowrap;justify-content:flex-start;gap:5px;margin:1px 0 5px;padding:0 13px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">${pills}</div>`;
 }
+// ── Available equipment box (dispatch) ─────────────────────────────────────
+// For equipment call types, list each storage location with what's available
+// there right now (checked IN, status OK, not out-of-service). No distances.
+const _EQ_AVAIL_CATS = [
+  {key:'Fans',      label:'Fans',      one:'Fan',      re:/^fan\b/i},
+  {key:'Sump Pump', label:'Pumps',     one:'Pump',     re:/pump/i},
+  {key:'ShopVacs',  label:'Shop Vacs', one:'Shop Vac', re:/shop\s*-?vac/i},
+  {key:'A/C',       label:'A/C',       re:/^a\/?c\b/i},
+  {key:'Heaters',   label:'Heaters',   one:'Heater',   re:/heater/i},
+  {key:'Generators',label:'Generators',one:'Generator',re:/generator/i},
+];
+const _EQ_AVAIL_HIDE_LOCS = /^(cobc|bc-?46\b.*|rami'?s garage|garage tabc)$/i;
+function _eqAvailCatsForCall(call){
+  const t = call && call.type;
+  if(t==='flood'){
+    const keys = (call.floodNeeds||[]).map(n=>String(n).replace(/\s*×.*$/,'').trim());
+    const pick = keys.length ? keys : ['Fans','Sump Pump','ShopVacs'];
+    return _EQ_AVAIL_CATS.filter(c=>pick.includes(c.key));
+  }
+  const map = {needs_fan:['Fans'], needs_ac:['A/C'], needs_heat:['Heaters'], generator:['Generators']};
+  const k = map[t]; return k ? _EQ_AVAIL_CATS.filter(c=>k.includes(c.key)) : [];
+}
+function refreshNewCallEqAvail(){
+  const box=document.getElementById('newCallEqAvail'); if(!box) return;
+  const type=(document.getElementById('callType')||{}).value||'';
+  const needs=Array.from(document.querySelectorAll('.flood-need-btn.active')).map(b=>b.dataset.need);
+  const html=eqAvailBoxHTML({type, status:'open', floodNeeds: needs}, true);
+  box.innerHTML=html; box.style.display=html?'block':'none';
+}
+function eqAvailBoxHTML(call, light){
+  try{
+    if(!call || call.status==='done' || call.status==='cancelled' || !isDispatchRole()) return '';
+    const cats = _eqAvailCatsForCall(call); if(!cats.length) return '';
+    const eq = (STATE && STATE.equipment) || []; if(!eq.length) return '';
+    const byLoc = {};
+    eq.forEach(it=>{
+      if(it.status!=='in' || it.isCNC) return;
+      if(String(it.equipStatus||'OK').toUpperCase()!=='OK') return;
+      const c = cats.find(c=>c.re.test(String(it.name||'').trim())); if(!c) return;
+      const loc = String(it.location||'').trim();
+      // 'COBC' = item not assigned to a location yet. BC-46 Garage, Rami's Garage and
+      // Garage TABC are not pickup spots for dispatch.
+      if(!loc || _EQ_AVAIL_HIDE_LOCS.test(loc)) return;
+      (byLoc[loc]=byLoc[loc]||{_n:0}); byLoc[loc][c.label]=(byLoc[loc][c.label]||0)+1; byLoc[loc]._n++;
+    });
+    const locs = Object.keys(byLoc).sort((a,b)=>byLoc[b]._n-byLoc[a]._n);
+    let asOf=''; try{ const s=JSON.parse(localStorage.getItem(EQ_CACHE_KEY)||'{}').savedAt; if(s) asOf=new Date(s).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }catch(e){}
+    const bg = light ? '#fffbeb' : 'rgba(255,255,255,.12)', bd = light ? '#fde68a' : 'rgba(255,255,255,.2)';
+    const tx = light ? 'var(--text)' : '#fff', hd = light ? '#a16207' : '#fcd34d', num = light ? '#15803d' : '#4ade80';
+    const rows = locs.length ? locs.map(l=>{
+      const parts = cats.filter(c=>byLoc[l][c.label]).map(c=>{const n=byLoc[l][c.label]; const lab=(n===1&&c.one)?c.one:c.label; return `<b style="color:${num};">${n}</b> ${lab}`;}).join(' · ');
+      return `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-top:1px dashed ${bd};"><span style="font-weight:800;">${l}</span><span style="margin-left:auto;text-align:right;">${parts}</span></div>`;
+    }).join('') : `<div style="padding:4px 0;font-weight:700;">⚠️ None available right now — check the Equip tab</div>`;
+    return `<div onclick="event.stopPropagation();" style="margin-top:7px;background:${bg};border:1px solid ${bd};border-radius:10px;padding:8px 11px;color:${tx};font-size:12.5px;line-height:1.35;">`
+      + `<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:2px;"><span style="font-size:11px;font-weight:800;letter-spacing:.6px;color:${hd};">AVAILABLE EQUIPMENT</span>${asOf?`<span style="font-size:10.5px;opacity:.7;">as of ${asOf}</span>`:''}</div>`
+      + rows + `</div>`;
+  }catch(e){ return ''; }
+}
 function callCardHTML(call, mini=false) {
   if(!call) return '';
   if(!call.status) call = Object.assign({}, call, {status:'open'}); // guard against transient/malformed call objects
@@ -8204,6 +8267,7 @@ function callCardHTML(call, mini=false) {
             <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCardHTML(call)}</div>
             ${ezFitBadge}
             ${floodBadge}
+            ${eqAvailBoxHTML(call)}
             ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
           </div>
         </div>
@@ -8250,6 +8314,7 @@ function callCardHTML(call, mini=false) {
         <div class="call-card-addr" onclick="event.stopPropagation();openAddressPreviewById('${call.id}')" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px;">${fmtLocCardHTML(call)}</div>
         ${ezFitBadge}
         ${floodBadge}
+        ${eqAvailBoxHTML(call)}
         ${call.notes?`<div style="font-size:14px;font-weight:600;color:#fff;margin-top:6px;padding:9px 12px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:9px;line-height:1.45;text-shadow:0 1px 2px rgba(0,0,0,.35);">${call.notes}</div>`:''}
         ${isDispatch&&(call.pendingResponders||[]).length>0?`<div style="margin-top:5px;"><span style="background:var(--amber);color:#fff;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:700;animation:pendingPulse 1.8s ease-in-out infinite;">⏳ ${(call.pendingResponders||[]).length} pending</span></div>`:''}
         ${isDispatch&&(call.pendingBackups||[]).length>0?(call.pendingBackups||[]).map(b=>`<div style="margin-top:6px;background:#fef2f2;border:1px solid rgba(220,80,80,.4);border-radius:10px;padding:8px 10px;" onclick="event.stopPropagation();"><div style="font-size:12px;font-weight:700;color:var(--red);">🆘 BC-${String(b.unit||'').replace(/^BC-?/i,'')} ${b.name||''} requests backup${b.equipment?' · '+b.equipment:''}${b.notes?' · '+b.notes:''}</div><div style="display:flex;gap:6px;margin-top:7px;"><button onclick="event.stopPropagation();approveBackup('${call.id}',${b.time})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✓ Approve Backup</button><button onclick="event.stopPropagation();rejectBackup('${call.id}',${b.time})" style="flex:1;background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">✕ Deny</button></div></div>`).join(''):''}
@@ -8663,6 +8728,7 @@ function resetCallTypeGrid() {
   const ci=document.getElementById('carInfoSection'); if(ci) ci.style.display='none';
   const og=document.getElementById('otherTypeGroup'); if(og) og.style.display='none';
   const eq=document.getElementById('eqQtySection'); if(eq) eq.style.display='none';
+  const _nea=document.getElementById('newCallEqAvail'); if(_nea){ _nea.style.display='none'; _nea.innerHTML=''; }
   const _more=document.getElementById('callTypeMore'); if(_more){ _more.value=''; _more.classList.remove('active'); _more.style.display='none'; }
 }
 function highlightMoreType(sel){
@@ -8724,6 +8790,7 @@ function selectCallType(type, btn) {
     if(URGENT_TYPES.includes(type)) { if(typeof setUrgentToggle==='function') setUrgentToggle(true); else pri.value='urgent'; }
     else if(URGENT_TYPES.includes(prevType) && pri.value==='urgent') { if(typeof setUrgentToggle==='function') setUrgentToggle(false); else pri.value='normal'; }
   }
+  try{ refreshNewCallEqAvail(); }catch(e){}
   // Collapse the grid to just the chosen type (tap it again to change)
   if(_grid && btn){ _grid.querySelectorAll('.qtype-btn').forEach(b=>{ if(b!==btn && b.id!=='callTypeMore') b.style.display='none'; }); btn.style.display=''; const _mS=document.getElementById('callTypeMore'); if(_mS) _mS.style.display=((type==='other'||_mS.value===type) && type)?'':'none'; _grid.dataset.collapsed='1'; }
 }
@@ -8745,7 +8812,7 @@ function _pickOtherType(n){
   const box=document.getElementById('otherTypeSuggest'); if(box){ box.style.display='none'; box.innerHTML=''; }
 }
 // Flood equipment-needed multi-select toggle + per-item quantity steppers
-function toggleFloodNeed(btn){ btn.classList.toggle('active'); if(!btn.classList.contains('active')) btn.dataset.qty=''; renderFloodQty(); }
+function toggleFloodNeed(btn){ btn.classList.toggle('active'); if(!btn.classList.contains('active')) btn.dataset.qty=''; renderFloodQty(); try{ refreshNewCallEqAvail(); }catch(e){} }
 function renderFloodQty(){
   const wrap=document.getElementById('floodQtyWrap'); if(!wrap) return;
   const active=Array.from(document.querySelectorAll('.flood-need-btn.active'));
@@ -10189,6 +10256,7 @@ function openCallDetail(id) {
     ${(call.assignedEquipment||[]).length?`<div class="detail-row"><span class="detail-key">Equipment</span><span class="detail-val">${call.assignedEquipment.join(', ')}</span></div>`:''}
     ${call.notes?`<div class="detail-row"><span class="detail-key">Notes</span><span class="detail-val">${call.notes}</span></div>`:''}
   </div>`;
+  html+=eqAvailBoxHTML(call,true);
 
   // Live Map (dispatch) — only once the call is active AND has responders assigned
   if(call.address && isDispatch && call.status==='active' && (call.responders||[]).length>0){
