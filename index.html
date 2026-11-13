@@ -3709,9 +3709,9 @@ async function initFirebaseApp() {
       try { subscribeVehiclesFromFirestore(); } catch(e){ console.warn('subscribeVehicles:', e); }
       try { subscribeCommonCallsFromFirestore(); } catch(e){ console.warn('subscribeCommonCalls:', e); }
       try { subscribeCarScheduleFromFirestore(); } catch(e){ console.warn('subscribeCarSchedule:', e); }
-      // Always-on equipment-history listener for dispatch/admin so check-in/out push
-      // notifications fire without needing the activity-history accordion open.
-      try { if(SESSION && (SESSION.role==='admin'||SESSION.role==='dispatch')) _ensureEqActivityHistorySub(); } catch(e){ console.warn('eqHistBoot:', e); }
+      // Equipment check-in/out push is sent server-side (Apps Script), so the 500-row
+      // equipment-history listener is NOT started at boot anymore — it starts only when
+      // someone opens the Activity History section (saves ~500 reads per app open).
     }
     window._startRealtimeSync = _startRealtimeSync;
     try {
@@ -12253,11 +12253,18 @@ function checkShiftSignInOutReminders(){
 // the waiting-escalation + re-request checks immediately, so any milestone that
 // elapsed while the app was asleep fires right away (still deduped per-call).
 (function _wireEscalationCatchUp(){
+  // Full calls re-download only when the app was really away (30 s+). Quick app
+  // switches are covered by the live listeners, which catch up on their own.
+  let _hiddenAt=0, _lastResyncAt=0;
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') _hiddenAt=Date.now(); });
   function _catchUp(){
     if(document.visibilityState==='hidden') return;
-    try{ window._forceCallsResync && window._forceCallsResync(); }catch(e){}
+    const _away = _hiddenAt ? (Date.now()-_hiddenAt) : 0;
+    if(_away>=30000 && Date.now()-_lastResyncAt>=30000){
+      _lastResyncAt=Date.now(); _hiddenAt=0;
+      try{ window._forceCallsResync && window._forceCallsResync(); }catch(e){}
+    }
     try{ _retryUnsyncedCompletions(); }catch(e){}
-    try{ _ensureEqActivityHistorySub && _ensureEqActivityHistorySub(); }catch(e){}
     try{ checkWaitingEscalation(); }catch(e){}
     try{ checkReRequests(); }catch(e){}
     try{ checkShiftSignInOutReminders(); }catch(e){}
