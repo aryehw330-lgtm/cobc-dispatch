@@ -14810,7 +14810,7 @@ function checkRepeatCaller(){
 function _rcBuild(d,past){
   const box=document.getElementById('repeatCallerBox'); if(!box) return;
   const prof=_rcProfiles[d]||null;
-  if(!past.length&&!(prof&&prof.flagged)){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
+  if(!past.length){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
   const last=past[0]||null;
   const carCall=past.find(c=>_RC_CAR_TYPES.includes(String(c.type||'').split(':')[0])&&c.carMake);
   const car=(prof&&prof.carMake)?{carYear:prof.carYear,carColor:prof.carColor,carMake:prof.carMake,carModel:prof.carModel,type:prof.carType||(carCall&&carCall.type)||''}:(carCall?{carYear:carCall.carYear,carColor:carCall.carColor,carMake:carCall.carMake,carModel:carCall.carModel,type:carCall.type}:null);
@@ -14824,8 +14824,8 @@ function _rcBuild(d,past){
 function _rcRender(){
   const box=document.getElementById('repeatCallerBox'); const m=_rcMatch; if(!box||!m) return;
   const prof=_rcProfiles[m.d]||null;
-  const flagged=!!(prof&&prof.flagged);
-  const isAdmin=(SESSION.role||'').toLowerCase()==='admin';
+  const flagged=false; // flagged-caller warning removed Nov 2026 (chief's request)
+  const isAdmin=false;  // no flag button
   // Location and vehicle from earlier calls are no longer offered (asked fresh every call).
   if(!m.past.length && !flagged){ box.style.display='none'; box.innerHTML=''; return; }
   const when=m.last&&m.last.createdAt?new Date(m.last.createdAt).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}):'';
