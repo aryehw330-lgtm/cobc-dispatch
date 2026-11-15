@@ -5231,7 +5231,8 @@ async function requestViaI911(){
   try{ if(_i911Socket){ _i911Socket.disconnect(); _i911Socket=null; } }catch(e){}
   _setI911Btn('⏳ Requesting…', true);
   try{
-    const r=await fetch(I911_PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phonenumber:e164})});
+    const _it=await _pushAuth().catch(()=>window._fbIdToken);
+    const r=await fetch(I911_PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(_it||'')},body:JSON.stringify({phonenumber:e164})});
     if(!r.ok) throw new Error('i911 request failed ('+r.status+')');
     const d=await r.json();
     const wsUrl=d.webSocketURL||d.websocketURL||d.url;
