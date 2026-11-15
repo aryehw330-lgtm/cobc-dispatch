@@ -3888,13 +3888,13 @@ async function enablePushForThisDevice() {
     const token = await _fcmMessaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
     if (!token) { setStatus('Enable','btn-primary'); showToast('Could not get push token — try again in a moment'); return; }
     _fcmToken = token;
-    try { syncPushTopics_(token, SESSION.role).catch(()=>{}); } catch(e){}
+    // Topic sign-up now happens on the push server when this token registers.
 
     // Step 5 — Register token with push server
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'register', key: PUSH_SHARED_KEY, authToken: window._fbIdToken||undefined,
+      body: JSON.stringify({ action: 'register', authToken: await _pushAuth(),
         unit: SESSION.unit, name: SESSION.name, role: SESSION.role, token })
     });
 
@@ -3942,7 +3942,12 @@ async function sendTestPush() {
 // §PUSH-URLS  Push + Apps Script endpoint URLs
 // ═══════════════════════════════════════════════════════════════════════════
 const PUSH_SEND_URL  = "https://script.google.com/macros/s/AKfycbyrOTdBNqyvoDOBRx_n_BuxvSXP6IvrndPQv0dKBKCoQyhOTXT1KoxBHlbArty9eBxsFQ/exec";    // ✅ set
-const PUSH_SHARED_KEY = "cobc-2026-shared-secret";   // ✅ set
+// The push server only accepts a signed-in member's Firebase token (with the
+// 'authorized' claim). The old shared key was public in this file and is retired.
+async function _pushAuth(){
+  try{ const u=firebase.auth().currentUser; if(u){ const t=await u.getIdToken(); window._fbIdToken=t; return t; } }catch(e){}
+  return window._fbIdToken||undefined;
+}
 // ── FCM Topics (Phase 2: app-side subscribe/unsubscribe) ─────────────────────
 // Broad blasts go to role topics; the 2-dispatcher on-duty scoped alerts stay token-based.
 const PUSH_TOPICS_URL = "https://cobc-push-topics.aryehw330.workers.dev";
@@ -3954,7 +3959,9 @@ function topicsForRole_(role) {
   return topics; // member, observer → just 'all'
 }
 async function syncPushTopics_(token, role) {
-  if (!token || !PUSH_TOPICS_URL) return;
+  // Retired: the push server signs phones up to topics (with real result checks)
+  // when they register, and re-checks daily. The old Cloudflare worker is off.
+  return;
   const want = topicsForRole_(role);
   const storeKey = 'cobc_fcm_topics_v3_' + token;
   let had = [];
@@ -3973,7 +3980,7 @@ async function syncPushTopics_(token, role) {
     if (toAdd.length) {
       const r = await fetch(base + '/topic-subscribe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: PUSH_SHARED_KEY, token, topics: toAdd })
+        body: JSON.stringify({ token, topics: toAdd })
       });
       let body = {}; try { body = await r.json(); } catch(e){}
       addOk = r.ok && body.ok !== false && body.error == null;
@@ -3982,7 +3989,7 @@ async function syncPushTopics_(token, role) {
     if (toDrop.length) {
       const r = await fetch(base + '/topic-unsubscribe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: PUSH_SHARED_KEY, token, topics: toDrop })
+        body: JSON.stringify({ token, topics: toDrop })
       });
       let body = {}; try { body = await r.json(); } catch(e){}
       dropOk = r.ok && body.ok !== false && body.error == null;
@@ -4040,7 +4047,7 @@ async function sendPush(payload) {
     await fetch(PUSH_SEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'send', key: PUSH_SHARED_KEY, authToken: window._fbIdToken||undefined, ...payload })
+      body: JSON.stringify({ action: 'send', authToken: await _pushAuth(), ...payload })
     });
   } catch (e) { console.warn('Push send failed:', e); }
 }
@@ -4142,16 +4149,17 @@ function sendWA(payload) {
   const { target, message } = payload;
   if (!message || target !== 'all') return;
   if (_waDedupeHit(message)) return;
-  try {
-    const url = PUSH_SEND_URL
-      + '?action=sendWA'
-      + '&key=' + encodeURIComponent(PUSH_SHARED_KEY)
-      + (window._fbIdToken ? '&authToken='+encodeURIComponent(window._fbIdToken) : '')
-      + '&chat=' + encodeURIComponent(WA_GROUP_ID)
-      + '&text=' + encodeURIComponent(message);
-    fetch(url, { keepalive: true }).catch(e => console.warn('WA fetch error:', e));
-    console.log('[WA] keepalive fetch fired, length=' + message.length);
-  } catch(e) { console.warn('WA send error:', e); }
+  _pushAuth().then(tok => {
+    try {
+      const url = PUSH_SEND_URL
+        + '?action=sendWA'
+        + (tok ? '&authToken='+encodeURIComponent(tok) : '')
+        + '&chat=' + encodeURIComponent(WA_GROUP_ID)
+        + '&text=' + encodeURIComponent(message);
+      fetch(url, { keepalive: true }).catch(e => console.warn('WA fetch error:', e));
+      console.log('[WA] keepalive fetch fired, length=' + message.length);
+    } catch(e) { console.warn('WA send error:', e); }
+  });
 }
 // Dispatch-only: compose a custom WhatsApp message to the group about a call, with quick
 // templates (e.g. "any units available within 5 min?"). Sends via the same group path.
@@ -13234,7 +13242,7 @@ async function disablePushForThisDevice() {
       await fetch(PUSH_SEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'unregister', key: PUSH_SHARED_KEY, unit: SESSION.unit, token })
+        body: JSON.stringify({ action: 'unregister', authToken: await _pushAuth(), unit: SESSION.unit, token })
       }).catch(()=>{});
       // Delete token from FCM
       if(_fcmMessaging) await _fcmMessaging.deleteToken().catch(()=>{});

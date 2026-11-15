@@ -2039,7 +2039,7 @@ function notifyWhatsApp_(msgBody) {
 // ── Server-side equipment check-in/out push (so notifications fire instantly, ─
 // regardless of whether any dispatch/admin device has the app open) ───────────
 var PUSH_SEND_URL_GS  = 'https://script.google.com/macros/s/AKfycbyrOTdBNqyvoDOBRx_n_BuxvSXP6IvrndPQv0dKBKCoQyhOTXT1KoxBHlbArty9eBxsFQ/exec';
-var PUSH_SHARED_KEY_GS = 'cobc-2026-shared-secret';
+var PUSH_SHARED_KEY_GS = '(retired — server key now lives only in Script Properties)';
 
 // Push an equipment check-in/out notification to admins + equipment team + all
 // dispatchers. (Server-side has no live on-duty-shift data handy, so we reach all

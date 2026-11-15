@@ -19,4 +19,4 @@
 - Test button on iOS now prompts user to go to Home Screen before notification arrives
 
 ## Shared Keys
-- PUSH_SHARED_KEY: `cobc-2026-shared-secret` (must match Apps Script)
+- PUSH_SHARED_KEY: `(retired — server key now lives only in Script Properties)` (must match Apps Script)
