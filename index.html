@@ -956,6 +956,7 @@ textarea.input{min-height:80px;resize:vertical;}
   <div class="login-tagline"><span>Emergency Services</span></div>
   <div class="login-card">
     <div style="font-size:14px;font-weight:800;color:rgba(255,255,255,.95);margin-bottom:18px;text-align:center;letter-spacing:1.5px;text-transform:uppercase;text-shadow:0 1px 4px rgba(0,0,0,.4);">Member Sign-In</div>
+    <button type="button" id="faceIdLoginBtn" onclick="faceIdLogin()" class="login-btn" style="display:none;background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;margin-bottom:12px;justify-content:center;align-items:center;gap:8px;">🔐 Sign in with Face ID / fingerprint</button>
     <button type="button" onclick="handleGoogleLogin()" class="login-btn" style="background: #ffffff; color: #1a3a5c; margin-bottom: 16px; display: flex; justify-content: center; align-items: center; gap: 10px; border: none;">
   <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
   Sign in with Google
@@ -1585,6 +1586,37 @@ textarea.input{min-height:80px;resize:vertical;}
               <button id="settings-notif-test" class="btn-sm btn-ghost" onclick="sendTestPush()" style="display:none;font-size:11px;">Test</button>
               <button id="settings-notif-btn" class="btn-sm btn-primary" onclick="togglePushNotifications()">Enable</button>
             </div>
+          </div>
+        </div>
+
+        <!-- Sign-in & security -->
+        <div class="card" id="settings-security-card" style="margin-bottom:10px;">
+          <div class="card-title">🔐 Sign-in &amp; security</div>
+          <div class="card-desc" style="margin-bottom:10px;">Change your PIN, sign in with Face ID or fingerprint, and lock the app.</div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border,#e5e7eb);">
+            <div style="flex:1;min-width:0;"><div style="font-weight:700;">Change my PIN</div><div class="card-desc">New PINs are 6 digits.</div></div>
+            <button class="btn-sm btn-ghost" onclick="toggleChangePinForm()">Change</button>
+          </div>
+          <div id="changePinForm" style="display:none;padding:4px 0 10px;">
+            <input class="input" type="password" inputmode="numeric" id="cpCurrent" placeholder="Current PIN" autocomplete="current-password" style="margin-bottom:6px;"/>
+            <input class="input" type="password" inputmode="numeric" id="cpNew" placeholder="New PIN (6 digits)" maxlength="6" autocomplete="new-password" style="margin-bottom:6px;"/>
+            <input class="input" type="password" inputmode="numeric" id="cpNew2" placeholder="New PIN again" maxlength="6" autocomplete="new-password" style="margin-bottom:6px;"/>
+            <button class="btn-sm btn-primary" id="cpSaveBtn" onclick="saveMyNewPin()" style="width:100%;">Save new PIN</button>
+            <div id="cpMsg" style="margin-top:6px;font-size:13px;font-weight:700;"></div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border,#e5e7eb);">
+            <div style="flex:1;min-width:0;"><div style="font-weight:700;">Face ID / fingerprint</div><div class="card-desc" id="fidDesc">Sign in without typing your PIN.</div></div>
+            <button class="btn-sm btn-primary" id="fidBtn" onclick="faceIdSetupOrRemove()">Set up</button>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border,#e5e7eb);">
+            <div style="flex:1;min-width:0;"><div style="font-weight:700;">App lock</div><div class="card-desc" id="lockDesc">Ask for Face ID / fingerprint when the app opens. Off by default.</div></div>
+            <label style="position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0;">
+              <input id="appLockToggle" type="checkbox" style="opacity:0;width:0;height:0;" onchange="toggleAppLock(this.checked)"/>
+              <span id="appLockSlider" style="position:absolute;inset:0;border-radius:26px;background:#cbd5e1;transition:.2s;cursor:pointer;"></span>
+            </label>
           </div>
         </div>
 
@@ -6514,6 +6546,8 @@ function _tryRestoreSession() {
       try{ syncPushTopicsIfEnabled_(); }catch(e){}
       renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner();
       try{ _startBackgroundOnce(); }catch(e){}
+      // App reopened with a saved session → ask for Face ID if this member turned on the app lock.
+      setTimeout(function(){ try{ maybeAppLock(); }catch(e){} }, 400);
       // Cached app is now fully painted — lift the cover as soon as the minimum
       // on-screen time is met. We do NOT wait for the (slow) REST verify below;
       // waiting made the cover linger for seconds after the app was already visible,
@@ -6831,6 +6865,168 @@ async function signInToFirebase(pin,unit){
     return true;
   }catch(err){console.error('signInToFirebase error:',err);return false;}
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// §SECURITY  Change my PIN · Face ID / fingerprint (passkeys) · App lock
+// ═══════════════════════════════════════════════════════════════════════════
+const _PK_LIB='https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13.3.0/dist/bundle/index.umd.min.js';
+const _PK_RPID='aryehw330-lgtm.github.io';
+let _pkLibP=null;
+function _pkLoadLib(){
+  if(window.SimpleWebAuthnBrowser) return Promise.resolve(window.SimpleWebAuthnBrowser);
+  if(_pkLibP) return _pkLibP;
+  _pkLibP=new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=_PK_LIB; s.onload=()=>res(window.SimpleWebAuthnBrowser); s.onerror=()=>{_pkLibP=null;rej(new Error('Face ID library failed to load'));}; document.head.appendChild(s); });
+  return _pkLibP;
+}
+async function _pkSupported(){
+  try{ return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); }catch(e){ return false; }
+}
+async function _authFn(payload, idToken){
+  const h={'Content-Type':'application/json'}; if(idToken) h.Authorization='Bearer '+idToken;
+  const r=await fetch(_GET_AUTH_TOKEN_URL,{method:'POST',headers:h,body:JSON.stringify(payload)});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  return d;
+}
+function _pkCredKey(){ return 'cobc_pk_cred_'+_normUnit(SESSION&&SESSION.unit||''); }
+function _b64uToBytes(s){ s=String(s).replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; const b=atob(s); return Uint8Array.from(b,c=>c.charCodeAt(0)); }
+
+// ── Sign in with Face ID (sign-in screen) ──
+async function faceIdLogin(){
+  const err=document.getElementById('loginError'); const btn=document.getElementById('faceIdLoginBtn');
+  const label=btn?btn.innerHTML:'';
+  const done=()=>{ if(btn){ btn.disabled=false; btn.innerHTML=label; } };
+  try{
+    if(err){ err.style.color=''; err.textContent=''; }
+    if(btn){ btn.disabled=true; btn.innerHTML='<span style="display:inline-block;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;vertical-align:-3px;margin-right:8px;animation:loginSpin .8s linear infinite;"></span>Waiting for Face ID…'; }
+    if(!document.getElementById('loginSpinStyle')){ const st=document.createElement('style'); st.id='loginSpinStyle'; st.textContent='@keyframes loginSpin{to{transform:rotate(360deg)}}'; document.head.appendChild(st); }
+    const lib=await _pkLoadLib();
+    const o=await _authFn({action:'pkAuthOptions'});
+    if(!o.ok){ throw new Error(o.error||'Face ID is unavailable right now'); }
+    const resp=await lib.startAuthentication({optionsJSON:o.options});
+    const v=await _authFn({action:'pkAuthVerify', challengeId:o.challengeId, response:resp});
+    if(!v.ok||!v.token){ throw new Error(v.error||'Face ID sign-in failed'); }
+    await firebase.auth().signInWithCustomToken(v.token);
+    await firebase.auth().currentUser.getIdToken(true);
+    try{ initFirestore(); }catch(e){}
+    try{ localStorage.setItem('cobc_pk_cred_'+_normUnit(v.member.id||v.member.unit), resp.id); }catch(e){}
+    _showSignInCover();
+    finishLogin(_sheetMemberToApp(v.member));
+    setTimeout(done,4000);
+  }catch(e){
+    done();
+    const m=String(e&&e.message||e);
+    if(err) err.textContent=/NotAllowed|cancel|abort/i.test(m)?'Face ID was cancelled — try again or use your PIN.':m;
+  }
+}
+
+// ── Settings card ──
+async function renderSecurityCard(){
+  try{
+    const ok=await _pkSupported();
+    const cred=localStorage.getItem(_pkCredKey());
+    const fb=document.getElementById('fidBtn'), fd=document.getElementById('fidDesc');
+    const lt=document.getElementById('appLockToggle'), ls=document.getElementById('appLockSlider'), ld=document.getElementById('lockDesc');
+    if(fb){
+      if(!ok){ fb.style.display='none'; if(fd) fd.textContent='This phone/browser does not support Face ID or fingerprint sign-in.'; }
+      else if(cred){ fb.style.display=''; fb.textContent='Remove'; fb.className='btn-sm btn-ghost'; if(fd) fd.textContent='✅ On for this phone. Use it on the sign-in screen.'; }
+      else { fb.style.display=''; fb.textContent='Set up'; fb.className='btn-sm btn-primary'; if(fd) fd.textContent='Sign in without typing your PIN.'; }
+    }
+    const lockOn=localStorage.getItem('cobc_applock')==='1' && !!cred;
+    if(lt){ lt.checked=lockOn; lt.disabled=!cred; }
+    if(ls){ ls.style.background=lockOn?'#16a34a':'#cbd5e1'; ls.style.opacity=cred?'1':'.5'; ls.style.boxShadow=lockOn?'inset 22px 0 0 0 #16a34a':''; ls.innerHTML='<span style="position:absolute;top:3px;left:'+(lockOn?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;"></span>'; }
+    if(ld) ld.textContent=cred?'Ask for Face ID / fingerprint when the app opens. Off by default.':'Set up Face ID first to use the app lock.';
+  }catch(e){}
+}
+async function faceIdSetupOrRemove(){
+  const cred=localStorage.getItem(_pkCredKey());
+  if(cred){
+    if(!confirm('Remove Face ID / fingerprint sign-in from this phone?')) return;
+    try{ await _authFn({action:'pkRemove', id:cred}, await _pushAuth()); }catch(e){}
+    try{ localStorage.removeItem(_pkCredKey()); localStorage.removeItem('cobc_applock'); }catch(e){}
+    showToast('Face ID sign-in removed from this phone');
+    renderSecurityCard(); return;
+  }
+  try{
+    const lib=await _pkLoadLib();
+    const tok=await _pushAuth();
+    const o=await _authFn({action:'pkRegOptions'}, tok);
+    if(!o.ok) throw new Error(o.error||'Could not start Face ID setup');
+    const resp=await lib.startRegistration({optionsJSON:o.options});
+    const dev=(navigator.userAgent.match(/iPhone|iPad|Android|Mac|Windows/)||['phone'])[0];
+    const v=await _authFn({action:'pkRegVerify', response:resp, device:dev}, await _pushAuth());
+    if(!v.ok) throw new Error(v.error||'Face ID setup failed');
+    localStorage.setItem(_pkCredKey(), resp.id);
+    showToast('✅ Face ID / fingerprint sign-in is on for this phone');
+  }catch(e){
+    const m=String(e&&e.message||e);
+    showToast(/NotAllowed|cancel|abort/i.test(m)?'Face ID setup was cancelled':('⚠️ '+m));
+  }
+  renderSecurityCard();
+}
+
+// ── App lock (optional) ──
+function toggleAppLock(on){
+  if(on && !localStorage.getItem(_pkCredKey())){ showToast('Set up Face ID first'); renderSecurityCard(); return; }
+  try{ if(on) localStorage.setItem('cobc_applock','1'); else localStorage.removeItem('cobc_applock'); }catch(e){}
+  showToast(on?'🔒 App lock on — Face ID will be asked when the app opens':'App lock off');
+  renderSecurityCard();
+}
+let _lockHiddenAt=0, _lockShowing=false;
+async function maybeAppLock(){
+  try{
+    if(_lockShowing || !SESSION || !SESSION.unit) return;
+    if(localStorage.getItem('cobc_applock')!=='1') return;
+    const cred=localStorage.getItem(_pkCredKey()); if(!cred) return;
+    _lockShowing=true;
+    const ov=document.createElement('div'); ov.id='appLockCover';
+    ov.style.cssText='position:fixed;inset:0;z-index:100000;background:#0f0e0c;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;';
+    ov.innerHTML='<div style="font-size:44px;">🔒</div><div style="font-weight:800;font-size:18px;">COBC is locked</div>'
+      +'<button id="appLockUnlock" style="background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;border:none;border-radius:12px;padding:14px 22px;font-size:16px;font-weight:800;">Unlock with Face ID / fingerprint</button>'
+      +'<button id="appLockUsePin" style="background:transparent;color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.35);border-radius:12px;padding:10px 18px;font-size:14px;font-weight:700;">Use PIN instead (signs you out)</button>';
+    document.body.appendChild(ov);
+    const unlock=async()=>{
+      try{
+        const challenge=crypto.getRandomValues(new Uint8Array(32));
+        await navigator.credentials.get({publicKey:{challenge, rpId:_PK_RPID, allowCredentials:[{type:'public-key', id:_b64uToBytes(cred)}], userVerification:'required', timeout:60000}});
+        ov.remove(); _lockShowing=false;
+      }catch(e){ /* cancelled — stay locked */ }
+    };
+    document.getElementById('appLockUnlock').onclick=unlock;
+    document.getElementById('appLockUsePin').onclick=()=>{ try{ localStorage.removeItem('cobc_session'); }catch(e){} location.replace(location.pathname); };
+    unlock();
+  }catch(e){ _lockShowing=false; }
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){ _lockHiddenAt=Date.now(); return; }
+  if(_lockHiddenAt && Date.now()-_lockHiddenAt>=60000) maybeAppLock();   // away 1+ minute
+});
+// Sign-in screen: show the Face ID button on phones that support it.
+(async function(){ try{ if(await _pkSupported()){ const b=document.getElementById('faceIdLoginBtn'); if(b) b.style.display='flex'; } }catch(e){} })();
+
+// ── Change my PIN ──
+function toggleChangePinForm(){
+  const f=document.getElementById('changePinForm'); if(!f) return;
+  f.style.display=f.style.display==='none'?'block':'none';
+  const m=document.getElementById('cpMsg'); if(m) m.textContent='';
+}
+async function saveMyNewPin(){
+  const cur=(document.getElementById('cpCurrent').value||'').trim();
+  const n1=(document.getElementById('cpNew').value||'').trim();
+  const n2=(document.getElementById('cpNew2').value||'').trim();
+  const msg=document.getElementById('cpMsg'); const btn=document.getElementById('cpSaveBtn');
+  const say=(t,ok)=>{ if(msg){ msg.style.color=ok?'#16a34a':'#dc2626'; msg.textContent=t; } };
+  if(!cur) return say('Enter your current PIN');
+  if(!/^\d{6}$/.test(n1)) return say('New PIN must be exactly 6 digits');
+  if(n1!==n2) return say('The two new PINs don’t match');
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  try{
+    const r=await fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({action:'changeMyPin', unit:SESSION.unit, currentPin:cur, newPin:n1})});
+    const d=await r.json();
+    if(d&&d.ok){ say('✅ PIN changed. Use your new PIN next time you sign in.', true); ['cpCurrent','cpNew','cpNew2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); }
+    else say((d&&d.error)||'Could not change PIN');
+  }catch(e){ say('Can’t reach the server — try again'); }
+  if(btn){ btn.disabled=false; btn.textContent='Save new PIN'; }
+}
+
 // Full-screen "Loading your calls…" cover after sign-in, until the live calls arrive
 // (or 8 s max) — so the app never looks frozen right after signing in.
 function _showSignInCover(){
@@ -13160,6 +13356,7 @@ function renderAdminStats() {
 
 // ── Settings tab ──
 function renderSettingsTab() {
+  try{ renderSecurityCard(); }catch(e){}
   const settings = JSON.parse(localStorage.getItem('cobc_settings')||'{}');
   // Notification state
   const notifDesc = document.getElementById('settings-notif-desc');

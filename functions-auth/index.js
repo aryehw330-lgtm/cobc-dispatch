@@ -12,6 +12,7 @@
  *                                       pause for the rest of the hour (stops scripts).
  *   { googleIdToken: "<jwt>" }       → Google One Tap credential, verified with Google.
  *   { googleAccessToken: "<token>" } → Google button flow, verified with Google.
+ *   { action: "pk…" }                → Face ID / fingerprint (passkeys), see handlePasskey.
  *
  * Retired (2026-11-15): { email } alone and { pin } without unit — those let anyone
  * who knew a member's email, or guessed any PIN, log in as a member.
@@ -21,6 +22,10 @@
 
 const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
+const {
+  generateRegistrationOptions, verifyRegistrationResponse,
+  generateAuthenticationOptions, verifyAuthenticationResponse,
+} = require('@simplewebauthn/server');
 
 admin.initializeApp();
 
@@ -35,6 +40,128 @@ const UNIT_MAX_FAILS   = 5;                 // per unit
 const UNIT_WINDOW_MS   = 15 * 60 * 1000;    // 15 minutes
 const GLOBAL_MAX_FAILS = 40;                // all units together
 const GLOBAL_WINDOW_MS = 60 * 60 * 1000;    // 1 hour
+
+// ── Face ID / fingerprint (passkeys) ──────────────────────────────────────────
+// The phone's biometric unlocks a private key that never leaves the device; the
+// server stores only the matching PUBLIC key (Firestore 'passkeys') and checks a
+// signed, single-use challenge before issuing the member login.
+const RP_ID     = 'aryehw330-lgtm.github.io';
+const RP_ORIGIN = 'https://aryehw330-lgtm.github.io';
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+
+async function memberFromIdToken(req) {
+  const h = String(req.get('Authorization') || '');
+  const tok = h.startsWith('Bearer ') ? h.slice(7) : '';
+  if (!tok) return null;
+  try {
+    const d = await admin.auth().verifyIdToken(tok);
+    if (d.authorized !== true || !d.unit) return null;
+    return { unit: normUnit(d.unit), role: d.role || 'member' };
+  } catch (e) { return null; }
+}
+async function memberByUnit(unit) {
+  const r = await fetch(APPS_SCRIPT_URL + '?action=getMembers', { redirect: 'follow' });
+  const j = await r.json();
+  const m = (j.members || []).find(x => normUnit(x.id || x.unit) === unit);
+  return m || null;
+}
+const b64u = (buf) => Buffer.from(buf).toString('base64url');
+
+async function handlePasskey(req, res, body) {
+  const db = admin.firestore();
+  const act = body.action;
+
+  // Signed-in member: start / finish setting up Face ID on this phone.
+  if (act === 'pkRegOptions' || act === 'pkRegVerify' || act === 'pkList' || act === 'pkRemove') {
+    const me = await memberFromIdToken(req);
+    if (!me) { res.status(401).json({ ok: false, error: 'Sign in first' }); return; }
+    const mine = await db.collection('passkeys').where('unit', '==', me.unit).get();
+
+    if (act === 'pkList') {
+      res.json({ ok: true, passkeys: mine.docs.map(d => ({ id: d.id, device: d.data().device || '', createdAt: d.data().createdAt || 0 })) });
+      return;
+    }
+    if (act === 'pkRemove') {
+      const id = String(body.id || '');
+      const doc = mine.docs.find(d => d.id === id);
+      if (doc) await doc.ref.delete();
+      res.json({ ok: true, removed: !!doc });
+      return;
+    }
+    if (act === 'pkRegOptions') {
+      const options = await generateRegistrationOptions({
+        rpName: 'COBC Dispatch', rpID: RP_ID,
+        userName: 'BC-' + me.unit, userDisplayName: 'BC-' + me.unit,
+        userID: new TextEncoder().encode('member-' + me.unit),
+        attestationType: 'none',
+        excludeCredentials: mine.docs.map(d => ({ id: d.id, transports: d.data().transports || [] })),
+        authenticatorSelection: { residentKey: 'required', userVerification: 'required', authenticatorAttachment: 'platform' },
+      });
+      await db.collection('pkChallenges').doc('reg_' + me.unit).set({ challenge: options.challenge, exp: Date.now() + CHALLENGE_TTL_MS });
+      res.json({ ok: true, options });
+      return;
+    }
+    // pkRegVerify
+    const chRef = db.collection('pkChallenges').doc('reg_' + me.unit);
+    const ch = await chRef.get();
+    await chRef.delete().catch(() => {});
+    if (!ch.exists || ch.data().exp < Date.now()) { res.status(400).json({ ok: false, error: 'Setup timed out — try again' }); return; }
+    let v;
+    try {
+      v = await verifyRegistrationResponse({
+        response: body.response, expectedChallenge: ch.data().challenge,
+        expectedOrigin: RP_ORIGIN, expectedRPID: RP_ID, requireUserVerification: true,
+      });
+    } catch (e) { res.status(400).json({ ok: false, error: 'Face ID setup could not be verified' }); return; }
+    if (!v.verified || !v.registrationInfo) { res.status(400).json({ ok: false, error: 'Face ID setup could not be verified' }); return; }
+    const c = v.registrationInfo.credential;
+    await db.collection('passkeys').doc(c.id).set({
+      unit: me.unit, publicKey: b64u(c.publicKey), counter: c.counter || 0,
+      transports: c.transports || [], device: String(body.device || '').slice(0, 80), createdAt: Date.now(),
+    });
+    res.json({ ok: true });
+    return;
+  }
+
+  // Signed-out: sign in with Face ID.
+  if (act === 'pkAuthOptions') {
+    const options = await generateAuthenticationOptions({ rpID: RP_ID, userVerification: 'required' });
+    const ref = db.collection('pkChallenges').doc();
+    await ref.set({ challenge: options.challenge, exp: Date.now() + CHALLENGE_TTL_MS });
+    res.json({ ok: true, options, challengeId: ref.id });
+    return;
+  }
+  if (act === 'pkAuthVerify') {
+    const chRef = db.collection('pkChallenges').doc(String(body.challengeId || 'x'));
+    const ch = await chRef.get();
+    await chRef.delete().catch(() => {});
+    if (!ch.exists || ch.data().exp < Date.now()) { res.status(400).json({ ok: false, error: 'Sign-in timed out — try again' }); return; }
+    const credId = String((body.response && body.response.id) || '');
+    const pkRef = db.collection('passkeys').doc(credId || 'x');
+    const pk = await pkRef.get();
+    if (!credId || !pk.exists) { res.status(401).json({ ok: false, error: 'This Face ID is not set up for COBC on this phone. Sign in with your PIN, then set it up in Settings.' }); return; }
+    let v;
+    try {
+      v = await verifyAuthenticationResponse({
+        response: body.response, expectedChallenge: ch.data().challenge,
+        expectedOrigin: RP_ORIGIN, expectedRPID: RP_ID, requireUserVerification: true,
+        credential: { id: credId, publicKey: Buffer.from(pk.data().publicKey, 'base64url'), counter: pk.data().counter || 0, transports: pk.data().transports || [] },
+      });
+    } catch (e) { res.status(401).json({ ok: false, error: 'Face ID could not be verified' }); return; }
+    if (!v.verified) { res.status(401).json({ ok: false, error: 'Face ID could not be verified' }); return; }
+    await pkRef.update({ counter: v.authenticationInfo.newCounter || 0, lastUsed: Date.now() });
+
+    const unit = pk.data().unit;
+    const m = await memberByUnit(unit);
+    if (!m) { res.status(401).json({ ok: false, error: 'Not on the member list anymore' }); return; }
+    const token = await admin.auth().createCustomToken('member-' + unit, {
+      authorized: true, unit: m.id || unit, role: String(m.status || m.role || 'member').toLowerCase(),
+    });
+    res.json({ ok: true, token, member: m });
+    return;
+  }
+  res.status(400).json({ ok: false, error: 'unknown action' });
+}
 
 function normUnit(u) { return String(u || '').trim().toUpperCase().replace(/^BC-?/, '').replace(/^0+(?=\d)/, ''); }
 
@@ -73,6 +200,11 @@ exports.getAuthToken = onRequest(
     if (req.method !== 'POST')    { res.status(405).json({ ok: false, error: 'POST only' }); return; }
 
     const body = req.body || {};
+    if (typeof body.action === 'string' && body.action.startsWith('pk')) {
+      try { await handlePasskey(req, res, body); }
+      catch (e) { console.error('passkey error:', e); res.status(500).json({ ok: false, error: 'Face ID service error' }); }
+      return;
+    }
     const pin = body.pin ? String(body.pin).trim() : '';
     const unit = normUnit(body.unit);
     let memberData = null;
