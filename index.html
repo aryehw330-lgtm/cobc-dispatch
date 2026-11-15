@@ -6869,8 +6869,12 @@ function doLogin(){
       if(!fbOk && /too many/i.test(window._lastAuthError||'')){
         reset(); if(err) err.textContent=window._lastAuthError; return;
       }
-      reset();
-      finishLogin(_sheetMemberToApp(resp)); return;
+      // Keep the spinner until the app has actually opened. finishLogin hides the login
+      // screen; reset the button a bit later only so it's normal if they ever sign out.
+      setBusy('Opening the app…');
+      finishLogin(_sheetMemberToApp(resp));
+      setTimeout(reset, 4000);
+      return;
     }
     await fbP.catch(()=>{});
     reset();
