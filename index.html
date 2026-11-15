@@ -4261,7 +4261,7 @@ function _waMsgResponderUpdate(call, newResponder) {
   const unitDisp  = String(newResponder.unit||'').replace(/^BC-?/i,'');
   const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ');
   const callNum = call.callNum ? ` to call #${call.callNum}` : '';
-  let msg = `*BC-${unitDisp} is ${newResponder.observerOnly?'observing':'responding'}${callNum}*\n`;
+  let msg = `*BC-${unitDisp} is ${newResponder.observerOnly?'observing':(newResponder.backup?'backing up':'responding')}${callNum}*\n`;
   if (allResponders) msg += `On call: ${allResponders}`;
   return msg;
 }
@@ -10434,6 +10434,7 @@ async function submitRadioResponders() {
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
       const _entry={unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:m.via||'radio',status:'approved',time:Date.now()};
       if(m.observerOnly) _entry.observerOnly=true;
+      if(m.backup) _entry.backup=true;
       call.responders.push(_entry); _radioAdded.push(_entry);
       try{ if(typeof cmSyncMember==='function') cmSyncMember(m.unit,_entry.name,m.phone); }catch(e){}
     }
@@ -14413,6 +14414,8 @@ function _zelloDisconnect(){
 // Shows only for dispatch/admin, only while a call is open that the member isn't on yet.
 // Small, bottom-left, never blocks; hides after 12 s. Closing it snoozes that member 3 min.
 const _KU_HIDE_MS=12000, _KU_SNOOZE_MS=3*60*1000;
+// "Backing up" button only on bigger calls (and any urgent call)
+const _KU_BACKUP_TYPES=['flood','missing_person','vehicle_pullout','stuck_snow','child_lockout'];
 const _ku={cur:null, queue:[], sel:null, timer:null, snooze:{}};
 function _kuOpenCallsFor(u){
   return (STATE.calls||[]).filter(c=>c && !c.isTest && (c.status==='open'||c.status==='active')
@@ -14444,21 +14447,23 @@ function _kuRender(){
   if(!calls.some(c=>c.id===_ku.sel)) _ku.sel=calls[0].id;
   let el=document.getElementById('keyupPop');
   if(!el){ el=document.createElement('div'); el.id='keyupPop';
-    el.style.cssText='position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:10001;width:min(320px,calc(100vw - 24px));background:#12151b;border:1.5px solid rgba(34,197,94,.55);border-radius:14px;padding:10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.45);color:#fff;font-family:inherit;';
+    el.style.cssText='position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:10001;width:min(290px,calc(100vw - 24px));background:#12151b;border:1.5px solid rgba(34,197,94,.55);border-radius:12px;padding:8px 10px;box-shadow:0 10px 30px rgba(0,0,0,.45);color:#fff;font-family:inherit;';
     el.addEventListener('pointerdown',()=>_kuTimer());
     document.body.appendChild(el); }
   const m=(STATE.members||[]).find(x=>_normUnit(x.unit)===u)||{};
   const nm=_rcEsc(`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim());
   const lbl=c=>_rcEsc(_rcTypeLabel(c.type));
   const multi=calls.length>1;
-  const btn='flex:1;padding:9px 6px;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;';
+  const sc=calls.find(c=>c.id===_ku.sel)||calls[0];
+  const canBackup=_KU_BACKUP_TYPES.includes(String(sc.type||'').split(':')[0])||sc.priority==='urgent';
+  const btn='flex:1;padding:8px 4px;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;';
   el.innerHTML=
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
     +'<span style="font-size:15px;font-weight:900;">📻 BC-'+_rcEsc(u)+'</span>'
     +'<span style="font-size:12px;color:rgba(255,255,255,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(nm?nm+' · ':'')+'keyed up</span>'
     +'<button type="button" onclick="_kuClose(true)" aria-label="Close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;line-height:1;cursor:pointer;padding:0 2px;">×</button></div>'
     +(multi?'<div style="font-size:12px;color:rgba(255,255,255,.7);margin-bottom:6px;">Add to which call?</div>'
-        +'<div style="display:flex;flex-direction:column;gap:5px;max-height:150px;overflow-y:auto;margin-bottom:8px;">'
+        +'<div style="display:flex;flex-direction:column;gap:5px;max-height:120px;overflow-y:auto;margin-bottom:6px;">'
         +calls.map(c=>'<button type="button" onclick="_kuPick(\''+_rcEsc(c.id)+'\')" style="text-align:left;padding:7px 9px;border-radius:9px;cursor:pointer;font-family:inherit;color:#fff;'
           +(c.id===_ku.sel?'background:rgba(34,197,94,.22);border:1.5px solid #22c55e;':'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);')+'">'
           +'<div style="font-size:13px;font-weight:800;">'+(c.callNum?'#'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+(c.priority==='urgent'?' · URGENT':'')+'</div>'
@@ -14466,16 +14471,18 @@ function _kuRender(){
         +'</div>'
       :(()=>{const c=calls[0]; return '<div style="font-size:12px;color:rgba(255,255,255,.8);margin-bottom:8px;">Add to '+(c.callNum?'Call #'+_rcEsc(c.callNum)+' — ':'')+lbl(c)+(c.town?', '+_rcEsc(c.town):'')+'?</div>';})())
     +'<div style="display:flex;gap:6px;">'
-    +'<button type="button" onclick="_kuAdd(false)" style="'+btn+'background:#16a34a;">Responding</button>'
-    +'<button type="button" onclick="_kuAdd(true)" style="'+btn+'background:#2563eb;">Observing</button></div>';
+    +'<button type="button" onclick="_kuAdd(\'respond\')" style="'+btn+'background:#16a34a;">Responding</button>'
+    +(canBackup?'<button type="button" onclick="_kuAdd(\'backup\')" style="'+btn+'background:#d97706;">Backing up</button>':'')
+    +'<button type="button" onclick="_kuAdd(\'observe\')" style="'+btn+'background:#2563eb;">Observing</button></div>';
   el.style.display='block';
 }
 function _kuPick(id){ _ku.sel=id; _kuRender(); _kuTimer(); }
-function _kuAdd(observing){
+function _kuAdd(mode){
+  const observing=mode==='observe', backup=mode==='backup';
   const u=_ku.cur, id=_ku.sel; if(!u||!id) return;
   const m=(STATE.members||[]).find(x=>_normUnit(x.unit)===u);
-  radioSelectedMembers=[ m ? {...m, eta:5, via:'radio-keyup', observerOnly:!!observing}
-                           : {unit:u, first:'BC-'+u, last:'', eta:5, via:'radio-keyup', observerOnly:!!observing} ];
+  radioSelectedMembers=[ m ? {...m, eta:5, via:'radio-keyup', observerOnly:observing, backup:backup}
+                           : {unit:u, first:'BC-'+u, last:'', eta:5, via:'radio-keyup', observerOnly:observing, backup:backup} ];
   radioVehicles=[];
   document.getElementById('radioCallId').value=id;
   _kuClose(false);
