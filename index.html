@@ -14444,58 +14444,83 @@ function _keyupOffer(unit){
   if(_ku.cur){ _ku.queue.push(u); return; }
   _kuShow(u);
 }
-function _kuTimer(){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClose(false), _ku.preview?30000:_KU_HIDE_MS); }
+function _kuTimer(ms){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClose(false), ms||(_ku.step&&_ku.step!=='role'?20000:_KU_HIDE_MS)); }
 function _kuShow(u){
   const calls=_kuOpenCallsFor(u);
   if(!calls.length){ _kuNext(); return; }
-  _ku.cur=u; if(!calls.some(c=>c.id===_ku.sel)) _ku.sel=calls[0].id;
+  _ku.cur=u; _ku.step='role'; _ku.mode=null; _ku.sel=null;
   _kuRender(); _kuTimer();
 }
+function _kuCanBackup(c){ return _KU_BACKUP_TYPES.includes(String(c.type||'').split(':')[0])||c.priority==='urgent'; }
+function _kuCallsForMode(u){ const cs=_kuOpenCallsFor(u); return _ku.mode==='backup'?cs.filter(_kuCanBackup):cs; }
+// Steps (all in the same card): 1) Responding / Backing up  2) which call (only if more than one)  3) ETA
 function _kuRender(){
   const u=_ku.cur; if(!u) return;
-  const calls=_kuOpenCallsFor(u);
-  if(!calls.length){ _kuClose(false); return; }
-  if(!calls.some(c=>c.id===_ku.sel)) _ku.sel=calls[0].id;
+  const all=_kuOpenCallsFor(u);
+  if(!all.length){ _kuClose(false); return; }
   let el=document.getElementById('keyupPop');
   if(!el){ el=document.createElement('div'); el.id='keyupPop';
-    el.style.cssText='position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:10001;width:min(290px,calc(100vw - 24px));background:#12151b;border:1.5px solid rgba(34,197,94,.55);border-radius:12px;padding:8px 10px;box-shadow:0 10px 30px rgba(0,0,0,.45);color:#fff;font-family:inherit;';
+    el.style.cssText='position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:10001;width:min(300px,calc(100vw - 24px));background:#12151b;border:1.5px solid rgba(34,197,94,.55);border-radius:12px;padding:8px 10px;box-shadow:0 10px 30px rgba(0,0,0,.45);color:#fff;font-family:inherit;';
     el.addEventListener('pointerdown',()=>_kuTimer());
     document.body.appendChild(el); }
   const m=(STATE.members||[]).find(x=>_normUnit(x.unit)===u)||{};
   const nm=_rcEsc(`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim());
   const lbl=c=>_rcEsc(_rcTypeLabel(c.type));
-  const multi=calls.length>1;
-  const sc=calls.find(c=>c.id===_ku.sel)||calls[0];
-  const canBackup=_KU_BACKUP_TYPES.includes(String(sc.type||'').split(':')[0])||sc.priority==='urgent';
-  const btn='flex:1;padding:8px 4px;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;';
-  el.innerHTML=
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+  const btn='flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;';
+  const back='<button type="button" onclick="_kuBack()" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:12px;font-weight:700;cursor:pointer;padding:6px 0 0;font-family:inherit;">‹ Back</button>';
+  let h='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">'
     +'<span style="font-size:15px;font-weight:900;">📻 BC-'+_rcEsc(u)+'</span>'
     +(m.role==='observer'?'<span style="font-size:10px;font-weight:800;background:#7c3aed;color:#fff;border-radius:5px;padding:1px 6px;">OBSERVER</span>':'')
     +'<span style="font-size:12px;color:rgba(255,255,255,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(nm?nm+' · ':'')+'keyed up</span>'
-    +'<button type="button" onclick="_kuClose(true)" aria-label="Close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;line-height:1;cursor:pointer;padding:0 2px;">×</button></div>'
-    +(multi?'<div style="font-size:12px;color:rgba(255,255,255,.7);margin-bottom:6px;">Add to which call?</div>'
-        +'<div style="display:flex;flex-direction:column;gap:5px;max-height:120px;overflow-y:auto;margin-bottom:6px;">'
-        +calls.map(c=>'<button type="button" onclick="_kuPick(\''+_rcEsc(c.id)+'\')" style="text-align:left;padding:7px 9px;border-radius:9px;cursor:pointer;font-family:inherit;color:#fff;'
-          +(c.id===_ku.sel?'background:rgba(34,197,94,.22);border:1.5px solid #22c55e;':'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);')+'">'
-          +'<div style="font-size:13px;font-weight:800;">'+(c.callNum?'#'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+(c.priority==='urgent'?' · URGENT':'')+'</div>'
-          +'<div style="font-size:11px;color:rgba(255,255,255,.65);">'+_rcEsc(c.town||c.address||'')+((c.responders||[]).length?' · On call: '+(c.responders||[]).map(r=>'BC-'+_rcEsc(_normUnit(r.unit))).join(', '):'')+'</div></button>').join('')
-        +'</div>'
-      :(()=>{const c=calls[0]; return '<div style="font-size:12px;color:rgba(255,255,255,.8);margin-bottom:8px;">Add to '+(c.callNum?'Call #'+_rcEsc(c.callNum)+' — ':'')+lbl(c)+(c.town?', '+_rcEsc(c.town):'')+'?</div>';})())
-    +'<div style="display:flex;gap:6px;">'
-    +'<button type="button" onclick="_kuAdd(\'respond\')" style="'+btn+'background:#16a34a;">Responding</button>'
-    +(canBackup?'<button type="button" onclick="_kuAdd(\'backup\')" style="'+btn+'background:#d97706;">Backing up</button>':'')
-    +'</div>';
-  el.style.display='block';
+    +'<button type="button" onclick="_kuClose(true)" aria-label="Close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;line-height:1;cursor:pointer;padding:0 2px;">×</button></div>';
+  if(_ku.step==='role'){
+    const one=all.length===1?all[0]:null;
+    if(one) h+='<div style="font-size:12px;color:rgba(255,255,255,.8);margin-bottom:8px;">Open call: '+(one.callNum?'#'+_rcEsc(one.callNum)+' · ':'')+lbl(one)+(one.town?', '+_rcEsc(one.town):'')+'</div>';
+    else h+='<div style="font-size:12px;color:rgba(255,255,255,.8);margin-bottom:8px;">'+all.length+' open calls</div>';
+    h+='<div style="display:flex;gap:6px;">'
+      +'<button type="button" onclick="_kuRole(\'respond\')" style="'+btn+'background:#16a34a;">Responding</button>'
+      +(all.some(_kuCanBackup)?'<button type="button" onclick="_kuRole(\'backup\')" style="'+btn+'background:#d97706;">Backing up</button>':'')
+      +'</div>';
+  } else if(_ku.step==='call'){
+    const cs=_kuCallsForMode(u);
+    h+='<div style="font-size:13px;font-weight:800;margin-bottom:6px;">'+(_ku.mode==='backup'?'Backing up':'Responding')+' to which call?</div>'
+      +'<div style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow-y:auto;">'
+      +cs.map(c=>'<button type="button" onclick="_kuPick(\''+_rcEsc(c.id)+'\')" style="text-align:left;padding:9px 10px;border-radius:9px;cursor:pointer;font-family:inherit;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);">'
+        +'<div style="font-size:14px;font-weight:900;">'+(c.callNum?'Call #'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+(c.priority==='urgent'?' · URGENT':'')+'</div>'
+        +'<div style="font-size:11px;color:rgba(255,255,255,.7);">'+_rcEsc(c.town||c.address||'')+((c.responders||[]).length?' · On call: '+(c.responders||[]).map(r=>'BC-'+_rcEsc(_normUnit(r.unit))).join(', '):'')+'</div></button>').join('')
+      +'</div>'+back;
+  } else { // eta
+    const c=all.find(x=>x.id===_ku.sel); if(!c){ _ku.step='role'; return _kuRender(); }
+    const col=_ku.mode==='backup'?'#d97706':'#16a34a';
+    const eb='flex:1;padding:9px 2px;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);';
+    h+='<div style="background:'+col+';border-radius:9px;padding:7px 9px;margin-bottom:8px;">'
+      +'<div style="font-size:11px;font-weight:800;opacity:.9;">BC-'+_rcEsc(u)+' '+(_ku.mode==='backup'?'BACKING UP':'RESPONDING')+' TO</div>'
+      +'<div style="font-size:15px;font-weight:900;">'+(c.callNum?'Call #'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+'</div>'
+      +'<div style="font-size:12px;opacity:.9;">'+_rcEsc(c.address||c.town||'')+'</div></div>'
+      +'<div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.75);margin-bottom:5px;">ETA — tap to add</div>'
+      +'<div style="display:flex;gap:5px;">'
+      +[5,10,15].map(n=>'<button type="button" onclick="_kuAdd('+n+')" style="'+eb+'">'+n+' min</button>').join('')
+      +'<input id="kuEtaCustom" type="number" min="1" inputmode="numeric" placeholder="__" onfocus="_kuTimer(30000)" oninput="_kuTimer(30000)" onkeydown="if(event.key===\'Enter\')_kuAdd(this.value)" style="width:50px;padding:8px 4px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#000;font-size:13px;font-weight:800;text-align:center;font-family:inherit;">'
+      +'<button type="button" onclick="_kuAdd(document.getElementById(\'kuEtaCustom\').value)" style="padding:8px 8px;border:none;border-radius:8px;background:'+col+';color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Add</button>'
+      +'</div>'+back;
+  }
+  el.innerHTML=h; el.style.display='block';
 }
-function _kuPick(id){ _ku.sel=id; _kuRender(); _kuTimer(); }
-function _kuAdd(mode){
-  const observing=mode==='observe', backup=mode==='backup';
-  if(_ku.preview){ showToast('Test only — BC-'+_ku.cur+' would be added as '+(backup?'backup':'responding')); _kuClose(false); return; }
+function _kuRole(mode){
+  _ku.mode=mode; const cs=_kuCallsForMode(_ku.cur);
+  if(cs.length===1){ _ku.sel=cs[0].id; _ku.step='eta'; } else _ku.step='call';
+  _kuRender(); _kuTimer(20000);
+}
+function _kuPick(id){ _ku.sel=id; _ku.step='eta'; _kuRender(); _kuTimer(20000); }
+function _kuBack(){ if(_ku.step==='eta' && _kuCallsForMode(_ku.cur).length>1) _ku.step='call'; else { _ku.step='role'; _ku.mode=null; } _kuRender(); _kuTimer(); }
+function _kuAdd(eta){
   const u=_ku.cur, id=_ku.sel; if(!u||!id) return;
+  const n=Math.round(Number(eta)); if(!(n>0)){ showToast('Enter the ETA in minutes'); return; }
+  const backup=_ku.mode==='backup';
+  if(_ku.preview){ showToast('Test only — BC-'+u+' would be added'); _kuClose(false); return; }
   const m=(STATE.members||[]).find(x=>_normUnit(x.unit)===u);
-  radioSelectedMembers=[ m ? {...m, eta:5, via:'radio-keyup', observerOnly:observing, backup:backup}
-                           : {unit:u, first:'BC-'+u, last:'', eta:5, via:'radio-keyup', observerOnly:observing, backup:backup} ];
+  radioSelectedMembers=[ m ? {...m, eta:n, via:'radio-keyup', backup:backup}
+                           : {unit:u, first:'BC-'+u, last:'', eta:n, via:'radio-keyup', backup:backup} ];
   radioVehicles=[];
   document.getElementById('radioCallId').value=id;
   _kuClose(false);
