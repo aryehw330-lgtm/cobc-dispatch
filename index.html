@@ -8680,7 +8680,7 @@ const _driveEtaCache = {};
 let _gDirSvc = null;
 async function _googleDriveMins(origin, dest) {
   // ~1 km origin buckets + 5-min cache: ETA barely changes, but Google requests drop a lot.
-  const key = `${origin.lat.toFixed(2)},${origin.lng.toFixed(2)}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
+  const key = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
   const hit = _driveEtaCache[key];
   if (hit && (Date.now()-hit.ts) < 300000) return hit.mins;
   await loadGoogleMapsAPI();
@@ -8812,8 +8812,8 @@ const _callEtaBusy = {};
 function _callEtaSave(callId, mins){ if(_myLoc && mins>0) _callEta[callId]={ mins, lat:_myLoc.lat, lng:_myLoc.lng, ts:Date.now() }; }
 function _callEtaFresh(callId){
   const e=_callEta[callId]; if(!e||!_myLoc) return null;
-  if(Date.now()-e.ts > 600000) return null;
-  if(_haversineMi(e.lat,e.lng,_myLoc.lat,_myLoc.lng) > 1) return null;
+  if(Date.now()-e.ts > 300000) return null;                          // every 5 min
+  if(_haversineMi(e.lat,e.lng,_myLoc.lat,_myLoc.lng) > 0.5) return null; // or every half mile
   return e;
 }
 function _callEtaFetch(call, pt){
@@ -8822,7 +8822,7 @@ function _callEtaFetch(call, pt){
   _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt)
     .then(m=>{ _callEtaSave(call.id, m); try{ fillCardETAs(); }catch(e){} })
     .catch(()=>{})
-    .finally(()=>{ setTimeout(()=>{ delete _callEtaBusy[call.id]; }, 60000); });
+    .finally(()=>{ setTimeout(()=>{ delete _callEtaBusy[call.id]; }, 30000); });
 }
 async function fillCardETAs() {
   if (!_myLoc) {
