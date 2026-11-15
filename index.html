@@ -6816,11 +6816,12 @@ window.addEventListener('load',()=>{ setTimeout(()=>{ loadMembersFromSheet(); },
 
 const _GET_AUTH_TOKEN_URL='https://us-east1-cobc-dispatch.cloudfunctions.net/getAuthToken';
 async function signInToFirebase(pin,unit){
+  window._lastAuthError='';
   try{
     const body={pin, unit};  // the server requires the PIN to belong to THIS unit
     const resp=await fetch(_GET_AUTH_TOKEN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const data=await resp.json();
-    if(!data.ok||!data.token){console.warn('signInToFirebase: not authorized',data);return false;}
+    if(!data.ok||!data.token){console.warn('signInToFirebase: not authorized',data);window._lastAuthError=(data&&data.error)||'';return false;}
     await firebase.auth().signInWithCustomToken(data.token);
     await firebase.auth().currentUser.getIdToken(true);
     // Re-start Firestore listeners now that we have an authorized token
@@ -6840,20 +6841,40 @@ function doLogin(){
   if(/^\d+$/.test(unit))unit='BC-'+unit.padStart(2,'0');
   else if(/^BC\d+$/i.test(unit))unit='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');
 
-  // Show loading state
-  if(loginBtn){loginBtn.textContent='Signing in…';loginBtn.disabled=true;}
-  const reset=()=>{if(loginBtn){loginBtn.textContent='Sign In';loginBtn.disabled=false;}};
+  // Loading state stays on until sign-in is fully done (spinner + status line).
+  const setBusy=(msg)=>{
+    if(loginBtn){
+      loginBtn.disabled=true;
+      loginBtn.innerHTML='<span class="login-spin" style="display:inline-block;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;vertical-align:-3px;margin-right:8px;animation:loginSpin .8s linear infinite;"></span>'+msg;
+    }
+    if(err){ err.style.color='var(--text2,#64748b)'; err.textContent=''; }
+  };
+  const reset=()=>{if(loginBtn){loginBtn.innerHTML='Sign In';loginBtn.disabled=false;} if(err) err.style.color='';};
+  if(!document.getElementById('loginSpinStyle')){
+    const st=document.createElement('style'); st.id='loginSpinStyle';
+    st.textContent='@keyframes loginSpin{to{transform:rotate(360deg)}}'; document.head.appendChild(st);
+  }
+  setBusy('Checking your PIN…');
 
-  // SERVER-SIDE PIN CHECK — the typed PIN is verified on the server (getMemberByPin),
-  // which reads the PRIVATE Google Sheet. The PIN list is never downloaded to the
-  // device and is no longer mirrored into Firestore, so PINs can't be harvested from
-  // the app, the members endpoint, or the browser network tab.
-  sheetGET({action:'getMemberByPin', pin:pass, unit:unit}).then(async resp=>{
-    reset();
+  // SERVER-SIDE PIN CHECK — verified on the server (getMemberByPin → private Sheet);
+  // PINs never leave the server. The member lookup and the secure Firebase sign-in
+  // (login server, which also checks unit + PIN and enforces lockouts) run AT THE SAME
+  // TIME so sign-in takes about half as long.
+  const pinP = sheetGET({action:'getMemberByPin', pin:pass, unit:unit});
+  const fbP  = signInToFirebase(pass, unit);
+  pinP.then(async resp=>{
     if(resp && resp.id && _normUnit(resp.unit)===_normUnit(unit)){
-      await signInToFirebase(pass, unit);
+      setBusy('Signing you in…');
+      const fbOk = await fbP;
+      if(!fbOk && /too many/i.test(window._lastAuthError||'')){
+        reset(); if(err) err.textContent=window._lastAuthError; return;
+      }
+      reset();
       finishLogin(_sheetMemberToApp(resp)); return;
     }
+    await fbP.catch(()=>{});
+    reset();
+    if(/too many/i.test(window._lastAuthError||'')){ if(err) err.textContent=window._lastAuthError; return; }
     if(resp && resp.id){
       // PIN is valid but registered to a different unit than the one entered
       if(err)err.textContent='That PIN doesn’t match unit '+unit;
