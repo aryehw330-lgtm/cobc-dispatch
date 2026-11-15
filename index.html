@@ -1678,6 +1678,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="card-title" style="margin-bottom:4px;">📻 Zello Radio</div>
           <div id="zelloStatusLine" style="font-size:13px;font-weight:700;color:var(--text3);">📻 Zello: off</div>
           <div id="zelloAcctLine" style="font-size:12px;color:var(--text3);margin-top:6px;"></div>
+          <button type="button" onclick="_kuTest()" style="margin-top:8px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.5);color:#16a34a;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">Test key-up popup</button>
           <!-- Personal Zello login: each admin/dispatcher uses their OWN separate listener
                account (not their radio login) so multiple people can connect at once
                without kicking each other off. Network + channel are fixed, not editable here. -->
@@ -14418,7 +14419,7 @@ const _KU_HIDE_MS=12000, _KU_SNOOZE_MS=3*60*1000;
 const _KU_BACKUP_TYPES=['flood','missing_person','vehicle_pullout','stuck_snow','child_lockout'];
 const _ku={cur:null, queue:[], sel:null, timer:null, snooze:{}};
 function _kuOpenCallsFor(u){
-  return (STATE.calls||[]).filter(c=>c && !c.isTest && (c.status==='open'||c.status==='active')
+  return (_ku.preview||STATE.calls||[]).filter(c=>c && !c.isTest && (c.status==='open'||c.status==='active')
       && !(c.responders||[]).some(r=>_normUnit(r.unit)===u))
     .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
 }
@@ -14433,7 +14434,7 @@ function _keyupOffer(unit){
   if(_ku.cur){ _ku.queue.push(u); return; }
   _kuShow(u);
 }
-function _kuTimer(){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClose(false), _KU_HIDE_MS); }
+function _kuTimer(){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClose(false), _ku.preview?30000:_KU_HIDE_MS); }
 function _kuShow(u){
   const calls=_kuOpenCallsFor(u);
   if(!calls.length){ _kuNext(); return; }
@@ -14480,6 +14481,7 @@ function _kuRender(){
 function _kuPick(id){ _ku.sel=id; _kuRender(); _kuTimer(); }
 function _kuAdd(mode){
   const observing=mode==='observe', backup=mode==='backup';
+  if(_ku.preview){ showToast('Test only — BC-'+_ku.cur+' would be added as '+(backup?'backup':'responding')); _kuClose(false); return; }
   const u=_ku.cur, id=_ku.sel; if(!u||!id) return;
   const m=(STATE.members||[]).find(x=>_normUnit(x.unit)===u);
   radioSelectedMembers=[ m ? {...m, eta:5, via:'radio-keyup', observerOnly:observing, backup:backup}
@@ -14495,7 +14497,17 @@ function _kuClose(snooze){
   const el=document.getElementById('keyupPop'); if(el) el.style.display='none';
   _ku.cur=null; _kuNext();
 }
-function _kuNext(){ while(_ku.queue.length){ const u=_ku.queue.shift(); if(_kuOpenCallsFor(u).length){ _kuShow(u); return; } } }
+function _kuNext(){ while(_ku.queue.length){ const u=_ku.queue.shift(); if(_kuOpenCallsFor(u).length){ _kuShow(u); return; } } _ku.preview=null; }
+// TEMP test: shows the popup with two sample calls; nothing is saved or sent.
+function _kuTest(){
+  _kuClose(false);
+  _ku.preview=[{id:'T1',callNum:'9001',type:'flood',town:'Teaneck',status:'open',createdAt:2,responders:[{unit:'200'}]},
+               {id:'T2',callNum:'9000',type:'jump_start',town:'Bergenfield',status:'open',createdAt:1,responders:[]}];
+  const mem=(STATE.members||[]).filter(m=>m&&m.unit!=null&&_normUnit(m.unit)!==_normUnit(SESSION.unit));
+  const reg=mem.find(m=>m.role!=='observer'), obs=mem.find(m=>m.role==='observer');
+  _ku.snooze={}; _keyupOffer(reg?reg.unit:'129'); if(obs) _keyupOffer(obs.unit);
+  if(!_ku.cur) showToast('Test popup only works for dispatch/admin');
+}
 let _zelloRecent = []; // recent speakers, most-recent first (unit numbers)
 function _zelloSetSpeaking(user){
   _zelloSpeaking = user ? String(user).replace(/^BC-?/i,'').replace(/\D+/g,'') : null;
