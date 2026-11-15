@@ -4024,7 +4024,7 @@ async function sendPush(payload) {
     const { excludeUnit, ...rest } = payload;
     (STATE.members||[]).forEach(m => {
       const u = String(m.unit||'').replace(/^BC-?/i,'').trim();
-      if (u && u !== excl) sendPush({...rest, target:'unit', unit:u});
+      if (u && u !== excl) sendPush({...rest, target:'unit', unit:u, broadcast:true}); // broadcast → never a private WhatsApp
     });
     return;
   }
@@ -4830,7 +4830,7 @@ async function geocodeCallAddressForZone(){
     const geo=new google.maps.Geocoder();
     geo.geocode({address:addr, region:'us'},(res,st)=>{
       if(st==='OK'&&res&&res[0]&&res[0].geometry&&res[0].geometry.location){
-        _lastCallLatLng={lat:res[0].geometry.location.lat(),lng:res[0].geometry.location.lng()};
+        _lastCallLatLng={lat:res[0].geometry.location.lat(),lng:res[0].geometry.location.lng(),addr:addr};
         try{updateCallZoneBadge();}catch(e){}
       }
     });
@@ -8397,13 +8397,14 @@ function _haversineMi(lat1,lng1,lat2,lng2) {
 function _etaMin(mi) { return Math.max(1, Math.round(mi*1.35/28*60)); }
 
 // Real driving ETA via Google DirectionsService (traffic-aware when the key allows).
-// Cached per origin+dest for 2 min so we don't hammer the API on every re-render.
+// Cached per ~1 km origin + dest for 5 min so we don't hammer the API on every re-render.
 const _driveEtaCache = {};
 let _gDirSvc = null;
 async function _googleDriveMins(origin, dest) {
-  const key = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
+  // ~1 km origin buckets + 5-min cache: ETA barely changes, but Google requests drop a lot.
+  const key = `${origin.lat.toFixed(2)},${origin.lng.toFixed(2)}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
   const hit = _driveEtaCache[key];
-  if (hit && (Date.now()-hit.ts) < 120000) return hit.mins;
+  if (hit && (Date.now()-hit.ts) < 300000) return hit.mins;
   await loadGoogleMapsAPI();
   if (!_gDirSvc) _gDirSvc = new google.maps.DirectionsService();
   const res = await new Promise((resolve) => {
@@ -8547,7 +8548,7 @@ async function fillCardETAs() {
     if (!span) continue;
     const wrap = document.getElementById('card-etawrap-'+call.id);
     try {
-      const pt = await _geocode(call.address, call.town||'');
+      const pt = await geocodeCallAddress(call);
       if (!pt) { span.style.display='none'; if(wrap) wrap.style.display='none'; continue; }
       // Straight-line distance is misleading wherever the real drive isn't a straight shot
       // (river crossings, limited-access parkways, etc.) — e.g. a point across the Hudson
@@ -8558,22 +8559,17 @@ async function fillCardETAs() {
       span.style.display = 'inline-flex';
       const _stColor = call.status==='active' ? 'var(--green,#16a34a)' : call.status==='open' ? 'var(--amber,#d97706)' : '#cbd5e1';
       span.style.cssText += `display:inline-flex;align-items:center;justify-content:center;gap:0;background:rgba(255,255,255,.14);-webkit-backdrop-filter:blur(10px) saturate(1.4);backdrop-filter:blur(10px) saturate(1.4);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);padding:2px 5px;border-radius:7px;font-size:11.5px;font-weight:800;white-space:nowrap;min-width:80px;box-sizing:border-box;border:1.5px solid ${_stColor};cursor:pointer;margin-right:-4px;`;
-      span.textContent = `Your ETA: …`;
-      const _origin = { lat:_myLoc.lat, lng:_myLoc.lng };
-      _googleDriveMins(_origin, pt).then(gm => {
-        if (!document.body.contains(span)) return;
+      // Cards use a free distance-based estimate. The exact traffic-aware Google ETA
+      // is shown when the call is opened / on Respond (once per action, not per card per
+      // GPS update on every member's phone — that would cost hundreds of $ a month).
+      {
+        const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
+        const gm = _etaMin(mi);
         const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
         span.style.cssText += `background:${gbg};color:${gc};`;
-        span.textContent = `Your ETA: ${gm}m`;
-      }).catch(()=>{
-        // Google routing failed — fall back to the straight-line estimate rather than
-        // leaving the chip stuck on "…" forever.
-        if (!document.body.contains(span)) return;
-        const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
-        const mins = _etaMin(mi);
-        span.textContent = `Your ETA: ~${mins}m`;
-      });
+        span.textContent = `Your ETA: ~${gm}m`;
+      }
       // Tap to open Google Maps directions
       span.onclick = function(e) {
         e.stopPropagation();
@@ -8605,7 +8601,7 @@ async function fillDetailETA(call) {
     return;
   }
   try {
-    const pt = await _geocode(call.address, call.town||'');
+    const pt = await geocodeCallAddress(call);
     if (!pt) return;
     const paint = (m, approx) => {
       if (!document.getElementById('detail-eta-'+call.id)) return;
@@ -9138,6 +9134,10 @@ async function createCall() {
     carTrim:carTrim||null, safeLocation:safeLocation||null,
     needsApproval:_mpNeedsApproval||null,
     floodNeeds: (type==='flood' && floodNeeds.length) ? floodNeeds : null,
+    // Location looked up once here (New Call form) and shared with every phone, so
+    // members' phones don't each pay Google to geocode the same address.
+    geo: (_lastCallLatLng && _lastCallLatLng.lat && (_lastCallLatLng.addr===address || _lastCallLatLng.addr===undefined)) ? { lat:_lastCallLatLng.lat, lng:_lastCallLatLng.lng } : null,
+    geoAddr: (_lastCallLatLng && _lastCallLatLng.lat && (_lastCallLatLng.addr===address || _lastCallLatLng.addr===undefined)) ? address : null,
     noSpareAction: (type==='flat_tire_no_spare' ? (document.getElementById('noSpareAction')?.value || null) : null),
     ezSpareSize: ((window._pendingEzFitment&&window._pendingEzFitment.size_1) || document.getElementById('ezSpareSize')?.value || null),
     ezSpareUnit: null,
@@ -9145,6 +9145,7 @@ async function createCall() {
   };
 
   STATE.calls.push(call); save();
+  _lastCallLatLng=null; // never carry this call's point into the next new call
   // Write to Firestore in the background — never block the UI on the network.
   try{ firebase.firestore().collection('calls').doc(call.id).set(call).catch(e=>{ console.warn('call set error:', e); firestoreUpsertCall(call); }); }
   catch(e){ console.warn('firestoreUpsertCall error:', e); firestoreUpsertCall(call); }
@@ -11526,8 +11527,18 @@ let _routeDrawCache = {};   // unit → {lat,lng,ts} last Directions route draw 
 // Geocode a call's address (wrapper around _geocode used by the live map + routing)
 async function geocodeCallAddress(call){
   if(!call || !call.address) return null;
-  try { return await _geocode(call.address, call.town||''); }
-  catch(e){ return null; }
+  // Saved point (looked up once when the call was made) — free for every phone.
+  if(call.geo && call.geo.lat && call.geoAddr===call.address) return { lat:Number(call.geo.lat), lng:Number(call.geo.lng) };
+  let pt=null;
+  try { pt = await _geocode(call.address, call.town||''); } catch(e){ return null; }
+  // Older call / edited address: a dispatcher's phone saves the point once for everyone.
+  if(pt && call.id && ['admin','dispatch'].includes((SESSION&&SESSION.role)||'') && call.status!=='done' && call.status!=='cancelled'){
+    try{
+      call.geo={lat:pt.lat,lng:pt.lng}; call.geoAddr=call.address;
+      firebase.firestore().collection('calls').doc(String(call.id)).update({geo:call.geo, geoAddr:call.address}).catch(()=>{});
+    }catch(e){}
+  }
+  return pt;
 }
 async function openLiveMap(callId) {
   _liveMapCallId = callId;
