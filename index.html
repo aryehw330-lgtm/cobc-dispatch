@@ -6642,7 +6642,7 @@ async function _gisButtonFlow(errorEl) {
           headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
         });
         const info = await resp.json();
-        await _finishGISSignIn(info.email, errorEl);
+        await _finishGISSignIn(info.email, errorEl, { googleAccessToken: tokenResponse.access_token });
       } catch(e) {
         if(errorEl) errorEl.innerText = 'Could not get Google account info — try your PIN instead.';
       }
@@ -6656,20 +6656,22 @@ async function _onGISCredential(response) {
   try {
     // Decode JWT to get email (no server needed — payload is base64)
     const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    await _finishGISSignIn(payload.email, errorEl);
+    await _finishGISSignIn(payload.email, errorEl, { googleIdToken: response.credential });
   } catch(e) {
     if(errorEl) errorEl.innerText = 'Google sign-in failed — try your PIN instead.';
   }
 }
 
-async function _finishGISSignIn(email, errorEl) {
+// proof = { googleIdToken } or { googleAccessToken } — the login server verifies it
+// with Google; the email alone is no longer accepted.
+async function _finishGISSignIn(email, errorEl, proof) {
   const e = (email||'').trim().toLowerCase();
   if(!e) { if(errorEl) errorEl.innerText = 'Could not read email from Google account.'; return; }
   if(errorEl) errorEl.innerText = 'Checking member list…';
   try {
     const resp = await fetch(_GET_AUTH_TOKEN_URL, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({email: e})
+      body: JSON.stringify(proof || {})
     });
     const data = await resp.json();
     if(!data.ok || !data.token) {
@@ -6813,9 +6815,9 @@ function findSheetMemberByEmail(email){
 window.addEventListener('load',()=>{ setTimeout(()=>{ loadMembersFromSheet(); }, 1200); });
 
 const _GET_AUTH_TOKEN_URL='https://us-east1-cobc-dispatch.cloudfunctions.net/getAuthToken';
-async function signInToFirebase(pin,email){
+async function signInToFirebase(pin,unit){
   try{
-    const body=pin?{pin}:{email};
+    const body={pin, unit};  // the server requires the PIN to belong to THIS unit
     const resp=await fetch(_GET_AUTH_TOKEN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const data=await resp.json();
     if(!data.ok||!data.token){console.warn('signInToFirebase: not authorized',data);return false;}
@@ -6849,7 +6851,7 @@ function doLogin(){
   sheetGET({action:'getMemberByPin', pin:pass, unit:unit}).then(async resp=>{
     reset();
     if(resp && resp.id && _normUnit(resp.unit)===_normUnit(unit)){
-      await signInToFirebase(pass);
+      await signInToFirebase(pass, unit);
       finishLogin(_sheetMemberToApp(resp)); return;
     }
     if(resp && resp.id){
