@@ -8806,6 +8806,24 @@ function fitDetailAddress(){
 
 // Fill ETA chips on all visible call cards
 let _etaSeeding = false;
+// One real Google drive time per call, shared by the card, the call details and Respond.
+const _callEta = {};          // callId -> { mins, lat, lng, ts }
+const _callEtaBusy = {};
+function _callEtaSave(callId, mins){ if(_myLoc && mins>0) _callEta[callId]={ mins, lat:_myLoc.lat, lng:_myLoc.lng, ts:Date.now() }; }
+function _callEtaFresh(callId){
+  const e=_callEta[callId]; if(!e||!_myLoc) return null;
+  if(Date.now()-e.ts > 600000) return null;
+  if(_haversineMi(e.lat,e.lng,_myLoc.lat,_myLoc.lng) > 1) return null;
+  return e;
+}
+function _callEtaFetch(call, pt){
+  if(_callEtaBusy[call.id] || !_myLoc) return;
+  _callEtaBusy[call.id]=true;
+  _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt)
+    .then(m=>{ _callEtaSave(call.id, m); try{ fillCardETAs(); }catch(e){} })
+    .catch(()=>{})
+    .finally(()=>{ setTimeout(()=>{ delete _callEtaBusy[call.id]; }, 60000); });
+}
 async function fillCardETAs() {
   if (!_myLoc) {
     // No location yet — kick a one-shot request so the chip can appear without
@@ -8842,11 +8860,13 @@ async function fillCardETAs() {
       // GPS update on every member's phone — that would cost hundreds of $ a month).
       {
         const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
-        // If the real Google time is already known (call opened / Respond, last 5 min, same area), show that.
-        const _gk = `${_myLoc.lat.toFixed(2)},${_myLoc.lng.toFixed(2)}|${pt.lat.toFixed(4)},${pt.lng.toFixed(4)}`;
-        const _gh = _driveEtaCache[_gk];
-        const _real = _gh && (Date.now()-_gh.ts) < 300000;
-        const gm = _real ? _gh.mins : _etaMin(mi);
+        // Real Google drive time for this call (asked at most once per call every 10 min,
+        // or after you've moved ~1 mile) — same number as inside the call. Until it
+        // arrives, the free estimate shows with a "~".
+        const _ce = _callEtaFresh(call.id);
+        const _real = !!_ce;
+        if (!_real) _callEtaFetch(call, pt);
+        const gm = _real ? _ce.mins : _etaMin(mi);
         const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
         span.style.cssText += `background:${gbg};color:${gc};`;
@@ -8897,7 +8917,7 @@ async function fillDetailETA(call) {
     box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:#f3f4f6;color:#6b7280;padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;">📍 Your Est. ETA: …</span>`;
     // Straight-line distance is misleading for river crossings / limited-access parkways —
     // wait for the real traffic-aware Google route rather than showing a bogus number first.
-    _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(gm => { paint(gm,false); try{ fillCardETAs(); }catch(e){} }).catch(()=>{
+    _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(gm => { paint(gm,false); _callEtaSave(call.id, gm); try{ fillCardETAs(); }catch(e){} }).catch(()=>{
       paint(_etaMin(_haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng)), true);
     });
   } catch(e) {}
