@@ -14233,7 +14233,8 @@ let _zelloWS=null, _zelloCfg=null, _zelloSeq=1, _zelloSpeaking=null, _zelloRecon
 // NOTE: this file is public, so a password here is visible to anyone who views the
 // source — use a throwaway/test account, and switch to the Firestore doc (rules-
 // protected) with the real account at go-live.
-const ZELLO_HARDCODED = { enabled:true, api:false, network:'bergencountychaverim', channel:'01 Dispatch', username:'bcapp', password:'bc38app' };
+// Shared login removed Nov 2026: each dispatcher signs in with their own Zello listener (Settings).
+const ZELLO_HARDCODED = { enabled:false, api:false, network:'bergencountychaverim', channel:'01 Dispatch', username:'', password:'' };
 // The direct browser→ZelloWork socket fails (1006) — browsers can't join that endpoint.
 // Instead the app READS who's speaking from Firestore config/zelloSpeaking, written by
 // a server-side relay (Cloudflare Worker), same pattern as the Telzio caller-ID relay.
