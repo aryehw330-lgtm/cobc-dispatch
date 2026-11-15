@@ -3698,6 +3698,24 @@ const SEED_MEMBERS = [];      // populated via Firestore members collection
 const DEFAULT_LOCATIONS = [];  // populated via Firestore locations collection
 // STATE is initialized later, after all default-data constants are declared (see ~line 2419)
 
+// ── Typed-in text safety ─────────────────────────────────────────────────────
+// Text from the database (call notes, caller names, addresses…) is shown inside the
+// page's HTML. So that typed text can never become code on a dispatcher's screen:
+//  • everywhere: '<' and '>' from the database become look-alike ‹ › characters;
+//  • calls + phone-system caller names also get quotes made safe (' → ’, " → ”).
+function _safeTxt(s){ return String(s==null?'':s).replace(/</g,'‹').replace(/>/g,'›').replace(/"/g,'”').replace(/'/g,'’').replace(/\\/g,'/').replace(/&(?=#?\w+;)/g,'&​'); }
+function _safeDeep(v,d){ d=d||0; if(typeof v==='string') return _safeTxt(v); if(!v||typeof v!=='object'||d>6) return v;
+  if(Array.isArray(v)) return v.map(x=>_safeDeep(x,d+1)); if(Object.getPrototypeOf(v)!==Object.prototype) return v;
+  const o={}; for(const k in v) o[k]=_safeDeep(v[k],d+1); return o; }
+function _noTags(v,d){ d=d||0; if(typeof v==='string') return (v.indexOf('<')<0&&v.indexOf('>')<0)?v:v.replace(/</g,'‹').replace(/>/g,'›'); if(!v||typeof v!=='object'||d>8) return v;
+  if(Array.isArray(v)) return v.map(x=>_noTags(x,d+1)); if(Object.getPrototypeOf(v)!==Object.prototype) return v;
+  const o={}; for(const k in v) o[k]=_noTags(v[k],d+1); return o; }
+function _patchFirestoreText(){
+  try{ const P=firebase.firestore.DocumentSnapshot.prototype; if(P.__cobcSafe) return;
+    const orig=P.data; P.data=function(){ return _noTags(orig.apply(this,arguments)); }; P.__cobcSafe=true; }
+  catch(e){ console.warn('text safety patch failed', e); }
+}
+
 // ── Always initialize Firebase app + Firestore sync ──────────────────────────
 async function initFirebaseApp() {
   if (!window.firebase || FCM_CONFIG.apiKey.startsWith("PASTE_")) return;
@@ -3705,6 +3723,7 @@ async function initFirebaseApp() {
   try {
     try { _fcmApp = firebase.initializeApp(FCM_CONFIG); }
     catch(e) { _fcmApp = firebase.app(); } // already initialized
+    _patchFirestoreText();
     // ── Offline persistence ──────────────────────────────────────────────────
     // Firestore caches reads AND queues writes locally when the device is offline,
     // then auto-syncs the moment connectivity returns. This is what makes a call /
@@ -6012,7 +6031,7 @@ let STATE = load();
 // The phone's saved copy of calls can be out of date (calls closed since the last
 // visit). Hold it back and show "Loading calls…" until the server answers; fall back
 // to the saved copy after a few seconds so the app still works offline.
-var _bootCachedCalls = (Array.isArray(STATE.calls) && STATE.calls.length) ? STATE.calls : null;
+var _bootCachedCalls = (Array.isArray(STATE.calls) && STATE.calls.length) ? STATE.calls.map(c=>_safeDeep(c)) : null;
 var _callsLoading = !!_bootCachedCalls;
 if (_bootCachedCalls) STATE.calls = [];
 function _restoreBootCalls(){
@@ -6343,7 +6362,7 @@ function initFirestore(){
   function _snapDocs(snap){
     if(!_snapDelivered && !snap.metadata.fromCache){_snapDelivered=true;if(_snapTimer){clearTimeout(_snapTimer);_snapTimer=null;}}
     if(!snap.metadata.fromCache){clearSyncError();_markCallsLive();}
-    const docs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const docs=snap.docs.map(d=>({id:d.id,..._safeDeep(d.data())}));
     // Skip the empty cached snapshot iOS fires before real server data arrives
     if(snap.metadata.fromCache && docs.length===0 && ((STATE.calls||[]).length>0 || _bootCachedCalls)) return null;
     return docs;
@@ -14106,7 +14125,7 @@ function subscribeTelzioCallsFromFirestore() {
     if(typeof firebase === 'undefined') return;
     firebase.firestore().collection('telzioCalls').orderBy('at','desc').limit(5).onSnapshot(snap => {
       const calls=[];
-      snap.forEach(d=>{ const x=d.data()||{}; let p=String(x.phone||'').replace(/\D+/g,''); if(p.length===11&&p[0]==='1')p=p.slice(1); calls.push({name:x.name||'',phone:p,at:Number(x.at||Date.now())}); });
+      snap.forEach(d=>{ const x=d.data()||{}; let p=String(x.phone||'').replace(/\D+/g,''); if(p.length===11&&p[0]==='1')p=p.slice(1); calls.push({name:_safeTxt(x.name||''),phone:p,at:Number(x.at||Date.now())}); });
       if(calls.length){ _telzioRecentCache=calls; try{ renderTelzioRecentList(calls); }catch(e){} }
     }, err => console.warn('telzioCalls snapshot:', err));
   } catch(e) { console.warn('subscribeTelzioCalls failed:', e); }
@@ -14135,7 +14154,7 @@ async function applyTelzioDateRange(){
     if(toMs!=null)   q=q.where('at','<=',toMs);
     const snap=await q.limit(3000).get();
     _telzioHist=[];
-    snap.forEach(d=>{ const x=d.data()||{}; _telzioHist.push({name:x.name||'', phone:String(x.phone||''), at:Number(x.at||0)}); });
+    snap.forEach(d=>{ const x=d.data()||{}; _telzioHist.push({name:_safeTxt(x.name||''), phone:_safeTxt(String(x.phone||'')), at:Number(x.at||0)}); });
     _telzioHistDone=true; // range fully loaded
   }catch(e){ console.warn('applyTelzioDateRange:', e); }
   _telzioHistLoading=false;
@@ -14159,7 +14178,7 @@ async function loadTelzioHistory(more){
     let q = firebase.firestore().collection('telzioCalls').orderBy('at','desc');
     if(_telzioHistCursor) q = q.startAfter(_telzioHistCursor);
     const snap = await q.limit(_TELZIO_HIST_PAGE).get();
-    snap.forEach(d=>{ const x=d.data()||{}; _telzioHist.push({name:x.name||'', phone:String(x.phone||''), at:Number(x.at||0)}); });
+    snap.forEach(d=>{ const x=d.data()||{}; _telzioHist.push({name:_safeTxt(x.name||''), phone:_safeTxt(String(x.phone||'')), at:Number(x.at||0)}); });
     _telzioHistCursor = snap.docs.length ? snap.docs[snap.docs.length-1] : _telzioHistCursor;
     if(snap.docs.length < _TELZIO_HIST_PAGE) _telzioHistDone = true;
   }catch(e){ console.warn('loadTelzioHistory:', e); }
@@ -14594,6 +14613,7 @@ function _telzioFmtWhen(ts){
   return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
 function renderTelzioRecentList(calls){
+  calls=(calls||[]).map(c=>Object.assign({},c,{name:_safeTxt(c&&c.name||''),phone:_safeTxt(String(c&&c.phone||''))}));
   const panel = document.getElementById('telzioRecentPanel');
   const list  = document.getElementById('telzioRecentList');
   const sub   = document.getElementById('telzioRecentSub');
