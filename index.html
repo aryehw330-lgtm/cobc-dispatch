@@ -10462,7 +10462,7 @@ async function submitRadioResponders() {
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
       const _entry={unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:m.via||'radio',status:'approved',time:Date.now()};
       if(m.observerOnly) _entry.observerOnly=true;
-      if(m.backup) _entry.backup=true;
+      if(m.backup){ _entry.backup=true; _entry.role='backup'; } // role:'backup' = counted as backup in stats
       call.responders.push(_entry); _radioAdded.push(_entry);
       try{ if(typeof cmSyncMember==='function') cmSyncMember(m.unit,_entry.name,m.phone); }catch(e){}
     }
