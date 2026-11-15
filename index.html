@@ -2829,7 +2829,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;">
       <button class="eta-btn active" onclick="setETA(5,this)">5 min</button>
       <button class="eta-btn" onclick="setETA(10,this)">10 min</button>
-      <button class="eta-btn" onclick="setETA(15,this)">15 min</button>
+      <button class="eta-btn" id="respondETAEst" style="display:none;" onclick="setETA(Number(this.dataset.mins)||10,this)"></button>
       <input class="eta-btn eta-custom" id="respondETACustom" type="number" min="1" inputmode="numeric" placeholder="Custom" oninput="setCustomETA(this)"/>
     </div>
     <div id="respondETASuggest" style="display:none;margin:-6px 0 12px;font-size:12px;font-weight:600;color:#15803d;"></div>
@@ -9672,6 +9672,7 @@ function openRespondModal(id) {
   { const _b10=[...document.querySelectorAll('#respondModal .eta-btn')].find(b=>b.textContent.trim()==='10 min'); setETA(10,_b10); }
   {const _cc=document.getElementById('respondETACustom'); if(_cc) _cc.value='';}
   { const _sg=document.getElementById('respondETASuggest'); if(_sg){ _sg.style.display='none'; _sg.textContent=''; } }
+  { const _eb=document.getElementById('respondETAEst'); if(_eb){ _eb.style.display='none'; _eb.textContent=''; _eb.dataset.mins=''; } }
   window._etaTouched=false;
   window._etaSuggestFor=id;
   document.getElementById('respondNotes').value='';
@@ -9688,11 +9689,13 @@ function openRespondModal(id) {
         try { mins = await _googleDriveMins({ lat:loc.lat, lng:loc.lng }, dest); }
         catch(e){ mins = _etaMin(_haversineMi(loc.lat, loc.lng, dest.lat, dest.lng)); }
         mins = Math.max(1, Math.round(Number(mins)||0));
-        if (!mins || window._etaTouched || window._etaSuggestFor!==id) return;
-        const ci=document.getElementById('respondETACustom');
-        if (ci){ ci.value=String(mins); setCustomETA(ci); window._etaTouched=false; }
+        if (!mins || window._etaSuggestFor!==id) return;
+        // Show the drive time as its own choice: 5 min · 10 min · 📍 4 min · Custom
+        const eb=document.getElementById('respondETAEst');
+        if (eb){ eb.dataset.mins=String(mins); eb.textContent='📍 '+mins+' min'; eb.style.display='';
+                 if (!window._etaTouched){ setETA(mins, eb); window._etaTouched=false; } }
         const sg=document.getElementById('respondETASuggest');
-        if (sg){ sg.textContent='📍 Suggested ~'+mins+' min from your location — tap another time or type to change'; sg.style.display='block'; }
+        if (sg){ sg.textContent='📍 '+mins+' min = drive time from your location'; sg.style.display='block'; }
       } catch(e) { /* keep default 10 min */ }
     };
     if (_myLoc) _suggest(_myLoc);
