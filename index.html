@@ -14469,9 +14469,8 @@ function _kuTimer(ms){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClos
 function _kuShow(u){
   const calls=_kuOpenCallsFor(u);
   if(!calls.length){ _kuNext(); return; }
-  _ku.cur=u; _ku.mode='respond'; _ku.sel=null;
-  if(calls.length===1){ _ku.sel=calls[0].id; _ku.step='eta'; } else _ku.step='call';
-  _kuRender(); _kuTimer(20000);
+  _ku.cur=u; _ku.step='role'; _ku.mode=null; _ku.sel=null;
+  _kuRender(); _kuTimer();
 }
 function _kuCanBackup(c){ return _KU_BACKUP_TYPES.includes(String(c.type||'').split(':')[0])||c.priority==='urgent'; }
 function _kuCallsForMode(u){ const cs=_kuOpenCallsFor(u); return _ku.mode==='backup'?cs.filter(_kuCanBackup):cs; }
@@ -14501,21 +14500,22 @@ function _kuRender(){
     else h+='<div style="font-size:12px;color:rgba(255,255,255,.8);margin-bottom:8px;">'+all.length+' open calls</div>';
     h+='<div style="display:flex;gap:6px;">'
       +'<button type="button" onclick="_kuRole(\'respond\')" style="'+btn+'background:#16a34a;">Responding</button>'
+      +(all.some(_kuCanBackup)?'<button type="button" onclick="_kuRole(\'backup\')" style="'+btn+'background:#d97706;">Backing up</button>':'')
       +'</div>';
   } else if(_ku.step==='call'){
     const cs=_kuCallsForMode(u);
-    h+='<div style="font-size:13px;font-weight:800;margin-bottom:6px;">Responding to which call?</div>'
+    h+='<div style="font-size:13px;font-weight:800;margin-bottom:6px;">'+(_ku.mode==='backup'?'Backing up':'Responding')+' to which call?</div>'
       +'<div style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow-y:auto;">'
       +cs.map(c=>'<button type="button" onclick="_kuPick(\''+_rcEsc(c.id)+'\')" style="text-align:left;padding:9px 10px;border-radius:9px;cursor:pointer;font-family:inherit;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);">'
         +'<div style="font-size:14px;font-weight:900;">'+(c.callNum?'Call #'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+(c.priority==='urgent'?' · URGENT':'')+'</div>'
         +'<div style="font-size:11px;color:rgba(255,255,255,.7);">'+_rcEsc(c.town||c.address||'')+((c.responders||[]).length?' · On call: '+(c.responders||[]).map(r=>'BC-'+_rcEsc(_normUnit(r.unit))).join(', '):'')+'</div></button>').join('')
-      +'</div>';
+      +'</div>'+back;
   } else { // eta
     const c=all.find(x=>x.id===_ku.sel); if(!c){ _ku.step='role'; return _kuRender(); }
     const col=_ku.mode==='backup'?'#d97706':'#16a34a';
     const eb='flex:1;padding:9px 2px;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);';
     h+='<div style="background:'+col+';border-radius:9px;padding:7px 9px;margin-bottom:8px;">'
-      +'<div style="font-size:11px;font-weight:800;opacity:.9;">BC-'+_rcEsc(u)+' RESPONDING TO</div>'
+      +'<div style="font-size:11px;font-weight:800;opacity:.9;">BC-'+_rcEsc(u)+' '+(_ku.mode==='backup'?'BACKING UP':'RESPONDING')+' TO</div>'
       +'<div style="font-size:15px;font-weight:900;">'+(c.callNum?'Call #'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+'</div>'
       +'<div style="font-size:12px;opacity:.9;">'+_rcEsc(c.address||c.town||'')+'</div></div>'
       +'<div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.75);margin-bottom:5px;">ETA — tap to add</div>'
@@ -14523,7 +14523,7 @@ function _kuRender(){
       +[5,10].map(n=>'<button type="button" onclick="_kuAdd('+n+')" style="'+eb+'">'+n+' min</button>').join('')
       +'<input id="kuEtaCustom" type="number" min="1" inputmode="numeric" placeholder="Custom" onfocus="_kuTimer(30000)" oninput="_kuTimer(30000)" onkeydown="if(event.key===\'Enter\')_kuAdd(this.value)" style="flex:1.2;min-width:0;width:60px;padding:8px 4px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#000;font-size:13px;font-weight:800;text-align:center;font-family:inherit;">'
       +'<button type="button" onclick="_kuAdd(document.getElementById(\'kuEtaCustom\').value)" style="padding:8px 8px;border:none;border-radius:8px;background:'+col+';color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Add</button>'
-      +'</div>'+(_kuCallsForMode(u).length>1?back:'');
+      +'</div>'+back;
   }
   el.innerHTML=h; el.style.display='block';
 }
@@ -14533,7 +14533,7 @@ function _kuRole(mode){
   _kuRender(); _kuTimer(20000);
 }
 function _kuPick(id){ _ku.sel=id; _ku.step='eta'; _kuRender(); _kuTimer(20000); }
-function _kuBack(){ if(_ku.step==='eta' && _kuCallsForMode(_ku.cur).length>1){ _ku.step='call'; _kuRender(); _kuTimer(20000); } }
+function _kuBack(){ if(_ku.step==='eta' && _kuCallsForMode(_ku.cur).length>1) _ku.step='call'; else { _ku.step='role'; _ku.mode=null; } _kuRender(); _kuTimer(); }
 function _kuAdd(eta){
   const u=_ku.cur, id=_ku.sel; if(!u||!id) return;
   const n=Math.round(Number(eta)); if(!(n>0)){ showToast('Enter the ETA in minutes'); return; }
