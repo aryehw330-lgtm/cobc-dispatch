@@ -13314,7 +13314,7 @@ function _liveCountsByYear(year){
     (c.responders||[]).forEach(r=>{
       const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
       out[bc]=out[bc]||{p:0,b:0,o:0};
-      if(r.role==='backup'||r.isObserver) out[bc].b++; else out[bc].p++;
+      if(_isBackupOn(c,r)) out[bc].b++; else out[bc].p++;
     });
   });
   return out;
@@ -16006,7 +16006,7 @@ async function freezeYearToHistory(year, btn){
         const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
         tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
         tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
-        const isB=r.role==='backup'||r.isObserver;
+        const isB=_isBackupOn(c,r);
         tally[bc].months[mo][isB?'b':'p']++;
         tally[bc].total[isB?'b':'p']++;
       });
@@ -16033,6 +16033,17 @@ async function freezeYearToHistory(year, btn){
 // Admin-only, runs occasionally (throttled via localStorage), deletes docs older
 // than PRUNE_KEEP_DAYS. Safe: reads never exceed the collection's live cap anyway;
 // this just keeps storage/cost bounded long-term too.
+// Statistics: the FIRST member on a call (earliest added) is primary; everyone after is backup.
+// Observers always count as backup. (Same rule the old stats website used.)
+function _isBackupOn(call, r){
+  if(!r) return false;
+  if(r.isObserver||r.observerOnly||r.role==='backup') return true;
+  const rs=(call&&call.responders||[]).filter(x=>x&&!x.isObserver&&!x.observerOnly);
+  if(!rs.length) return false;
+  const t=x=>Number(x.approvedAt||x.time||0)||Infinity;
+  let first=rs[0]; rs.forEach(x=>{ if(t(x)<t(first)) first=x; });
+  return _normUnit(first.unit)!==_normUnit(r.unit);
+}
 const PRUNE_KEEP_DAYS = 400; // keep ~13 months of raw history; older = pruned (Sheet still has full record)
 async function _autoPruneOldHistory(){
   try{
@@ -16094,7 +16105,7 @@ async function _freezeYearSilent(year){
       const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
       tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
       tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
-      const isB=r.role==='backup'||r.isObserver;
+      const isB=_isBackupOn(c,r);
       tally[bc].months[mo][isB?'b':'p']++;
       tally[bc].total[isB?'b':'p']++;
     });
@@ -16735,7 +16746,7 @@ function renderMyStats(bcArg, opts) {
   // sums to the grand total (previously live calls only inflated the top number).
   liveCalls.forEach(c=>{
     const r=(c.responders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===bc);
-    if(r && (r.role==='backup'||r.isObserver)) totalB++; else totalP++;
+    if(r && _isBackupOn(c,r)) totalB++; else totalP++;
   });
   const grandTotal=totalAll+liveCount;
 
@@ -16875,7 +16886,7 @@ function renderMyStats(bcArg, opts) {
       const dt=new Date(c.completedAt||c.createdAt||0);
       const dStr=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
       const myR=(c.responders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===bc);
-      const rTag=myR&&(myR.role==='backup'||myR.isObserver)?'<span style="font-size:9px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.12);border-radius:5px;padding:1px 5px;margin-left:6px;">BACKUP</span>':'';
+      const rTag=myR&&_isBackupOn(c,myR)?'<span style="font-size:9px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.12);border-radius:5px;padding:1px 5px;margin-left:6px;">BACKUP</span>':'';
       // Other members who responded with you on this call
       const withOthers=(c.responders||[]).filter(r=>String(r.unit).replace(/^BC-?/i,'')!==bc)
         .map(r=>'BC-'+String(r.unit).replace(/^BC-?/i,'')+(r.name?' '+r.name.split(' ')[0]:'')).join(', ');
