@@ -13314,7 +13314,7 @@ function _liveCountsByYear(year){
     (c.responders||[]).forEach(r=>{
       const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
       out[bc]=out[bc]||{p:0,b:0,o:0};
-      if(_isBackupOn(c,r)) out[bc].b++; else out[bc].p++;
+      out[bc][_statKind(c,r)]++;
     });
   });
   return out;
@@ -14469,8 +14469,9 @@ function _kuTimer(ms){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClos
 function _kuShow(u){
   const calls=_kuOpenCallsFor(u);
   if(!calls.length){ _kuNext(); return; }
-  _ku.cur=u; _ku.step='role'; _ku.mode=null; _ku.sel=null;
-  _kuRender(); _kuTimer();
+  _ku.cur=u; _ku.mode='respond'; _ku.sel=null;
+  if(calls.length===1){ _ku.sel=calls[0].id; _ku.step='eta'; } else _ku.step='call';
+  _kuRender(); _kuTimer(20000);
 }
 function _kuCanBackup(c){ return _KU_BACKUP_TYPES.includes(String(c.type||'').split(':')[0])||c.priority==='urgent'; }
 function _kuCallsForMode(u){ const cs=_kuOpenCallsFor(u); return _ku.mode==='backup'?cs.filter(_kuCanBackup):cs; }
@@ -14500,22 +14501,21 @@ function _kuRender(){
     else h+='<div style="font-size:12px;color:rgba(255,255,255,.8);margin-bottom:8px;">'+all.length+' open calls</div>';
     h+='<div style="display:flex;gap:6px;">'
       +'<button type="button" onclick="_kuRole(\'respond\')" style="'+btn+'background:#16a34a;">Responding</button>'
-      +(all.some(_kuCanBackup)?'<button type="button" onclick="_kuRole(\'backup\')" style="'+btn+'background:#d97706;">Backing up</button>':'')
       +'</div>';
   } else if(_ku.step==='call'){
     const cs=_kuCallsForMode(u);
-    h+='<div style="font-size:13px;font-weight:800;margin-bottom:6px;">'+(_ku.mode==='backup'?'Backing up':'Responding')+' to which call?</div>'
+    h+='<div style="font-size:13px;font-weight:800;margin-bottom:6px;">Responding to which call?</div>'
       +'<div style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow-y:auto;">'
       +cs.map(c=>'<button type="button" onclick="_kuPick(\''+_rcEsc(c.id)+'\')" style="text-align:left;padding:9px 10px;border-radius:9px;cursor:pointer;font-family:inherit;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);">'
         +'<div style="font-size:14px;font-weight:900;">'+(c.callNum?'Call #'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+(c.priority==='urgent'?' · URGENT':'')+'</div>'
         +'<div style="font-size:11px;color:rgba(255,255,255,.7);">'+_rcEsc(c.town||c.address||'')+((c.responders||[]).length?' · On call: '+(c.responders||[]).map(r=>'BC-'+_rcEsc(_normUnit(r.unit))).join(', '):'')+'</div></button>').join('')
-      +'</div>'+back;
+      +'</div>';
   } else { // eta
     const c=all.find(x=>x.id===_ku.sel); if(!c){ _ku.step='role'; return _kuRender(); }
     const col=_ku.mode==='backup'?'#d97706':'#16a34a';
     const eb='flex:1;padding:9px 2px;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);';
     h+='<div style="background:'+col+';border-radius:9px;padding:7px 9px;margin-bottom:8px;">'
-      +'<div style="font-size:11px;font-weight:800;opacity:.9;">BC-'+_rcEsc(u)+' '+(_ku.mode==='backup'?'BACKING UP':'RESPONDING')+' TO</div>'
+      +'<div style="font-size:11px;font-weight:800;opacity:.9;">BC-'+_rcEsc(u)+' RESPONDING TO</div>'
       +'<div style="font-size:15px;font-weight:900;">'+(c.callNum?'Call #'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+'</div>'
       +'<div style="font-size:12px;opacity:.9;">'+_rcEsc(c.address||c.town||'')+'</div></div>'
       +'<div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.75);margin-bottom:5px;">ETA — tap to add</div>'
@@ -14523,7 +14523,7 @@ function _kuRender(){
       +[5,10].map(n=>'<button type="button" onclick="_kuAdd('+n+')" style="'+eb+'">'+n+' min</button>').join('')
       +'<input id="kuEtaCustom" type="number" min="1" inputmode="numeric" placeholder="Custom" onfocus="_kuTimer(30000)" oninput="_kuTimer(30000)" onkeydown="if(event.key===\'Enter\')_kuAdd(this.value)" style="flex:1.2;min-width:0;width:60px;padding:8px 4px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#000;font-size:13px;font-weight:800;text-align:center;font-family:inherit;">'
       +'<button type="button" onclick="_kuAdd(document.getElementById(\'kuEtaCustom\').value)" style="padding:8px 8px;border:none;border-radius:8px;background:'+col+';color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Add</button>'
-      +'</div>'+back;
+      +'</div>'+(_kuCallsForMode(u).length>1?back:'');
   }
   el.innerHTML=h; el.style.display='block';
 }
@@ -14533,7 +14533,7 @@ function _kuRole(mode){
   _kuRender(); _kuTimer(20000);
 }
 function _kuPick(id){ _ku.sel=id; _ku.step='eta'; _kuRender(); _kuTimer(20000); }
-function _kuBack(){ if(_ku.step==='eta' && _kuCallsForMode(_ku.cur).length>1) _ku.step='call'; else { _ku.step='role'; _ku.mode=null; } _kuRender(); _kuTimer(); }
+function _kuBack(){ if(_ku.step==='eta' && _kuCallsForMode(_ku.cur).length>1){ _ku.step='call'; _kuRender(); _kuTimer(20000); } }
 function _kuAdd(eta){
   const u=_ku.cur, id=_ku.sel; if(!u||!id) return;
   const n=Math.round(Number(eta)); if(!(n>0)){ showToast('Enter the ETA in minutes'); return; }
@@ -16006,9 +16006,9 @@ async function freezeYearToHistory(year, btn){
         const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
         tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
         tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
-        const isB=_isBackupOn(c,r);
-        tally[bc].months[mo][isB?'b':'p']++;
-        tally[bc].total[isB?'b':'p']++;
+        const k=_statKind(c,r);
+        tally[bc].months[mo][k]++;
+        tally[bc].total[k]++;
       });
     });
     const bcs=Object.keys(tally);
@@ -16033,17 +16033,9 @@ async function freezeYearToHistory(year, btn){
 // Admin-only, runs occasionally (throttled via localStorage), deletes docs older
 // than PRUNE_KEEP_DAYS. Safe: reads never exceed the collection's live cap anyway;
 // this just keeps storage/cost bounded long-term too.
-// Statistics: the FIRST member on a call (earliest added) is primary; everyone after is backup.
-// Observers always count as backup. (Same rule the old stats website used.)
-function _isBackupOn(call, r){
-  if(!r) return false;
-  if(r.isObserver||r.observerOnly||r.role==='backup') return true;
-  const rs=(call&&call.responders||[]).filter(x=>x&&!x.isObserver&&!x.observerOnly);
-  if(!rs.length) return false;
-  const t=x=>Number(x.approvedAt||x.time||0)||Infinity;
-  let first=rs[0]; rs.forEach(x=>{ if(t(x)<t(first)) first=x; });
-  return _normUnit(first.unit)!==_normUnit(r.unit);
-}
+// Statistics: going on a call counts as a call ('p'); observers count as an observed call ('o').
+// Both count toward the member's total. (No primary/backup split — Nov 2026.)
+function _statKind(call, r){ return (r && (r.isObserver||r.observerOnly)) ? 'o' : 'p'; }
 const PRUNE_KEEP_DAYS = 400; // keep ~13 months of raw history; older = pruned (Sheet still has full record)
 async function _autoPruneOldHistory(){
   try{
@@ -16105,9 +16097,9 @@ async function _freezeYearSilent(year){
       const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
       tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
       tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
-      const isB=_isBackupOn(c,r);
-      tally[bc].months[mo][isB?'b':'p']++;
-      tally[bc].total[isB?'b':'p']++;
+      const k=_statKind(c,r);
+      tally[bc].months[mo][k]++;
+      tally[bc].total[k]++;
     });
   });
   const bcs=Object.keys(tally);
@@ -16746,7 +16738,7 @@ function renderMyStats(bcArg, opts) {
   // sums to the grand total (previously live calls only inflated the top number).
   liveCalls.forEach(c=>{
     const r=(c.responders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===bc);
-    if(r && _isBackupOn(c,r)) totalB++; else totalP++;
+    if(r && _statKind(c,r)==='o') totalO++; else totalP++;
   });
   const grandTotal=totalAll+liveCount;
 
@@ -16785,8 +16777,8 @@ function renderMyStats(bcArg, opts) {
     html+=`<div class="stats-kpi-grid" style="margin-bottom:14px;">
       <div class="kpi-card kpi-blue"><div class="kpi-num">${grandTotal}</div><div class="kpi-lbl">All-Time Calls</div></div>
       <div class="kpi-card kpi-green"><div class="kpi-num">${bestYr?bestYr.tot:liveCount}</div><div class="kpi-lbl">Best Year${bestYr?` (${bestYr.yr})`:''}</div></div>
-      <div class="kpi-card kpi-amber"><div class="kpi-num">${totalP}</div><div class="kpi-lbl">Primary</div><div class="kpi-sub">${totalP?Math.round(totalP/grandTotal*100)+'%':''} of total</div></div>
-      <div class="kpi-card kpi-teal"><div class="kpi-num">${totalB}</div><div class="kpi-lbl">Backup</div><div class="kpi-sub">${totalB?Math.round(totalB/grandTotal*100)+'%':''} of total</div></div>
+      <div class="kpi-card kpi-amber"><div class="kpi-num">${totalP+totalB}</div><div class="kpi-lbl">Went On</div><div class="kpi-sub">calls responded</div></div>
+      <div class="kpi-card kpi-teal"><div class="kpi-num">${totalO||0}</div><div class="kpi-lbl">Observed</div><div class="kpi-sub">counted in total</div></div>
     </div>`;
 
     // Vs org average
@@ -16824,24 +16816,21 @@ function renderMyStats(bcArg, opts) {
         <thead><tr style="border-bottom:2px solid var(--border);">
           <th style="padding:8px;text-align:left;color:var(--text3);font-weight:700;">Year</th>
           <th style="padding:8px;text-align:right;color:var(--text);font-weight:700;">Total</th>
-          <th style="padding:8px;text-align:right;color:var(--blue);font-weight:700;">Primary</th>
-          <th style="padding:8px;text-align:right;color:var(--amber);font-weight:700;">Backup</th>
-          <th style="padding:8px;text-align:right;color:var(--teal);font-weight:700;">Other</th>
+          <th style="padding:8px;text-align:right;color:var(--blue);font-weight:700;">Went On</th>
+          <th style="padding:8px;text-align:right;color:var(--teal);font-weight:700;">Observed</th>
         </tr></thead>
         <tbody>
         ${[...yearStats].sort((a,b)=>b.yr-a.yr).map(s=>`
           <tr style="border-bottom:1px solid var(--border2);" ${s.yr===bestYr?.yr?'style="background:#f0fdf4;"':''}>
             <td style="padding:8px;font-weight:700;">${s.yr}${s.yr===bestYr?.yr?' ⭐':''}</td>
             <td style="padding:8px;text-align:right;font-weight:700;color:${s.yr===bestYr?.yr?'var(--green)':'var(--text)'};">${s.tot}</td>
-            <td style="padding:8px;text-align:right;color:var(--blue);">${s.mp}</td>
-            <td style="padding:8px;text-align:right;color:var(--amber);">${s.mb}</td>
+            <td style="padding:8px;text-align:right;color:var(--blue);">${(s.mp||0)+(s.mb||0)}</td>
             <td style="padding:8px;text-align:right;color:var(--teal);">${s.mo||'—'}</td>
           </tr>`).join('')}
         <tr style="background:var(--border2);font-weight:700;">
           <td style="padding:8px;">Total</td>
           <td style="padding:8px;text-align:right;">${grandTotal}</td>
-          <td style="padding:8px;text-align:right;color:var(--blue);">${totalP}</td>
-          <td style="padding:8px;text-align:right;color:var(--amber);">${totalB}</td>
+          <td style="padding:8px;text-align:right;color:var(--blue);">${totalP+totalB}</td>
           <td style="padding:8px;text-align:right;color:var(--teal);">${totalO||'—'}</td>
         </tr>
         </tbody>
@@ -16886,7 +16875,7 @@ function renderMyStats(bcArg, opts) {
       const dt=new Date(c.completedAt||c.createdAt||0);
       const dStr=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'});
       const myR=(c.responders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===bc);
-      const rTag=myR&&_isBackupOn(c,myR)?'<span style="font-size:9px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.12);border-radius:5px;padding:1px 5px;margin-left:6px;">BACKUP</span>':'';
+      const rTag=myR&&_statKind(c,myR)==='o'?'<span style="font-size:9px;font-weight:800;color:#7c3aed;background:rgba(124,58,237,.12);border-radius:5px;padding:1px 5px;margin-left:6px;">OBSERVED</span>':'';
       // Other members who responded with you on this call
       const withOthers=(c.responders||[]).filter(r=>String(r.unit).replace(/^BC-?/i,'')!==bc)
         .map(r=>'BC-'+String(r.unit).replace(/^BC-?/i,'')+(r.name?' '+r.name.split(' ')[0]:'')).join(', ');
@@ -16928,7 +16917,7 @@ function renderMyStats(bcArg, opts) {
       <div style="text-align:center;padding:14px;background:var(--border2);border-radius:10px;margin-bottom:12px;">
         <div style="font-size:32px;font-weight:800;color:var(--blue);line-height:1;">${_grand}</div>
         <div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-top:4px;">Calls · ${_scopeLbl}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Primary ${_hP} · Backup ${_hB}${_hO?' · Other '+_hO:''}${_scopeCalls.length?' · +'+_scopeCalls.length+' live':''}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Went on ${(_hP||0)+(_hB||0)}${_hO?' · Observed '+_hO:''}${_scopeCalls.length?' · +'+_scopeCalls.length+' live':''}</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
         ${_MN.map((mn,i)=>`<div style="background:var(--border2);border-radius:9px;padding:10px 4px;text-align:center;">
@@ -16972,9 +16961,8 @@ function renderMyStats(bcArg, opts) {
       mkChart('ch-'+_cid+'-yr',{type:'bar',data:{
         labels:ys.map(s=>s.yr),
         datasets:[
-          {label:'Primary',data:ys.map(s=>s.mp),backgroundColor:'#2563eb',borderRadius:3},
-          {label:'Backup', data:ys.map(s=>s.mb),backgroundColor:'#93c5fd',borderRadius:3},
-          {label:'Other',  data:ys.map(s=>s.mo||0),backgroundColor:'#dbeafe',borderRadius:3},
+          {label:'Went on', data:ys.map(s=>(s.mp||0)+(s.mb||0)),backgroundColor:'#2563eb',borderRadius:3},
+          {label:'Observed',data:ys.map(s=>s.mo||0),backgroundColor:'#c4b5fd',borderRadius:3},
         ]},options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:8,padding:4}}},
           scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,grid:{color:'#f8fafc'}}}}});
@@ -17196,9 +17184,8 @@ function renderStatsMembers() {
   mkChart('ch-lb',{type:'bar',data:{
     labels:top15.map(([bc,,,,, name])=>{const p=name.split(' ');return p[0][0]+'. '+(p[1]||'');}),
     datasets:[
-      {label:'Primary',data:top15.map(([,,mp])=>mp),backgroundColor:'#2563eb',borderRadius:2},
-      {label:'Backup', data:top15.map(([,,,mb])=>mb),backgroundColor:'#93c5fd',borderRadius:2},
-      {label:'Other',  data:top15.map(([,,,,mo])=>mo),backgroundColor:'#dbeafe',borderRadius:2},
+      {label:'Went on', data:top15.map(([,,mp,mb])=>(mp||0)+(mb||0)),backgroundColor:'#2563eb',borderRadius:2},
+      {label:'Observed',data:top15.map(([,,,,mo])=>mo||0),backgroundColor:'#c4b5fd',borderRadius:2},
     ]},options:{...OPTS_HBAR}});
 }
 
@@ -17288,8 +17275,8 @@ function showMemberStatsCard(bc) {
       <div class="stats-kpi-grid">
         <div class="kpi-card kpi-blue"><div class="kpi-num">${totalAll}</div><div class="kpi-lbl">All-Time Calls</div></div>
         <div class="kpi-card kpi-green"><div class="kpi-num">${bestYr.tot}</div><div class="kpi-lbl">Best (${bestYr.yr})</div></div>
-        <div class="kpi-card kpi-amber"><div class="kpi-num">${totalPrimary}</div><div class="kpi-lbl">Primary</div></div>
-        <div class="kpi-card kpi-teal"><div class="kpi-num">${totalBackup}</div><div class="kpi-lbl">Backup</div></div>
+        <div class="kpi-card kpi-amber"><div class="kpi-num">${totalPrimary+totalBackup}</div><div class="kpi-lbl">Went On</div></div>
+        <div class="kpi-card kpi-teal"><div class="kpi-num">${Math.max(0,totalAll-totalPrimary-totalBackup)}</div><div class="kpi-lbl">Observed</div></div>
       </div>
       <div class="chart-card" style="margin-top:12px;">
         <div class="chart-title">📊 Year by Year</div>
@@ -17315,9 +17302,8 @@ function showMemberStatsCard(bc) {
     mkChart('ch-member-yr',{type:'bar',data:{
       labels:ys.map(s=>s.yr),
       datasets:[
-        {label:'Primary',data:ys.map(s=>s.mp),backgroundColor:'#2563eb',borderRadius:3},
-        {label:'Backup', data:ys.map(s=>s.mb),backgroundColor:'#93c5fd',borderRadius:3},
-        {label:'Other',  data:ys.map(s=>s.mo),backgroundColor:'#dbeafe',borderRadius:3},
+        {label:'Went on', data:ys.map(s=>(s.mp||0)+(s.mb||0)),backgroundColor:'#2563eb',borderRadius:3},
+        {label:'Observed',data:ys.map(s=>s.mo||0),backgroundColor:'#c4b5fd',borderRadius:3},
       ]},options:{...OPTS_HBAR,indexAxis:'x',scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#f8fafc'}}}}});
     _renderMemberMonthChart(bc);
   },80);
@@ -17349,13 +17335,12 @@ function _renderMemberMonthChart(bc){
   const mo=(m.years[yr]&&m.years[yr].months)||{};
   const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const P=[],B=[],O=[];
-  for(let i=1;i<=12;i++){ const d=mo[String(i)]||{}; P.push(d.p||0); B.push(d.b||0); O.push(d.o||0); }
+  for(let i=1;i<=12;i++){ const d=mo[String(i)]||{}; P.push((d.p||0)+(d.b||0)); O.push(d.o||0); }
   mkChart('ch-member-month',{type:'bar',data:{
     labels:MN,
     datasets:[
-      {label:'Primary',data:P,backgroundColor:'#2563eb',borderRadius:3},
-      {label:'Backup', data:B,backgroundColor:'#93c5fd',borderRadius:3},
-      {label:'Other',  data:O,backgroundColor:'#dbeafe',borderRadius:3},
+      {label:'Went on', data:P,backgroundColor:'#2563eb',borderRadius:3},
+      {label:'Observed',data:O,backgroundColor:'#c4b5fd',borderRadius:3},
     ]},options:{...OPTS_HBAR,indexAxis:'x',scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#f8fafc'},ticks:{precision:0}}}}});
 }
 
