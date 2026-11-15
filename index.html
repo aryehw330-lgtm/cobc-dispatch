@@ -4261,7 +4261,7 @@ function _waMsgResponderUpdate(call, newResponder) {
   const unitDisp  = String(newResponder.unit||'').replace(/^BC-?/i,'');
   const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ');
   const callNum = call.callNum ? ` to call #${call.callNum}` : '';
-  let msg = `*BC-${unitDisp} is responding${callNum}*\n`;
+  let msg = `*BC-${unitDisp} is ${newResponder.observerOnly?'observing':'responding'}${callNum}*\n`;
   if (allResponders) msg += `On call: ${allResponders}`;
   return msg;
 }
@@ -10418,8 +10418,9 @@ async function submitRadioResponders() {
   // Re-entry guard: block repeat submits for the same call within 10s so the group
   // message (and push) can't fire 2–3× from a double/triple tap or re-invocation.
   window._radioAssignLock = window._radioAssignLock || {};
-  if (window._radioAssignLock[id] && Date.now()-window._radioAssignLock[id] < 10000) return;
-  window._radioAssignLock[id] = Date.now();
+  const _lockKey = id+':'+radioSelectedMembers.map(m=>_normUnit(m.unit)).sort().join(',');
+  if (window._radioAssignLock[_lockKey] && Date.now()-window._radioAssignLock[_lockKey] < 10000) return;
+  window._radioAssignLock[_lockKey] = Date.now();
 
   // Only members NOT already responding are genuinely new — used to gate the
   // WhatsApp/push so re-assigning someone already on the call announces nothing.
@@ -10431,7 +10432,8 @@ async function submitRadioResponders() {
     // Remove from pending if they were there
     call.pendingResponders=(call.pendingResponders||[]).filter(r=>String(r.unit)!==String(m.unit));
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
-      const _entry={unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:'radio',status:'approved',time:Date.now()};
+      const _entry={unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:m.via||'radio',status:'approved',time:Date.now()};
+      if(m.observerOnly) _entry.observerOnly=true;
       call.responders.push(_entry); _radioAdded.push(_entry);
       try{ if(typeof cmSyncMember==='function') cmSyncMember(m.unit,_entry.name,m.phone); }catch(e){}
     }
@@ -14407,11 +14409,91 @@ function _zelloDisconnect(){
   _zelloWS=null; _zelloSetSpeaking(null);
 }
 // Map a Zello username → the plain unit number (usernames == unit numbers). Show number only.
+// ── Zello key-up popup: "BC-12 keyed up — add to a call?" ─────────────────────
+// Shows only for dispatch/admin, only while a call is open that the member isn't on yet.
+// Small, bottom-left, never blocks; hides after 12 s. Closing it snoozes that member 3 min.
+const _KU_HIDE_MS=12000, _KU_SNOOZE_MS=3*60*1000;
+const _ku={cur:null, queue:[], sel:null, timer:null, snooze:{}};
+function _kuOpenCallsFor(u){
+  return (STATE.calls||[]).filter(c=>c && !c.isTest && (c.status==='open'||c.status==='active')
+      && !(c.responders||[]).some(r=>_normUnit(r.unit)===u))
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+}
+function _keyupOffer(unit){
+  if(!['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'')) return;
+  const u=_normUnit(unit); if(!u) return;
+  if(u===_normUnit(SESSION.unit)) return;                       // you keyed up yourself
+  if(_ku.snooze[u] && Date.now()-_ku.snooze[u] < _KU_SNOOZE_MS) return;
+  if(!_kuOpenCallsFor(u).length) return;
+  if(_ku.cur===u){ _kuTimer(); return; }
+  if(_ku.queue.includes(u)) return;
+  if(_ku.cur){ _ku.queue.push(u); return; }
+  _kuShow(u);
+}
+function _kuTimer(){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClose(false), _KU_HIDE_MS); }
+function _kuShow(u){
+  const calls=_kuOpenCallsFor(u);
+  if(!calls.length){ _kuNext(); return; }
+  _ku.cur=u; if(!calls.some(c=>c.id===_ku.sel)) _ku.sel=calls[0].id;
+  _kuRender(); _kuTimer();
+}
+function _kuRender(){
+  const u=_ku.cur; if(!u) return;
+  const calls=_kuOpenCallsFor(u);
+  if(!calls.length){ _kuClose(false); return; }
+  if(!calls.some(c=>c.id===_ku.sel)) _ku.sel=calls[0].id;
+  let el=document.getElementById('keyupPop');
+  if(!el){ el=document.createElement('div'); el.id='keyupPop';
+    el.style.cssText='position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:10001;width:min(320px,calc(100vw - 24px));background:#12151b;border:1.5px solid rgba(34,197,94,.55);border-radius:14px;padding:10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.45);color:#fff;font-family:inherit;';
+    el.addEventListener('pointerdown',()=>_kuTimer());
+    document.body.appendChild(el); }
+  const m=(STATE.members||[]).find(x=>_normUnit(x.unit)===u)||{};
+  const nm=_rcEsc(`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim());
+  const lbl=c=>_rcEsc(_rcTypeLabel(c.type));
+  const multi=calls.length>1;
+  const btn='flex:1;padding:9px 6px;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;';
+  el.innerHTML=
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+    +'<span style="font-size:15px;font-weight:900;">📻 BC-'+_rcEsc(u)+'</span>'
+    +'<span style="font-size:12px;color:rgba(255,255,255,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(nm?nm+' · ':'')+'keyed up</span>'
+    +'<button type="button" onclick="_kuClose(true)" aria-label="Close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;line-height:1;cursor:pointer;padding:0 2px;">×</button></div>'
+    +(multi?'<div style="font-size:12px;color:rgba(255,255,255,.7);margin-bottom:6px;">Add to which call?</div>'
+        +'<div style="display:flex;flex-direction:column;gap:5px;max-height:150px;overflow-y:auto;margin-bottom:8px;">'
+        +calls.map(c=>'<button type="button" onclick="_kuPick(\''+_rcEsc(c.id)+'\')" style="text-align:left;padding:7px 9px;border-radius:9px;cursor:pointer;font-family:inherit;color:#fff;'
+          +(c.id===_ku.sel?'background:rgba(34,197,94,.22);border:1.5px solid #22c55e;':'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);')+'">'
+          +'<div style="font-size:13px;font-weight:800;">'+(c.callNum?'#'+_rcEsc(c.callNum)+' · ':'')+lbl(c)+(c.priority==='urgent'?' · URGENT':'')+'</div>'
+          +'<div style="font-size:11px;color:rgba(255,255,255,.65);">'+_rcEsc(c.town||c.address||'')+((c.responders||[]).length?' · On call: '+(c.responders||[]).map(r=>'BC-'+_rcEsc(_normUnit(r.unit))).join(', '):'')+'</div></button>').join('')
+        +'</div>'
+      :(()=>{const c=calls[0]; return '<div style="font-size:12px;color:rgba(255,255,255,.8);margin-bottom:8px;">Add to '+(c.callNum?'Call #'+_rcEsc(c.callNum)+' — ':'')+lbl(c)+(c.town?', '+_rcEsc(c.town):'')+'?</div>';})())
+    +'<div style="display:flex;gap:6px;">'
+    +'<button type="button" onclick="_kuAdd(false)" style="'+btn+'background:#16a34a;">Responding</button>'
+    +'<button type="button" onclick="_kuAdd(true)" style="'+btn+'background:#2563eb;">Observing</button></div>';
+  el.style.display='block';
+}
+function _kuPick(id){ _ku.sel=id; _kuRender(); _kuTimer(); }
+function _kuAdd(observing){
+  const u=_ku.cur, id=_ku.sel; if(!u||!id) return;
+  const m=(STATE.members||[]).find(x=>_normUnit(x.unit)===u);
+  radioSelectedMembers=[ m ? {...m, eta:5, via:'radio-keyup', observerOnly:!!observing}
+                           : {unit:u, first:'BC-'+u, last:'', eta:5, via:'radio-keyup', observerOnly:!!observing} ];
+  radioVehicles=[];
+  document.getElementById('radioCallId').value=id;
+  _kuClose(false);
+  try{ submitRadioResponders(); }catch(e){ console.warn('keyup add', e); showToast('Could not add — use Assigned Units'); }
+}
+function _kuClose(snooze){
+  clearTimeout(_ku.timer);
+  if(snooze && _ku.cur) _ku.snooze[_ku.cur]=Date.now();
+  const el=document.getElementById('keyupPop'); if(el) el.style.display='none';
+  _ku.cur=null; _kuNext();
+}
+function _kuNext(){ while(_ku.queue.length){ const u=_ku.queue.shift(); if(_kuOpenCallsFor(u).length){ _kuShow(u); return; } } }
 let _zelloRecent = []; // recent speakers, most-recent first (unit numbers)
 function _zelloSetSpeaking(user){
   _zelloSpeaking = user ? String(user).replace(/^BC-?/i,'').replace(/\D+/g,'') : null;
   if(_zelloSpeaking){
     _zelloRecent = [_zelloSpeaking, ..._zelloRecent.filter(u=>u!==_zelloSpeaking)].slice(0,6);
+    try{ _keyupOffer(_zelloSpeaking); }catch(e){ console.warn('keyup offer', e); }
   }
   _zelloRenderBadge();
 }
