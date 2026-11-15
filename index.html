@@ -6522,7 +6522,8 @@ function initFirestore(){
     try{_unsubReset&&_unsubReset();}catch(e){}
   };
   // Cloud-first stats: pull the historical snapshot from Firestore if it's been uploaded.
-  try{ loadStatsFromCloud().then(()=>{ try{ _autoFreezePastYears(); }catch(e){} try{ _autoPruneOldHistory(); }catch(e){} }); }catch(e){}
+  // Old history is kept (no auto-prune, Nov 2026); the database rules don't allow deleting it anyway.
+  try{ loadStatsFromCloud().then(()=>{ try{ _autoFreezePastYears(); }catch(e){} }); }catch(e){}
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
