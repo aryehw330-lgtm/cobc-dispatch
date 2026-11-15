@@ -1678,7 +1678,6 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="card-title" style="margin-bottom:4px;">📻 Zello Radio</div>
           <div id="zelloStatusLine" style="font-size:13px;font-weight:700;color:var(--text3);">📻 Zello: off</div>
           <div id="zelloAcctLine" style="font-size:12px;color:var(--text3);margin-top:6px;"></div>
-          <button type="button" onclick="_kuTest()" style="margin-top:8px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.5);color:#16a34a;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;">Test key-up popup</button>
           <!-- Personal Zello login: each admin/dispatcher uses their OWN separate listener
                account (not their radio login) so multiple people can connect at once
                without kicking each other off. Network + channel are fixed, not editable here. -->
@@ -6641,6 +6640,7 @@ function _applyRoleUI(role) {
   if (alltimeBanner1) alltimeBanner1.style.display = (role==='admin') ? '' : 'none';
   const zelloStatusCard = document.getElementById('zelloStatusCard');
   if (zelloStatusCard){ zelloStatusCard.style.display = (role==='admin'||role==='dispatch') ? '' : 'none'; try{ _zelloSetStatus(_zelloStatus); }catch(e){} }
+  try{ if ((role==='admin'||role==='dispatch') && !_zelloConnected && !_zelloWS) subscribeZelloConfig(); }catch(e){}
   const adminStatsCloudRow = document.getElementById('adminStatsCloudRow');
   if (adminStatsCloudRow) adminStatsCloudRow.style.display = (role==='admin') ? '' : 'none';
   const adminFreezeRow = document.getElementById('adminFreezeRow');
@@ -14266,11 +14266,14 @@ function subscribeZelloSpeaking(){
     }, err=>console.warn('zelloSpeaking snapshot:', err));
   }catch(e){ console.warn('subscribeZelloSpeaking failed:', e); }
 }
+let _zelloSubStarted=false;
 function subscribeZelloConfig(){
   _zelloRenderPersonalUI();
   _zelloApplyConfig();
+  if(_zelloSubStarted) return;
   try{
-    if(typeof firebase==='undefined') return;
+    if(typeof firebase==='undefined' || !_firebaseReady) return;
+    _zelloSubStarted=true;
     firebase.firestore().collection('config').doc('zello').onSnapshot(doc=>{
       _zelloFirestoreCfg=doc.exists?doc.data():null;
       _zelloApplyConfig();
@@ -14381,7 +14384,7 @@ function _zelloRenderPersonalUI(){
 }
 function zelloReconnectBtnClick(){
   if(_zelloConnected){ _zelloDisconnect(); showToast('Disconnected from Zello'); }
-  else { try{ _zelloDisconnect(); _zelloConnect(); showToast('Reconnecting Zello…'); }catch(e){} }
+  else { try{ _zelloDisconnect(); if(!_zelloCfg) subscribeZelloConfig(); else _zelloConnect(); showToast(_zelloCfg?'Reconnecting Zello…':'No Zello login on this phone — log in below'); }catch(e){} }
 }
 function _zelloSetStatus(s){
   _zelloStatus=s;
