@@ -21,6 +21,7 @@
  */
 
 const { onRequest } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 const {
   generateRegistrationOptions, verifyRegistrationResponse,
@@ -66,6 +67,11 @@ async function memberByUnit(unit) {
   return m || null;
 }
 const b64u = (buf) => Buffer.from(buf).toString('base64url');
+// A member who was removed and later re-added gets their login turned back on.
+async function ensureLoginEnabled(uid) {
+  try { const u = await admin.auth().getUser(uid); if (u.disabled) await admin.auth().updateUser(uid, { disabled: false }); }
+  catch (e) { /* user-not-found: first sign-in, nothing to do */ }
+}
 
 async function handlePasskey(req, res, body) {
   const db = admin.firestore();
@@ -154,6 +160,7 @@ async function handlePasskey(req, res, body) {
     const unit = pk.data().unit;
     const m = await memberByUnit(unit);
     if (!m) { res.status(401).json({ ok: false, error: 'Not on the member list anymore' }); return; }
+    await ensureLoginEnabled('member-' + unit);
     const token = await admin.auth().createCustomToken('member-' + unit, {
       authorized: true, unit: m.id || unit, role: String(m.status || m.role || 'member').toLowerCase(),
     });
@@ -265,6 +272,7 @@ exports.getAuthToken = onRequest(
     };
     let customToken;
     try {
+      await ensureLoginEnabled(uid);
       customToken = await admin.auth().createCustomToken(uid, claims);
     } catch (err) {
       console.error('createCustomToken failed:', err);
@@ -274,3 +282,36 @@ exports.getAuthToken = onRequest(
     res.json({ ok: true, token: customToken, member: safeMember });
   }
 );
+
+
+// ── Cut off removed members (runs every hour) ─────────────────────────────────
+// Anyone whose BC# is no longer on the member sheet has their app login turned off
+// on every phone (their current sign-in stops working within an hour). If they are
+// added back, their next sign-in turns it on again.
+// Safety: if the member list can't be read or looks wrong (fewer than 50 people),
+// it does nothing — a glitch must never sign everyone out.
+exports.cutOffRemovedMembers = onSchedule({ schedule: 'every 60 minutes', region: 'us-east1', timeZone: 'America/New_York' }, async () => {
+  let roster;
+  try {
+    const r = await fetch(APPS_SCRIPT_URL + '?action=getMembers', { redirect: 'follow' });
+    const j = await r.json();
+    roster = new Set((j.members || []).map(m => normUnit(m.id || m.unit)).filter(Boolean));
+  } catch (e) { console.error('cutOff: roster fetch failed, skipping', e); return; }
+  if (roster.size < 50) { console.error('cutOff: roster looks wrong (' + roster.size + '), skipping'); return; }
+
+  let next, cut = [];
+  do {
+    const page = await admin.auth().listUsers(1000, next);
+    for (const u of page.users) {
+      if (!u.uid.startsWith('member-') || u.disabled) continue;
+      const unit = normUnit(u.uid.slice(7));
+      if (unit && !roster.has(unit)) {
+        await admin.auth().updateUser(u.uid, { disabled: true });
+        await admin.auth().revokeRefreshTokens(u.uid);
+        cut.push('BC-' + unit);
+      }
+    }
+    next = page.pageToken;
+  } while (next);
+  console.log('cutOff: roster=' + roster.size + ' cut off=' + (cut.join(', ') || 'none'));
+});
