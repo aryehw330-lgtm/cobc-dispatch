@@ -8842,11 +8842,15 @@ async function fillCardETAs() {
       // GPS update on every member's phone — that would cost hundreds of $ a month).
       {
         const mi = _haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng);
-        const gm = _etaMin(mi);
+        // If the real Google time is already known (call opened / Respond, last 5 min, same area), show that.
+        const _gk = `${_myLoc.lat.toFixed(2)},${_myLoc.lng.toFixed(2)}|${pt.lat.toFixed(4)},${pt.lng.toFixed(4)}`;
+        const _gh = _driveEtaCache[_gk];
+        const _real = _gh && (Date.now()-_gh.ts) < 300000;
+        const gm = _real ? _gh.mins : _etaMin(mi);
         const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
         span.style.cssText += `background:${gbg};color:${gc};`;
-        span.textContent = `Your ETA: ~${gm}m`;
+        span.textContent = _real ? `Your ETA: ${gm}m` : `Your ETA: ~${gm}m`;
       }
       // Tap to open Google Maps directions
       span.onclick = function(e) {
@@ -8893,7 +8897,7 @@ async function fillDetailETA(call) {
     box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:#f3f4f6;color:#6b7280;padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;">📍 Your Est. ETA: …</span>`;
     // Straight-line distance is misleading for river crossings / limited-access parkways —
     // wait for the real traffic-aware Google route rather than showing a bogus number first.
-    _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(gm => paint(gm,false)).catch(()=>{
+    _googleDriveMins({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(gm => { paint(gm,false); try{ fillCardETAs(); }catch(e){} }).catch(()=>{
       paint(_etaMin(_haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng)), true);
     });
   } catch(e) {}
