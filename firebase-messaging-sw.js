@@ -134,8 +134,22 @@ function idbStorePendingCall(callId) {
   });
 }
 
+// The same alert can reach this phone twice (e.g. the background handler AND the
+// in-app handler, or an older registration of this phone). Each send carries one
+// unique data.tag, so show each tag only once.
+const _seenTags = new Map();
+function _firstTime(tag) {
+  if (!tag) return true;
+  const now = Date.now();
+  for (const [k, t] of _seenTags) if (now - t > 5 * 60 * 1000) _seenTags.delete(k);
+  if (_seenTags.has(tag)) return false;
+  _seenTags.set(tag, now);
+  return true;
+}
+
 // Background notifications — shown when app is closed or in background
 messaging.onBackgroundMessage((payload) => {
+  if (!_firstTime(payload.data?.tag)) return;
   const title = payload.notification?.title || payload.data?.title || 'COBC Dispatch';
   const body  = payload.notification?.body  || payload.data?.body  || '';
   const url   = payload.data?.url || '/';
@@ -155,11 +169,12 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SHOW_NOTIFICATION') {
     const { title, body, data } = event.data;
+    if (!_firstTime(data?.tag)) return;
     self.registration.showNotification(title || 'COBC Dispatch', {
       body: body || '',
       icon: '/cobc-dispatch/icon-192.png',
       badge: '/cobc-dispatch/icon-badge-mono.png',
-      tag: 'cobc-fg-' + Date.now(),
+      tag: data?.tag || ('cobc-fg-' + Date.now()),
       vibrate: data?.urgent === 'true' ? [200, 100, 200, 100, 200] : [100, 50, 100],
       data: { url: data?.url || '/cobc-dispatch/', callId: data?.callId || null }
     });
