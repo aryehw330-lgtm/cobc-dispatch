@@ -6374,6 +6374,7 @@ function initFirestore(){
   function _attachRecentListener(){
     try{
       _unsubRecent=db.collection('calls').where('createdAt','>=',_recentStart).onSnapshot(snap=>{
+        window._callsSnapAt=Date.now();
         _recentErrCount=0;
         try{ if(typeof SESSION==='undefined')return; const d=_snapDocs(snap); if(d!==null){_bufRecent=d;} _applyCallsMerge(); }
         catch(e){console.warn('calls recent snap:',e);}
@@ -6690,6 +6691,7 @@ async function _finishGISSignIn(email, errorEl, proof) {
       phone:'', email:e, carAccess:false, fromSheet:true
     };
     if(errorEl) errorEl.innerText = '';
+    _showSignInCover();
     finishLogin(member);
     showToast('Welcome back, ' + (member.firstName || e));
     if(typeof showTab==='function') showTab(member.role==='dispatch'?'dispatch':'home');
@@ -6829,6 +6831,24 @@ async function signInToFirebase(pin,unit){
     return true;
   }catch(err){console.error('signInToFirebase error:',err);return false;}
 }
+// Full-screen "Loading your calls…" cover after sign-in, until the live calls arrive
+// (or 8 s max) — so the app never looks frozen right after signing in.
+function _showSignInCover(){
+  try{
+    if(document.getElementById('signInCover')) return;
+    const startedAt=Date.now();
+    const d=document.createElement('div'); d.id='signInCover';
+    d.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#0f0e0c;color:#fcd34d;font-weight:800;font-size:16px;transition:opacity .25s;';
+    d.innerHTML='<span style="width:38px;height:38px;border:4px solid rgba(252,211,77,.25);border-top-color:#fcd34d;border-radius:50%;animation:loginSpin .8s linear infinite;"></span><span>Loading your calls…</span>';
+    if(!document.getElementById('loginSpinStyle')){ const st=document.createElement('style'); st.id='loginSpinStyle'; st.textContent='@keyframes loginSpin{to{transform:rotate(360deg)}}'; document.head.appendChild(st); }
+    document.body.appendChild(d);
+    const done=()=>{ clearInterval(iv); d.style.opacity='0'; setTimeout(()=>d.remove(),260); };
+    const iv=setInterval(()=>{
+      const ready=(window._callsSnapAt||0)>=startedAt-500;
+      if(ready || Date.now()-startedAt>8000) done();
+    },150);
+  }catch(e){}
+}
 function doLogin(){
   const unitRaw=(document.getElementById('loginUnit')?.value||'').trim().toUpperCase();
   const pass=(document.getElementById('loginPass')?.value||'').trim();
@@ -6872,6 +6892,7 @@ function doLogin(){
       // Keep the spinner until the app has actually opened. finishLogin hides the login
       // screen; reset the button a bit later only so it's normal if they ever sign out.
       setBusy('Opening the app…');
+      _showSignInCover();
       finishLogin(_sheetMemberToApp(resp));
       setTimeout(reset, 4000);
       return;
