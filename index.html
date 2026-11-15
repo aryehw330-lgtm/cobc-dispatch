@@ -14460,6 +14460,7 @@ function _kuRender(){
   el.innerHTML=
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
     +'<span style="font-size:15px;font-weight:900;">📻 BC-'+_rcEsc(u)+'</span>'
+    +(m.role==='observer'?'<span style="font-size:10px;font-weight:800;background:#7c3aed;color:#fff;border-radius:5px;padding:1px 6px;">OBSERVER</span>':'')
     +'<span style="font-size:12px;color:rgba(255,255,255,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(nm?nm+' · ':'')+'keyed up</span>'
     +'<button type="button" onclick="_kuClose(true)" aria-label="Close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;line-height:1;cursor:pointer;padding:0 2px;">×</button></div>'
     +(multi?'<div style="font-size:12px;color:rgba(255,255,255,.7);margin-bottom:6px;">Add to which call?</div>'
@@ -14473,7 +14474,7 @@ function _kuRender(){
     +'<div style="display:flex;gap:6px;">'
     +'<button type="button" onclick="_kuAdd(\'respond\')" style="'+btn+'background:#16a34a;">Responding</button>'
     +(canBackup?'<button type="button" onclick="_kuAdd(\'backup\')" style="'+btn+'background:#d97706;">Backing up</button>':'')
-    +'<button type="button" onclick="_kuAdd(\'observe\')" style="'+btn+'background:#2563eb;">Observing</button></div>';
+    +'</div>';
   el.style.display='block';
 }
 function _kuPick(id){ _ku.sel=id; _kuRender(); _kuTimer(); }
