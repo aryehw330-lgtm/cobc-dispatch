@@ -14499,8 +14499,8 @@ function _kuRender(){
       +'<div style="font-size:12px;opacity:.9;">'+_rcEsc(c.address||c.town||'')+'</div></div>'
       +'<div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.75);margin-bottom:5px;">ETA — tap to add</div>'
       +'<div style="display:flex;gap:5px;">'
-      +[5,10,15].map(n=>'<button type="button" onclick="_kuAdd('+n+')" style="'+eb+'">'+n+' min</button>').join('')
-      +'<input id="kuEtaCustom" type="number" min="1" inputmode="numeric" placeholder="__" onfocus="_kuTimer(30000)" oninput="_kuTimer(30000)" onkeydown="if(event.key===\'Enter\')_kuAdd(this.value)" style="width:50px;padding:8px 4px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#000;font-size:13px;font-weight:800;text-align:center;font-family:inherit;">'
+      +[5,10].map(n=>'<button type="button" onclick="_kuAdd('+n+')" style="'+eb+'">'+n+' min</button>').join('')
+      +'<input id="kuEtaCustom" type="number" min="1" inputmode="numeric" placeholder="Custom" onfocus="_kuTimer(30000)" oninput="_kuTimer(30000)" onkeydown="if(event.key===\'Enter\')_kuAdd(this.value)" style="flex:1.2;min-width:0;width:60px;padding:8px 4px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#000;font-size:13px;font-weight:800;text-align:center;font-family:inherit;">'
       +'<button type="button" onclick="_kuAdd(document.getElementById(\'kuEtaCustom\').value)" style="padding:8px 8px;border:none;border-radius:8px;background:'+col+';color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">Add</button>'
       +'</div>'+back;
   }
