@@ -4336,7 +4336,7 @@ function sheetGET(params={}){
 }
 // No Content-Type header on POST — keeps it a "simple request" and avoids CORS preflight
 // (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
-function sheetPOST(body){return fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...body, authToken: window._fbIdToken||undefined})}).then(r=>r.json()).then(res=>{
+function sheetPOST(body){return _pushAuth().catch(()=>window._fbIdToken).then(tok=>fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...body, authToken: tok||undefined})})).then(r=>r.json()).then(res=>{
   try{_mirrorMemberWrite(body,res);}catch(e){}
   // App-level failure: the Sheet responded 200 but reports it did NOT save. Surface it
   // (no more silent lost records) and queue idempotent writes for retry. Only treat an
@@ -4397,7 +4397,8 @@ async function _drainRetryQueue(){
     if(entry.nextAt > now){ stillPending.push(entry); continue; }
     entry.attempts = (entry.attempts||0) + 1;
     try{
-      const r = await fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify(entry.body)});
+      const _tk = await _pushAuth().catch(()=>window._fbIdToken);
+      const r = await fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...entry.body, authToken: _tk||undefined})});
       const res = await r.json();
       if(res && res.success !== false){
         console.log('[retry] success:', entry.body.action, 'after', entry.attempts, 'attempt(s)');
