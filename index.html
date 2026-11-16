@@ -4183,7 +4183,13 @@ function sheetGET(params={}){
 }
 // No Content-Type header on POST — keeps it a "simple request" and avoids CORS preflight
 // (Apps Script ignores OPTIONS preflight; removing Content-Type skips it entirely)
-function sheetPOST(body){return _pushAuth().catch(()=>window._fbIdToken).then(tok=>fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',body:JSON.stringify({...body, authToken: tok||undefined})})).then(r=>r.json()).then(res=>{
+function sheetPOST(body){
+  // Equipment check-in/out: store it on the phone BEFORE sending (resent next open if the app is
+  // closed mid-save), and use keepalive so the send can finish after the app closes.
+  const _isEq = _EQ_WRITE_ACTIONS.has(body&&body.action);
+  if(_isEq){ try{ _enqueueRetry(body); const _q=_loadRetryQueue(); const _k=body.action+'|'+(body.row||body.memberId||body.id||''); const _e=_q.find(x=>x.key===_k); if(_e){ _e.nextAt=Date.now()+60000; _e.inflight=true; _saveRetryQueue(_q); } }catch(e){} }
+  return _pushAuth().catch(()=>window._fbIdToken).then(tok=>fetch(EQ_SCRIPT_URL,{method:'POST',redirect:'follow',mode:'cors',credentials:'omit',keepalive:_isEq,body:JSON.stringify({...body, authToken: tok||undefined})})).then(r=>r.json()).then(res=>{
+  if(_isEq && res && res.success!==false){ try{ const _k=body.action+'|'+(body.row||body.memberId||body.id||''); _saveRetryQueue(_loadRetryQueue().filter(x=>x.key!==_k)); }catch(e){} }
   try{_mirrorMemberWrite(body,res);}catch(e){}
   // App-level failure: the Sheet responded 200 but reports it did NOT save. Surface it
   // (no more silent lost records) and queue idempotent writes for retry. Only treat an
@@ -4236,7 +4242,7 @@ function _eqSaveBadgeD(row){
   return '';
 }
 function _eqUnsavedBanner(){
-  const q=_loadRetryQueue().filter(x=>x.body && _EQ_WRITE_ACTIONS.has(x.body.action) && (x.failed || (x.attempts||0)>=2));
+  const q=_loadRetryQueue().filter(x=>x.body && _EQ_WRITE_ACTIONS.has(x.body.action) && !x.inflight && (x.failed || (x.attempts||0)>=2));
   let b=document.getElementById('eqUnsavedBannerD');
   if(!q.length){ if(b) b.remove(); return; }
   if(!b){ b=document.createElement('div'); b.id='eqUnsavedBannerD'; b.onclick=_eqRetryNow;
@@ -4252,7 +4258,7 @@ function _eqRetryNow(){
   _saveRetryQueue(q); showToast('Retrying…'); _drainRetryQueue();
 }
 // On app open: give failed equipment saves one fresh try (banner returns if it still fails).
-try{ const _q0=_loadRetryQueue(); let _ch=false; _q0.forEach(e=>{ if(e.failed){ e.failed=false; e.attempts=_RETRY_MAX-1; e.nextAt=0; _ch=true; } }); if(_ch) _saveRetryQueue(_q0); }catch(e){}
+try{ const _q0=_loadRetryQueue(); let _ch=false; _q0.forEach(e=>{ if(e.inflight){ e.inflight=false; e.nextAt=0; _ch=true; } if(e.failed){ e.failed=false; e.attempts=_RETRY_MAX-1; e.nextAt=0; _ch=true; } }); if(_ch) _saveRetryQueue(_q0); }catch(e){}
 function _enqueueRetry(body){
   if(!body||!body.action) return;
   if(!_RETRY_IDEMPOTENT.has(body.action)) return; // non-idempotent — never retry
