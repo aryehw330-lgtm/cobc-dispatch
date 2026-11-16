@@ -9132,7 +9132,7 @@ async function createCall() {
   let dontPublish=document.getElementById('callDontPublish').checked;
   // Missing Person: only an Admin or Search Supervisor can send it out. Anyone else's
   // call is saved as a draft that waits for their approval.
-  const _mpNeedsApproval = (type==='missing_person') && !_canApproveMissing();
+  const _mpNeedsApproval = (type==='missing_person'); // every Missing Person call starts as a draft until approved — even an admin's
   if(_mpNeedsApproval) dontPublish=true;
   const _silent=!!window._silentDispatch && !dontPublish; // logged + numbered, instantly completed, NO push/WhatsApp
   let carMake=(document.getElementById('carMake')?.value||'').trim();
