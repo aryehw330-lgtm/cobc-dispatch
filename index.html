@@ -1651,29 +1651,17 @@ textarea.input{min-height:80px;resize:vertical;}
           <button class="btn-sm btn-primary" onclick="showInstallInstructions()">How to Install</button>
         </div>
 
-        <!-- Clear Cache -->
-        <div class="card" style="margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-            <div style="flex:1;min-width:0;">
-              <div class="card-title">🗑️ Clear Cached Data</div>
-              <div class="card-desc">Reset locally-stored equipment + calls. Re-syncs from Google Sheet.</div>
-            </div>
-            <button class="btn-sm btn-ghost" onclick="clearAppCache()" style="flex-shrink:0;color:var(--red);">Clear</button>
-          </div>
-        </div>
-
         <!-- Get latest version (in-app cache clear + fresh fetch) -->
         <div class="card" style="margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <div style="flex:1;min-width:0;">
-              <div class="card-title">⬆️ Get Latest Version</div>
-              <div class="card-desc">Clears the app cache and fetches the newest version. You stay signed in.</div>
+              <div class="card-title">🔄 Refresh App</div>
+              <div class="card-desc">Something not working? Clears stored data and loads the newest version. You stay signed in.</div>
             </div>
-            <button class="btn-sm btn-primary" onclick="forceGetLatestVersion(this)" style="flex-shrink:0;">Update</button>
+            <button class="btn-sm btn-primary" onclick="forceGetLatestVersion(this)" style="flex-shrink:0;">Refresh</button>
           </div>
         </div>
 
-        <!-- Reset all calls (admin-only, testing) -->
         <div class="card" id="zelloStatusCard" style="margin-bottom:10px;display:none;">
           <div class="card-title" style="margin-bottom:4px;">📻 Zello Radio</div>
           <div id="zelloStatusLine" style="font-size:13px;font-weight:700;color:var(--text3);">📻 Zello: off</div>
@@ -1690,17 +1678,12 @@ textarea.input{min-height:80px;resize:vertical;}
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn-sm btn-primary" onclick="zelloPersonalLogin()">Login to Zello</button>
                 <button id="zelloReconnectBtn" onclick="zelloReconnectBtnClick()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);">Reconnect</button>
-                <button id="zelloEditBtn" style="display:none;background:rgba(230,196,99,.16);border:1px solid rgba(230,196,99,.4);color:var(--gold-light,#e6c463);border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);" onclick="openZelloEdit()">⚙️ Change Shared Account</button>
+
               </div>
             </div>
           </div>
         </div>
-        <!-- Telzio current-shift roster (admin-only; schedule-derived, not real Telzio session data) -->
-        <div class="card" id="telzioRosterCard" style="margin-bottom:10px;display:none;">
-          <div class="card-title" style="margin-bottom:6px;">📻 Telzio — Current Shift</div>
-          <div id="telzioRosterList"></div>
-          <div style="font-size:10px;color:var(--text3);margin-top:6px;">Based on the dispatch schedule — not live Telzio session data (no Telzio API connected yet).</div>
-        </div>
+
         <!-- Telzio Phone Number History (admin/dispatch only; read-only view of telzioCalls) -->
         <!-- (Telzio Phone Number History moved to its own tab: #more-telzio) -->
 
@@ -1835,16 +1818,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <input type="file" id="restoreFileInput" accept="application/json,.json" style="display:none;" onchange="restoreFromFile(event)"/>
             <div id="cloudBackupList" style="margin-top:12px;"></div>
           </div>
-          <!-- RESET ALL CALLS (admin-only, testing) -->
-          <div id="settingsResetCard" style="background:rgba(220,80,80,.1);border:1px solid rgba(248,113,113,.4);border-radius:14px;padding:16px;margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:15px;font-weight:800;color:#fca5a5;">🗑️ Reset All Calls</div>
-                <div style="font-size:12px;color:rgba(255,255,255,.6);line-height:1.5;margin-top:2px;">Wipes every call from the shared database — see the clean day-one state. Testing mode: reusable.</div>
-              </div>
-              <button style="flex-shrink:0;padding:11px 18px;background:rgba(220,38,38,.2);color:#fca5a5;border:1px solid rgba(248,113,113,.5);border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;" onclick="resetAllCallsQuick()">Reset</button>
-            </div>
-          </div>
+
           <!-- COMMON LOCATIONS (admin-only) -->
           <div id="settingsCommonCalls" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px;margin-bottom:12px;">
             <div onclick="var b=document.getElementById('commonCallsBody'),a=document.getElementById('commonCallsCaret');var open=b.style.display!=='none';b.style.display=open?'none':'block';a.textContent=open?'▸':'▾';if(b.style.display==='block'){try{renderCommonCallsSettings();}catch(e){}}" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
@@ -2052,17 +2026,8 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
           <div style="font-size:24px;flex-shrink:0;">📊</div>
         </a>
-        <div id="adminStatsCloudRow" style="display:none;margin-bottom:14px;">
-          <button onclick="uploadStatsToCloud(this)" class="btn-full" style="background:linear-gradient(180deg,rgba(230,196,99,.9),rgba(212,169,58,.9));color:#3a2c05;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;">☁️ Upload Historical Stats to Cloud</button>
-          <div style="font-size:10.5px;color:rgba(255,255,255,.6);margin-top:5px;text-align:center;">One-time: copies the built-in 2021–2026 history to Firestore so stats run from the cloud.</div>
-        </div>
-        <div id="adminFreezeRow" style="display:none;margin-bottom:14px;">
-          <div style="display:flex;gap:8px;">
-            <select id="adminFreezeYear" style="flex:1;padding:10px;border-radius:10px;border:1px solid rgba(230,196,99,.3);background:rgba(255,255,255,.06);color:#fff;font-size:13px;font-weight:700;"></select>
-            <button onclick="freezeYearToHistory(document.getElementById('adminFreezeYear').value,this)" style="background:rgba(96,224,154,.18);border:1px solid rgba(96,224,154,.4);color:#7ef0b0;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">❄️ Freeze Year</button>
-          </div>
-          <div style="font-size:10.5px;color:rgba(255,255,255,.6);margin-top:5px;text-align:center;">Rolls a finished year's app calls into permanent cloud history.</div>
-        </div>
+
+
         <div class="section-label">Search Any Member</div>
         <input id="adminMemberSearch" type="text" placeholder="Search by BC # or name…" oninput="adminSearchMember(this.value)" style="width:100%;padding:11px 14px;border:1px solid rgba(230,196,99,.3);border-radius:10px;background:rgba(255,255,255,.06);color:#fff;font-size:14px;font-family:inherit;margin-bottom:8px;box-sizing:border-box;"/>
         <div id="adminMemberResults" style="margin-bottom:8px;"></div>
@@ -2193,155 +2158,7 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
 
-    <!-- ══ ADMIN ══ -->
-    <div class="page hidden" id="page-admin">
-      <div id="shiftSlotAdmin" style="display:none;padding:0 16px;"></div>
-      <div class="section-header">
-        <div><div class="section-title">Admin Controls</div></div>
-        <button onclick="showTab('more')" style="background:var(--border2);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);">← Back</button>
-      </div>
-      <div id="adminGate">
-        <div class="card">
-          <div class="card-title" style="margin-bottom:12px;">🔐 Admin Access</div>
-          <input class="input" type="password" id="adminPassInput" placeholder="Admin password" style="margin-bottom:10px;"/>
-          <button class="btn-full btn-primary" onclick="unlockAdmin()">Unlock</button>
-        </div>
-      </div>
-      <div id="adminPanel" style="display:none;">
-        <div class="sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;display:flex;">
-          <button class="sub-tab active" style="white-space:nowrap;" onclick="setAdminTab('members',this)">👥 Members</button>
-          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('calls',this)">📡 Calls</button>
-          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('dispatch',this)">📋 Dispatch</button>
-          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('equipment',this)">📦 Equipment</button>
-          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('locations',this)">📍 Locations</button>
-          <button class="sub-tab" style="white-space:nowrap;" onclick="setAdminTab('history',this)">📝 Chk History</button>
-          <button class="sub-tab" id="adminResetTab" style="white-space:nowrap;color:var(--red);" onclick="setAdminTab('reset',this)">🗑️ Reset</button>
-        </div>
-        <!-- Members -->
-        <div id="admin-members">
-          <div class="card" style="margin-bottom:10px;">
-            <div class="card-title" style="margin-bottom:12px;">➕ Add Member</div>
-            <div class="input-group"><label class="input-label">Unit # (BC #)</label><input class="input" type="number" id="newMemberUnit" placeholder="42"/></div>
-            <div class="input-group"><label class="input-label">First Name</label><input class="input" type="text" id="newMemberFirst" placeholder="First"/></div>
-            <div class="input-group"><label class="input-label">Last Name</label><input class="input" type="text" id="newMemberLast" placeholder="Last"/></div>
-            <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="newMemberPhone" placeholder="Phone"/></div>
-            <div class="input-group"><label class="input-label">Role</label>
-              <select class="input" id="newMemberRole">
-                <option value="Member">Member</option>
-                <option value="Observer">Observer</option>
-                <option value="Dispatch">Dispatch</option>
-                <option value="Equipment Team">Equipment Team</option>
-                <option value="Admin">Admin</option>
-              </select>
-            </div>
-            <button class="btn-full btn-primary" onclick="addMember()">Add Member</button>
-          </div>
-          <div class="section-label">Members (<span id="memberCount">0</span>)</div>
-          <div id="memberList"></div>
-        </div>
-        <!-- Dispatch Settings -->
-        <div id="admin-dispatch" style="display:none;">
-          <div class="card">
-            <div class="card-title" style="margin-bottom:12px;">On-Duty Dispatcher</div>
-            <div class="input-group"><label class="input-label">Dispatcher Name</label><input class="input" id="dutyName" placeholder="Name of dispatcher on duty"/></div>
-            <div class="input-group"><label class="input-label">Phone Number</label><input class="input" type="tel" id="dutyPhone" placeholder="Direct phone"/></div>
-            <button class="btn-full btn-primary" onclick="setOnDuty()" style="margin-bottom:12px;">Set Primary</button>
-            <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:2px;">
-              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Secondary Dispatcher (optional)</div>
-              <div class="input-group"><label class="input-label">Name</label><input class="input" id="dutyName2" placeholder="Secondary dispatcher name"/></div>
-              <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="dutyPhone2" placeholder="Direct phone"/></div>
-              <button class="btn-full btn-primary" onclick="setOnDuty2()">Set Secondary</button>
-            </div>
-          </div>
-          <div class="card" style="margin-top:10px;">
-            <div class="card-title" style="margin-bottom:12px;">Re-Request Settings</div>
-            <div class="input-group"><label class="input-label">First re-request after (min)</label><input class="input" type="number" id="rr1" value="3" min="1" max="60"/></div>
-            <div class="input-group"><label class="input-label">Repeat every (min)</label><input class="input" type="number" id="rr2" value="3" min="1" max="60"/></div>
-            <div class="input-group"><label class="input-label">Switch to every (min) after 3x</label><input class="input" type="number" id="rr3" value="2" min="1" max="60"/></div>
-            <button class="btn-full btn-primary" onclick="saveRRSettings()">Save</button>
-          </div>
-        </div>
-        <!-- Equipment -->
-        <div id="admin-equipment" style="display:none;">
-          <div class="card" style="margin-bottom:10px;">
-            <div class="card-title" style="margin-bottom:12px;">➕ Add Equipment</div>
-            <div class="input-group"><label class="input-label">Item Name</label><input class="input" type="text" id="newEqName" placeholder="e.g. Fan 31"/></div>
-            <div class="input-group"><label class="input-label">Category</label>
-              <select class="input" id="newEqCat">
-                <option>Fan</option><option>Heater</option><option>A/C Unit</option><option>Generator</option>
-                <option>Light Tower</option><option>Shop Vac</option><option>EZ-Spare</option>
-                <option>Sump Pump</option><option>Wheel Chair Ramp</option><option>Other</option>
-              </select>
-            </div>
-            <div class="input-group"><label class="input-label">Home Location</label><select class="input" id="newEqLoc"></select></div>
-            <button class="btn-full btn-primary" onclick="addEquipment()">Add Item</button>
-          </div>
-          <div class="section-label">All Equipment (<span id="eqAdminCount">0</span>)</div>
-          <div id="eqAdminList"></div>
 
-          <!-- HOME LOCATIONS EDITOR -->
-          <div class="card" style="margin-top:16px;">
-            <div class="card-title" style="margin-bottom:8px;">🏠 Equipment Home Locations</div>
-            <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Change the home location for any item. Saves to Google Sheet.</div>
-            <div class="search-bar" style="margin-bottom:10px;"><span class="search-icon">🔍</span><input type="text" id="hlocSearch" placeholder="Search equipment..." oninput="renderHlocList()"/></div>
-            <div id="hlocList" style="max-height:420px;overflow-y:auto;"></div>
-          </div>
-        </div>
-        <!-- Locations -->
-        <div id="admin-locations" style="display:none;">
-          <div class="card" style="margin-bottom:10px;">
-            <div class="card-title" style="margin-bottom:12px;">➕ Add Location</div>
-            <input class="input" type="text" id="newLocName" placeholder="Location name" style="margin-bottom:10px;"/>
-            <button class="btn-full btn-primary" onclick="addLocation()">Add Location</button>
-          </div>
-          <div id="locationList"></div>
-        </div>
-
-        <!-- Calls Management -->
-        <div id="admin-calls" style="display:none;">
-          <div class="card" style="margin-bottom:10px;">
-            <div class="card-title" style="margin-bottom:8px;">📡 All Calls</div>
-            <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Manage, edit, or delete any call. To add a new call use the + button on the Dispatch tab.</div>
-            <div class="filter-chips" id="adminCallsFilter">
-              <div class="chip active" onclick="setAdminCallFilter('all',this)">All</div>
-              <div class="chip" onclick="setAdminCallFilter('open',this)">Open</div>
-              <div class="chip" onclick="setAdminCallFilter('active',this)">Active</div>
-              <div class="chip" onclick="setAdminCallFilter('done',this)">Done</div>
-            </div>
-          </div>
-          <div id="adminCallsList"></div>
-        </div>
-
-        <!-- Checklist History -->
-        <div id="admin-history" style="display:none;">
-          <div class="card" style="margin-bottom:10px;">
-            <div class="card-title" style="margin-bottom:8px;">📝 Checklist History</div>
-            <div style="font-size:12px;color:var(--text3);">Past equipment checklist submissions. To save a session, tap "Submit Checklist" on the Equipment → Checklist tab.</div>
-          </div>
-          <div id="adminHistoryList"></div>
-        </div>
-
-        <!-- Reset (one-time use, self-destructs after use) -->
-        <div id="admin-reset" style="display:none;">
-          <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:14px;padding:20px;margin-bottom:14px;text-align:center;">
-            <div style="font-size:32px;margin-bottom:10px;">⚠️</div>
-            <div style="font-size:17px;font-weight:700;color:#c0392b;margin-bottom:8px;">Reset All App Data</div>
-            <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px;">
-              This will permanently delete <b>all calls</b> from Firestore.<br>
-              Use this once before going live to clear test data.<br>
-              <b>This button will disappear after use and cannot be undone.</b>
-            </div>
-            <input id="resetConfirmInput" class="input" type="text" placeholder='Type RESET to confirm' style="text-align:center;margin-bottom:12px;border-color:#fca5a5;"/>
-            <button class="btn-full" style="background:var(--red);color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;" onclick="resetAllAppData()">🗑️ Delete All Test Data & Go Live</button>
-          </div>
-          <div style="background:var(--card,#fff);border:1.5px solid var(--border2);border-radius:14px;padding:18px;text-align:center;">
-            <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">Clear History Cache</div>
-            <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px;">Clears the locally-stored call history cache on this device so History reloads fresh from the database. Does not delete any calls or touch stats.</div>
-            <button class="btn-full" style="background:var(--border2);color:var(--text);border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;" onclick="clearHistoryCache()">↻ Clear History Cache</button>
-          </div>
-        </div>
-      </div>
-    </div>
 
   </div><!-- /pages -->
 
@@ -6636,17 +6453,11 @@ function _applyRoleUI(role) {
   });
   const chkSubmitBtn = document.getElementById('chkSubmitBtn');
   if (chkSubmitBtn) chkSubmitBtn.style.display = (role.includes('admin')||role.includes('equipment')) ? 'block' : 'none';
-  const settingsResetCard = document.getElementById('settingsResetCard');
-  if (settingsResetCard) settingsResetCard.style.display = (role==='admin') ? '' : 'none';
   const alltimeBanner1 = document.getElementById('alltimeBanner');
   if (alltimeBanner1) alltimeBanner1.style.display = (role==='admin') ? '' : 'none';
   const zelloStatusCard = document.getElementById('zelloStatusCard');
   if (zelloStatusCard){ zelloStatusCard.style.display = (role==='admin'||role==='dispatch') ? '' : 'none'; try{ _zelloSetStatus(_zelloStatus); }catch(e){} }
   try{ if ((role==='admin'||role==='dispatch') && !_zelloConnected && !_zelloWS) subscribeZelloConfig(); }catch(e){}
-  const adminStatsCloudRow = document.getElementById('adminStatsCloudRow');
-  if (adminStatsCloudRow) adminStatsCloudRow.style.display = (role==='admin') ? '' : 'none';
-  const adminFreezeRow = document.getElementById('adminFreezeRow');
-  if (adminFreezeRow) adminFreezeRow.style.display = 'none';
   const chkTab = document.getElementById('eqChecklistTab');
   const eqAdmTab = document.getElementById('eqAdminTab');
   const priv = (role.includes('admin')||role.includes('equipment'));
@@ -7294,56 +7105,8 @@ function _btnLock(btn, loadingText) {
 }
 
 // ── Add member — optimistic: show in list immediately, sync to sheet in background ──
-function addMember(){
-  const btn = event && event.target ? event.target.closest('button') : null;
-  const unlock = _btnLock(btn, 'Adding…');
-  const unit=(document.getElementById('newMemberUnit')?.value||'').trim().toUpperCase();
-  const first=(document.getElementById('newMemberFirst')?.value||'').trim();
-  const last=(document.getElementById('newMemberLast')?.value||'').trim();
-  const phone=(document.getElementById('newMemberPhone')?.value||'').trim();
-  const role=(document.getElementById('newMemberRole')?.value||'Member').trim();
-  if(!unit||!first||!last){showToast('Unit, first and last name required');unlock();return;}
-  let norm=unit;
-  if(/^\d+$/.test(unit)) norm='BC-'+unit.padStart(2,'0');
-  else if(/^BC\d+$/i.test(unit)) norm='BC-'+unit.replace(/^BC/i,'').padStart(2,'0');
-  // Optimistic: add to local state immediately
-  const newMem = {id:norm.replace(/^BC-/i,''),unit:norm,firstName:first,lastName:last,
-    name:(first+' '+last).trim(),phone,role:role.toLowerCase(),pin:'1234',carAccess:false};
-  STATE.members = STATE.members || [];
-  if (!STATE.members.find(m=>m.unit===norm)) STATE.members.push(newMem);
-  renderAdminMembers && renderAdminMembers();
-  ['newMemberUnit','newMemberFirst','newMemberLast','newMemberPhone'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value='';
-  });
-  showToast('✅ Member added');
-  // Sync to sheet in background
-  sheetPOST({action:'addMember',memberId:norm,firstName:first,lastName:last,phone,role,pin:'1234'}).then(r=>{
-    unlock();
-    if(r&&r.success){
-      loadMembersFromSheet().then(()=>renderAdminMembers&&renderAdminMembers());
-    } else {
-      STATE.members = STATE.members.filter(m=>m.unit!==norm);
-      renderAdminMembers && renderAdminMembers();
-      showToast('Error: '+(r&&r.error||'Failed to add member'));
-    }
-  }).catch(e=>{ unlock(); showToast('Error adding member'); console.error(e); });
-}
 
 // ── UNLOCK ADMIN GATE ──
-function unlockAdmin(){
-  if(SESSION.role==='admin'){
-    document.getElementById('adminGate').style.display='none';
-    document.getElementById('adminPanel').style.display='block';
-    renderAdminMembers(); initResetTab(); return;
-  }
-  const pass=(document.getElementById('adminPassInput')?.value||'').trim();
-  const stored=STATE.adminPassword||'cobc2024';
-  if(pass===stored){
-    document.getElementById('adminGate').style.display='none';
-    document.getElementById('adminPanel').style.display='block';
-    renderAdminMembers(); initResetTab();
-  } else { showToast('Incorrect password'); }
-}
 // Background work that initApp() used to start. initApp() has not been called since
 // the June 10 login refactor, so the 30 s heartbeat (escalations, re-requests, shift
 // reminders, retry queue, daily backup, car schedule), the inventory refresh on reopen
@@ -7641,29 +7404,8 @@ function callDispatchOnDuty2() {
   window.location = `tel:${phone.replace(/\D/g,'')}`;
 }
 
-function setOnDuty() {
-  const name=document.getElementById('dutyName').value.trim();
-  const phone=document.getElementById('dutyPhone').value.trim();
-  STATE.onDuty={name,phone,override:true}; save();
-  updateOnDutyBanner();
-  showToast(`✅ On duty: ${name}`);
-}
 
-function setOnDuty2() {
-  const name=document.getElementById('dutyName2')?.value.trim()||'';
-  const phone=document.getElementById('dutyPhone2')?.value.trim()||'';
-  STATE.onDuty2={name,phone}; save();
-  updateOnDutyBanner();
-  showToast(name ? `✅ Secondary: ${name}` : 'Secondary dispatcher cleared');
-}
 
-function saveRRSettings() {
-  STATE.rrSettings={
-    first:parseInt(document.getElementById('rr1').value)||3,
-    repeat:parseInt(document.getElementById('rr2').value)||3,
-    switchAfter:parseInt(document.getElementById('rr3').value)||2,
-  }; save(); showToast('Re-request settings saved');
-}
 
 // ──────────────────────────────────────────────
 //  HOME
@@ -12404,34 +12146,6 @@ function _telzioStatusForUnit(unit){
 // Admin-only: who's on the current shift right now + their Telzio status (derived
 // from the schedule, same logic as the button — NOT real Telzio session data, since
 // there's no Telzio API connection yet to read actual sign-in state).
-function renderTelzioRoster(){
-  const el=document.getElementById('telzioRosterList');
-  if(!el) return;
-  if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length){ el.innerHTML=''; return; }
-  const now=new Date();
-  const shiftIdx=getShiftIndexNow();
-  const row=DISPATCH_SCHEDULE[shiftIdx];
-  const today=new Date(); today.setHours(0,0,0,0);
-  const dateStr=_dateStrOf(today);
-  const ov=STATE.schedOverrides && STATE.schedOverrides[dateStr] && STATE.schedOverrides[dateStr][shiftIdx];
-  const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[today.getDay()]||{p:'OPEN',s:'OPEN'});
-  const STYLES={
-    signin1:{label:'Signing in now',c:'#dc2626'}, signin30:{label:'Signing in soon',c:'#d97706'},
-    onshift:{label:'On shift',c:'#16a34a'}, signout10:{label:'Signing out soon',c:'#d97706'},
-    signout1:{label:'Signing out now',c:'#dc2626'}
-  };
-  function rowHTML(label, nameStr){
-    if(!nameStr || nameStr==='OPEN') return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);"><span style="font-size:13px;color:var(--text3);">${label}</span><span style="font-size:13px;font-weight:700;color:var(--red);">OPEN</span></div>`;
-    const unit=_shiftUnitOf(nameStr);
-    const status=_telzioStatusForUnit(unit);
-    const st=STYLES[status]||{label:'Off shift',c:'var(--text3)'};
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);">
-      <span style="font-size:13px;color:var(--text3);">${label}</span>
-      <span style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;font-weight:700;color:var(--text);">${nameStr}</span><span style="width:7px;height:7px;border-radius:50%;background:${st.c};"></span><span style="font-size:11px;font-weight:700;color:${st.c};">${st.label}</span></span>
-    </div>`;
-  }
-  el.innerHTML = rowHTML('Primary', slot.p) + rowHTML('Secondary', slot.s);
-}
 function checkWaitingEscalation() { /* now SERVER-SIDE — see cobc-waiting-escalation-appscript.js. No-op on the client to avoid duplicate alerts. */ }
 
 // Units (BC numbers) of all ADMIN members — used to reach admins by unit since the
@@ -13176,20 +12890,6 @@ function addNumber() {
 // ──────────────────────────────────────────────
 //  STATS
 // ──────────────────────────────────────────────
-function goAdmin(subtab) {
-  showTab('admin');
-  // Auto-unlock for admins
-  if(SESSION.role==='admin') {
-    const gate = document.getElementById('adminGate');
-    const panel = document.getElementById('adminPanel');
-    if(gate) gate.style.display='none';
-    if(panel) panel.style.display='block';
-  }
-  // Switch to the requested sub-tab
-  const btn = [...document.querySelectorAll('#adminPanel .sub-tab')].find(b => b.textContent.toLowerCase().includes(subtab||'members'));
-  if(btn && typeof setAdminTab === 'function') setAdminTab(subtab||'members', btn);
-  else if(typeof setAdminTab==='function') setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
-}
 let _adminStatsRelocated=false;
 // Set the Admin Stats year and re-render whichever admin section is active.
 function setAdminStatsYear(yr){
@@ -13377,7 +13077,6 @@ function renderAdminLeaderboard(selId, listId, searchId){
 
 // Admin-only detailed call log — every call the app records (newest first).
 function renderAdminStats() {
-  try{ renderTelzioRoster(); }catch(e){ console.warn('telzioRoster:',e); }
   try{ renderAdminLeaderboard(); }catch(e){ console.warn('leaderboard:',e); }
   const el = document.getElementById('adminStatsList');
   if(!el) return;
@@ -13571,22 +13270,13 @@ function requestLocationPermission() {
     { timeout: 10000 }
   );
 }
-function clearAppCache() {
-  if(!confirm('Clear cached equipment + calls? You will stay signed in but data will re-sync from Google Sheet.')) return;
-  try {
-    Object.keys(localStorage).forEach(k => {
-      if(k.startsWith('cobc_v') || k.startsWith('cobc_eq') || k.startsWith('cobc_calls')) localStorage.removeItem(k);
-    });
-    showToast('✅ Cache cleared. Reloading…');
-    setTimeout(() => location.reload(), 800);
-  } catch(e) { showToast('Error clearing cache'); }
-}
 // Full "get latest version" — does in-app what clearing site data does manually:
 // unregisters service workers, wipes the browser's Cache Storage, then reloads with
 // a cache-busting URL so the freshest index.html is fetched. Stays signed in.
 async function forceGetLatestVersion(btn){
   const orig=btn?btn.textContent:'';
-  if(btn){ btn.disabled=true; btn.textContent='Updating…'; }
+  if(btn){ btn.disabled=true; btn.textContent='Refreshing…'; }
+  try{ Object.keys(localStorage).forEach(k=>{ if(k.startsWith('cobc_v')||k.startsWith('cobc_eq')||k.startsWith('cobc_calls')) localStorage.removeItem(k); }); }catch(e){}
   try{
     if('serviceWorker' in navigator){
       try{ const regs=await navigator.serviceWorker.getRegistrations(); for(const r of regs){ try{ await r.unregister(); }catch(e){} } }catch(e){}
@@ -14311,8 +14001,7 @@ function _zelloApplyConfig(){
   if(personal && personal.username && personal.password){
     cfg = { enabled:true, api:false, network:ZELLO_HARDCODED.network, channel:ZELLO_HARDCODED.channel, username:personal.username, password:personal.password };
   } else {
-    const cfgValid = _zelloFirestoreCfg && _zelloFirestoreCfg.enabled && !_zelloFirestoreCfg.api && _zelloFirestoreCfg.network && _zelloFirestoreCfg.username && _zelloFirestoreCfg.password;
-    cfg = cfgValid ? _zelloFirestoreCfg : (ZELLO_HARDCODED.enabled && ZELLO_HARDCODED.network ? ZELLO_HARDCODED : null);
+    cfg = null; // no shared account any more — each dispatcher logs in with their own
   }
   _zelloCfg = cfg;
   if(_zelloCfg && _zelloCfg.enabled && _zelloCfg.network && _zelloCfg.username){ _zelloDisconnect(); _zelloConnect(); }
@@ -14415,28 +14104,12 @@ function _zelloSetStatus(s){
   if(el){ el.textContent='📻 Zello: '+s; el.style.color = _zelloConnected?'var(--green)':/fail|error|disconnect/.test(s)?'var(--red)':'var(--text3)'; }
   const acct=document.getElementById('zelloAcctLine');
   if(acct && _zelloCfg){ const chans=Array.isArray(_zelloCfg.channels)?_zelloCfg.channels.join(', '):(_zelloCfg.channel||'—'); acct.textContent='Account: '+(_zelloCfg.username||'—')+' · Network: '+(_zelloCfg.network||'—')+' · Channel: '+chans; }
-  const eb=document.getElementById('zelloEditBtn');
-  if(eb) eb.style.display=(typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin')?'inline-flex':'none';
   const rb=document.getElementById('zelloReconnectBtn');
   if(rb) rb.textContent=_zelloConnected?'Disconnect':'Reconnect';
   _zelloRenderPersonalUI();
 }
 // Admin-only: change the shared Zello monitor account. Warns first; writes to the
 // rules-protected Firestore config/zello doc so all devices pick it up.
-function openZelloEdit(){
-  if(!(typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin')){ showToast('Admin only'); return; }
-  if(!confirm('⚠️ This is the shared radio-monitor account for the whole team.\n\nOnly change it if the account is BROKEN. Wrong info will stop Zello for every dispatcher.\n\nContinue?')) return;
-  const cur=_zelloCfg||{};
-  const network=prompt('Zello network (subdomain):', cur.network||''); if(network===null) return;
-  const username=prompt('Username:', cur.username||''); if(username===null) return;
-  const password=prompt('Password:', cur.password||''); if(password===null) return;
-  const channel=prompt('Channel name (exact):', Array.isArray(cur.channels)?cur.channels[0]:(cur.channel||'')); if(channel===null) return;
-  const cfg={ enabled:true, api:false, network:network.trim(), username:username.trim(), password:password, channel:channel.trim() };
-  try{
-    if(typeof firebase!=='undefined'){ firebase.firestore().collection('config').doc('zello').set(cfg).then(()=>showToast('✅ Zello account updated')).catch(e=>showToast('Save failed: '+(e.message||e))); }
-  }catch(e){ showToast('Save failed'); }
-  _zelloCfg=cfg; try{ _zelloDisconnect(); _zelloConnect(); }catch(e){}
-}
 function _zelloDisconnect(){
   clearTimeout(_zelloReconnectT);
   try{ if(_zelloWS){ _zelloWS.onclose=null; _zelloWS.close(); } }catch(e){}
@@ -16002,62 +15675,10 @@ async function loadStatsFromCloud(){
   }catch(e){ console.warn("loadStatsFromCloud:",e); }
 }
 // Admin one-time: push the embedded snapshot to Firestore so stats run from the cloud.
-async function uploadStatsToCloud(btn){
-  if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Admin only'); return; }
-  if(!(window.firebase && _firebaseReady)){ showToast('⚠️ Not connected'); return; }
-  const orig=btn?btn.textContent:''; if(btn){btn.disabled=true;btn.textContent='Uploading…';}
-  try{
-    const db=firebase.firestore();
-    await db.collection('statsHistory').doc('members').set({json:JSON.stringify(MEMBER_STATS),updatedAt:Date.now(),by:SESSION.unit||''});
-    await db.collection('statsHistory').doc('perf').set({json:JSON.stringify(PERF_DATA),updatedAt:Date.now(),by:SESSION.unit||''});
-    showToast('✅ Historical stats uploaded to cloud');
-  }catch(e){ console.error(e); showToast("Error: "+(e.message||"upload failed")); }
-  finally{ if(btn){btn.disabled=false;btn.textContent=orig;} }
-}
 // Admin: freeze a finished year's APP calls into permanent history. Computes each
 // member's p/b totals + per-month breakdown from real calls, merges into
 // MEMBER_STATS[bc].years[year], marks the year frozen (so the live overlay stops
 // double-counting it), and uploads to Firestore. Idempotent — re-freezing recomputes.
-async function freezeYearToHistory(year, btn){
-  showToast('Not needed any more — app calls count automatically'); return;
-  if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Admin only'); return; }
-  if(!(window.firebase && _firebaseReady)){ showToast('⚠️ Not connected'); return; }
-  year=String(year);
-  if(!confirm(`Freeze ${year} into permanent history?\n\nThis rolls every ${year} call into each member's record and stores it in the cloud. The live count stops double-listing ${year} afterward. You can re-freeze ${year} later if more calls come in.`)) return;
-  const orig=btn?btn.textContent:''; if(btn){btn.disabled=true;btn.textContent='Freezing…';}
-  try{
-    const tally={}; // bc -> {months:{mo:{p,b,o}}, total:{p,b,o}}
-    (_allCalls()||[]).forEach(c=>{
-      if(c.status==='draft'||c.status==='cancelled'||!c.createdAt) return;
-      const dt=new Date(c.createdAt);
-      if(String(dt.getFullYear())!==year) return;
-      const mo=String(dt.getMonth()+1);
-      (c.responders||[]).forEach(r=>{
-        const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
-        tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
-        tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
-        const k=_statKind(c,r);
-        tally[bc].months[mo][k]++;
-        tally[bc].total[k]++;
-      });
-    });
-    const bcs=Object.keys(tally);
-    if(!bcs.length){ showToast(`No ${year} calls to freeze`); if(btn){btn.disabled=false;btn.textContent=orig;} return; }
-    bcs.forEach(bc=>{
-      const mh=_memberHist(bc);
-      MEMBER_STATS[bc]=MEMBER_STATS[bc]||{bc:Number(bc)||bc,name:(mh&&mh.name)||('BC-'+bc),years:{}};
-      MEMBER_STATS[bc].years=MEMBER_STATS[bc].years||{};
-      MEMBER_STATS[bc].years[year]={months:tally[bc].months,total:tally[bc].total};
-    });
-    _frozenYears.add(year);
-    const db=firebase.firestore();
-    await db.collection('statsHistory').doc('members').set({json:JSON.stringify(MEMBER_STATS),updatedAt:Date.now(),by:SESSION.unit||''});
-    await db.collection('statsHistory').doc('meta').set({frozen:[..._frozenYears],updatedAt:Date.now(),by:SESSION.unit||''});
-    try{ renderAdminLeaderboard&&renderAdminLeaderboard(); }catch(e){}
-    showToast(`✅ ${year} frozen into history (${bcs.length} members)`);
-  }catch(e){ console.error(e); showToast("Error: "+(e.message||"freeze failed")); }
-  finally{ if(btn){btn.disabled=false;btn.textContent=orig;} }
-}
 // Auto-prune old equipment/COBC4 history so those Firestore collections never grow
 // unbounded (keeps the "500 newest" cap meaningful forever, not just "for now").
 // Admin-only, runs occasionally (throttled via localStorage), deletes docs older
@@ -16102,51 +15723,7 @@ async function _autoPruneOldHistory(){
 // Auto year-end freeze: admin-only, runs on load. Freezes any fully-ended year that
 // has app calls and isn't already frozen — so the year-end archival never needs a
 // manual tap. Silent (no confirm/toast); idempotent via _frozenYears.
-async function _autoFreezePastYears(){
-  try{
-    if((SESSION.role||'').toLowerCase()!=='admin') return;
-    if(!(window.firebase && _firebaseReady)) return;
-    const curY=new Date().getFullYear();
-    const yset=new Set();
-    (_allCalls()||[]).forEach(c=>{ if(c.createdAt && c.status!=='draft' && c.status!=='cancelled'){ const y=new Date(c.createdAt).getFullYear(); if(y<curY) yset.add(String(y)); } });
-    for(const y of yset){
-      if(_frozenYears.has(String(y))) continue;
-      await _freezeYearSilent(String(y));
-    }
-  }catch(e){ console.warn('autoFreeze:',e); }
-}
 // Core freeze used by both the manual button and the auto-freeze (no UI prompts).
-async function _freezeYearSilent(year){
-  const tally={};
-  (_allCalls()||[]).forEach(c=>{
-    if(c.status==='draft'||c.status==='cancelled'||!c.createdAt) return;
-    const dt=new Date(c.createdAt);
-    if(String(dt.getFullYear())!==year) return;
-    const mo=String(dt.getMonth()+1);
-    (c.responders||[]).forEach(r=>{
-      const bc=String(r.unit||'').replace(/^BC-?/i,''); if(!bc) return;
-      tally[bc]=tally[bc]||{months:{},total:{p:0,b:0,o:0}};
-      tally[bc].months[mo]=tally[bc].months[mo]||{p:0,b:0,o:0};
-      const k=_statKind(c,r);
-      tally[bc].months[mo][k]++;
-      tally[bc].total[k]++;
-    });
-  });
-  const bcs=Object.keys(tally);
-  if(!bcs.length) return false;
-  bcs.forEach(bc=>{
-    const mh=_memberHist(bc);
-    MEMBER_STATS[bc]=MEMBER_STATS[bc]||{bc:Number(bc)||bc,name:(mh&&mh.name)||('BC-'+bc),years:{}};
-    MEMBER_STATS[bc].years=MEMBER_STATS[bc].years||{};
-    MEMBER_STATS[bc].years[year]={months:tally[bc].months,total:tally[bc].total};
-  });
-  _frozenYears.add(year);
-  const db=firebase.firestore();
-  await db.collection('statsHistory').doc('members').set({json:JSON.stringify(MEMBER_STATS),updatedAt:Date.now(),by:(SESSION.unit||'auto')});
-  await db.collection('statsHistory').doc('meta').set({frozen:[..._frozenYears],updatedAt:Date.now(),by:(SESSION.unit||'auto')});
-  console.log('Auto-froze year '+year+' ('+bcs.length+' members)');
-  return true;
-}
 // Leading-zero-safe lookup for stats objects keyed by BC number (handles "05" vs "5").
 function _lookupStats(obj, key){
   if(!obj) return null;
@@ -18703,43 +18280,6 @@ function sendChkWhatsApp() {
 
 // ── ADMIN: CALLS MANAGEMENT ──
 let adminCallFilter='all';
-function setAdminCallFilter(f,el){
-  adminCallFilter=f;
-  document.querySelectorAll('#adminCallsFilter .chip').forEach(c=>c.classList.remove('active'));
-  if(el) el.classList.add('active');
-  renderAdminCalls();
-}
-function renderAdminCalls(){
-  const el=document.getElementById('adminCallsList');
-  if(!el) return;
-  // Admin call browser spans all history — lazy-load the archive, then re-render
-  if(!_archiveLoaded){ ensureFullCallHistory().then(()=>{ try{renderAdminCalls();}catch(e){} }); }
-  let list=[..._allCalls()];
-  if(adminCallFilter!=='all') list=list.filter(c=>c.status===adminCallFilter);
-  list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  if(!list.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No calls found</div></div>';return;}
-  const STATUS_COLORS={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)',urgent:'var(--red)'};
-  el.innerHTML=list.map(c=>{
-    const ts=c.createdAt?new Date(c.createdAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
-    const respCount=(c.responders||[]).length;
-    const sc=STATUS_COLORS[c.status]||'var(--text3)';
-    return `<div style="background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);border-left:4px solid ${sc};">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:14px;font-weight:700;">${c.type||'Unknown'} — ${c.town||''}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px;">${c.address||'No address'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${ts} · ${respCount} responder${respCount!==1?'s':''} · <span style="color:${sc};font-weight:700;">${c.status||'unknown'}</span></div>
-        </div>
-        <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text3);flex-shrink:0;">${(c.id||'').slice(-6)}</div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        <button onclick="openCallEdit('${c.id}')" style="flex:1;padding:8px;background:#eff6ff;color:var(--blue);border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Edit</button>
-        ${c.status!=='done'?`<button onclick="updateCallStatus('${c.id}','done')" style="flex:1;padding:8px;background:#f0fdf4;color:var(--green);border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">✓ Close</button>`:''}
-        <button onclick="deleteCall('${c.id}');renderAdminCalls();" style="padding:8px 12px;background:#fee2e2;color:var(--red);border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>
-      </div>
-    </div>`;
-  }).join('');
-}
 
 // ── ADMIN: RESET ALL APP DATA ──
 // PRE-LAUNCH TESTING MODE: while RESET_REUSABLE is true, the reset can be run as
@@ -18749,47 +18289,10 @@ function renderAdminCalls(){
 const RESET_USED_KEY = 'cobc_reset_used';
 const RESET_REUSABLE = true;
 
-function initResetTab() {
-  // One-time mode only: if already used, permanently hide the tab.
-  if (!RESET_REUSABLE && localStorage.getItem(RESET_USED_KEY)) {
-    const tab = document.getElementById('adminResetTab');
-    if (tab) tab.style.display = 'none';
-    const panel = document.getElementById('admin-reset');
-    if (panel) panel.remove();
-  }
-}
 
 // Settings-panel reset (admin-only). Self-contained — prompts for confirmation,
 // then wipes every call from the shared DB and clears the local copy. Reusable in
 // testing mode; same effect as the Admin-panel reset button.
-async function resetAllCallsQuick(){
-  if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Admin only'); return; }
-  const ans = prompt('This deletes EVERY call from the shared database for all devices.\n\nType RESET to confirm:');
-  if(ans===null) return;
-  if(ans.trim()!=='RESET'){ showToast('Type RESET to confirm'); return; }
-  if(!(window.firebase && _firebaseReady)){ showToast('⚠️ Not connected — try again'); return; }
-  showToast('⏳ Clearing all calls…');
-  try{
-    const db = firebase.firestore();
-    const snap = await db.collection('calls').get();
-    const docs = snap.docs;
-    for(let i=0;i<docs.length;i+=450){
-      const batch = db.batch();
-      docs.slice(i,i+450).forEach(d=>batch.delete(d.ref));
-      await batch.commit();
-    }
-    // Synced reset marker — tells every device to purge pre-reset calls, stop
-    // re-uploading them, and restart call numbering at #1.
-    const _resetAt = Date.now();
-    try{ await db.collection('config').doc('appReset').set({resetAt:_resetAt, by:SESSION.unit||'', at:_resetAt}); }catch(e){ console.warn('reset marker:',e); }
-    STATE.calls = [];
-    _applyAppReset(_resetAt);
-    showToast(`✅ Cleared ${docs.length} call${docs.length===1?'':'s'} — clean slate, numbering reset to #1`);
-  }catch(e){
-    console.error('Quick reset failed:', e);
-    showToast('Error: ' + (e.message||'Reset failed'));
-  }
-}
 
 // ═════════════════════════════════════════════════════════════════
 // §BACKUP  Cloud daily snapshot + manual download/restore (admin)
@@ -19016,73 +18519,9 @@ async function renderAuditLog(){
   }).join('');
   const cnt=document.getElementById('auditCount'); if(cnt) cnt.textContent = events.length+' event'+(events.length===1?'':'s')+(q?' (filtered)':'');
 }
-function clearHistoryCache(){
-  if((SESSION.role||'').toLowerCase()!=='admin'){ showToast('Admin only'); return; }
-  try{ localStorage.removeItem(_ARCHIVE_CACHE_KEY); localStorage.removeItem(_ARCHIVE_CACHE_META_KEY); }catch(e){}
-  _archiveCalls=[]; _archiveLoaded=false; _archiveLoading=null;
-  try{ renderHistory&&renderHistory(); }catch(e){}
-  showToast('↻ History cache cleared — will reload from database');
-}
 
-async function resetAllAppData() {
-  const input = (document.getElementById('resetConfirmInput')?.value||'').trim();
-  if (input !== 'RESET') { showToast('Type RESET to confirm'); return; }
-  const btn = document.querySelector('#admin-reset button');
-  if (btn) { btn.textContent = '⏳ Deleting…'; btn.disabled = true; }
-  try {
-    const db = firebase.firestore();
-    const snap = await db.collection('calls').get();
-    const docs = snap.docs;
-    for(let i=0;i<docs.length;i+=450){
-      const batch = db.batch();
-      docs.slice(i,i+450).forEach(d=>batch.delete(d.ref));
-      await batch.commit();
-    }
-    // Synced reset marker (purge + renumber across all devices)
-    const _resetAt2 = Date.now();
-    try{ await db.collection('config').doc('appReset').set({resetAt:_resetAt2, by:SESSION.unit||'', at:_resetAt2}); }catch(e){ console.warn('reset marker:',e); }
-    STATE.calls = [];
-    _applyAppReset(_resetAt2);
-    if (RESET_REUSABLE) {
-      // Testing mode: leave the tab in place so it can be reused.
-      const inp = document.getElementById('resetConfirmInput'); if (inp) inp.value = '';
-      if (btn) { btn.textContent = '🗑️ Delete All Test Data & Go Live'; btn.disabled = false; }
-      showToast('✅ All calls cleared — clean slate (reset still available)');
-      return;
-    }
-    // Live mode: mark used — tab self-destructs
-    localStorage.setItem(RESET_USED_KEY, '1');
-    document.getElementById('adminResetTab')?.remove();
-    document.getElementById('admin-reset')?.remove();
-    // Switch back to members tab
-    setAdminTab('members', document.querySelector('#adminPanel .sub-tab'));
-    showToast('✅ All test data cleared. App is ready to go live!');
-  } catch(e) {
-    console.error('Reset failed:', e);
-    showToast('Error: ' + (e.message||'Reset failed'));
-    if (btn) { btn.textContent = '🗑️ Delete All Test Data & Go Live'; btn.disabled = false; }
-  }
-}
 
 // ── ADMIN: CHECKLIST HISTORY (from Google Sheet ChecklistLog) ──
-async function renderAdminHistory(){
-  const el=document.getElementById('adminHistoryList');
-  if(!el) return;
-  el.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading…</div>';
-  try{
-    const data=await sheetPOST({action:'getChecklistLog'});
-    const log=[...(data.log||[])].reverse(); // newest first
-    if(!log.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No checklist history yet</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">Use Equipment → Checklist → Submit Checklist</div></div>';return;}
-    el.innerHTML=log.map(h=>`
-      <div style="background:#fff;border-radius:10px;padding:13px 14px;margin-bottom:8px;box-shadow:var(--shadow);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <div style="font-size:14px;font-weight:700;">${h.location||'Unknown location'}</div>
-          <div style="font-size:11px;color:var(--text3);">${h.timestamp||''}</div>
-        </div>
-        <div style="font-size:12px;color:var(--text2);">Submitted by BC-${h.bc||'?'}</div>
-      </div>`).join('');
-  }catch(e){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--red);font-size:13px;">Error loading history</div>';console.error(e);}
-}
 
 // ── SUBMIT CHECKLIST (save to Google Sheet ChecklistLog) ──
 async function submitChecklist(){
@@ -19145,33 +18584,6 @@ async function submitChecklist(){
   }
 }
 
-function setAdminTab(tab, btn) {
-  document.querySelectorAll('#adminPanel .sub-tab').forEach(b=>b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  ['members','dispatch','equipment','locations','calls','history','reset'].forEach(t => {
-    const el = document.getElementById('admin-'+t);
-    if(el) el.style.display = (t===tab) ? 'block' : 'none';
-  });
-  if(tab==='members') renderAdminMembers();
-  if(tab==='equipment') {
-    const sel = document.getElementById('newEqLoc');
-    if(sel) { const locs = STATE.locations || ['COBC']; sel.innerHTML = locs.map(l=>`<option>${l}</option>`).join(''); }
-    renderEqAdminList(); renderHlocList();
-  }
-  if(tab==='locations') renderLocationList();
-  if(tab==='calls') renderAdminCalls();
-  if(tab==='history') renderAdminHistory();
-  if(tab==='reset'){ document.getElementById('resetConfirmInput').value=''; try{ renderBackupPanel(); }catch(e){} try{ renderAuditLog(); }catch(e){} try{ const t=document.getElementById('testModeToggleState'); if(t) t.textContent=window._testMode?'ON':'OFF'; }catch(e){} }
-  if(tab==='dispatch') {
-    // Pre-populate on-duty inputs with current values
-    const od = STATE.onDuty || {};
-    const od2 = STATE.onDuty2 || {};
-    const n1=document.getElementById('dutyName'); if(n1) n1.value=od.name||'';
-    const p1=document.getElementById('dutyPhone'); if(p1) p1.value=od.phone||'';
-    const n2=document.getElementById('dutyName2'); if(n2) n2.value=od2.name||'';
-    const p2=document.getElementById('dutyPhone2'); if(p2) p2.value=od2.phone||'';
-  }
-}
 function renderLocationList() {
   const el = document.getElementById('locationList');
   if(!el) return;
