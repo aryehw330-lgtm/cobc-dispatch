@@ -8483,28 +8483,41 @@ function _haversineMi(lat1,lng1,lat2,lng2) {
 // Estimate drive minutes: straight-line × 1.35 road factor at 28 mph avg
 function _etaMin(mi) { return Math.max(1, Math.round(mi*1.35/28*60)); }
 
-// Real driving ETA via Google DirectionsService (traffic-aware when the key allows).
-// Cached per ~1 km origin + dest for 5 min so we don't hammer the API on every re-render.
+// Drive time, cheapest-first fallback chain (Nov 2026, budget plan):
+//  1) Google Directions — standard (not traffic-aware: half the price, double the free tier),
+//     used only when someone shows interest in a call (see _etaWanted) and under the daily
+//     limit set in Google Cloud.
+//  2) If Google refuses (daily limit hit / key problem), this phone stops asking Google until
+//     midnight and uses the free OSRM road-routing service (real roads, no live traffic).
+//  3) If OSRM fails too, the caller falls back to the on-phone distance estimate.
+// Cached per ~1 km origin + destination for 10 min.
 const _driveEtaCache = {};
 let _gDirSvc = null;
+const _G_ETA_OFF_KEY = 'cobc_gEtaOffUntil';
+function _gEtaOff(){ try{ return Number(localStorage.getItem(_G_ETA_OFF_KEY)||0) > Date.now(); }catch(e){ return false; } }
+function _gEtaOffTillMidnight(){ const d=new Date(); d.setHours(24,0,0,0); try{ localStorage.setItem(_G_ETA_OFF_KEY, String(d.getTime())); }catch(e){} }
 async function _googleDriveMins(origin, dest) {
-  // ~1 km origin buckets + 5-min cache: ETA barely changes, but Google requests drop a lot.
-  const key = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
+  const key = `${origin.lat.toFixed(2)},${origin.lng.toFixed(2)}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
   const hit = _driveEtaCache[key];
-  if (hit && (Date.now()-hit.ts) < 300000) return hit.mins;
-  await loadGoogleMapsAPI();
-  if (!_gDirSvc) _gDirSvc = new google.maps.DirectionsService();
-  const res = await new Promise((resolve) => {
-    _gDirSvc.route({
-      origin, destination: dest,
-      travelMode: google.maps.TravelMode.DRIVING,
-      drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
-    }, (r, status) => resolve(status==='OK' ? r : null));
-  });
-  if (!res || !res.routes[0]) throw new Error('no route');
-  const leg = res.routes[0].legs[0];
-  const secs = (leg.duration_in_traffic && leg.duration_in_traffic.value) || leg.duration.value;
-  const mins = Math.max(1, Math.round(secs/60));
+  if (hit && (Date.now()-hit.ts) < 600000) return hit.mins;
+  let mins = null;
+  if (!_gEtaOff()) {
+    try {
+      await loadGoogleMapsAPI();
+      if (!_gDirSvc) _gDirSvc = new google.maps.DirectionsService();
+      const out = await new Promise((resolve) => {
+        _gDirSvc.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING },
+          (r, status) => resolve({ r, status }));
+      });
+      if (out.status === 'OK' && out.r && out.r.routes[0]) {
+        mins = Math.max(1, Math.round(out.r.routes[0].legs[0].duration.value / 60));
+      } else if (/OVER_QUERY_LIMIT|OVER_DAILY_LIMIT|REQUEST_DENIED/.test(String(out.status))) {
+        _gEtaOffTillMidnight();
+      }
+    } catch(e) {}
+  }
+  if (mins == null) { try { mins = await calcOsrmEtaMin(origin.lat, origin.lng, dest.lat, dest.lng); } catch(e) {} }
+  if (!mins) throw new Error('no route');
   _driveEtaCache[key] = { mins, ts: Date.now() };
   return mins;
 }
@@ -8618,11 +8631,21 @@ let _etaSeeding = false;
 // One real Google drive time per call, shared by the card, the call details and Respond.
 const _callEta = {};          // callId -> { mins, lat, lng, ts }
 const _callEtaBusy = {};
+// Calls this phone wants a REAL drive time for: opened the details, tapped Respond / 📍,
+// or is on the call. Everyone else's card shows the free on-phone estimate ("~9m").
+const _etaWanted = {};
+function _etaWantFor(call){
+  if (!call) return false;
+  if (_etaWanted[call.id]) return true;
+  const me = String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,'');
+  const has = arr => (arr||[]).some(r => String((r&&r.unit)||r||'').replace(/^BC-?/i,'') === me);
+  return has(call.responders) || has(call.pendingResponders);
+}
 function _callEtaSave(callId, mins){ if(_myLoc && mins>0) _callEta[callId]={ mins, lat:_myLoc.lat, lng:_myLoc.lng, ts:Date.now() }; }
 function _callEtaFresh(callId){
   const e=_callEta[callId]; if(!e||!_myLoc) return null;
-  if(Date.now()-e.ts > 300000) return null;                          // every 5 min
-  if(_haversineMi(e.lat,e.lng,_myLoc.lat,_myLoc.lng) > 0.5) return null; // or every half mile
+  if(Date.now()-e.ts > 600000) return null;                          // every 10 min
+  if(_haversineMi(e.lat,e.lng,_myLoc.lat,_myLoc.lng) > 1) return null;   // or every mile
   return e;
 }
 function _callEtaFetch(call, pt){
@@ -8674,7 +8697,7 @@ async function fillCardETAs() {
         // arrives, the free estimate shows with a "~".
         const _ce = _callEtaFresh(call.id);
         const _real = !!_ce;
-        if (!_real) _callEtaFetch(call, pt);
+        if (!_real && _etaWantFor(call)) _callEtaFetch(call, pt);
         const gm = _real ? _ce.mins : _etaMin(mi);
         const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
         const gbg= gm<=5?'#dcfce7':gm<=12?'#fef3c7':'#f3f4f6';
@@ -8697,6 +8720,7 @@ async function fillCardETAs() {
 
 // Fill the "Your Estimated ETA" chip inside the call detail modal (mirrors fillCardETAs)
 async function fillDetailETA(call) {
+  if (call && call.id) _etaWanted[call.id] = true;
   const box = document.getElementById('detail-eta-'+call.id);
   if (!box || !call || !call.address) return;
   if (call.status==='done' || call.status==='cancelled') return;
@@ -11304,6 +11328,7 @@ function stopLocationSharing(callId){
   } catch(e){}
 }
 
+const _liveEtaLast = {}; // callId -> last real drive time while sharing location
 async function _writeLiveLocation(callId, lat, lng){
   const now = Date.now();
   const call = (STATE.calls||[]).find(c => c.id === callId);
@@ -11316,7 +11341,13 @@ async function _writeLiveLocation(callId, lat, lng){
   try {
     let dest = _locDestCache[callId];
     if (!dest){ dest = await geocodeCallAddress(call); if (dest) _locDestCache[callId] = dest; }
-    if (dest) liveEtaMin = await _googleDriveMins({ lat, lng }, dest);
+    const _le = _liveEtaLast[callId];
+    if (dest && _le && (now-_le.ts) < 180000 && _haversineMi(_le.lat,_le.lng,lat,lng) < 1) {
+      liveEtaMin = Math.max(1, _le.mins - Math.floor((now-_le.ts)/60000)); // count down between lookups
+    } else if (dest) {
+      liveEtaMin = await _googleDriveMins({ lat, lng }, dest);
+      if (liveEtaMin) _liveEtaLast[callId] = { mins: liveEtaMin, ts: now, lat, lng };
+    }
   } catch(e){
     // Fall back to OSRM if Google routing is unavailable
     try { const d=_locDestCache[callId]; if(d) liveEtaMin = await calcOsrmEtaMin(lat, lng, d.lat, d.lng); } catch(e2){}
@@ -11558,8 +11589,7 @@ async function openAddressPreview(call) {
         if (!_gDirSvc) _gDirSvc = new google.maps.DirectionsService();
         _gDirSvc.route({
           origin: { lat:_myLoc.lat, lng:_myLoc.lng }, destination: pt,
-          travelMode: google.maps.TravelMode.DRIVING,
-          drivingOptions: { departureTime: new Date(), trafficModel: 'bestguess' }
+          travelMode: google.maps.TravelMode.DRIVING
         }, (r, status) => {
           const etaEl = document.getElementById('__ap_eta_txt');
           const distEl = document.getElementById('__ap_dist');
