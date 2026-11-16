@@ -46,7 +46,7 @@
   function cmViewers(){ return (_cmState&&Array.isArray(_cmState.viewers))?_cmState.viewers:[]; }
   function cmIsViewer(){ var u=myUnit(); return cmViewers().some(function(v){ return U(v.unit)===u; }); }
   function cmAmAdmin(){ return typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin'; }
-  function cmAmSearchSup(){ return typeof SESSION!=='undefined'&&SESSION&&String(SESSION.role||'').toLowerCase().indexOf('search supervisor')>=0; }
+  function cmAmSearchSup(){ try{ if(typeof _myRoleStr==='function') return _myRoleStr().indexOf('search supervisor')>=0; }catch(e){} return typeof SESSION!=='undefined'&&SESSION&&String((SESSION.roleStr||'')+' '+(SESSION.role||'')).toLowerCase().indexOf('search supervisor')>=0; }
   function cmAmDispatcher(){ return typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='dispatch'; }
   function cmAmOnDuty(){ try{ return (_onDutyDispatchUnits()||[]).map(U).indexOf(myUnit())>=0; }catch(e){ return false; } }
   // Missing Person: admins AND on-duty dispatchers get automatic staff access (off-duty
