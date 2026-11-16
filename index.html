@@ -13369,7 +13369,7 @@ function renderAdminLeaderboard(selId, listId, searchId){
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div style="font-size:15px;font-weight:800;color:var(--gold-light,#e6c463);">${r.total}</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.55);">P${r.p}·B${r.b}${r.o?'·O'+r.o:''}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.55);">Went on ${r.p+r.b}${r.o?' · Observed '+r.o:''}</div>
       </div>
     </div>`;
   }).join('');
@@ -17426,7 +17426,7 @@ function buildCompareResult() {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:4px;font-size:12px;margin-bottom:14px;">
-        ${[['Primary',a.mp,b.mp],['Backup',a.mb,b.mb],['Other',a.mo,b.mo]].map(([lbl,av,bv])=>`
+        ${[['Went on',(a.mp||0)+(a.mb||0),(b.mp||0)+(b.mb||0)],['Observed',a.mo,b.mo]].map(([lbl,av,bv])=>`
           <div style="text-align:right;font-weight:${av>=bv?'700':'400'};color:${av>bv?'var(--blue)':'var(--text2)'};">${av}</div>
           <div style="text-align:center;color:var(--text3);font-size:10px;padding:2px 0;">${lbl}</div>
           <div style="font-weight:${bv>=av?'700':'400'};color:${bv>av?'var(--blue)':'var(--text2)'};">${bv}</div>`).join('')}
