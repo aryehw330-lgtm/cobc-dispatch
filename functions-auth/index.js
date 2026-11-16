@@ -315,3 +315,66 @@ exports.cutOffRemovedMembers = onSchedule({ schedule: 'every 60 minutes', region
   } while (next);
   console.log('cutOff: roster=' + roster.size + ' cut off=' + (cut.join(', ') || 'none'));
 });
+
+
+// ── Full monthly backup (runs nightly; writes once per month) ─────────────────
+// Copies EVERY call plus the logs, stats and settings into fullBackups/<YYYY-MM>,
+// gzipped and split into parts under the 1 MB document limit. The database rules
+// block fullBackups from every app user (no rule matches it), so only this server
+// code can read or write it. If a month's copy is missing or failed, the next
+// night tries again. Keeps the last 24 months.
+const zlib = require('zlib');
+const FULL_BACKUP_COLLECTIONS = [
+  'calls', 'auditLog', 'statsHistory', 'callerProfiles', 'commandHistory', 'commandLog',
+  'commandLocations', 'config', 'members', 'callTypes', 'telzioCalls',
+  'equipmentHistory', 'cobc4History', 'checklistHistory', 'reportHistory'
+];
+const FULL_BACKUP_KEEP_MONTHS = 24;
+const PART_CHARS = 900000;
+
+function _nyMonthKey(d) {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit' }).formatToParts(d);
+  return p.find(x => x.type === 'year').value + '-' + p.find(x => x.type === 'month').value;
+}
+
+async function runFullBackup() {
+  const db = admin.firestore();
+  const key = _nyMonthKey(new Date());
+  const head = db.collection('fullBackups').doc(key);
+  const cur = await head.get();
+  if (cur.exists && cur.data().complete) { console.log('fullBackup: ' + key + ' already done'); return; }
+
+  const collections = {}, counts = {};
+  for (const c of FULL_BACKUP_COLLECTIONS) {
+    const snap = await db.collection(c).get();
+    collections[c] = snap.docs.map(d => ({ id: d.id, data: d.data() }));
+    counts[c] = snap.size;
+  }
+  const json = JSON.stringify({ at: Date.now(), month: key, collections });
+  const b64 = zlib.gzipSync(Buffer.from(json, 'utf8')).toString('base64');
+  const parts = Math.ceil(b64.length / PART_CHARS);
+
+  // Clear any half-written attempt, then write the parts, then mark complete.
+  const old = await head.collection('parts').get();
+  for (const d of old.docs) await d.ref.delete();
+  for (let i = 0; i < parts; i++) {
+    await head.collection('parts').doc(String(i).padStart(4, '0')).set({ i, data: b64.slice(i * PART_CHARS, (i + 1) * PART_CHARS) });
+  }
+  await head.set({ month: key, at: Date.now(), parts, counts, rawBytes: json.length, gzBase64Chars: b64.length, complete: true });
+  console.log('fullBackup: ' + key + ' written — ' + parts + ' part(s), counts ' + JSON.stringify(counts));
+
+  // Keep the newest 24 months.
+  const all = await db.collection('fullBackups').orderBy('month', 'desc').get();
+  const extra = all.docs.slice(FULL_BACKUP_KEEP_MONTHS);
+  for (const d of extra) {
+    const ps = await d.ref.collection('parts').get();
+    for (const p of ps.docs) await p.ref.delete();
+    await d.ref.delete();
+    console.log('fullBackup: removed old ' + d.id);
+  }
+}
+
+exports.monthlyFullBackup = onSchedule(
+  { schedule: 'every day 03:15', region: 'us-east1', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB' },
+  async () => { await runFullBackup(); }
+);
