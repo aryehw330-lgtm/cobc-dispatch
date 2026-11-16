@@ -1,6 +1,35 @@
 <!DOCTYPE html>
 <html lang="en" class="booting">
 <head>
+<script>
+/* iPhone "tap" feel: Apple ignores navigator.vibrate in web apps. On iOS 18+, toggling a
+   hidden switch control gives the system haptic tick, so vibrate() calls map to that. */
+(function(){
+  var isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(!isIOS) return;
+  var lbl=null;
+  function tick(){
+    try{
+      if(!lbl){
+        var i=document.createElement('input'); i.type='checkbox'; i.setAttribute('switch',''); i.id='__hapticSw'; i.tabIndex=-1;
+        i.setAttribute('aria-hidden','true'); i.style.cssText='position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none;';
+        lbl=document.createElement('label'); lbl.htmlFor='__hapticSw'; lbl.setAttribute('aria-hidden','true');
+        lbl.style.cssText='position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none;';
+        var stop=function(e){ e.stopPropagation(); };
+        i.addEventListener('click',stop); i.addEventListener('change',stop); lbl.addEventListener('click',stop);
+        document.body.appendChild(i); document.body.appendChild(lbl);
+      }
+      lbl.click();
+    }catch(e){}
+  }
+  navigator.vibrate=function(p){
+    var n=Array.isArray(p)?Math.ceil(p.length/2):1; tick();
+    for(var k=1;k<Math.min(n,3);k++) setTimeout(tick,k*120);
+    return true;
+  };
+})();
+</script>
+
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
