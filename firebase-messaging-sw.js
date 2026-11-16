@@ -146,12 +146,25 @@ function _firstTime(tag) {
   _seenTags.set(tag, now);
   return true;
 }
+// One alert is often sent down several paths (a dispatcher who is also an admin gets
+// the dispatch send, the admin send and the admin-topic backstop), and each copy has
+// its own tag. Show the same title + text only once within 30 seconds.
+const _seenText = new Map();
+function _firstText(title, body) {
+  const k = String(title || '') + '|' + String(body || '');
+  const now = Date.now();
+  for (const [kk, t] of _seenText) if (now - t > 30 * 1000) _seenText.delete(kk);
+  if (_seenText.has(k)) return false;
+  _seenText.set(k, now);
+  return true;
+}
 
 // Background notifications — shown when app is closed or in background
 messaging.onBackgroundMessage((payload) => {
   if (!_firstTime(payload.data?.tag)) return;
   const title = payload.notification?.title || payload.data?.title || 'COBC Dispatch';
   const body  = payload.notification?.body  || payload.data?.body  || '';
+  if (!_firstText(title, body)) return;
   const url   = payload.data?.url || '/';
 
   self.registration.showNotification(title, {
@@ -170,6 +183,7 @@ self.addEventListener('message', (event) => {
   if (event.data?.type === 'SHOW_NOTIFICATION') {
     const { title, body, data } = event.data;
     if (!_firstTime(data?.tag)) return;
+    if (!_firstText(title, body)) return;
     self.registration.showNotification(title || 'COBC Dispatch', {
       body: body || '',
       icon: '/cobc-dispatch/icon-192.png',

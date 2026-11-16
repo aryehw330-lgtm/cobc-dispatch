@@ -3645,6 +3645,8 @@ async function initPushModule() {
     _fcmMessaging.onMessage((payload) => {
       const t = payload.notification?.title || payload.data?.title || 'COBC';
       const b = payload.notification?.body  || payload.data?.body  || '';
+      // Same alert sent down several paths (dispatch + admin + admin topic): show it once per 30 s
+      try{ const _k=t+'|'+b, _n=Date.now(); window._fgSeen=window._fgSeen||{}; if(_fgSeen[_k] && _n-_fgSeen[_k]<30000) return; _fgSeen[_k]=_n; }catch(e){}
       // Show in-app toast
       showToast('🔔 ' + t + (b ? ': ' + b : ''));
       // Also ask the service worker to show a system banner (works on Android/desktop;
