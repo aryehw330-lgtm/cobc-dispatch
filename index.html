@@ -68,9 +68,6 @@ window.__loadQRLib=function(){
   tryNext();
 };
 </script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 // ─────────────────────────────────────────────────────────────
 // Google Maps API key
@@ -11767,6 +11764,7 @@ async function openLiveMap(callId) {
       });
     } catch(e) {
       console.warn('[LiveMap] Google Maps failed, falling back to Leaflet:', e.message);
+      await _ensureLeaflet();
       _liveMap = L.map('liveMapDiv', { zoomControl: true }).setView([40.92, -74.05], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap'
@@ -16724,11 +16722,21 @@ function buildMyDispatchBlock() {
 }
 
 
+// Chart tool + backup map tool load only when a screen needs them (not on every app start).
+const _lazyLoads={};
+function _loadScriptOnce(src){
+  if(!_lazyLoads[src]) _lazyLoads[src]=new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=src; sc.onload=res; sc.onerror=()=>{ delete _lazyLoads[src]; rej(new Error('load failed: '+src)); }; document.head.appendChild(sc); });
+  return _lazyLoads[src];
+}
+function _loadCssOnce(href){ if(document.querySelector('link[href="'+href+'"]')) return; const l=document.createElement('link'); l.rel='stylesheet'; l.href=href; document.head.appendChild(l); }
+const _CHART_JS='https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js';
+async function _ensureLeaflet(){ _loadCssOnce('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'); if(typeof L==='undefined') await _loadScriptOnce('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'); }
 function destroyChart(id){if(stCharts[id]){try{stCharts[id].destroy();}catch(e){}delete stCharts[id];}}
 function mkChart(id,cfg){
   destroyChart(id);
   const canvas=document.getElementById(id);
   if(!canvas)return;
+  if(typeof Chart==='undefined'){ _loadScriptOnce(_CHART_JS).then(()=>{ if(document.getElementById(id)) mkChart(id,cfg); }).catch(e=>console.warn(e)); return; }
   stCharts[id]=new Chart(canvas.getContext('2d'),cfg);
 }
 
