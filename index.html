@@ -7330,6 +7330,7 @@ function initApp() {
 }
 
 function signOut() {
+  try{ localStorage.removeItem('cobc_qr_signin'); }catch(e){} // also forget the 12-hour sticker sign-in
   if(!confirm('Sign out?')) return;
   // Clear session + auth flags, then HARD RELOAD. A reload is the only reliable
   // way to tear down all live Firestore listeners, the call-merge logic, and the
