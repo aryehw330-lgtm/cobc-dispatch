@@ -10598,6 +10598,13 @@ function openCallDetail(id) {
     html+=`<div class="rerequest-banner"><div class="rerequest-count">↻${call.rrCount}</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;">Re-requests sent</div><div style="font-size:11px;color:var(--text2);">Last: ${call.rrLastSent?new Date(call.rrLastSent).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'-'}</div></div></div>`;
   }
 
+  // Caller waiver (JotForm): shown to members on the call and to dispatch
+  {
+    const _wu=String(SESSION.unit||'').replace(/^BC-?/i,'').trim();
+    const _wOn=(call.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_wu);
+    if(call.status!=='draft' && call.status!=='cancelled' && (isDispatch || _wOn)) html+=_waiverBoxHTML(call);
+  }
+
   // Actions
   html+=`<div class="detail-actions">`;
   // Members only see Caller/Backup once the call is ACTIVE and they're assigned to it.
@@ -10687,6 +10694,28 @@ function openCallDetail(id) {
   showModal('callDetailModal');
   setTimeout(()=>{ try{ fitDetailAddress(); }catch(e){} try{ fitDetailTitle(); }catch(e){} }, 0);
   try { fillDetailETA(call); } catch(e){}
+}
+
+// ── Caller waiver (same JotForm link the WhatsApp dispatch message uses) ──
+const WAIVER_URL='https://form.jotform.com/212776438913868';
+function _waiverBoxHTML(call){
+  const ph=String(call.phone||'').replace(/\D+/g,'');
+  return `<div style="margin:10px 0 12px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.08);border:1.5px solid rgba(37,99,235,.35);">
+    <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--text);">📝 Please have the caller sign the waiver</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-sm" style="flex:1;background:var(--blue);color:#fff;border:none;font-weight:800;" onclick="_openWaiver()">📝 Caller waiver</button>
+      ${ph?`<button class="btn-sm" style="flex:1;background:#dcfce7;color:#15803d;border:none;font-weight:800;" onclick="_textWaiver('${call.id}')">💬 Text to caller</button>`:''}
+    </div>
+  </div>`;
+}
+function _openWaiver(){ try{ window.open(WAIVER_URL,'_blank','noopener'); }catch(e){ location.href=WAIVER_URL; } }
+function _textWaiver(id){
+  const c=(STATE.calls||[]).find(x=>x.id===id); if(!c) return;
+  let ph=String(c.phone||'').replace(/\D+/g,'');
+  if(ph.length===10) ph='+1'+ph; else if(ph.length===11&&ph[0]==='1') ph='+'+ph;
+  const body='Chaverim of Bergen County: please sign our waiver before we help you: '+WAIVER_URL;
+  const sep=/iPhone|iPad|iPod/.test(navigator.userAgent)?'&':'?';
+  location.href='sms:'+ph+sep+'body='+encodeURIComponent(body);
 }
 
 function renderCallDetail(id) { openCallDetail(id); } // alias for re-render after status change
