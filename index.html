@@ -6041,65 +6041,150 @@ function _fsRestFetchCallsScoped(){
 // REST — works even through iOS ITP) the first time those views open, then
 // merge with the live set.
 function _recentWindowStartMs(){ return Date.now() - 7*86400000; }
-const _ARCHIVE_CACHE_KEY = 'cobc_archiveCalls_v1';
+// ── Call-history archive (History + Stats) ───────────────────────────────────
+// Kept on the phone in IndexedDB, one record per year (room for many years —
+// localStorage tops out around 5 MB on iPhone, which a couple of years of calls
+// would fill). First open on a phone: THIS year is fetched first so History/Stats
+// show right away, then older years load in the background, 500 calls per request.
+// Every later open only asks the server for calls created, changed or deleted
+// since the last check — a handful of reads, no matter how many years pile up.
+const _ARCHIVE_CACHE_KEY = 'cobc_archiveCalls_v1';      // old localStorage copy (migrated, then removed)
 const _ARCHIVE_CACHE_META_KEY = 'cobc_archiveMeta_v1';
+const _HIST_DB='cobc-history', _HIST_STORE='kv';
 let _archiveCalls=[], _archiveLoaded=false, _archiveLoading=null;
-
-// Load whatever's cached from localStorage synchronously (fast, no network).
-// Returns the cached max createdAt seen (0 if nothing cached / cache unusable).
-function _loadArchiveCacheSync(){
-  try{
-    const meta = JSON.parse(localStorage.getItem(_ARCHIVE_CACHE_META_KEY)||'null');
-    const raw  = localStorage.getItem(_ARCHIVE_CACHE_KEY);
-    if(!meta || !raw) return 0;
-    const arr = JSON.parse(raw);
-    if(!Array.isArray(arr)) return 0;
-    _archiveCalls = arr;
-    return meta.maxCreatedAt || 0;
-  }catch(e){ console.warn('archive cache load failed:', e); return 0; }
+let _archiveCheckedAt=0, _archiveComplete=false, _archiveTopUpAt=0, _archiveTopping=null;
+let _histDbP=null;
+function _histDb(){
+  if(_histDbP) return _histDbP;
+  _histDbP=new Promise((res,rej)=>{
+    try{ const r=indexedDB.open(_HIST_DB,1);
+      r.onupgradeneeded=()=>{ try{ r.result.createObjectStore(_HIST_STORE); }catch(e){} };
+      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }
+    catch(e){ rej(e); }
+  });
+  _histDbP.catch(()=>{ _histDbP=null; });
+  return _histDbP;
 }
+function _histGet(key){ return _histDb().then(db=>new Promise((res,rej)=>{ const q=db.transaction(_HIST_STORE).objectStore(_HIST_STORE).get(key); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); })); }
+function _histPutMany(entries){ return _histDb().then(db=>new Promise((res,rej)=>{ const t=db.transaction(_HIST_STORE,'readwrite'); const st=t.objectStore(_HIST_STORE); entries.forEach(([k,v])=>st.put(v,k)); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error); })); }
+function _callYear(c){ return (c&&c.createdAt) ? new Date(c.createdAt).getFullYear() : 0; }
+function _mergeIntoArchive(list){
+  if(!Array.isArray(list)||!list.length) return 0;
+  const map=new Map(); _archiveCalls.forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
+  let n=0; list.forEach(c=>{ if(c&&c.id){ map.set(c.id,c); n++; } });
+  _archiveCalls=[...map.values()]; return n;
+}
+// Save the archive to the phone (all years in one transaction; quota errors are non-fatal).
 function _saveArchiveCacheAsync(){
   try{
-    let maxTs = 0;
-    _archiveCalls.forEach(c=>{ if(c && c.createdAt > maxTs) maxTs = c.createdAt; });
-    localStorage.setItem(_ARCHIVE_CACHE_KEY, JSON.stringify(_archiveCalls));
-    localStorage.setItem(_ARCHIVE_CACHE_META_KEY, JSON.stringify({maxCreatedAt:maxTs, savedAt:Date.now()}));
-  }catch(e){
-    // Quota exceeded or storage unavailable — non-fatal, just means next reload
-    // pays the full-fetch cost again instead of an incremental one.
-    console.warn('archive cache save skipped:', e);
-  }
+    let maxTs=0; const byYear={};
+    _archiveCalls.forEach(c=>{ if(!c) return; if((c.createdAt||0)>maxTs) maxTs=c.createdAt; const y=_callYear(c); (byYear[y]=byYear[y]||[]).push(c); });
+    const years=Object.keys(byYear);
+    const entries=years.map(y=>['y'+y, byYear[y]]);
+    entries.push(['meta',{years, maxCreatedAt:maxTs, checkedAt:_archiveCheckedAt, complete:_archiveComplete, savedAt:Date.now()}]);
+    _histPutMany(entries).catch(e=>console.warn('history cache save skipped:', e));
+  }catch(e){ console.warn('history cache save skipped:', e); }
 }
-
-function ensureFullCallHistory(){
-  if(_archiveLoaded) return Promise.resolve();
-  if(_archiveLoading) return _archiveLoading;
-  const cachedMax = _loadArchiveCacheSync();
-  if(cachedMax > 0){
-    // We have a cache — trust it immediately (no UI wait), then top up with
-    // anything created since the cache was last saved, in the background.
-    _archiveLoaded = true;
-    _archiveLoading = _fsRunQuery('calls', {fieldFilter:{field:{fieldPath:'createdAt'}, op:'GREATER_THAN', value:{integerValue:String(Math.floor(cachedMax))}}})
-      .then(newCalls=>{
-        if(Array.isArray(newCalls) && newCalls.length){
-          const map = new Map();
-          _archiveCalls.forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
-          newCalls.forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
-          _archiveCalls = [...map.values()];
-          _saveArchiveCacheAsync();
-          try{ refreshStatsIfVisible&&refreshStatsIfVisible(); }catch(e){}
-        }
-        _archiveLoading = null;
-      })
-      .catch(e=>{ _archiveLoading = null; console.warn('archive top-up failed:', e); });
-    return Promise.resolve(); // don't make callers wait on the top-up
+function _loadArchiveCache(){
+  return _histGet('meta').then(meta=>{
+    if(meta && Array.isArray(meta.years)){
+      return Promise.all(meta.years.map(y=>_histGet('y'+y))).then(arrs=>{
+        _archiveCalls=[].concat(...arrs.map(a=>Array.isArray(a)?a:[]));
+        return meta;
+      });
+    }
+    // One-time move of the old localStorage copy into IndexedDB (frees phone storage).
+    try{
+      const om=JSON.parse(localStorage.getItem(_ARCHIVE_CACHE_META_KEY)||'null');
+      const raw=localStorage.getItem(_ARCHIVE_CACHE_KEY);
+      const arr=raw?JSON.parse(raw):null;
+      if(om && Array.isArray(arr)){
+        _archiveCalls=arr;
+        const m={maxCreatedAt:om.maxCreatedAt||0, checkedAt:om.savedAt||0, complete:true};
+        _archiveCheckedAt=m.checkedAt; _archiveComplete=true; _saveArchiveCacheAsync();
+        try{ localStorage.removeItem(_ARCHIVE_CACHE_KEY); localStorage.removeItem(_ARCHIVE_CACHE_META_KEY); }catch(e){}
+        return m;
+      }
+    }catch(e){}
+    return null;
+  }).catch(e=>{ console.warn('history cache unavailable:', e); return null; });
+}
+// All calls where `field` is past `after` (and before `before`, if given), oldest first,
+// 500 per request. Pages overlap by one value so calls sharing a timestamp are never skipped.
+function _fsCallsRange(field, after, before, collection){
+  const url=`https://firestore.googleapis.com/v1/projects/cobc-dispatch/databases/(default)/documents:runQuery`;
+  const LIM=500, seen=new Map();
+  function page(from){
+    const lo=(from!=null)?from:after;
+    const filters=[{fieldFilter:{field:{fieldPath:field},op:(from!=null?'GREATER_THAN_OR_EQUAL':'GREATER_THAN'),value:{integerValue:String(Math.floor(lo))}}}];
+    if(before) filters.push({fieldFilter:{field:{fieldPath:field},op:'LESS_THAN',value:{integerValue:String(Math.floor(before))}}});
+    const q={from:[{collectionId:collection||'calls'}], where:(filters.length>1?{compositeFilter:{op:'AND',filters}}:filters[0]), orderBy:[{field:{fieldPath:field},direction:'ASCENDING'}], limit:LIM};
+    return _fsIdToken().then(tok=>{
+      const opts=Object.assign({}, _fsRestOpts(tok));
+      opts.method='POST'; opts.headers=Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+      opts.body=JSON.stringify({structuredQuery:q});
+      return fetch(url,opts);
+    }).then(r=>r.json()).then(rows=>{
+      if(!Array.isArray(rows)) throw new Error((rows&&rows.error&&rows.error.message)||'query failed');
+      let n=0, last=null, fresh=0;
+      rows.forEach(row=>{
+        const doc=row&&row.document; if(!doc) return;
+        const obj={id:doc.name.split('/').pop()};
+        Object.entries(doc.fields||{}).forEach(([k,v])=>{obj[k]=_fsVal(v);});
+        n++; last=obj[field]; if(!seen.has(obj.id)) fresh++; seen.set(obj.id,obj);
+      });
+      return (n>=LIM && fresh>0 && last!=null) ? page(last) : [...seen.values()];
+    });
   }
-  // No usable cache — first time on this device, pay the full cost once.
-  _archiveLoading=_fsRestFetch('calls').then(all=>{
-    _archiveCalls=Array.isArray(all)?all:[];
-    _archiveLoaded=true; _archiveLoading=null;
-    _saveArchiveCacheAsync();
-  }).catch(e=>{ _archiveLoading=null; console.warn('history archive load failed:',e); });
+  return page(null);
+}
+// Older years, in the background after this year is showing.
+function _loadOlderYears(yearStart){
+  return _fsCallsRange('createdAt', 0, yearStart).then(older=>{
+    _mergeIntoArchive(older); _archiveComplete=true; _saveArchiveCacheAsync();
+    try{ refreshStatsIfVisible&&refreshStatsIfVisible(); }catch(e){}
+  }).catch(e=>console.warn('older history load failed (will retry next open):', e));
+}
+// Only what changed since the last check: new calls, edited calls, deleted calls.
+function _topUpArchive(force){
+  if(_archiveTopping) return _archiveTopping;
+  if(!force && Date.now()-_archiveTopUpAt < 60000) return Promise.resolve();
+  _archiveTopUpAt=Date.now();
+  const since=Math.max(0,(_archiveCheckedAt||0)-5*60000), now=Date.now();
+  _archiveTopping=Promise.all([
+    _fsCallsRange('createdAt', since),
+    _fsCallsRange('updatedAt', since),
+    _fsCallsRange('ts', since, null, 'auditLog').catch(()=>[])
+  ]).then(([made,changed,audit])=>{
+    let n=_mergeIntoArchive(made)+_mergeIntoArchive(changed);
+    const gone=new Set((audit||[]).filter(e=>e&&e.action==='deleted'&&e.callId).map(e=>String(e.callId)));
+    if(gone.size){ const before=_archiveCalls.length; _archiveCalls=_archiveCalls.filter(c=>!gone.has(String(c.id))); n+=before-_archiveCalls.length; }
+    _archiveCheckedAt=now; _saveArchiveCacheAsync();
+    if(n){ try{ refreshStatsIfVisible&&refreshStatsIfVisible(); }catch(e){} }
+  }).catch(e=>console.warn('history top-up failed:', e)).then(()=>{ _archiveTopping=null; });
+  return _archiveTopping;
+}
+function ensureFullCallHistory(){
+  if(_archiveLoaded){ _topUpArchive(); return Promise.resolve(); }
+  if(_archiveLoading) return _archiveLoading;
+  const yearStart=new Date(new Date().getFullYear(),0,1).getTime();
+  _archiveLoading=_loadArchiveCache().then(meta=>{
+    if(meta){
+      // Phone already has history — show it now, refresh in the background.
+      _archiveLoaded=true; _archiveCheckedAt=meta.checkedAt||0; _archiveComplete=!!meta.complete;
+      _archiveLoading=null;
+      _topUpArchive(true);
+      if(!_archiveComplete) _loadOlderYears(yearStart);
+      return;
+    }
+    // First time on this phone: this year first, older years after.
+    const startedAt=Date.now();
+    return _fsCallsRange('createdAt', yearStart-1).then(cur=>{
+      _archiveCalls=cur; _archiveLoaded=true; _archiveLoading=null;
+      _archiveCheckedAt=startedAt; _archiveComplete=false; _saveArchiveCacheAsync();
+      _loadOlderYears(yearStart);
+    });
+  }).catch(e=>{ _archiveLoading=null; console.warn('history archive load failed:', e); });
   return _archiveLoading;
 }
 // Live calls ∪ archived calls, deduped (the live copy always wins — it's freshest).
@@ -6345,7 +6430,7 @@ function initFirestore(){
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
-async function firestoreUpsertCall(call){try{await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
+async function firestoreUpsertCall(call){try{ if(call) call.updatedAt=Date.now(); /* lets History pick up edits to older calls */ await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
 
 var _savePending = false;
 function save() {
