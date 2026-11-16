@@ -10510,6 +10510,7 @@ function openCallDetail(id) {
         : `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:13px 6px;background:var(--border2,#eef0f3);color:var(--text2);font-weight:800;font-size:13px;">⏳ Waiting for approval</div>`)
       +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="deleteCall('${id}')">🗑️ Delete Draft</button>`
       +`</div>`
+      +(_canAp ? `<div style="margin-top:8px;"><button class="btn-full" style="background:rgba(37,99,235,.14);color:var(--text);border:1.5px solid rgba(37,99,235,.45);font-weight:800;border-radius:12px;padding:12px 6px;" onclick="openCallEdit('${id}')">✏️ Edit before sending</button></div>` : '')
       +`<div style="margin-top:8px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
   } else if(call.status==='draft' && isDispatch){
     html+=`</div><div style="margin-top:12px;display:flex;gap:8px;">`
@@ -10903,8 +10904,11 @@ function saveCallEdit() {
   // Notify everyone of the edit — push + WhatsApp, "Update to Call #X" + details
   const _eLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const _eDetails=[_eLabel+' — '+fmtLoc(call), call.priority==='urgent'?'⚠️ URGENT':'', call.notes?('Notes: '+call.notes):''].filter(Boolean).join(' · ');
-  setTimeout(()=>{ try{ sendPush({target:'all',title:`✏️ Update to Call #${call.callNum||''}`,body:_eDetails,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
-  setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgUpdate(call) }); }catch(e){} },800);
+  // A draft (e.g. a Missing Person waiting for approval) hasn't gone out yet — editing it must stay silent.
+  if(call.status!=='draft'){
+    setTimeout(()=>{ try{ sendPush({target:'all',title:`✏️ Update to Call #${call.callNum||''}`,body:_eDetails,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgUpdate(call) }); }catch(e){} },800);
+  }
   openCallDetail(id);
 }
 
