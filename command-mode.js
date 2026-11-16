@@ -46,6 +46,7 @@
   function cmViewers(){ return (_cmState&&Array.isArray(_cmState.viewers))?_cmState.viewers:[]; }
   function cmIsViewer(){ var u=myUnit(); return cmViewers().some(function(v){ return U(v.unit)===u; }); }
   function cmAmAdmin(){ return typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin'; }
+  function cmAmSearchSup(){ return typeof SESSION!=='undefined'&&SESSION&&String(SESSION.role||'').toLowerCase().indexOf('search supervisor')>=0; }
   function cmAmDispatcher(){ return typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='dispatch'; }
   function cmAmOnDuty(){ try{ return (_onDutyDispatchUnits()||[]).map(U).indexOf(myUnit())>=0; }catch(e){ return false; } }
   // Missing Person: admins AND on-duty dispatchers get automatic staff access (off-duty
@@ -359,8 +360,29 @@
       else showToast('A '+(cmIsMissing()?'Missing Person':'Command')+' op is already active — end it first.');
       return;
     }
-    if(!cmAmAdmin()){ showToast('Admins only'); return; }
+    // Missing Person searches: admins and Search Supervisors. Command nights: admins only.
+    if(!(cmAmAdmin()||(type==='missing'&&cmAmSearchSup()))){ showToast(type==='missing'?'Admins and Search Supervisors only':'Admins only'); return; }
     _cmStartFlow(type);
+  }
+  // Right after a Missing Person call is approved: open the search setup already linked
+  // to that call, with the last-seen place and notes filled in from the call.
+  function cmStartSearchForCall(callId){
+    if(cmIsActive()){ showToast('A '+(cmIsMissing()?'Missing Person':'Command')+' op is already active — end it first.'); return; }
+    if(!(cmAmAdmin()||cmAmSearchSup())){ showToast('Admins and Search Supervisors only'); return; }
+    var call=(STATE.calls||[]).find(function(c){ return c.id===callId; });
+    _cmStartFlow('missing');
+    cmSetLinkMode('existing');
+    var sel=document.getElementById('cmLinkCall');
+    if(sel && call){
+      if(![].some.call(sel.options,function(o){ return o.value===callId; })){
+        var o=document.createElement('option'); o.value=callId; o.textContent=(call.callNum?('#'+call.callNum+' '):'')+'Missing Person'; sel.appendChild(o);
+      }
+      sel.value=callId;
+    }
+    if(call){
+      var a=document.getElementById('mpLastSeenAddr'); if(a&&!a.value) a.value=[call.address,call.town].filter(Boolean).join(', ');
+      var d=document.getElementById('mpDesc'); if(d&&!d.value&&call.notes) d.value=call.notes;
+    }
   }
 
   // ── Start flow: choose call linkage, (missing) subject, members ─────────────
@@ -1626,7 +1648,7 @@
   Object.assign(window, {
     initCommandMode:initCommandMode, openCommandModeAdmin:openCommandModeAdmin, openMissingPersonAdmin:openMissingPersonAdmin,
     openCommandView:openCommandView, closeCommandView:closeCommandView, cmToggleMapExpand:cmToggleMapExpand, cmMemberSignOut:cmMemberSignOut, cmMemberChat:cmMemberChat, cmMemberChatTab:cmMemberChatTab, cmMissingInfo:cmMissingInfo, cmMemberChatPhoto:cmMemberChatPhoto, cmMemberChatSend:cmMemberChatSend,
-    cmSetLinkMode:cmSetLinkMode, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
+    cmSetLinkMode:cmSetLinkMode, cmStartSearchForCall:cmStartSearchForCall, cmPhotoPick:cmPhotoPick, cmTogglePick:cmTogglePick, cmConfirmStart:cmConfirmStart,
     cmFilterSetup:cmFilterSetup, cmAddMembers:cmAddMembers, cmFilterAdd:cmFilterAdd, cmConfirmAdd:cmConfirmAdd,
     cmFocusMember:cmFocusMember, cmAssignNearest:cmAssignNearest, cmAssignUnitToCall:cmAssignUnitToCall, cmAssignMember:cmAssignMember, cmApproveResp:cmApproveResp, cmRejectResp:cmRejectResp, cmBroadcast:cmBroadcast,
     cmPromptNote:cmPromptNote, cmChatTab:cmChatTab, cmChatSend:cmChatSend, cmOpenChat:cmOpenChat, cmChatMenu:cmChatMenu, cmEditReport:cmEditReport, cmSaveReport:cmSaveReport,

@@ -10506,7 +10506,7 @@ function openCallDetail(id) {
     html+=`</div><div style="margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.1);border:1.5px solid rgba(37,99,235,.45);font-size:13px;font-weight:700;color:var(--text);">🔍 Missing Person — needs Admin or Search Supervisor approval before it goes out.</div>`
       +`<div style="margin-top:8px;display:flex;gap:8px;">`
       +(_canAp
-        ? `<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="publishCall('${id}');hideModal('callDetailModal')">✅ Approve &amp; Send Out</button>`
+        ? `<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="hideModal('callDetailModal');_mpApproveAndOffer('${id}')">✅ Approve &amp; Send Out</button>`
         : `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:13px 6px;background:var(--border2,#eef0f3);color:var(--text2);font-weight:800;font-size:13px;">⏳ Waiting for approval</div>`)
       +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="deleteCall('${id}')">🗑️ Delete Draft</button>`
       +`</div>`
@@ -10537,6 +10537,16 @@ function _myRoleStr(){
   let s=String((SESSION&&SESSION.roleStr)||'')+' '+String((SESSION&&SESSION.role)||'');
   try{ const me=(STATE.members||[]).find(m=>_normUnit(m.unit)===_normUnit(SESSION.unit)); if(me) s+=' '+String(me.roleStr||'')+' '+String(me.role||me.status||''); }catch(e){}
   return s.toLowerCase();
+}
+// Approve a Missing Person call, then offer to open the search dashboard linked to it
+// (only admins and Search Supervisors can approve, so only they get the offer).
+async function _mpApproveAndOffer(id){
+  try{ await publishCall(id); }catch(e){ console.warn('approve', e); return; }
+  const c=(STATE.calls||[]).find(x=>x.id===id);
+  if(!c || c.needsApproval || c.status==='draft') return;
+  if(typeof cmStartSearchForCall!=='function') return;
+  if(typeof cmIsActive==='function' && cmIsActive()) return;
+  if(confirm('✅ Sent out.\n\nStart the Missing Person search dashboard for this call now?')) cmStartSearchForCall(id);
 }
 function _canApproveMissing(){ const r=_myRoleStr(); return r.includes('admin') || r.includes('search supervisor'); }
 // Let approvers know when a Missing Person call is waiting (once per call per session).
@@ -21159,7 +21169,7 @@ function fmtMemberBadgeD(memberStr) {
   };
 })();
 </script>
-<script src="command-mode.js"></script>
+<script src="command-mode.js?v=20261116"></script>
 </body>
 </html>
 
