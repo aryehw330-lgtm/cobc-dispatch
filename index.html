@@ -4161,13 +4161,13 @@ function sheetPOST(body){return _pushAuth().catch(()=>window._fbIdToken).then(to
   // EXPLICIT failure as failure — responses that simply omit `success` are left alone.
   if(res && (res.success===false || (res.error && res.ok!==true))){
     try{ if(_RETRY_IDEMPOTENT.has(body&&body.action)) _enqueueRetry(body); }catch(e){}
-    try{ showToast('⚠️ Not saved: '+((body&&body.action)||'write')+(res.error?(' — '+res.error):'')+'. Check connection & retry.'); }catch(e){}
+    try{ if(!_EQ_WRITE_ACTIONS.has(body&&body.action)) showToast('⚠️ Not saved: '+((body&&body.action)||'write')+(res.error?(' — '+res.error):'')+'. Check connection & retry.'); else { renderInventory&&renderInventory(); } }catch(e){}
   }
   return res;
 }).catch(err=>{
   // Network failure — enqueue idempotent writes for retry, reject non-idempotent ones immediately
   try{_enqueueRetry(body);}catch(e){}
-  try{ showToast('⚠️ Save failed ('+((body&&body.action)||'write')+') — will retry when back online'); }catch(e){}
+  try{ if(!_EQ_WRITE_ACTIONS.has(body&&body.action)) showToast('⚠️ Save failed ('+((body&&body.action)||'write')+') — will retry when back online'); }catch(e){}
   return Promise.reject(err);
 });}
 
@@ -4194,6 +4194,36 @@ function _loadRetryQueue(){
 function _saveRetryQueue(q){
   try{ localStorage.setItem(_RETRY_STORE_KEY, JSON.stringify(q.slice(-50))); }catch(e){}
 }
+// ── Equipment saves that haven't reached the sheet yet: ⏳ / ⚠️ on the item + a red banner ──
+const _EQ_WRITE_ACTIONS = new Set(['checkInOut','checkInByName']);
+function _eqPendingFor(row){
+  const e=_loadRetryQueue().find(x=>x.body && _EQ_WRITE_ACTIONS.has(x.body.action) && String(x.body.row)===String(row));
+  return e ? (e.failed ? 'failed' : 'saving') : '';
+}
+function _eqSaveBadgeD(row){
+  const st=_eqPendingFor(row);
+  if(st==='failed') return '<span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:10px;">⚠️ not saved</span>';
+  if(st==='saving') return '<span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:10px;">⏳ saving…</span>';
+  return '';
+}
+function _eqUnsavedBanner(){
+  const q=_loadRetryQueue().filter(x=>x.body && _EQ_WRITE_ACTIONS.has(x.body.action) && (x.failed || (x.attempts||0)>=2));
+  let b=document.getElementById('eqUnsavedBannerD');
+  if(!q.length){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.id='eqUnsavedBannerD'; b.onclick=_eqRetryNow;
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top));font-size:14px;font-weight:700;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3);';
+    document.body.appendChild(b); }
+  const e=q[0], it=(STATE.equipment||[]).find(x=>String(x.row)===String(e.body.row));
+  const verb=(String(e.body.status||'').toUpperCase()==='OUT'?'check-out':'check-in');
+  b.textContent = q.length===1 ? ('⚠️ '+((it&&it.name)||'Item')+' '+verb+" didn't save to the sheet. Tap to retry")
+                               : ('⚠️ '+q.length+" check-ins/outs didn't save to the sheet. Tap to retry");
+}
+function _eqRetryNow(){
+  const q=_loadRetryQueue(); q.forEach(e=>{ if(e.body && _EQ_WRITE_ACTIONS.has(e.body.action)){ e.failed=false; e.attempts=0; e.nextAt=0; } });
+  _saveRetryQueue(q); showToast('Retrying…'); _drainRetryQueue();
+}
+// On app open: give failed equipment saves one fresh try (banner returns if it still fails).
+try{ const _q0=_loadRetryQueue(); let _ch=false; _q0.forEach(e=>{ if(e.failed){ e.failed=false; e.attempts=_RETRY_MAX-1; e.nextAt=0; _ch=true; } }); if(_ch) _saveRetryQueue(_q0); }catch(e){}
 function _enqueueRetry(body){
   if(!body||!body.action) return;
   if(!_RETRY_IDEMPOTENT.has(body.action)) return; // non-idempotent — never retry
@@ -4212,7 +4242,7 @@ async function _drainRetryQueue(){
   const now = Date.now();
   const stillPending = [];
   for(const entry of q){
-    if(entry.nextAt > now){ stillPending.push(entry); continue; }
+    if(entry.failed || entry.nextAt > now){ stillPending.push(entry); continue; }
     entry.attempts = (entry.attempts||0) + 1;
     try{
       const _tk = await _pushAuth().catch(()=>window._fbIdToken);
@@ -4232,11 +4262,18 @@ async function _drainRetryQueue(){
         console.log('[retry] will retry', entry.body.action, 'in', Math.round((entry.nextAt-Date.now())/1000)+'s');
       } else {
         console.warn('[retry] gave up on:', entry.body.action, err);
-        showToast('⚠️ Sync failed — check connection');
+        if(_EQ_WRITE_ACTIONS.has(entry.body.action)){
+          // Equipment check-in/out: keep it on the phone, show the red banner, wait for a tap / reconnect / next open.
+          entry.failed = true; entry.err = String(err&&err.message||err); stillPending.push(entry);
+          try{ if(navigator.vibrate) navigator.vibrate([200,100,200]); }catch(e){}
+        } else {
+          showToast('⚠️ Sync failed — check connection');
+        }
       }
     }
   }
   _saveRetryQueue(stillPending);
+  try{ _eqUnsavedBanner(); renderInventory&&renderInventory(); }catch(e){}
 }
 // ── Call-number reconcile queue ──────────────────────────────────────────────
 // A call published while OFFLINE can't run the atomic counter transaction (that
@@ -4271,7 +4308,7 @@ async function _drainCallNumQueue(){
   _saveCallNumQueue(still);
 }
 // Drain the moment the device comes back online (plus the periodic tick + on load).
-try{ window.addEventListener('online', ()=>{ try{ _drainCallNumQueue(); }catch(e){} try{ _drainRetryQueue(); }catch(e){} try{ _retryUnsyncedCompletions(); }catch(e){} }); }catch(e){}
+try{ window.addEventListener('online', ()=>{ try{ _drainCallNumQueue(); }catch(e){} try{ const _q=_loadRetryQueue(); _q.forEach(e=>{ if(e.failed){ e.failed=false; e.attempts=0; e.nextAt=0; } }); _saveRetryQueue(_q); _drainRetryQueue(); }catch(e){} try{ _retryUnsyncedCompletions(); }catch(e){} }); }catch(e){}
 // Show a small banner on home screen if there are pending items awaiting retry
 function _updateOfflineBanner(){
   const q = _loadRetryQueue();
@@ -17699,7 +17736,7 @@ function renderInventory() {
     return `<div data-row="${e.row||0}" class="eq-inv-card" style="${_bg}border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);${_tc}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
         <div style="font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
-        <div style="display:flex;gap:4px;flex-shrink:0;">${statusBadge}${equipBadge}${cncBadge}</div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">${_eqSaveBadgeD(e.row)}${statusBadge}${equipBadge}${cncBadge}</div>
       </div>
       <div style="font-size:12px;color:var(--text3);"><b style="color:#fff;font-weight:800;">${e.location}</b>${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
       ${e.isCNC?`<div style="font-size:12px;color:var(--amber);background:#fff3e0;border-radius:6px;padding:4px 8px;margin-top:6px;">CNC — wrong location — ${(e.cncNote||e.ccnc||'').replace(/^in vehicle:\s*/i,'in vehicle ')}</div>`:''}
@@ -18222,9 +18259,8 @@ async function submitCO(action){
       }
     })
     .catch((e)=>{
-      console.error('checkInOut save failed:', e);
-      showToast('⚠️ Save failed — refreshing from sheet');
-      try { loadInventoryFromSheet(true); } catch(_){}
+      console.error('checkInOut save failed (queued for retry):', e);
+      try{ renderInventory&&renderInventory(); _eqUnsavedBanner(); }catch(_){}
     });
 }
 
