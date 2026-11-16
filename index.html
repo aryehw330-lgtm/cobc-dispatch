@@ -10604,8 +10604,10 @@ async function publishCall(id) {
 
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   hideModal('callDetailModal');
-  showToast('📢 Call published');
   logCallEvent(call, 'published', {dispatcher:SESSION.unit});
+  // A 🧪 test Missing Person call goes through approval quietly — no push, no WhatsApp.
+  if(call.isTest && call.type==='missing_person'){ showToast('🧪 Test call approved — no alerts sent'); return; }
+  showToast('📢 Call published');
 
   // Push + WA piggybacked in one server-side request (most reliable path)
   setTimeout(()=>sendPush({
