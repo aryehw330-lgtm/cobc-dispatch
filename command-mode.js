@@ -687,7 +687,19 @@
     }
     try{ if(_cmMap&&_cmMap._isGoogle){ setTimeout(function(){ google.maps.event.trigger(_cmMap,'resize'); },60); } }catch(e){}
   }
-  function closeCommandView(){ if(_cmTick){ clearInterval(_cmTick); _cmTick=null; } var o=document.getElementById('cmOverlay'); if(o) o.remove(); _cmMap=null; _cmMarkers={}; _cmCallMarkers={}; _cmRenderBanner(); _cmGridShapes={}; _cmTrails={}; _cmLastSeenMk=null; _cmSelCall=null; }
+  // The Google map is built ONCE per app session and reused every time the view reopens.
+  // (Each new google.maps.Map counts as a paid "map load"; rebuilding it on every open made a
+  // big search burn through the daily limit.) On close we take every pin/line off it and keep it.
+  var _cmMapKeep=null, _cmMapKeepDiv=null;
+  function _cmClearOverlays(){
+    function off(o){ try{ if(o&&o.setMap) o.setMap(null); }catch(e){} }
+    [_cmMarkers,_cmCallMarkers,_cmSectorMarkers,_cmTrails,_cmDrawObjs].forEach(function(d){ for(var k in (d||{})) off(d[k]); });
+    for(var k in (_cmGridShapes||{})){ var g=_cmGridShapes[k]; off(g&&g.rect); off(g&&g.lbl); }
+    off(_cmLastSeenMk); if(_cmCurDraw) off(_cmCurDraw.poly);
+  }
+  function closeCommandView(){ if(_cmTick){ clearInterval(_cmTick); _cmTick=null; }
+    if(_cmMap&&_cmMap._isGoogle){ _cmClearOverlays(); _cmMapKeep=_cmMap; _cmMapKeepDiv=_cmMap.getDiv(); try{ if(_cmMapKeepDiv.parentNode) _cmMapKeepDiv.parentNode.removeChild(_cmMapKeepDiv); }catch(e){} }
+    var o=document.getElementById('cmOverlay'); if(o) o.remove(); _cmMap=null; _cmMarkers={}; _cmCallMarkers={}; _cmSectorMarkers={}; _cmDrawObjs={}; _cmCurDraw=null; _cmRenderBanner(); _cmGridShapes={}; _cmTrails={}; _cmLastSeenMk=null; _cmSelCall=null; }
 
   // ── Responsive EOC layout: style + view toggle (Calls / Map / Roster on narrow) ──
   function _cmInjectStyle(){
@@ -969,6 +981,14 @@
 
   function _cmInitMap(){
     var el=document.getElementById('cmMap'); if(!el) return;
+    if(_cmMapKeep && _cmMapKeepDiv){
+      // Reopen: put the same map back (no new map load), then redraw pins/lines on it.
+      if(el!==_cmMapKeepDiv && el.parentNode) el.parentNode.replaceChild(_cmMapKeepDiv, el);
+      _cmMap=_cmMapKeep;
+      try{ google.maps.event.trigger(_cmMap,'resize'); }catch(e){}
+      _cmRefreshView();
+      return;
+    }
     _cmMap=new google.maps.Map(el,{ center:{lat:40.8976,lng:-74.0160}, zoom:13, mapTypeControl:false, streetViewControl:false, fullscreenControl:false, styles:[{elementType:'geometry',stylers:[{color:'#1d2c4d'}]},{elementType:'labels.text.fill',stylers:[{color:'#8ec3b9'}]},{elementType:'labels.text.stroke',stylers:[{color:'#1a3646'}]},{featureType:'road',elementType:'geometry',stylers:[{color:'#304a7d'}]},{featureType:'water',elementType:'geometry',stylers:[{color:'#0e1626'}]},{featureType:'poi',stylers:[{visibility:'off'}]}] });
     _cmMap._isGoogle=true;
     // Freehand drawing (missing mode): mousedown starts a line, drag extends it.
