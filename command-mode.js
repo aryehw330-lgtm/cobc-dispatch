@@ -380,7 +380,7 @@
       sel.value=callId;
     }
     if(call){
-      var a=document.getElementById('mpLastSeenAddr'); if(a&&!a.value) a.value=[call.address,call.town].filter(Boolean).join(', ');
+      var a=document.getElementById('mpLastSeenAddr'); if(a&&!a.value){ var ad=call.address||'', tw=call.town||''; a.value=(tw && ad.toLowerCase().indexOf(tw.toLowerCase())<0)?[ad,tw].filter(Boolean).join(', '):(ad||tw); }
       var d=document.getElementById('mpDesc'); if(d&&!d.value&&call.notes) d.value=call.notes;
     }
   }
