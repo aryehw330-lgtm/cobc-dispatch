@@ -6994,6 +6994,7 @@ async function saveMyNewPin(){
   const say=(t,ok)=>{ if(msg){ msg.style.color=ok?'#16a34a':'#dc2626'; msg.textContent=t; } };
   if(!cur) return say('Enter your current PIN');
   if(!/^\d{6}$/.test(n1)) return say('New PIN must be exactly 6 digits');
+  if(n1.charAt(0)==='0') return say('New PIN can\u2019t start with 0');
   if(n1!==n2) return say('The two new PINs don’t match');
   if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
   try{
@@ -12860,6 +12861,7 @@ function saveEditMemberPin() {
   if (!unit) return;
   if (!newPin || newPin.length < 4) { showToast('PIN must be at least 4 digits'); return; }
   if (!/^\d+$/.test(newPin)) { showToast('PIN must be numbers only'); return; }
+  if (newPin.charAt(0)==='0') { showToast('PIN can\u2019t start with 0'); return; }
   const btn = document.querySelector('#editMemberRoleModal [onclick="saveEditMemberPin()"]');
   const unlock = _btnLock(btn, 'Saving…');
   // Optimistic local update
