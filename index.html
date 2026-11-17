@@ -8081,6 +8081,42 @@ function openHistoryModal() {
   showModal('historyModal');
   renderHistoryDay();
 }
+// Deleted calls still used up a call number, so Call History shows them as "Deleted"
+// (from the shared audit log). They never count in any stats.
+let _deletedLog=[], _deletedLogAt=0, _deletedLogLoading=false;
+function _loadDeletedLog(after){
+  if(_deletedLogLoading || Date.now()-_deletedLogAt<60000) return;
+  if(typeof firebase==='undefined' || !_firebaseReady) return;
+  _deletedLogLoading=true;
+  firebase.firestore().collection('auditLog').where('action','==','deleted').get().then(snap=>{
+    const seen={}; _deletedLog=[];
+    snap.forEach(d=>{ const e=d.data()||{}; if(!e.callNum || !e.callId || seen[e.callId]) return; seen[e.callId]=1; _deletedLog.push(e); });
+    _deletedLogAt=Date.now(); _deletedLogLoading=false; try{ after&&after(); }catch(e){}
+  }).catch(e=>{ _deletedLogLoading=false; console.warn('deleted log',e); });
+}
+function _deletedInRange(startMs,endMs,q){
+  const have=new Set((_allCalls()||[]).map(c=>String(c.id)));
+  return _deletedLog.filter(e=>{
+    if(have.has(String(e.callId))) return false;          // restored / still present
+    const t=e.createdAt||e.ts||0; if(t<startMs||t>=endMs) return false;
+    return !q || String(e.callNum).includes(q);
+  }).map(e=>({__deleted:true, id:e.callId, callNum:e.callNum, type:e.type, createdAt:e.createdAt||e.ts, deletedAt:e.ts, by:e.by, byName:e.byName}));
+}
+function _deletedRowHTML(c){
+  const typeRaw=c.type||'other';
+  const typeLabel=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw));
+  const when=new Date(c.deletedAt||c.createdAt).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  const who=c.by?('BC-'+String(c.by).replace(/^BC-?/i,'')):'';
+  return `<div style="background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:6px;box-shadow:var(--shadow);border-left:3px solid #94a3b8;opacity:.75;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);text-decoration:line-through;">#${c.callNum} · ${typeLabel}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">Deleted ${when}${who?' by '+who:''} · not counted in stats</div>
+      </div>
+      <div style="font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;background:#94a3b822;color:#64748b;text-transform:uppercase;flex-shrink:0;">deleted</div>
+    </div>
+  </div>`;
+}
 function renderHistoryDay() {
   const list = document.getElementById('historyList');
   const summary = document.getElementById('historySummary');
@@ -8118,16 +8154,21 @@ function renderHistoryDay() {
       return ts >= startMs && ts < endMs;
     })
     .sort((a,b) => (b.completedAt||b.createdAt||0) - (a.completedAt||a.createdAt||0));
+  _loadDeletedLog(()=>{ try{ renderHistoryDay(); }catch(e){} });
+  const _dels = _deletedInRange(startMs,endMs,'');
   const completed = calls.filter(c => c.status === 'done').length;
   const cancelled = calls.filter(c => c.status === 'cancelled').length;
   const summaryParts = [`${calls.length} call${calls.length===1?'':'s'}`, `${completed} completed`];
   if(cancelled) summaryParts.push(`${cancelled} cancelled`);
+  if(_dels.length) summaryParts.push(`${_dels.length} deleted`);
+  if(_dels.length){ calls.push(..._dels); calls.sort((a,b)=>(b.completedAt||b.createdAt||0)-(a.completedAt||a.createdAt||0)); }
   if(summary) summary.innerHTML = `<b>${label}</b> · ${summaryParts.join(' · ')}`;
   if(!calls.length) {
     list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text3);">No calls in this range.</div>';
     return;
   }
   list.innerHTML = calls.map(c => {
+    if(c.__deleted) return _deletedRowHTML(c);
     const typeRaw = c.type||'other';
     const typeLabel = cleanLabel(typeRaw.startsWith('other:') ? typeRaw.replace('other:','') : (CALL_TYPE_LABELS[typeRaw]||typeRaw));
     const t = new Date(c.completedAt || c.createdAt);
@@ -8343,10 +8384,14 @@ function renderMoreHistory(){
   }):calls;
   const parts=[`${shown.length}${q?(' of '+calls.length):''} call${shown.length===1?'':'s'}`,`${completed} completed`];
   if(cancelled) parts.push(`${cancelled} cancelled`);
+  _loadDeletedLog(()=>{ try{ renderMoreHistory(); }catch(e){} });
+  const _dels=_deletedInRange(startMs,endMs,q);
+  if(_dels.length){ parts.push(`${_dels.length} deleted`); shown.push(..._dels); shown.sort((a,b)=>(Number(b.callNum)||0)-(Number(a.callNum)||0)); }
   if(summary) summary.innerHTML=`<b>${label}</b> · ${parts.join(' · ')}`;
   if(!shown.length){ list.innerHTML='<div style="text-align:center;padding:2rem;color:rgba(255,255,255,.5);">No calls'+(q?' match “'+q+'”':' in this range')+'.</div>'; return; }
   const _isDispatch=['admin','dispatch'].includes(SESSION.role);
   list.innerHTML=shown.map(c=>{
+    if(c.__deleted) return _deletedRowHTML(c);
     const typeRaw=c.type||'other';
     const typeLabel=cleanLabel(typeRaw.startsWith('other:')?typeRaw.replace('other:',''):(CALL_TYPE_LABELS[typeRaw]||typeRaw));
     const t=new Date(c.completedAt||c.createdAt);
@@ -11117,7 +11162,7 @@ function deleteCall(id) {
   overlay.querySelector('#__dc_yes').onclick=function(){
     document.body.removeChild(overlay);
     // Log who deleted it BEFORE removing (audit trail for disputes)
-    try{ const _c=(STATE.calls||[]).find(c=>c.id===id); if(_c) logCallEvent(_c,'deleted',{by:SESSION.unit, byName:SESSION.name}); }catch(e){}
+    try{ const _c=(STATE.calls||[]).find(c=>c.id===id); if(_c) logCallEvent(_c,'deleted',{by:SESSION.unit, byName:SESSION.name, createdAt:_c.createdAt||null, isTest:!!_c.isTest}); _deletedLogAt=0; }catch(e){}
     // Optimistic: remove instantly
     _tombstoneCall(id);
     STATE.calls=(STATE.calls||[]).filter(c=>c.id!==id);
@@ -13457,7 +13502,7 @@ function _lbYears(){
 function _liveCountsByYear(year){
   const out={};
   (_allCalls()||[]).forEach(c=>{
-    if(!_statCall(c)) return;
+    if(!_statCallForMember(c)) return;
     const y=c.createdAt?String(new Date(c.createdAt).getFullYear()):'';
     if(year!=='all' && y!==year) return;
     (c.responders||[]).forEach(r=>{
@@ -16415,6 +16460,12 @@ function _statCall(c){
   return !!c && !c.isTest && c.status!=='draft' && c.status!=='cancelled'
       && (!_statsLiveFrom || (c.createdAt||0) >= _statsLiveFrom);
 }
+// Member credit (Nov 2026): a member who went on a call that was later cancelled still
+// gets credit for it. The call itself counts as cancelled, not as a handled call.
+function _statCallForMember(c){
+  return !!c && !c.isTest && c.status!=='draft'
+      && (!_statsLiveFrom || (c.createdAt||0) >= _statsLiveFrom);
+}
 // Retired numbers kept for the record (from the stats website, Nov 2026).
 const _HALL_OF_FAME_EMBED=[{"bc":90,"name":"Sam Ulrich","calls":341,"observed":19,"from":2023,"to":2025},{"bc":41,"name":"","calls":219,"observed":15,"from":2022,"to":2024},{"bc":119,"name":"Nechemia Berman","calls":164,"observed":22,"from":2024,"to":2025},{"bc":9,"name":"Ed Abramovitz","calls":163,"observed":14,"from":2021,"to":2025},{"bc":22,"name":"Yoni Celnik","calls":150,"observed":19,"from":2021,"to":2025},{"bc":99,"name":"Yakov Cohen","calls":132,"observed":0,"from":2021,"to":2024},{"bc":35,"name":"Juda Glick","calls":87,"observed":5,"from":2021,"to":2025},{"bc":40,"name":"Shloimy Ciment","calls":76,"observed":11,"from":2021,"to":2024},{"bc":100,"name":"Emanuel Klein","calls":67,"observed":2,"from":2022,"to":2023},{"bc":69,"name":"Dovi Pfeffer","calls":55,"observed":7,"from":2022,"to":2022},{"bc":130,"name":"Didi Forman","calls":46,"observed":17,"from":2025,"to":2025},{"bc":102,"name":"Joel Varnai","calls":40,"observed":9,"from":2024,"to":2025},{"bc":125,"name":"Jack Attali","calls":37,"observed":3,"from":2025,"to":2026},{"bc":8,"name":"Elliott Gilden","calls":35,"observed":13,"from":2021,"to":2022},{"bc":96,"name":"Binyamin Schulgasser","calls":35,"observed":2,"from":2024,"to":2026},{"bc":94,"name":"Zvi Bin-Nun","calls":27,"observed":2,"from":2024,"to":2025},{"bc":169,"name":"Avrumy Schwartz","calls":24,"observed":3,"from":2025,"to":2026},{"bc":505,"name":"","calls":21,"observed":9,"from":2025,"to":2025},{"bc":63,"name":"Aaron Bauman","calls":20,"observed":0,"from":2021,"to":2023},{"bc":110,"name":"Isaac Mass","calls":17,"observed":14,"from":2021,"to":2024},{"bc":128,"name":"Pinchas Feinstein","calls":14,"observed":0,"from":2025,"to":2026},{"bc":109,"name":"Dovey Forman","calls":13,"observed":13,"from":2021,"to":2024},{"bc":180,"name":"Abbey Cooper","calls":11,"observed":0,"from":2021,"to":2021},{"bc":60,"name":"Noah Isaacs","calls":11,"observed":0,"from":2021,"to":2022},{"bc":502,"name":"Lazar Weider","calls":6,"observed":0,"from":2025,"to":2025},{"bc":121,"name":"David Dahan","calls":5,"observed":2,"from":2025,"to":2025}];
 let HALL_OF_FAME=_HALL_OF_FAME_EMBED;
@@ -16611,13 +16662,14 @@ function calcLiveStats(yr) {
   });
   // _statCall() drops cancelled calls (they aren't handled calls), so count them from all
   // calls with the same test / draft / pre-launch exclusions. (Was always 0 before Nov 2026.)
-  const cancelled = (_allCalls()).filter(c => {
+  const _cxList = (_allCalls()).filter(c => {
     if(!c || c.isTest || c.status!=='cancelled') return false;
     if(_statsLiveFrom && (c.createdAt||0) < _statsLiveFrom) return false;
     if((c.createdAt||0) < _HIST_COVERED_UNTIL) return false;
     const d = new Date(c.completedAt||c.cancelledAt||c.createdAt||0);
     return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
-  }).length;
+  });
+  const cancelled = _cxList.length;
   if(!done.length && !cancelled) return null;
 
   const call_types={}, type_by_month={}, monthly_total=Array(13).fill(0), dow=Array(7).fill(0), hours=Array(24).fill(0), townMap={};
@@ -16643,6 +16695,7 @@ function calcLiveStats(yr) {
       respMap[u]=(respMap[u]||{cnt:0,name:r.name||''});
       respMap[u].cnt++;
     });
+    // (cancelled calls' responders are credited after this loop)
     // dispatcher — calls store this as createdBy (unit #); resolve to a display name
     const _dispU = c.dispatcher || c.createdBy;
     if(_dispU && String(_dispU).trim()){
@@ -16651,6 +16704,10 @@ function calcLiveStats(yr) {
       dispMap[dn]=(dispMap[dn]||0)+1; (dispMonth[dn]=dispMonth[dn]||Array(12).fill(0))[d.getMonth()]++;
     }
   });
+  _cxList.forEach(c=>{ (c.responders||[]).forEach(r=>{
+    const u=String(r.unit||'').replace(/^BC-?/i,''); if(!u||_isInterstateUnit(u)) return;
+    respMap[u]=(respMap[u]||{cnt:0,name:r.name||''}); respMap[u].cnt++;
+  }); });
 
   const top_cities=Object.entries(townMap).sort((a,b)=>b[1]-a[1]);
   const top_disp=Object.entries(dispMap).sort((a,b)=>b[1]-a[1]).map(([n,c])=>[n,c]);
@@ -16700,8 +16757,8 @@ function mergeWithLive(base, live, yr) {
     }
   }catch(e){}
   (_allCalls()||[]).forEach(c=>{
-    if(!_statCall(c)) return;
-    if(c.status!=='done'&&c.status!=='active') return;
+    if(!_statCallForMember(c)) return;
+    if(c.status!=='done'&&c.status!=='active'&&c.status!=='cancelled') return;
     const cy=c.completedAt||c.createdAt; if(!cy) return;
     if(cy && yr!=='all' && String(new Date(cy).getFullYear())!==String(yr)) return;
     (c.responders||[]).forEach(r=>{ const u=String(r.unit||'').replace(/^BC-?/i,''); if(u) _activeSet.add(u); });
@@ -17064,7 +17121,7 @@ function renderMyStats(bcArg, opts) {
     if(row){yearStats.push({yr,tot:row[1],mp:row[2],mb:row[3],mo:row[4]});totalAll+=row[1];totalP+=row[2];totalB+=row[3];totalO+=row[4];}
   });
   }
-  const liveCalls=_allCalls().filter(c=>_statCall(c)&&(c.responders||[]).some(r=>String(r.unit).replace(/^BC-?/i,'')===bc));
+  const liveCalls=_allCalls().filter(c=>_statCallForMember(c)&&(c.responders||[]).some(r=>String(r.unit).replace(/^BC-?/i,'')===bc));
   const liveCount=liveCalls.length;
   // Split the live count into Primary/Backup too, so the displayed P+B+O always
   // sums to the grand total (previously live calls only inflated the top number).
