@@ -8836,15 +8836,25 @@ async function _googleRouteInfo(origin, dest, opts) {
   return info;
 }
 async function _googleDriveMins(origin, dest) { return (await _googleRouteInfo(origin, dest)).mins; }
-// Driving updates for dispatch: cheap no-traffic route × this call's traffic factor (≤45 min old).
-// If this phone has no factor yet, one live-traffic lookup gets it (then cheap again).
-async function _enRouteDriveMins(origin, dest) {
-  let tr = _trafficRatio[_destKey(dest)];
-  if (!tr || Date.now() - tr.ts > 45 * 60000) {
-    try { const live = await _googleRouteInfo(origin, dest); if (live.traffic) return live.mins; } catch(e) {}
-    tr = _trafficRatio[_destKey(dest)];
+// Driving updates for dispatch (every 3 min / mile while a responder shares location):
+// FREE — the OSRM road router × the call's traffic calibration (trafficCal, saved on the call
+// when anyone gets Google's live-traffic time). Google is only asked if the call has no
+// calibration yet (that one answer also saves it), or as a backup if OSRM is down.
+async function _enRouteDriveMins(origin, dest, call) {
+  let r = null;
+  const c = call && call.trafficCal;
+  if (c && c.r && (Date.now() - (c.at || 0)) < 60 * 60000) r = c.r;
+  if (!r) {
+    try {
+      const live = await _googleRouteInfo(origin, dest);
+      if (live.traffic) { if (call) _saveCallTraffic(call, origin, dest, live.mins); return live.mins; }
+    } catch(e) {}
+    r = _rushFactor();
   }
-  const base = await _googleRouteInfo(origin, dest, { traffic: false });
+  const o = await calcOsrmEtaMin(origin.lat, origin.lng, dest.lat, dest.lng);
+  if (o) return Math.max(1, Math.round(o * r));
+  const base = await _googleRouteInfo(origin, dest, { traffic: false });   // OSRM down → cheap Google backup
+  const tr = _trafficRatio[_destKey(dest)];
   return Math.max(1, Math.round(base.mins * ((tr && tr.r) || 1)));
 }
 
@@ -11800,7 +11810,7 @@ async function _writeLiveLocation(callId, lat, lng){
     if (dest && _le && (now-_le.ts) < 180000 && _haversineMi(_le.lat,_le.lng,lat,lng) < 1) {
       liveEtaMin = Math.max(1, _le.mins - Math.floor((now-_le.ts)/60000)); // count down between lookups
     } else if (dest) {
-      liveEtaMin = await _enRouteDriveMins({ lat, lng }, dest);
+      liveEtaMin = await _enRouteDriveMins({ lat, lng }, dest, (STATE.calls||[]).find(c => String(c.id) === String(callId)));
       if (liveEtaMin) _liveEtaLast[callId] = { mins: liveEtaMin, ts: now, lat, lng };
     }
   } catch(e){
