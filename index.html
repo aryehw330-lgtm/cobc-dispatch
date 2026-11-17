@@ -14754,8 +14754,10 @@ function renderTelzioRecentList(calls){
   if(!calls || !calls.length){ panel.style.display='none'; return; }
   panel.style.display='block';
   if(sub) sub.textContent = 'last '+calls.length;
+  _loadCallerNames(calls, ()=>renderTelzioRecentList(window._telzioMergedRecent||calls));
   list.innerHTML = calls.map(c=>{
     const pretty=_telzioFmtPhone(c.phone);
+    c={...c, name:_callerDisplayName(c.phone, c.name)};
     const label=c.name||pretty||'Unknown';
     return '<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.28);border-radius:10px;margin-bottom:7px;">'
       +'<div style="font-size:16px;">📞</div>'
@@ -14780,6 +14782,7 @@ function toggleRecentCallsPicker(){
   if(!calls.length){ showToast('No recent calls yet'); box.style.display='none'; return; }
   box.innerHTML = calls.map(c=>{
     const pretty=_telzioFmtPhone(c.phone);
+    c={...c, name:_callerDisplayName(c.phone, c.name)};
     const label=c.name||pretty||'Unknown';
     return '<div onclick="_fillFromRecentPick(\''+(c.name||'').replace(/\x27/g,"")+'\',\''+(c.phone||'')+'\')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;margin-bottom:6px;cursor:pointer;">'
       +'<div style="font-size:15px;">📞</div>'
@@ -14797,6 +14800,7 @@ function _fillFromRecentPick(name, phone){
   const nameEl=document.getElementById('callCaller'), phoneEl=document.getElementById('callPhone');
   if(nameEl) nameEl.value=name||'';
   if(phoneEl) phoneEl.value=phone||'';
+  _rcLastDigits=''; try{ checkRepeatCaller(); }catch(e){}
   const box=document.getElementById('recentCallsPicker');
   if(box) box.style.display='none';
   const caret=document.getElementById('recentCallsCaret');
@@ -14819,6 +14823,7 @@ function _newCallFromRecent(name, phone){
     const phoneEl=document.getElementById('callPhone');
     if(nameEl) nameEl.value=name||'';
     if(phoneEl) phoneEl.value=phone||'';
+    _rcLastDigits=''; try{ checkRepeatCaller(); }catch(e){}
   }, 60);
 }
 // Fill the New Call caller fields from the latest Telzio call (fills empties unless force)
@@ -14828,9 +14833,39 @@ function _applyTelzioToForm(force) {
   const nameEl = document.getElementById('callCaller');
   const phoneEl = document.getElementById('callPhone');
   let filled = false;
-  if(nameEl && _lastTelzioCall.name && (force || !nameEl.value)) { nameEl.value = _lastTelzioCall.name; filled = true; }
+  const _tn=_callerDisplayName(_lastTelzioCall.phone, _lastTelzioCall.name);
+  if(nameEl && (force || !nameEl.value || _isGenericCnam(nameEl.value))) { if(_tn){ nameEl.value=_tn; filled=true; } else if(_isGenericCnam(nameEl.value)) nameEl.value=''; }
+  if(filled||(phoneEl&&_lastTelzioCall.phone)){ _rcLastDigits=''; }
   if(phoneEl && _lastTelzioCall.phone && (force || !phoneEl.value)) { phoneEl.value = _lastTelzioCall.phone; filled = true; }
   return filled;
+}
+// Telzio's caller-ID "names" are often placeholders ("WIRELESS CALLER", "UNKNOWN", or just a
+// town like "TEANECK NJ"). Treat those as no name, so the real name a dispatcher typed for that
+// number (saved in callerProfiles) is used instead.
+const _CNAM_STATES='AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC';
+function _isGenericCnam(n){
+  n=String(n||'').trim(); if(!n) return true;
+  const u=n.toUpperCase();
+  if(/^(WIRELESS CALLER|WIRELESS|CELL PHONE|CELLULAR|CELL|UNKNOWN|UNKNOWN CALLER|UNKNOWN NAME|UNAVAILABLE|NOT AVAILABLE|PRIVATE|PRIVATE CALLER|PRIVATE NUMBER|ANONYMOUS|RESTRICTED|BLOCKED|NO CALLER ID|OUT OF AREA|TOLL FREE|NAME NOT FOUND|NONE|N\/A|CALLER)$/.test(u)) return true;
+  if(/^[+\d\s().-]+$/.test(n)) return true;                       // just a number
+  if(/^V\d{5,}/.test(u)) return true;                              // carrier codes like V123456
+  if(n===u && new RegExp('^[A-Z .\'-]+ ('+_CNAM_STATES+')$').test(u)) return true; // "TEANECK NJ"
+  return false;
+}
+// Best name for a number: the saved real name, else Telzio's name unless it's a placeholder.
+function _callerDisplayName(phone, telzioName){
+  let prof=null; try{ const d=_rcDigits(phone); prof=d?_rcProfiles[d]:null; }catch(e){}
+  if(prof && prof.caller && !_isGenericCnam(prof.caller)) return prof.caller;
+  return _isGenericCnam(telzioName) ? '' : String(telzioName||'');
+}
+// Load saved names for these numbers, then call done() if any new ones arrived.
+let _rcNamesLoading=false;
+function _loadCallerNames(calls, done){
+  try{ void _rcProfiles; }catch(e){ return; }
+  const need=[...new Set((calls||[]).map(c=>_rcDigits(c.phone)).filter(d=>d.length>=10 && !(d in _rcProfiles)))];
+  if(!need.length || _rcNamesLoading) return;
+  _rcNamesLoading=true;
+  Promise.all(need.map(d=>_rcLoadProfile(d))).then(()=>{ _rcNamesLoading=false; try{ done&&done(); }catch(e){} }).catch(()=>{ _rcNamesLoading=false; });
 }
 // ── Repeat caller: when the phone matches a past call, show its info + offer to reuse car details ──
 const _RC_CAR_TYPES=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas','vehicle_stalled','vehicle_pullout','stuck_snow','bumper_hanging','plastic_hanging'];
@@ -14901,7 +14936,7 @@ function _rcSaveFromCall(call){
   try{
     const d=_rcDigits(call.phone); if(d.length<10) return;
     // Name only — location and vehicle are no longer kept for auto-fill.
-    const data={}; if(call.caller) data.caller=call.caller;
+    const data={}; if(call.caller && !_isGenericCnam(call.caller)) data.caller=call.caller;
     if(Object.keys(data).length) _rcSaveProfile(d,data);
   }catch(e){}
 }
@@ -14919,12 +14954,17 @@ function checkRepeatCaller(){
 function _rcBuild(d,past){
   const box=document.getElementById('repeatCallerBox'); if(!box) return;
   const prof=_rcProfiles[d]||null;
+  { // Saved real name for this number replaces an empty box or a Telzio placeholder
+    const nmEl=document.getElementById('callCaller');
+    const saved=(prof&&prof.caller&&!_isGenericCnam(prof.caller))?prof.caller:((past[0]&&past[0].caller&&!_isGenericCnam(past[0].caller))?past[0].caller:'');
+    if(nmEl && (!nmEl.value || _isGenericCnam(nmEl.value))){ if(saved) nmEl.value=saved; else if(nmEl.value && _isGenericCnam(nmEl.value)) nmEl.value=''; }
+  }
   if(!past.length){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
   const last=past[0]||null;
   const carCall=past.find(c=>_RC_CAR_TYPES.includes(String(c.type||'').split(':')[0])&&c.carMake);
   const car=(prof&&prof.carMake)?{carYear:prof.carYear,carColor:prof.carColor,carMake:prof.carMake,carModel:prof.carModel,type:prof.carType||(carCall&&carCall.type)||''}:(carCall?{carYear:carCall.carYear,carColor:carCall.carColor,carMake:carCall.carMake,carModel:carCall.carModel,type:carCall.type}:null);
   const addr=(prof&&prof.address)?{address:prof.address,town:prof.town||''}:(last&&last.address?{address:last.address,town:last.town||''}:null);
-  const caller=(prof&&prof.caller)||(last&&last.caller)||'';
+  const caller=(prof&&prof.caller&&!_isGenericCnam(prof.caller)?prof.caller:'')||(last&&last.caller&&!_isGenericCnam(last.caller)?last.caller:'')||'';
   _rcMatch={d,past,last,car,addr,caller,editing:false};
   const nameEl=document.getElementById('callCaller');
   if(nameEl&&!nameEl.value&&caller) nameEl.value=caller;
@@ -15064,7 +15104,8 @@ async function autofillFromLastCall(){
   if(newest){
     const nameEl=document.getElementById('callCaller'), phoneEl=document.getElementById('callPhone');
     if(phoneEl) phoneEl.value=newest.phone;
-    if(nameEl) nameEl.value=newest.name||'';
+    if(nameEl) nameEl.value=_callerDisplayName(newest.phone, newest.name);
+    _rcLastDigits=''; try{ checkRepeatCaller(); }catch(e){}
     _lastTelzioCall=newest;
     showToast('📞 Filled from last call'+(newest.name?' — '+newest.name:'')+' · '+_agoLabel(newest.at));
     return;
@@ -15125,7 +15166,8 @@ async function autoPullCallerOnOpen(){
     if(Date.now()-_n.at <= 15*60*1000){
       const _nm=document.getElementById('callCaller'), _ph=document.getElementById('callPhone');
       if(_ph && !_ph.value) _ph.value=_n.phone;
-      if(_nm && !_nm.value && _n.name) _nm.value=_n.name;
+      const _bn=_callerDisplayName(_n.phone,_n.name); if(_nm && (!_nm.value||_isGenericCnam(_nm.value)) && _bn) _nm.value=_bn;
+      _rcLastDigits=''; try{ checkRepeatCaller(); }catch(e){}
       _lastTelzioCall=_n;
     }
     return; // log reachable: don't fall back to the in-memory copy or proxy (they may be stale)
