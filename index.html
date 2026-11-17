@@ -8957,6 +8957,44 @@ let _etaSeeding = false;
 // One real Google drive time per call, shared by the card, the call details and Respond.
 const _callEta = {};          // callId -> { mins, lat, lng, ts }
 const _callEtaBusy = {};
+// Front-card times for every member at no Google cost (Nov 2026, option B):
+// whenever a phone gets Google's live-traffic time for a call, it also asks the free OSRM
+// road router for the same trip and saves the ratio on the call (trafficCal). Every other
+// member's card = their own free OSRM road time × that ratio → "Your ETA: ~Xm".
+const _cardEst = {}, _cardEstBusy = {};
+function _rushFactor(){ const d=new Date(), h=d.getHours(), wk=d.getDay()>0&&d.getDay()<6; return (wk&&((h>=7&&h<9)||(h>=16&&h<19)))?1.35:1.15; }
+function _callCalFactor(call, pt){
+  const c=call&&call.trafficCal; if(c&&c.r&&(Date.now()-(c.at||0))<60*60000) return c.r;
+  return _rushFactor();
+}
+function _saveCallTraffic(call, origin, dest, liveMins){
+  try{
+    if(!call||!call.id||!liveMins) return;
+    const c=call.trafficCal; if(c&&(Date.now()-(c.at||0))<20*60000) return;   // someone saved one recently
+    calcOsrmEtaMin(origin.lat, origin.lng, dest.lat, dest.lng).then(o=>{
+      if(!o) return;
+      const r=Math.round(Math.min(4, Math.max(0.8, liveMins/o))*100)/100;
+      call.trafficCal={ r, at:Date.now() };
+      try{ _callFieldsUpdate(call, { trafficCal: call.trafficCal }); }catch(e){}
+    }).catch(()=>{});
+  }catch(e){}
+}
+function _cardEstFresh(callId){
+  const e=_cardEst[callId]; if(!e||!_myLoc) return null;
+  if(Date.now()-e.ts>600000) return null;
+  if(_haversineMi(e.lat,e.lng,_myLoc.lat,_myLoc.lng)>1) return null;
+  return e;
+}
+function _cardEstFetch(call, pt){
+  if(_cardEstBusy[call.id]||!_myLoc) return;
+  _cardEstBusy[call.id]=true;
+  const from={lat:_myLoc.lat,lng:_myLoc.lng};
+  calcOsrmEtaMin(from.lat, from.lng, pt.lat, pt.lng).then(o=>{
+    const mins = o ? Math.max(1, Math.round(o*_callCalFactor(call, pt))) : _etaMin(_haversineMi(from.lat,from.lng,pt.lat,pt.lng));
+    _cardEst[call.id]={ mins, lat:from.lat, lng:from.lng, ts:Date.now() };
+    try{ fillCardETAs(); }catch(e){}
+  }).catch(()=>{}).finally(()=>{ setTimeout(()=>{ delete _cardEstBusy[call.id]; }, 30000); });
+}
 // Calls this phone wants a REAL drive time for: opened the details, tapped Respond / 📍,
 // or is on the call. Everyone else's card shows the free on-phone estimate ("~9m").
 const _etaWanted = {};
@@ -8978,7 +9016,7 @@ function _callEtaFetch(call, pt){
   if(_callEtaBusy[call.id] || !_myLoc) return;
   _callEtaBusy[call.id]=true;
   _googleRouteInfo({ lat:_myLoc.lat, lng:_myLoc.lng }, pt)
-    .then(i=>{ _callEtaSave(call.id, i.mins, i.traffic); try{ fillCardETAs(); }catch(e){} })
+    .then(i=>{ _callEtaSave(call.id, i.mins, i.traffic); if(i.traffic) _saveCallTraffic(call, { lat:_myLoc.lat, lng:_myLoc.lng }, pt, i.mins); try{ fillCardETAs(); }catch(e){} })
     .catch(()=>{})
     .finally(()=>{ setTimeout(()=>{ delete _callEtaBusy[call.id]; }, 30000); });
 }
@@ -9027,8 +9065,14 @@ async function fillCardETAs() {
         // No guessed minutes any more: until Google's live-traffic time is in, show the
         // distance (as the crow flies). Then the real drive time, same as inside the call.
         if (!_real) {
-          span.style.cssText += `background:#f3f4f6;color:#6b7280;`;
-          span.textContent = `📍 ${mi<10?mi.toFixed(1):Math.round(mi)} mi away`;
+          // Free estimate: my road time (OSRM) × this call's traffic calibration.
+          const _est = _cardEstFresh(call.id);
+          if (!_est) _cardEstFetch(call, pt);
+          const em = _est ? _est.mins : null;
+          const ec = em==null?'#6b7280':em<=5?'var(--green)':em<=12?'var(--amber)':'#6b7280';
+          const ebg= em==null?'#f3f4f6':em<=5?'#dcfce7':em<=12?'#fef3c7':'#f3f4f6';
+          span.style.cssText += `background:${ebg};color:${ec};`;
+          span.textContent = em==null ? 'Your ETA: …' : `Your ETA: ~${em}m`;
         } else {
           const gm = _ce.mins;
           const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
@@ -9083,7 +9127,7 @@ async function fillDetailETA(call) {
     box.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:#f3f4f6;color:#6b7280;padding:6px 12px;border-radius:9px;font-size:13px;font-weight:700;">📍 Your Est. ETA: …</span>`;
     // Straight-line distance is misleading for river crossings / limited-access parkways —
     // wait for the real traffic-aware Google route rather than showing a bogus number first.
-    _googleRouteInfo({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(i => { paint(i.mins, !i.traffic); _callEtaSave(call.id, i.mins, i.traffic); try{ fillCardETAs(); }catch(e){} }).catch(()=>{
+    _googleRouteInfo({ lat:_myLoc.lat, lng:_myLoc.lng }, pt).then(i => { paint(i.mins, !i.traffic); _callEtaSave(call.id, i.mins, i.traffic); if(i.traffic) _saveCallTraffic(call, { lat:_myLoc.lat, lng:_myLoc.lng }, pt, i.mins); try{ fillCardETAs(); }catch(e){} }).catch(()=>{
       paint(_etaMin(_haversineMi(_myLoc.lat, _myLoc.lng, pt.lat, pt.lng)), true);
     });
   } catch(e) {}
