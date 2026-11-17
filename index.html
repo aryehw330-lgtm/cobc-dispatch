@@ -2979,7 +2979,7 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <button onclick="hideModal('checkoutModal')" style="background:var(--border2);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text2);flex-shrink:0;">×</button>
     </div>
-    <div class="input-group" id="coModalCallGroup"><label class="input-label">Call Number</label><input class="input" type="text" inputmode="numeric" id="coModalCall" placeholder="Dispatched call #"/></div>
+    <div class="input-group" id="coModalCallGroup"><label class="input-label">Call Number</label><input class="input" type="text" inputmode="numeric" id="coModalCall" placeholder="Dispatched call #" oninput="_renderCallPicks('coModalCall','coModalCallPicks')"/><div id="coModalCallPicks"></div></div>
     <div class="input-group"><label class="input-label">Status</label>
       <select class="input" id="coModalCCNC" onchange="coModalStatusChange()">
         <option value="">-- Select --</option>
@@ -17860,6 +17860,37 @@ function _currentCallNumForUnit(unit){
   if(live.length>1) return '';
   return live[0].callNum!=null ? String(live[0].callNum) : '';
 }
+// Tap-to-pick call numbers under the equipment Call Number box.
+// Shows the live (open/active) calls this unit is on — approved or waiting for approval;
+// if none, every live call. One approved call is auto-filled (above); the matching
+// button is highlighted so the member sees which call it picked.
+let _callPicksUnit={};
+function _renderCallPicks(fieldId, boxId, unit){
+  const box=document.getElementById(boxId), field=document.getElementById(fieldId);
+  if(!box||!field) return;
+  if(unit!==undefined) _callPicksUnit[boxId]=unit; else unit=_callPicksUnit[boxId];
+  const u=String(unit||'').replace(/^BC-?/i,'').trim();
+  const _n=x=>String(x||'').replace(/^BC-?/i,'').trim();
+  const live=(STATE.calls||[]).filter(c=>(c.status==='open'||c.status==='active')&&c.callNum!=null&&c.callNum!=='')
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const mine=u?live.filter(c=>(c.responders||[]).some(r=>_n(r.unit)===u)||(c.pendingResponders||[]).some(r=>_n(r.unit)===u)):[];
+  const list=(mine.length?mine:live).slice(0,6);
+  if(!list.length){ box.innerHTML=''; return; }
+  const cur=String(field.value||'').trim();
+  const esc=s=>String(s||'').replace(/[<>&"']/g,'');
+  box.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--text3);margin:6px 0 4px;">'+(mine.length?(mine.length>1?'You’re on '+mine.length+' calls — tap the right one:':'Your call:'):'Open calls — tap one:')+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px;">'+list.map(c=>{
+      const num=String(c.callNum), on=cur===num;
+      const lbl=cleanLabel(c.type&&c.type.startsWith('other:')?c.type.replace('other:',''):(CALL_TYPE_LABELS[c.type]||c.type||''));
+      return '<button type="button" onclick="_pickCallNum(\''+fieldId+'\',\''+boxId+'\',\''+esc(num)+'\')" style="border:1.5px solid '+(on?'var(--blue)':'var(--border)')+';background:'+(on?'var(--blue)':'transparent')+';color:'+(on?'#fff':'var(--text)')+';border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'
+        +(on?'✓ ':'')+'#'+esc(num)+' · '+esc(lbl)+(c.town?' · '+esc(c.town):'')+'</button>';
+    }).join('')+'</div>';
+}
+function _pickCallNum(fieldId, boxId, num){
+  const f=document.getElementById(fieldId); if(!f) return;
+  f.value=num; try{ haptic&&haptic('light'); }catch(e){}
+  _renderCallPicks(fieldId, boxId);
+}
 function coMemberName(unit){
   const u=String(unit||'').replace(/^BC-?/i,'').trim();
   if(!u) return '';
@@ -17875,7 +17906,7 @@ function updateCoModalForNote(){
   const val=(sel?.value||'').trim();
   // Re-fill the call number from whichever unit is actually taking the item out.
   const _callField=document.getElementById('coModalCall');
-  if(_callField){ _callField.value=_currentCallNumForUnit(val||myUnit); }
+  if(_callField){ _callField.value=_currentCallNumForUnit(val||myUnit); _renderCallPicks('coModalCall','coModalCallPicks',val||myUnit); }
   if(val && val!==myUnit){
     note.style.display='block';
     note.innerHTML='📝 This will log as BC-'+val+', recorded by BC-'+myUnit;
@@ -17942,6 +17973,7 @@ function openCheckout(row, defaultAction) {
   // Auto-fill the call number from the call this member is currently assigned to (open/active).
   // Blank if they're not on a live call. Based on the logged-in unit (the person taking it out).
   document.getElementById('coModalCall').value = _currentCallNumForUnit(SESSION && SESSION.unit);
+  _renderCallPicks('coModalCall','coModalCallPicks',SESSION && SESSION.unit);
   // Hide Call Number for COBC 4 — shifts replace call numbers for the car
   var hasCarItem = it && isCarItem(it.name);
   var callGroup = document.getElementById('coModalCallGroup');
