@@ -6635,6 +6635,13 @@ function initFirestore(){
   // Equipment + locations: Google Sheet is home base — loaded via loadInventoryFromSheet(), NOT Firestore
 }
 
+// Save only the given fields of a call (members may only touch their own participation:
+// the database refuses member edits to the call's info). Falls back to nothing on failure.
+function _callFieldsUpdate(call, fields){
+  try{ fields.updatedAt=Date.now(); if(call) call.updatedAt=fields.updatedAt;
+    return firebase.firestore().collection('calls').doc(String(call.id)).update(fields).catch(e=>console.warn('call update',e));
+  }catch(e){ console.warn('call update',e); }
+}
 async function firestoreUpsertCall(call){try{ if(call) call.updatedAt=Date.now(); /* lets History pick up edits to older calls */ await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
 
 var _savePending = false;
@@ -6690,6 +6697,10 @@ function _tryRestoreSession() {
     } catch(e){}
     // Re-verify against Firestore via REST (SDK hangs on iOS ITP; REST is plain HTTPS).
     // If the fetch fails or times out, the cached paint above already stands.
+    // Only when already signed in to the database: without a token the read is always
+    // refused (it ran before sign-in and logged a 403 on every start). Nov 2026.
+    let _hasUser=false; try{ _hasUser=!!(window.firebase&&firebase.auth&&firebase.auth().currentUser); }catch(e){}
+    if(!_hasUser) return;
     const _restoreTimeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),6000));
     Promise.race([_fsRestGetDoc('members',s.unit),_restoreTimeout]).then(member=>{
       if(!member){localStorage.removeItem('cobc_session');return;}
@@ -9913,10 +9924,13 @@ function confirmRespond() {
         approvedBy:'AUTO (urgent)',approvedAt:Date.now(),autoApproved:true
       });
       try{ if(typeof cmSyncMember==='function') cmSyncMember(SESSION.unit,SESSION.name,SESSION.phone); }catch(e){}
-      if(call.status==='open') { call.status='active'; call.activatedAt=call.activatedAt||Date.now(); }
+      var _wasOpen=(call.status==='open');
+      if(_wasOpen) { call.status='active'; call.activatedAt=call.activatedAt||Date.now(); }
       logCallEvent(call, 'auto_approved', {responder:SESSION.unit, eta, urgent:true});
+      const _au={responders:call.responders}; if(_wasOpen){ _au.status='active'; _au.activatedAt=call.activatedAt; }
+      _callFieldsUpdate(call,_au);
     }
-    save(); firestoreUpsertCall(call); hideModal('respondModal');
+    save(); hideModal('respondModal');
     renderCalls(); renderHome();
     showToast('✅ Auto-approved — responding to urgent call');
     return;
@@ -10000,7 +10014,7 @@ function requestWithdraw(id){
   if(!r){ showToast('You are not on this call'); return; }
   if(r.withdrawRequested){ showToast('Already requested'); return; }
   r.withdrawRequested=true; r.withdrawAt=Date.now();
-  save(); firestoreUpsertCall(call);
+  save(); _callFieldsUpdate(call,{responders:call.responders});
   try{ renderCallDetail(id); }catch(e){}
   renderCalls(); renderHome();
   showToast('Request sent to dispatch');
@@ -11063,7 +11077,7 @@ function toggleEquipmentOnCall(callId, eqName){
   const idx=call.assignedEquipment.indexOf(eqName);
   const action = idx>-1 ? 'IN' : 'OUT';
   if(idx>-1) call.assignedEquipment.splice(idx,1); else call.assignedEquipment.push(eqName);
-  save(); firestoreUpsertCall(call);
+  save(); _callFieldsUpdate(call,{assignedEquipment:call.assignedEquipment});
   // Write to equipmentHistory so Activity History populates from in-app actions
   try{
     if(window.firebase && _firebaseReady){
@@ -11667,7 +11681,7 @@ async function _writeLiveLocation(callId, lat, lng){
     await firebase.firestore().collection('calls').doc(String(callId))
       .update({ ['liveLocations.'+myUnit]: payload });
   } catch(e){
-    try { await firestoreUpsertCall(call); } catch(e2){}  // fallback to full-doc set
+    try { await firebase.firestore().collection('calls').doc(String(callId)).set({liveLocations:{[myUnit]:payload}},{merge:true}); } catch(e2){}  // fallback: my pin only
   }
 }
 
