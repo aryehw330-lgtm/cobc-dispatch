@@ -3669,6 +3669,12 @@ async function initFirebaseApp() {
           if (user) {
             user.getIdToken().then(t => { window._fbIdToken = t; }).catch(()=>{});
             _startRealtimeSync();
+            // iPhone restores the sign-in a while after the app opens; the equipment list and
+            // member list asked before that were refused (read lock). Load them now (Nov 2026).
+            try{
+              if(window._invNeedsAuth){ window._invNeedsAuth=false; setTimeout(()=>{ try{ loadInventoryFromSheet(true); }catch(e){} }, 300); }
+              if(window._mbrNeedsAuth){ window._mbrNeedsAuth=false; setTimeout(()=>{ try{ loadMembersFromSheet().then(()=>{ try{ renderMemberDir&&renderMemberDir(); renderAdminMembers&&renderAdminMembers(); }catch(e){} }); }catch(e){} }, 300); }
+            }catch(e){}
           } else {
             window._fbIdToken = null;
           }
@@ -4632,8 +4638,9 @@ async function loadInventoryFromSheet(forceRefresh=false){
     ]);
     // Read lock (Nov 2026): if sign-in wasn't ready yet, keep the saved list and retry.
     if((invData&&invData.authRequired)||!Array.isArray(invData&&invData.items)){
+      if(invData&&invData.authRequired) window._invNeedsAuth=true;   // reload as soon as sign-in is ready
       window._invRetry=(window._invRetry||0)+1;
-      if(window._invRetry<=12) setTimeout(()=>{ try{ loadInventoryFromSheet(true); }catch(e){} },5000);
+      if(window._invRetry<=60) setTimeout(()=>{ try{ loadInventoryFromSheet(true); }catch(e){} }, window._invRetry<=12?5000:30000);
       if(sub) sub.textContent='Waiting for sign-in…';
       return;
     }
@@ -6934,8 +6941,9 @@ async function loadMembersFromSheet(){
     // Read lock (Nov 2026): the member list needs a signed-in phone. If this ran before
     // sign-in was ready, try again shortly instead of leaving the directory empty.
     if(data&&data.authRequired){
+      window._mbrNeedsAuth=true;   // reload as soon as sign-in is ready
       window._mbrRetry=(window._mbrRetry||0)+1;
-      if(window._mbrRetry<=12) setTimeout(()=>{ loadMembersFromSheet().then(()=>{ try{ renderMemberDir&&renderMemberDir(); renderAdminMembers&&renderAdminMembers(); }catch(e){} }); }, 5000);
+      if(window._mbrRetry<=60) setTimeout(()=>{ loadMembersFromSheet().then(()=>{ try{ renderMemberDir&&renderMemberDir(); renderAdminMembers&&renderAdminMembers(); }catch(e){} }); }, window._mbrRetry<=12?5000:30000);
       return [];
     }
     window._mbrRetry=0;
