@@ -4756,6 +4756,31 @@ function classifyZoneByLatLng(lat,lng){
   return {level:'outside',label:'✕ Out of Bergen Coverage area',note:'',bg:'rgba(220,38,38,.14)',fg:'#dc2626'};
 }
 let _lastCallLatLng=null;
+// Backup for out-of-area addresses that fall outside every chapter shape (some shapes, e.g.
+// Rockland and Hudson, were squashed to a point when imported; Essex has no shape). Looked up
+// by county via Google (only for those addresses), cached per spot.
+const COUNTY_CHAVERIM={
+  'Rockland County|NY':{n:'Rockland County NY',p:'845-371-6333'},
+  'Hudson County|NJ':{n:'Hudson County NJ',p:'201-472-3608'},
+  'Essex County|NJ':{n:'Chaverim of MetroWest NJ',p:'973-283-5886'}
+};
+const _countyChCache={};
+function _countyChaverimLookup(lat,lng,cb){
+  const k=Number(lat).toFixed(3)+','+Number(lng).toFixed(3);
+  if(k in _countyChCache){ cb(_countyChCache[k]); return; }
+  Promise.resolve(loadGoogleMapsAPI()).then(()=>{
+    new google.maps.Geocoder().geocode({location:{lat:Number(lat),lng:Number(lng)}},(res,st)=>{
+      let hit=null;
+      if(st==='OK'&&res){
+        for(const r of res){
+          let c='',s=''; (r.address_components||[]).forEach(x=>{ if(x.types.includes('administrative_area_level_2')) c=x.long_name; if(x.types.includes('administrative_area_level_1')) s=x.short_name; });
+          if(c&&s){ hit=COUNTY_CHAVERIM[c+'|'+s]||null; break; }
+        }
+      }
+      _countyChCache[k]=hit; cb(hit);
+    });
+  }).catch(()=>cb(null));
+}
 // Geocode the current New Call address text and update the zone badge. Runs on
 // blur / after a Maps-link paste so the badge appears even when the dispatcher
 // doesn't pick an autocomplete suggestion.
@@ -4794,6 +4819,15 @@ function updateCallZoneBadge(){
   badge.style.background=z.bg; badge.style.color=z.fg;
   badge.textContent = z.note ? `${z.label} — ${z.note}` : z.label;
   badge.title = z.note || z.label;
+  // No chapter shape matched → try the county backup list
+  if(z.level==='outside' && !z.note && _lastCallLatLng){
+    const ll=_lastCallLatLng;
+    _countyChaverimLookup(ll.lat, ll.lng, hit=>{
+      if(!hit || _lastCallLatLng!==ll) return;
+      const note=hit.n+(hit.p?' · '+hit.p:'');
+      badge.textContent='✕ Out of Bergen area — '+note; badge.title=note;
+    });
+  }
 }
 // Town for the card chip: use call.town, else parse a town out of the address.
 function cardTown(call){
