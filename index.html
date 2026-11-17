@@ -16609,8 +16609,12 @@ function calcLiveStats(yr) {
     const d = new Date(c.completedAt||c.createdAt||0);
     return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
   });
-  const cancelled = _statCalls.filter(c => {
-    if(c.status!=='cancelled') return false;
+  // _statCall() drops cancelled calls (they aren't handled calls), so count them from all
+  // calls with the same test / draft / pre-launch exclusions. (Was always 0 before Nov 2026.)
+  const cancelled = (_allCalls()).filter(c => {
+    if(!c || c.isTest || c.status!=='cancelled') return false;
+    if(_statsLiveFrom && (c.createdAt||0) < _statsLiveFrom) return false;
+    if((c.createdAt||0) < _HIST_COVERED_UNTIL) return false;
     const d = new Date(c.completedAt||c.cancelledAt||c.createdAt||0);
     return yrStr==='all' ? true : String(d.getFullYear())===yrStr;
   }).length;
