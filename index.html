@@ -14023,7 +14023,10 @@ function subscribeSchedOverridesFromFirestore() {
 // Uses the shared Cloudflare worker on the same dev account as the EZ-Spare proxy
 // and the BC-Dispatch app (same Telzio phone account). The worker takes plain
 // requests at /proxy/calls/* — no token needed.
-var TELZIO_PROXY_URL = 'https://cobc.shmueleidelman-work.workers.dev/proxy';
+// Nov 2026: Shmuel's relay (cobc.shmueleidelman-work.workers.dev/proxy) returned no calls,
+// so it's switched off. Calls now come only from our own Telzio webhook (telzioCalls in
+// Firestore). If COBC gets its own Telzio API key, point this at our worker's /calls routes.
+var TELZIO_PROXY_URL = '';
 // Authenticated fetch helper — ALL Telzio proxy calls go through here.
 // Telzio enforces API rate limits: requests must be serialized with a minimum
 // 5-second gap between them (per Telzio support, Aug 2026). This gate is the
@@ -14034,6 +14037,7 @@ var _telzioLastReqAt = 0;
 var _telzioQueueDepth = 0;
 var _telzioPending = {};   // path -> in-flight promise (coalesce duplicate polls)
 function telzioFetch(path) {
+  if (!TELZIO_PROXY_URL) return Promise.reject(new Error('Telzio proxy off'));
   // A repeat of a path already queued/in-flight rides along instead of adding load
   if (_telzioPending[path]) return _telzioPending[path].then(function(r){ return r.clone(); });
   // Hard backpressure: if callers outpace the gate, drop rather than pile up
@@ -14511,6 +14515,7 @@ var _telzioLiveSeen = {};        // callSid → true, to detect new arrivals
 var _telzioLiveBadgeEl = null;
 
 function startTelzioLivePolling() {
+  if (!TELZIO_PROXY_URL) return; // no live source without a Telzio API key
   if (_telzioLivePollTimer) return; // already running
   // inject badge into topbar if not already there
   if (!document.getElementById('telzioLiveBadge')) {
@@ -14621,7 +14626,7 @@ function subscribeTelzioRecentList() {
 async function _loadTelzioRecent() {
   // Dispatch/admin only — skip the network call entirely for members
   if(!SESSION || !['admin','dispatch'].includes(SESSION.role)) return;
-  if(typeof telzioFetch !== 'function') return;
+  if(typeof telzioFetch !== 'function' || !TELZIO_PROXY_URL) return;
   if(document.hidden) return;            // don't poll a hidden tab
   if(_telzioRecentInFlight) return;      // don't stack requests
   if(Date.now() < _telzioRecentSkipUntil) return; // honor backoff
@@ -15024,6 +15029,7 @@ async function autofillFromLastCall(){
       return;
     }
   }
+  if(!TELZIO_PROXY_URL){ showToast('No recent hotline call found'); return; }
   if(btn){ btn.disabled=true; btn.innerHTML='⏳ Fetching…'; }
   function _diag(msg){ if(btn){ btn.innerHTML=msg; setTimeout(()=>{ btn.innerHTML=orig; },3500); } showToast(msg); }
   try{
@@ -15073,6 +15079,7 @@ async function autoPullCallerOnOpen(){
   const nameEl=document.getElementById('callCaller');
   const phoneEl=document.getElementById('callPhone');
   if((nameEl&&nameEl.value)||(phoneEl&&phoneEl.value)) return; // dispatcher already typing
+  if(!TELZIO_PROXY_URL) return;
   const btn=document.getElementById('telzioPullBtn');
   const orig=btn?btn.innerHTML:'';
   if(btn){ btn.innerHTML='⏳ Getting last caller…'; btn.disabled=true; }
