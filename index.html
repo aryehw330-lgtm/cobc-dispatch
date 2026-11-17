@@ -9955,19 +9955,9 @@ function confirmRespond() {
   const pushTitle = `📲 Response Request — BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')}`;
   const pushBody  = `${SESSION.name}${isObserver?' (Observer)':''} · ${typeLabel} at ${fmtLoc(call)} · ETA ${eta} min${notes?' · '+notes:''}`;
 
-  // On-duty (current-shift) dispatchers + all admins. Admins ride the broad
-  // 'dispatchers' push when no one's on duty so none is missed.
-  const _dutyUnits=_onDutyDispatchUnits();
-  if(_dutyUnits.length){
-    [..._dedupeUnits([..._dutyUnits, ..._adminUnits()])].forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
-  } else {
-    setTimeout(()=>sendPush({ target:'dispatchers', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0);
-    _adminUnits().forEach(u=>setTimeout(()=>sendPush({ target:'unit', unit:String(u), title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }),0));
-  }
-  // Reliable backstop: every admin device subscribes to the 'admin' FCM topic, so this
-  // guarantees admins get the request even if their role string wasn't parsed into
-  // _adminUnits() on the sender's device. (Deduped server-side against the unit send.)
-  setTimeout(()=>{ try{ sendPush({ target:'topic', topic:'admin', title:pushTitle, body:pushBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} },0);
+  // One alert per person: on-duty dispatchers (or all dispatchers if nobody is on duty) + admins,
+  // de-duplicated, so someone who is both dispatcher and admin gets it ONCE.
+  _notifyStaff(pushTitle, pushBody, '/cobc-dispatch/?page=dispatch');
 
   showToast('Response request sent to on-duty dispatchers & admin');
 }
@@ -10342,13 +10332,7 @@ function _requestTakenPopup(title, msg){
 function _submitBackupNotify(call,_approved,id){
   showToast('🆘 Backup request sent to dispatch');
   const _bTitle=`🆘 Backup Requested — Call #${call.callNum||''}`, _bBody=`BC-${String(SESSION.unit||'').replace(/^BC-?/i,'')} needs backup — ${fmtLoc(call)}`;
-  const _bpUnits=_onDutyDispatchUnits();
-  if(_bpUnits.length){
-    [..._dedupeUnits([..._bpUnits, ..._adminUnits()])].forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
-  } else {
-    setTimeout(()=>{ try{ sendPush({target:'dispatchers',title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0);
-    _adminUnits().forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title:_bTitle,body:_bBody,url:'/cobc-dispatch/',urgent:'true'}); }catch(e){} },0));
-  }
+  _notifyStaff(_bTitle, _bBody, '/cobc-dispatch/');
 }
 
 // ── Dispatcher APPROVES a backup request → broadcasts to all (push + WhatsApp) ──
@@ -11478,17 +11462,8 @@ function _submitCompletionNotify(call){
   showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
   showToast('📋 Sent to dispatch for approval');
   const _tl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  // Notify ADMINS (always) + the dispatchers on the CURRENT shift only. If nobody is
-  // scheduled on duty, fall back to all dispatchers so the request never reaches no one.
-  const _dutyUnits=_onDutyDispatchUnits();
-  if(_dutyUnits.length){
-    // On-duty dispatchers + admins, each reached by unit (no server 'admins' mode).
-    [..._dedupeUnits([..._dutyUnits, ..._adminUnits()])].forEach(u=>sendPush({target:'unit',unit:String(u),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'}));
-  } else {
-    // No one scheduled on duty (OPEN or CHIEFS) → all dispatchers + all admins.
-    sendPush({target:'dispatchers',title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'});
-    _adminUnits().forEach(u=>sendPush({target:'unit',unit:String(u),title:'📋 Completion Request',body:`Completion request for call #${call.callNum||''}`,url:'/cobc-dispatch/?page=dispatch',urgent:'true'}));
-  }
+  // Admins + on-duty dispatchers (all dispatchers if nobody is on duty), one alert per person.
+  _notifyStaff('📋 Completion Request', `Completion request for call #${call.callNum||''}`, '/cobc-dispatch/?page=dispatch');
 }
 function approveCallCompletion(id){
   const call=STATE.calls.find(c=>c.id===id);
@@ -12570,6 +12545,25 @@ function _equipUnits(){
 // Secondary, respecting one-time schedOverrides. Empty array if the slot is OPEN/unset.
 // De-dupe a unit list by normalized BC number so someone who is BOTH an on-duty
 // dispatcher AND an admin only gets ONE push (not two).
+// Staff alerts (response / backup / completion requests): ONE alert per person.
+// On-duty dispatchers, or every dispatcher if nobody is scheduled, plus every admin — de-duplicated,
+// so a member who is both dispatcher and admin isn't alerted twice.
+function _staffUnitsForAlert(){
+  const duty=_onDutyDispatchUnits();
+  const disp=duty.length ? duty : (STATE.members||[])
+    .filter(m=>(String(m.roleStr||'')+' '+String(m.role||m.status||'')).toLowerCase().includes('dispatch'))
+    .map(m=>String(m.unit||m.id||'').replace(/^BC-?/i,'')).filter(Boolean);
+  return _dedupeUnits([...disp, ..._adminUnits()]);
+}
+function _notifyStaff(title, body, url){
+  const units=_staffUnitsForAlert();
+  if(!units.length){ // member list not loaded yet: fall back to the server's role lists
+    try{ sendPush({target:'dispatchers',title,body,url,urgent:'true'}); }catch(e){}
+    try{ sendPush({target:'topic',topic:'admin',title,body,url,urgent:'true'}); }catch(e){}
+    return;
+  }
+  units.forEach(u=>setTimeout(()=>{ try{ sendPush({target:'unit',unit:String(u),title,body,url,urgent:'true'}); }catch(e){} },0));
+}
 function _dedupeUnits(arr){
   const seen=new Set(), out=[];
   (arr||[]).forEach(u=>{ const k=_normUnit(u); if(k&&!seen.has(k)){ seen.add(k); out.push(u); } });
