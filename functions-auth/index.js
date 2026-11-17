@@ -291,11 +291,12 @@ exports.getAuthToken = onRequest(
 // Safety: if the member list can't be read or looks wrong (fewer than 50 people),
 // it does nothing — a glitch must never sign everyone out.
 exports.cutOffRemovedMembers = onSchedule({ schedule: 'every 60 minutes', region: 'us-east1', timeZone: 'America/New_York' }, async () => {
-  let roster;
+  let roster; const names = {};
   try {
     const r = await fetch(APPS_SCRIPT_URL + '?action=getMembers', { redirect: 'follow' });
     const j = await r.json();
     roster = new Set((j.members || []).map(m => normUnit(m.id || m.unit)).filter(Boolean));
+    (j.members || []).forEach(m => { const u = normUnit(m.id || m.unit); if (u) names[u] = String(m.name || ((m.firstName || '') + ' ' + (m.lastName || ''))).toLowerCase().replace(/[^a-z]/g, ''); });
   } catch (e) { console.error('cutOff: roster fetch failed, skipping', e); return; }
   if (roster.size < 50) { console.error('cutOff: roster looks wrong (' + roster.size + '), skipping'); return; }
 
@@ -313,7 +314,26 @@ exports.cutOffRemovedMembers = onSchedule({ schedule: 'every 60 minutes', region
     }
     next = page.pageToken;
   } while (next);
-  console.log('cutOff: roster=' + roster.size + ' cut off=' + (cut.join(', ') || 'none'));
+  // Reassigned BC numbers (Nov 2026): if the name on a BC# changed since the last run, the
+  // number went to a different person — sign out every phone still signed in as that BC#
+  // (the old member's session ends within the hour; the new member signs in with their PIN).
+  // The name list is kept server-side only (serverState is blocked to all app users).
+  const reassigned = [];
+  try {
+    const ref = admin.firestore().collection('serverState').doc('rosterNames');
+    const prevDoc = await ref.get();
+    const prev = prevDoc.exists ? (prevDoc.data().names || {}) : null;
+    if (prev) {
+      for (const u of Object.keys(names)) {
+        if (prev[u] && names[u] && prev[u] !== names[u]) {
+          try { await admin.auth().revokeRefreshTokens('member-' + u); reassigned.push('BC-' + u); }
+          catch (e) { if (e.code !== 'auth/user-not-found') console.error('cutOff: revoke failed BC-' + u, e); }
+        }
+      }
+    }
+    await ref.set({ names, at: Date.now() });
+  } catch (e) { console.error('cutOff: reassigned check failed', e); }
+  console.log('cutOff: roster=' + roster.size + ' cut off=' + (cut.join(', ') || 'none') + ' reassigned (signed out)=' + (reassigned.join(', ') || 'none'));
 });
 
 
