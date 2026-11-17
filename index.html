@@ -1592,14 +1592,14 @@ textarea.input{min-height:80px;resize:vertical;}
       <div class="section-header"><div class="section-title" id="page-more-title">Admin</div></div>
       <div id="adminMgmtBtnWrap" style="display:none;margin-bottom:12px;"></div>
       <div class="sub-tabs" id="more-sub-tabs" style="overflow-x:auto;flex-wrap:nowrap;">
-        <button class="sub-tab member-allowed" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
-        <button class="sub-tab member-allowed" onclick="setMoreTab('history',this)">📅 Call History</button>
-        <button class="sub-tab member-allowed" onclick="setMoreTab('stats',this)">📊 My Stats</button>
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('adminstats',this)">📈 Admin Stats</button>
-        <button class="sub-tab active member-allowed" onclick="setMoreTab('settings',this)">⚙️ Settings</button>
+        <button class="sub-tab member-allowed" onclick="setMoreTab('history',this)">📅 Call History</button>
         <button class="sub-tab admin-only-sub" onclick="setMoreTab('schedule',this)">📅 Dispatch Schedule</button>
-        <button class="sub-tab admin-only-sub" onclick="setMoreTab('telzio',this)">☎️ Telzio Log</button>
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('equipment',this)">📦 Equipment</button>
+        <button class="sub-tab member-allowed" onclick="setMoreTab('stats',this)">📊 My Stats</button>
+        <button class="sub-tab member-allowed" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
+        <button class="sub-tab active member-allowed" onclick="setMoreTab('settings',this)">⚙️ Settings</button>
+        <button class="sub-tab admin-only-sub" onclick="setMoreTab('telzio',this)">☎️ Telzio Log</button>
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('vehicles',this)">🚐 Vehicles</button>
       </div>
       <!-- TELZIO LOG (admin/dispatch: read-only phone-number history) -->
