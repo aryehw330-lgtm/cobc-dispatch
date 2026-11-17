@@ -17883,8 +17883,16 @@ function _renderCallPicks(fieldId, boxId, unit){
       const num=String(c.callNum), on=cur===num;
       const lbl=cleanLabel(c.type&&c.type.startsWith('other:')?c.type.replace('other:',''):(CALL_TYPE_LABELS[c.type]||c.type||''));
       return '<button type="button" onclick="_pickCallNum(\''+fieldId+'\',\''+boxId+'\',\''+esc(num)+'\')" style="border:1.5px solid '+(on?'var(--blue)':'var(--border)')+';background:'+(on?'var(--blue)':'transparent')+';color:'+(on?'#fff':'var(--text)')+';border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'
-        +(on?'✓ ':'')+'#'+esc(num)+' · '+esc(lbl)+(c.town?' · '+esc(c.town):'')+'</button>';
+        +(on?'\u2713 ':'')+'#'+esc(num)+' \u00b7 '+esc(lbl)+(_shortAddr(c.address)?' \u00b7 '+esc(_shortAddr(c.address)):'')+(c.town?' \u00b7 '+esc(c.town):'')+'</button>';
     }).join('')+'</div>';
+}
+// House number + start of the street ("1006 Haddon Place, Teaneck" -> "1006 Hadd…"):
+// enough to tell two calls on the same street apart without a full address.
+function _shortAddr(a){
+  var first=String(a||'').split(',')[0].trim(); if(!first) return '';
+  var m=first.match(/^#?(\d+[a-z]?(?:-\d+[a-z]?)?)\s+(.+)$/i);
+  if(m){ var st=m[2].trim(); return m[1]+' '+(st.length>4?st.slice(0,4)+'\u2026':st); }
+  return first.length>10?first.slice(0,10).trim()+'\u2026':first;
 }
 function _pickCallNum(fieldId, boxId, num){
   const f=document.getElementById(fieldId); if(!f) return;
