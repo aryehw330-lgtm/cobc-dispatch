@@ -1588,6 +1588,8 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
       <!-- TELZIO LOG (admin/dispatch: read-only phone-number history) -->
       <div id="more-telzio" style="display:none;">
+        <div class="section-label">📊 Hotline Call Stats</div>
+        <div class="card" style="margin-bottom:10px;"><div id="telzioStatsBox" style="font-size:13px;color:#fff;">Loading…</div></div>
         <div class="section-label">Telzio Phone Number History</div>
         <div class="card" style="margin-bottom:10px;">
           <div class="search-bar" style="margin-bottom:8px;"><span class="search-icon">🔍</span><input type="text" id="telzioHistSearch" placeholder="Search by number or name..." oninput="renderTelzioHistory()"/></div>
@@ -1599,7 +1601,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <div id="telzioHistTotal" style="font-size:13px;font-weight:700;color:#fff;margin-bottom:8px;"></div>
           <div id="telzioHistList" style="font-size:13px;"></div>
           <button id="telzioHistMore" onclick="loadTelzioHistory(true)" class="btn-full btn-ghost" style="margin-top:8px;display:none;">Load more</button>
-          <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;">Every inbound Telzio call, newest first. Read-only · kept 13 months.</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;">Every inbound Telzio call, newest first. Read-only.</div>
         </div>
       </div>
       <!-- SETTINGS (notifications, location, app prefs) -->
@@ -13189,7 +13191,7 @@ function setMoreTab(tab,el) {
       try{ const t=document.getElementById('testModeToggleState'); if(t) t.textContent=window._testMode?'ON':'OFF'; }catch(e){}
     }
   }
-  if(tab==='telzio')    loadTelzioHistory(false);
+  if(tab==='telzio')  { loadTelzioHistory(false); try{ renderTelzioStats(); }catch(e){} }
 }
 
 // Admin member search → renders the full My-Stats-style card for any member.
@@ -14077,6 +14079,61 @@ function subscribeTelzioCallsFromFirestore() {
 const _TELZIO_HIST_PAGE = 40;
 let _telzioHist = [], _telzioHistCursor = null, _telzioHistDone = false, _telzioHistLoading = false;
 let _telzioRangeMode = false; // true when a date range is active (loads the whole range at once)
+// ── Hotline call stats (admin): counts of inbound hotline calls (telzioCalls, the webhook's
+// log). The running totals are saved in Firestore (statsHistory/telzioCounts), so the stats
+// stay complete even if old telzioCalls entries are ever cleaned up. Each open reads only
+// calls newer than the saved totals. A copy is kept on the device for an instant first paint.
+const _TZS_KEY='cobc_telzio_stats_v1';
+async function renderTelzioStats(){
+  const box=document.getElementById('telzioStatsBox'); if(!box) return;
+  const norm=x=>{ x=x||{}; x.m=x.m||{}; x.h=x.h||{}; x.w=x.w||{}; x.n=x.n||0; x.last=x.last||0; x.first=x.first||0; return x; };
+  let local={}; try{ local=JSON.parse(localStorage.getItem(_TZS_KEY)||'{}')||{}; }catch(e){}
+  local=norm(local); if(local.n) _drawTelzioStats(box,local,true);
+  if(typeof firebase==='undefined' || !_firebaseReady){ if(!local.n) box.textContent='Not available offline.'; return; }
+  try{
+    const db=firebase.firestore(), ref=db.collection('statsHistory').doc('telzioCounts');
+    const doc=await ref.get();
+    let s=norm(doc.exists?doc.data():{});
+    const base=s.last;
+    let q=db.collection('telzioCalls').orderBy('at','asc');
+    if(s.last) q=q.where('at','>',s.last);
+    const snap=await q.limit(5000).get();
+    snap.forEach(d=>{
+      const at=Number((d.data()||{}).at||0); if(!at) return;
+      const t=new Date(at), k=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+      s.m[k]=(s.m[k]||0)+1; s.h[t.getHours()]=(s.h[t.getHours()]||0)+1; s.w[t.getDay()]=(s.w[t.getDay()]||0)+1;
+      s.n++; if(at>s.last) s.last=at; if(!s.first||at<s.first) s.first=at;
+    });
+    if(snap.size){
+      // Save only if nobody else saved newer totals meanwhile (avoids double counting).
+      try{ await db.runTransaction(async tx=>{ const cur=await tx.get(ref); const curLast=cur.exists?(cur.data().last||0):0; if(curLast!==base) throw new Error('stale'); tx.set(ref,{m:s.m,h:s.h,w:s.w,n:s.n,last:s.last,first:s.first,updatedAt:Date.now()}); }); }
+      catch(e){ if(String(e&&e.message)==='stale'){ return renderTelzioStats(); } console.warn('telzio stats save',e); }
+    }
+    try{ localStorage.setItem(_TZS_KEY, JSON.stringify(s)); }catch(e){}
+    _drawTelzioStats(box,s,false);
+  }catch(e){ console.warn('telzio stats',e); if(!local.n) box.textContent='Couldn’t load stats — try again.'; }
+}
+function _drawTelzioStats(box,s,updating){
+  if(!s.n){ box.textContent='No hotline calls logged yet.'; return; }
+  const now=new Date(), key=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  const thisK=key(now), lastK=key(new Date(now.getFullYear(),now.getMonth()-1,1));
+  const thisN=s.m[thisK]||0, lastN=s.m[lastK]||0, perDay=(thisN/Math.max(1,now.getDate())).toFixed(1);
+  const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DN=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const hr=h=>{ const a=h%12||12, b=(h+1)%12||12; return a+'–'+b+' '+((h+1)%24<12?'AM':'PM'); };
+  const tile=(v,l)=>'<div style="flex:1;min-width:70px;background:rgba(255,255,255,.08);border-radius:10px;padding:8px 6px;text-align:center;"><div style="font-size:19px;font-weight:800;">'+v+'</div><div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;">'+l+'</div></div>';
+  const months=Object.keys(s.m).sort().slice(-12), max=Math.max(1,...months.map(k=>s.m[k]));
+  const bars=months.map(k=>{ const [y,mm]=k.split('-'); const n=s.m[k];
+    return '<div style="display:flex;align-items:center;gap:8px;margin:3px 0;"><div style="width:62px;font-size:11px;color:rgba(255,255,255,.75);">'+MN[+mm-1]+' '+y.slice(2)+'</div><div style="flex:1;background:rgba(255,255,255,.08);border-radius:6px;height:14px;overflow:hidden;"><div style="width:'+Math.round(n/max*100)+'%;height:100%;background:linear-gradient(90deg,#3b82f6,#60a5fa);"></div></div><div style="width:36px;text-align:right;font-weight:700;font-size:12px;">'+n+'</div></div>'; }).join('');
+  const topH=Object.keys(s.h).map(Number).sort((a,b)=>s.h[b]-s.h[a]).slice(0,3);
+  const topW=Object.keys(s.w).map(Number).sort((a,b)=>s.w[b]-s.w[a])[0];
+  const since=s.first?new Date(s.first).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+  box.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'+tile(s.n.toLocaleString(),'TOTAL')+tile(thisN,'THIS MONTH')+tile(lastN,'LAST MONTH')+tile(perDay,'PER DAY')+'</div>'
+    +'<div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);margin:4px 0;">CALLS PER MONTH</div>'+bars
+    +'<div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);margin:10px 0 4px;">BUSIEST TIMES</div>'
+    +'<div style="font-size:12px;line-height:1.6;">'+topH.map(h=>'🕒 '+hr(h)+' — '+s.h[h]+' calls').join('<br>')+(topW!=null?'<br>📅 '+DN[topW]+'s — '+s.w[topW]+' calls':'')+'</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:8px;">Inbound hotline calls since '+since+(updating?' · updating…':'')+'</div>';
+}
 function _telzioDateBounds(){
   const fromEl=document.getElementById('telzioHistFrom'), toEl=document.getElementById('telzioHistTo');
   const fromV=fromEl?.value, toV=toEl?.value;
