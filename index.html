@@ -2274,7 +2274,9 @@ textarea.input{min-height:80px;resize:vertical;}
         }
         return null;
       }
+      var isGrid=function(){ try{ return getComputedStyle(bar).display==='grid'; }catch(e){ return false; } };
       bar.addEventListener('touchstart',function(e){
+        if(isGrid()){ dragging=false; startTab=null; return; } // grid menus (Admin, Equipment): plain taps
         dragging=true; moved=false; lastTab=null;
         startX=e.touches[0].clientX; startScroll=bar.scrollLeft;
         startTab=tabAt(startX);
@@ -3286,12 +3288,15 @@ textarea.input{min-height:80px;resize:vertical;}
     bar.dataset.magBound = '1';
 
     bar.addEventListener('touchstart', function(e){
+      // Grid menus (Admin, Equipment) are several rows: no magnify effect.
+      try{ if (getComputedStyle(bar).display==='grid') return; }catch(_){}
       // If the bar scrolls horizontally, don't magnify — let it scroll freely.
       if (bar.scrollWidth > bar.clientWidth + 4) return;
       applyMag(bar, e.touches[0].clientX);
     }, {passive:true});
 
     bar.addEventListener('touchmove', function(e){
+      try{ if (getComputedStyle(bar).display==='grid') return; }catch(_){}
       if (bar.scrollWidth > bar.clientWidth + 4) { resetMag(bar); return; }
       applyMag(bar, e.touches[0].clientX);
     }, {passive:true});
