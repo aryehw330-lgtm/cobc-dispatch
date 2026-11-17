@@ -3669,6 +3669,7 @@ async function initFirebaseApp() {
           if (user) {
             user.getIdToken().then(t => { window._fbIdToken = t; }).catch(()=>{});
             _startRealtimeSync();
+            try{ setTimeout(()=>{ try{ _autoRefreshPush(); }catch(e){} }, 1500); }catch(e){}   // register alerts once signed in
             // iPhone restores the sign-in a while after the app opens; the equipment list and
             // member list asked before that were refused (read lock). Load them now (Nov 2026).
             try{
@@ -3704,6 +3705,28 @@ function _notifFixText(){
   return ios ? 'Call alerts are off. To fix: iPhone Settings → Notifications → COBC → turn on Allow Notifications (also allow COBC in any Focus mode), then reopen the app.'
              : 'Call alerts are off. To fix: phone Settings → Apps → COBC (or Chrome) → Notifications → turn on, and set Battery to Unrestricted, then reopen the app.';
 }
+// Register this phone's alert address with the push server (Nov 2026 fix). The push server
+// refuses registrations without the sign-in, and iPhone restores the sign-in slowly after the
+// app opens — so WAIT for it (up to 60 s), and CHECK the server said ok. Returns true/false.
+async function _waitAuthToken(ms){
+  const t0=Date.now();
+  while(Date.now()-t0<ms){
+    try{ const u=firebase.auth().currentUser; if(u){ const t=await u.getIdToken(); if(t){ window._fbIdToken=t; return t; } } }catch(e){}
+    await new Promise(r=>setTimeout(r,1000));
+  }
+  return null;
+}
+async function _registerPushToken(token){
+  const auth=await _waitAuthToken(60000);
+  if(!auth){ console.warn('push register: no sign-in yet'); return false; }
+  try{
+    const r=await fetch(PUSH_SEND_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'register',authToken:auth,unit:SESSION.unit,name:SESSION.name,role:SESSION.role,token})});
+    const j=await r.json().catch(()=>({}));
+    if(j && j.ok){ try{ localStorage.setItem('cobc_fcm_token_'+SESSION.unit, token); localStorage.setItem('cobc_push_registered_at', String(Date.now())); }catch(e){} return true; }
+    console.warn('push register refused:', j && j.error); return false;
+  }catch(e){ console.warn('push register failed:', e); return false; }
+}
 async function _autoRefreshPush(){
   try{
     if(!('Notification' in window) || Notification.permission!=='granted') return;
@@ -3717,10 +3740,9 @@ async function _autoRefreshPush(){
     const token=await _fcmMessaging.getToken({vapidKey:FCM_VAPID_KEY, serviceWorkerRegistration:reg});
     if(!token) return;
     _fcmToken=token;
-    await fetch(PUSH_SEND_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({action:'register',authToken:await _pushAuth(),unit:SESSION.unit,name:SESSION.name,role:SESSION.role,token})});
-    localStorage.setItem('cobc_fcm_token_'+SESSION.unit, token);
-  }catch(e){ console.warn('auto push refresh:', e); }
+    const ok=await _registerPushToken(token);
+    if(!ok){ try{ sessionStorage.removeItem('cobc_push_refreshed'); }catch(e){} setTimeout(()=>{ try{ _autoRefreshPush(); }catch(e){} }, 60000); }   // try again in a minute
+  }catch(e){ console.warn('auto push refresh:', e); try{ sessionStorage.removeItem('cobc_push_refreshed'); }catch(_){} }
 }
 async function initPushModule() {
   if (!_firebaseReady || _fcmMessaging) return;
@@ -3871,15 +3893,9 @@ async function enablePushForThisDevice() {
     _fcmToken = token;
     // Topic sign-up now happens on the push server when this token registers.
 
-    // Step 5 — Register token with push server
-    await fetch(PUSH_SEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'register', authToken: await _pushAuth(),
-        unit: SESSION.unit, name: SESSION.name, role: SESSION.role, token })
-    });
-
-    localStorage.setItem('cobc_fcm_token_' + SESSION.unit, token);
+    // Step 5 — Register token with push server (waits for the sign-in and checks the answer)
+    const _regOk = await _registerPushToken(token);
+    if (!_regOk) { setStatus('Retry','btn-primary'); showToast('⚠️ Could not finish turning on alerts — wait a few seconds and tap again'); return; }
     setStatus('On','btn-green');
     showToast('✅ Notifications enabled!');
     renderHome && renderHome();
