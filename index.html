@@ -2101,9 +2101,19 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="card-label">Next Shift</div>
           <div id="schedNextContent"></div>
         </div>
+        <!-- Schedule views: Day (cards) · Week (table) · Month (calendar) · Open (uncovered shifts) -->
+        <div id="schedViewSwitch" style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:4px;margin-bottom:12px;">
+          <button type="button" data-v="day" onclick="setSchedView('day')">Day</button>
+          <button type="button" data-v="week" onclick="setSchedView('week')">Week</button>
+          <button type="button" data-v="month" onclick="setSchedView('month')">Month</button>
+          <button type="button" data-v="open" onclick="setSchedView('open')">Open</button>
+        </div>
+        <div id="schedMonthView" style="display:none;"></div>
+        <div id="schedOpenView" style="display:none;"></div>
+        <div id="schedNavBlock">
         <!-- Full weekly schedule -->
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div class="section-label">Weekly Schedule</div>
+          <div class="section-label" id="schedViewLabel">Weekly Schedule</div>
           <div style="position:relative;display:inline-flex;flex-shrink:0;">
             <button type="button" class="btn-sm btn-ghost" style="font-size:11px;padding:4px 12px;display:inline-flex;align-items:center;gap:5px;" onclick="openSchedCalendar()">📅 Jump to date</button>
           </div>
@@ -2116,8 +2126,12 @@ textarea.input{min-height:80px;resize:vertical;}
         <div style="text-align:center;margin-bottom:10px;">
           <button id="schedThisWeekBtn" class="btn-sm btn-ghost" style="font-size:11px;padding:4px 12px;display:none;" onclick="schedNavWeek(0)">↺ This Week</button>
         </div>
+        </div>
+        <div id="schedWeekView" style="display:none;"></div>
+        <div id="schedDayView">
         <div class="filter-chips" id="schedDayChips" style="margin-bottom:12px;"></div>
         <div id="schedDayContent"></div>
+        </div>
       </div>
 
       <!-- EQUIPMENT (admin accordion, mirrors equipment-tab admin) -->
@@ -16096,8 +16110,130 @@ function renderSchedule() {
   }).join('');
 
   renderScheduleDay();
+  try{ _schedApplyView(); }catch(e){ console.warn('sched view',e); }
 }
 
+// ── Schedule views (Nov 2026): Day = cards (as before) · Week = whole-week table ·
+// Month = calendar (tap a day to open it) · Open = every uncovered shift, next 14 days.
+let schedView='day';
+try{ schedView=localStorage.getItem('cobc_sched_view')||'day'; }catch(e){}
+let _schedMonthY=null, _schedMonthM=null;
+function setSchedView(v){
+  schedView=v; try{ localStorage.setItem('cobc_sched_view',v); }catch(e){}
+  renderSchedule();
+}
+function _schedSlotOn(date, si){
+  const row=DISPATCH_SCHEDULE[si]; if(!row) return {p:'OPEN',s:'OPEN'};
+  const ds=_dateStrOf(date);
+  const ov=STATE.schedOverrides&&STATE.schedOverrides[ds]&&STATE.schedOverrides[ds][si];
+  return ov?{p:ov.p,s:ov.s,temp:true}:(row.slots[date.getDay()]||{p:'OPEN',s:'OPEN'});
+}
+function _schedGoto(date){
+  const now=new Date();
+  const a=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay());
+  const b=new Date(date.getFullYear(),date.getMonth(),date.getDate()-date.getDay());
+  schedWeekOffset=Math.round((b-a)/(7*24*3600*1000));
+  schedCurDay=date.getDay();
+}
+function schedOpenDay(y,m,d){ _schedGoto(new Date(y,m,d)); setSchedView('day'); }
+function _schedWho(name){
+  if(!name||name==='OPEN') return {bc:'OPEN',nm:''};
+  if(name==='CHIEFS') return {bc:'Chiefs',nm:''};
+  const m=String(name).match(/BC\s*-?\s*(\d+)\s*(.*)/i);
+  return m?{bc:m[1],nm:(m[2]||'').trim().split(/\s+/).pop()}:{bc:String(name).split(/\s+/)[0],nm:''};
+}
+function _schedApplyView(){
+  const v=schedView;
+  document.querySelectorAll('#schedViewSwitch button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  const show=(id,on)=>{ const e=document.getElementById(id); if(e) e.style.display=on?'':'none'; };
+  show('schedNavBlock', v==='day'||v==='week');
+  show('schedDayView', v==='day');
+  show('schedWeekView', v==='week');
+  show('schedMonthView', v==='month');
+  show('schedOpenView', v==='open');
+  const lbl=document.getElementById('schedViewLabel'); if(lbl) lbl.textContent=v==='week'?'Week at a glance':'Weekly Schedule';
+  if(v==='week') renderSchedWeekGrid();
+  if(v==='month') renderSchedMonthView();
+  if(v==='open') renderSchedOpenView();
+}
+function renderSchedWeekGrid(){
+  const el=document.getElementById('schedWeekView'); if(!el) return;
+  const now=new Date(), today=new Date(now); today.setHours(0,0,0,0);
+  const ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()+(schedWeekOffset*7));
+  const days=[...Array(7)].map((_,i)=>{ const d=new Date(ws); d.setDate(d.getDate()+i); return d; });
+  const curSi=getShiftIndexNow();
+  let h='<table class="sw-grid"><tr><th></th>'+days.map(d=>'<th class="'+(d.getTime()===today.getTime()?'today':'')+'">'+SCHED_DAYS[d.getDay()]+'<br><span style="font-weight:600;opacity:.8;">'+(d.getMonth()+1)+'/'+d.getDate()+'</span></th>').join('')+'</tr>';
+  DISPATCH_SCHEDULE.forEach((row,si)=>{
+    h+='<tr><td class="t">'+String(row.shift||'').replace(/:00/g,'').replace('-','–')+'</td>';
+    days.forEach(d=>{
+      const s=_schedSlotOn(d,si), w=_schedWho(s.p);
+      const past=_isShiftPastForDate(row,d) || d<today;
+      const cls=s.p==='OPEN'?'sw-cell-open':s.p==='CHIEFS'?'sw-cell-chiefs':'sw-cell-ok';
+      const isNow=d.getTime()===today.getTime() && si===curSi;
+      h+='<td class="'+cls+(past?' sw-cell-past':'')+(isNow?' sw-cell-now':'')+'" onclick="schedOpenDay('+d.getFullYear()+','+d.getMonth()+','+d.getDate()+')">'
+        +'<div class="sw-bc"'+(s.p==='OPEN'?' style="color:#fde68a;font-size:10.5px;"':'')+'>'+_rcEsc(w.bc)+(s.temp?'*':'')+'</div>'
+        +(w.nm?'<div class="sw-nm">'+_rcEsc(w.nm)+'</div>':'')+'</td>';
+    });
+    h+='</tr>';
+  });
+  h+='</table><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;line-height:1.5;">Green = covered · <b style="color:#fde68a;">Orange = OPEN</b> · * = one-time change · Gold outline = on duty now.<br>Tap any box to open that day.</div>';
+  el.innerHTML=h;
+}
+function renderSchedMonthView(){
+  const el=document.getElementById('schedMonthView'); if(!el) return;
+  const now=new Date();
+  if(_schedMonthY===null){ _schedMonthY=now.getFullYear(); _schedMonthM=now.getMonth(); }
+  const y=_schedMonthY, m=_schedMonthM;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const first=new Date(y,m,1).getDay(), dim=new Date(y,m+1,0).getDate();
+  let cells='';
+  for(let i=0;i<first;i++) cells+='<div></div>';
+  for(let d=1; d<=dim; d++){
+    const date=new Date(y,m,d), past=date<today, isToday=date.getTime()===today.getTime();
+    const cov=past?null:_dayCoverageStatus(date), oc=past?{p:0}:_dayOpenCounts(date);
+    const bg=past?'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);opacity:.55;'
+      :cov==='open'?'background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.55);'
+      :cov==='full'?'background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.45);'
+      :'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);';
+    cells+='<div onclick="schedOpenDay('+y+','+m+','+d+')" style="position:relative;border-radius:10px;padding:8px 0 6px;text-align:center;cursor:pointer;'+bg+(isToday?'box-shadow:0 0 0 2px #e6c463 inset;':'')+'">'
+      +'<div style="font-size:15px;font-weight:'+(isToday?'900':'700')+';color:#fff;">'+d+'</div>'
+      +'<div style="font-size:9.5px;font-weight:800;margin-top:2px;color:'+(oc.p?'#fde68a':'rgba(134,239,172,.9)')+';">'+(past?'&nbsp;':oc.p?oc.p+' open':'✓')+'</div></div>';
+  }
+  el.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+    +'<button class="btn-sm btn-ghost" onclick="_schedMonthNav(-1)">← Prev</button>'
+    +'<div style="font-size:15px;font-weight:800;color:#fff;">'+new Date(y,m,1).toLocaleDateString('en-US',{month:'long',year:'numeric'})+'</div>'
+    +'<button class="btn-sm btn-ghost" onclick="_schedMonthNav(1)">Next →</button></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;">'+SCHED_DAYS.map(x=>'<div style="text-align:center;font-size:10.5px;font-weight:800;color:rgba(255,255,255,.7);">'+x+'</div>').join('')+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">'+cells+'</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;">Green ✓ = every shift covered · <b style="color:#fde68a;">Orange = open shifts</b> (number shown) · Tap a day to open it.</div>';
+}
+function _schedMonthNav(d){ _schedMonthM+=d; if(_schedMonthM<0){_schedMonthM=11;_schedMonthY--;} if(_schedMonthM>11){_schedMonthM=0;_schedMonthY++;} renderSchedMonthView(); }
+function renderSchedOpenView(){
+  const el=document.getElementById('schedOpenView'); if(!el) return;
+  const canTake=['admin','dispatch'].includes(SESSION&&SESSION.role);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const out=[];
+  for(let k=0;k<14;k++){
+    const d=new Date(today); d.setDate(d.getDate()+k);
+    DISPATCH_SCHEDULE.forEach((row,si)=>{
+      if(_isShiftPastForDate(row,d)) return;
+      const s=_schedSlotOn(d,si);
+      if(s.p==='OPEN') out.push({d,si,row,s});
+    });
+  }
+  if(!out.length){ el.innerHTML='<div class="card" style="text-align:center;padding:22px;"><div style="font-size:28px;">✅</div><div style="font-weight:800;margin-top:6px;">Every shift is covered for the next 2 weeks</div></div>'; return; }
+  let lastDay='', h='<div style="font-size:12px;color:rgba(255,255,255,.75);margin-bottom:8px;"><b style="color:#fde68a;">'+out.length+' open shift'+(out.length===1?'':'s')+'</b> in the next 2 weeks</div>';
+  out.forEach(o=>{
+    const dl=o.d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+    if(dl!==lastDay){ h+='<div class="section-label" style="margin:12px 0 6px;">'+dl+'</div>'; lastDay=dl; }
+    const sec=o.s.s&&o.s.s!=='OPEN'?'2nd: '+_rcEsc(o.s.s):'';
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;margin-bottom:6px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);">'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:900;color:#fff;">'+_rcEsc(o.row.shift)+'</div>'+(sec?'<div style="font-size:11.5px;color:rgba(255,255,255,.7);">'+sec+'</div>':'')+'</div>'
+      +(canTake?'<button class="btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:800;" onclick="_schedGoto(new Date('+o.d.getFullYear()+','+o.d.getMonth()+','+o.d.getDate()+'));takeScheduleSlot('+o.si+','+o.d.getDay()+')">Take</button>':'')
+      +'<button class="btn-sm btn-ghost" onclick="schedOpenDay('+o.d.getFullYear()+','+o.d.getMonth()+','+o.d.getDate()+')">View</button></div>';
+  });
+  el.innerHTML=h;
+}
 function renderScheduleDay() {
   const now=new Date();
   const curHourShift=getShiftIndexNow();
@@ -21660,6 +21796,20 @@ function fmtMemberBadgeD(memberStr) {
 <style id="__om-edit-overrides">
 #callDetailContent >.detail-actions { font-size: 6px !important }
 #callDetailContent >.detail-actions { font-size: 13px !important }
+#schedViewSwitch button{border:none;border-radius:9px;padding:9px 4px;font-size:13px;font-weight:800;background:transparent;color:rgba(255,255,255,.75);cursor:pointer;font-family:inherit;}
+#schedViewSwitch button.on{background:linear-gradient(180deg,rgba(255,243,204,.95),rgba(212,169,58,.9));color:#3a2c05;}
+.sw-grid{width:100%;border-collapse:separate;border-spacing:3px;table-layout:fixed;}
+.sw-grid th{font-size:10.5px;font-weight:800;color:rgba(255,255,255,.75);padding:3px 0;}
+.sw-grid th.today{color:#e6c463;}
+.sw-grid td{border-radius:7px;padding:5px 2px;text-align:center;cursor:pointer;line-height:1.15;vertical-align:middle;}
+.sw-grid td.t{cursor:default;font-size:10px;font-weight:800;color:rgba(255,255,255,.7);text-align:right;padding-right:4px;width:44px;}
+.sw-cell-ok{background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.35);}
+.sw-cell-open{background:rgba(245,158,11,.22);border:1px solid rgba(245,158,11,.55);}
+.sw-cell-chiefs{background:rgba(148,163,184,.18);border:1px solid rgba(148,163,184,.35);}
+.sw-cell-past{opacity:.38;}
+.sw-cell-now{box-shadow:0 0 0 2px #e6c463 inset;}
+.sw-bc{font-size:12px;font-weight:900;color:#fff;}
+.sw-nm{font-size:9px;font-weight:600;color:rgba(255,255,255,.75);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 /* Admin + Equipment section menus: a grid that shows every section at once (was a sideways-
    scrolling row that hid most sections). Role-hidden buttons stay hidden. (Nov 2026) */
 #page-more #more-sub-tabs{display:grid!important;grid-template-columns:repeat(3,1fr);gap:6px;overflow:visible!important;flex-wrap:wrap!important;padding:4px;}
