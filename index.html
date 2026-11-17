@@ -3153,6 +3153,17 @@ textarea.input{min-height:80px;resize:vertical;}
         <button onclick="saveEditMemberPin()" style="flex-shrink:0;padding:12px 16px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Set New PIN</button>
       </div>
     </div>
+    <div class="input-group" id="editMbrZelloGroup" style="display:none;">
+      <label class="input-label">📻 Zello listener login</label>
+      <div style="font-size:12px;color:var(--text3);text-transform:none;letter-spacing:normal;margin:-4px 0 8px;line-height:1.35;">Their own listener account (not their radio login). It fills in on their app automatically — only admins and this member can see it.</div>
+      <input class="input" type="text" id="editMbrZelloUser" placeholder="Zello listener username" autocomplete="off" autocapitalize="off" spellcheck="false"/>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input class="input" type="password" id="editMbrZelloPass" placeholder="Password" autocomplete="new-password" style="margin-bottom:0;"/>
+        <button type="button" onclick="const f=document.getElementById('editMbrZelloPass'); f.type=f.type==='password'?'text':'password';" style="flex-shrink:0;padding:12px;background:var(--border2);border:none;border-radius:10px;font-size:13px;cursor:pointer;">👁</button>
+        <button type="button" id="editMbrZelloSave" onclick="saveEditMemberZello()" style="flex-shrink:0;padding:12px 16px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Save</button>
+      </div>
+      <div id="editMbrZelloNote" style="font-size:12px;color:var(--text3);margin-top:6px;text-transform:none;letter-spacing:normal;"></div>
+    </div>
     <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Done</button>
     <!-- Delete lives here (not on every row of the list) so it can't be tapped by accident -->
     <div id="editMbrDangerZone" style="display:none;margin-top:14px;padding-top:12px;border-top:1px dashed rgba(220,38,38,.35);">
@@ -12975,6 +12986,7 @@ function openEditMemberRole(unit) {
     el.disabled = !_canEditMember;
     el.style.cursor = _canEditMember ? '' : 'not-allowed';
   });
+  _loadEditMemberZello(unit);
   showModal('editMemberRoleModal');
 }
 function saveEditMemberRole(){
@@ -14467,6 +14479,7 @@ function subscribeZelloSpeaking(){
 }
 let _zelloSubStarted=false;
 function subscribeZelloConfig(){
+  try{ _zelloFetchAssigned(); }catch(e){}
   _zelloRenderPersonalUI();
   _zelloApplyConfig();
   if(_zelloSubStarted) return;
@@ -14550,16 +14563,70 @@ let _zelloStatus='off', _zelloChanCount=0, _zelloOkCount=0, _zelloConnected=fals
 function _zelloPersonalCreds(){
   try{ return JSON.parse(localStorage.getItem('cobc_zello_personal')||'null'); }catch(e){ return null; }
 }
+// Admin-assigned Zello logins live in Firestore zelloLogins/{unit} (rules: admins write;
+// only admins and that member can read). The member's app picks it up on its own.
+function _zelloUnitKey(u){ return String(u||'').trim().toUpperCase().replace(/^BC-?/,'').replace(/^0+(?=\d)/,''); }
+function _loadEditMemberZello(unit){
+  const g=document.getElementById('editMbrZelloGroup'); if(!g) return;
+  const isAdm=(typeof SESSION!=='undefined'&&SESSION&&SESSION.role==='admin');
+  g.style.display=isAdm?'':'none'; if(!isAdm) return;
+  const uEl=document.getElementById('editMbrZelloUser'), pEl=document.getElementById('editMbrZelloPass'), note=document.getElementById('editMbrZelloNote');
+  uEl.value=''; pEl.value=''; pEl.type='password'; note.textContent='Loading…';
+  if(typeof firebase==='undefined'||!_firebaseReady){ note.textContent='Not available offline.'; return; }
+  const key=_zelloUnitKey(unit);
+  firebase.firestore().collection('zelloLogins').doc(key).get().then(d=>{
+    if(document.getElementById('editMbrUnit').value!==String(unit)) return;
+    const z=d.exists?(d.data()||{}):{};
+    uEl.value=z.username||''; pEl.value=z.password||'';
+    note.textContent=z.username?('Saved'+(z.at?(' '+new Date(z.at).toLocaleDateString('en-US',{month:'short',day:'numeric'})):'')+(z.by?(' by BC-'+z.by):'')+' · clear both boxes and Save to remove'):'Not set yet.';
+  }).catch(e=>{ console.warn('zello load',e); note.textContent='Couldn’t load — try again.'; });
+}
+function saveEditMemberZello(){
+  const unit=document.getElementById('editMbrUnit').value, key=_zelloUnitKey(unit);
+  const u=(document.getElementById('editMbrZelloUser').value||'').trim(), p=document.getElementById('editMbrZelloPass').value||'';
+  const note=document.getElementById('editMbrZelloNote'), btn=document.getElementById('editMbrZelloSave');
+  if(!key) return;
+  if((u&&!p)||(!u&&p)){ showToast('Enter both the username and password (or clear both to remove)'); return; }
+  if(typeof firebase==='undefined'||!_firebaseReady){ showToast('No connection — try again'); return; }
+  btn.disabled=true;
+  const ref=firebase.firestore().collection('zelloLogins').doc(key);
+  const done=(msg)=>{ btn.disabled=false; showToast(msg); _loadEditMemberZello(unit);
+    if(SESSION&&_zelloUnitKey(SESSION.unit)===key){ _zelloAssignedChecked=false; _zelloFetchAssigned(); } };
+  (u ? ref.set({username:u,password:p,at:Date.now(),by:_zelloUnitKey(SESSION.unit)}) : ref.delete())
+    .then(()=>done(u?('Zello login saved for BC-'+key):('Zello login removed for BC-'+key)))
+    .catch(e=>{ console.warn('zello save',e); btn.disabled=false; showToast('Couldn’t save — try again'); });
+}
+// Member side: fetch the admin-assigned login once per session. An admin login
+// replaces one typed on the phone only if the admin saved it more recently.
+let _zelloAssignedChecked=false, _zelloAssignedTries=0;
+function _zelloFetchAssigned(){
+  if(_zelloAssignedChecked) return;
+  if(typeof SESSION==='undefined'||!SESSION||!SESSION.unit) return;
+  if(typeof firebase==='undefined'||!_firebaseReady){ if(_zelloAssignedTries++<6) setTimeout(_zelloFetchAssigned,5000); return; }
+  _zelloAssignedChecked=true;
+  firebase.firestore().collection('zelloLogins').doc(_zelloUnitKey(SESSION.unit)).get().then(d=>{
+    if(!d.exists) return;
+    const z=d.data()||{}; if(!z.username||!z.password) return;
+    const cur=_zelloPersonalCreds();
+    if(cur && cur.username===z.username && cur.password===z.password) return;
+    if(cur && !cur.fromAdmin && Number(cur.at||0)>Number(z.at||0)) return; // they typed a newer one themselves
+    let optout=''; try{ optout=localStorage.getItem('cobc_zello_optout')||''; }catch(e){}
+    if(optout && optout===String(z.at||'')) return; // they logged out of this one
+    try{ localStorage.setItem('cobc_zello_personal', JSON.stringify({username:z.username,password:z.password,fromAdmin:true,at:z.at||Date.now()})); }catch(e){ return; }
+    _zelloRenderPersonalUI(); _zelloApplyConfig();
+  }).catch(e=>{ _zelloAssignedChecked=false; console.warn('zello assigned',e); });
+}
 function zelloPersonalLogin(){
   const u=(document.getElementById('zelloPersonalUser')?.value||'').trim();
   const p=(document.getElementById('zelloPersonalPass')?.value||'');
   if(!u||!p){ showToast('Enter your Zello username and password'); return; }
-  localStorage.setItem('cobc_zello_personal', JSON.stringify({username:u,password:p}));
+  localStorage.setItem('cobc_zello_personal', JSON.stringify({username:u,password:p,at:Date.now()}));
   _zelloRenderPersonalUI();
   showToast('Logging into Zello…');
   _zelloApplyConfig();
 }
 function zelloPersonalLogout(){
+  try{ const c=_zelloPersonalCreds(); if(c&&c.fromAdmin) localStorage.setItem('cobc_zello_optout', String(c.at||'')); }catch(e){}
   localStorage.removeItem('cobc_zello_personal');
   _zelloRenderPersonalUI();
   _zelloDisconnect();
@@ -14573,7 +14640,7 @@ function _zelloRenderPersonalUI(){
   if(!loggedInEl||!formEl) return;
   if(creds && creds.username){
     loggedInEl.style.display='block';
-    loggedInEl.innerHTML='✅ Logged in as <b>'+creds.username.replace(/</g,'&lt;')+'</b> · <span onclick="zelloPersonalLogout()" style="color:var(--red);cursor:pointer;text-decoration:underline;font-weight:600;">Logout</span>';
+    loggedInEl.innerHTML='✅ Logged in as <b>'+creds.username.replace(/</g,'&lt;')+'</b>'+(creds.fromAdmin?' <span style="font-weight:500;color:var(--text3);">(set by admin)</span>':'')+' · <span onclick="zelloPersonalLogout()" style="color:var(--red);cursor:pointer;text-decoration:underline;font-weight:600;">Logout</span>';
     formEl.style.display='none';
   } else {
     loggedInEl.style.display='none';
