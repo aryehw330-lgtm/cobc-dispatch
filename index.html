@@ -9297,7 +9297,28 @@ function setColorPick(pickId,name){
   else { if(dot){dot.style.background='transparent';dot.style.border='1px dashed var(--border2)';} if(lbl){lbl.textContent='Select color…';lbl.style.color='var(--text3)';} }
 }
 document.addEventListener('click',e=>{ if(!e.target.closest('.color-pick')) document.querySelectorAll('.color-pick.open').forEach(p=>p.classList.remove('open')); });
+// Dispatch button wrapper: one call per tap. The button stays locked until the call is fully
+// created (or fails) — the old 1.5 s timer let a second tap through when saving was slow,
+// which sent the same call out twice. Also asks before creating what looks like a repeat.
+let _createCallInFlight=false;
 async function createCall() {
+  if(_createCallInFlight){ return; }
+  const _btn=document.getElementById('callSubmitBtn');
+  try{
+    const ph=_rcDigits((document.getElementById('callPhone')||{}).value||'');
+    const ad=String((document.getElementById('callAddress')||{}).value||'').trim().toLowerCase();
+    const recent=(STATE.calls||[]).find(c=>c && !c.isTest && c.status!=='cancelled' && (Date.now()-(c.createdAt||0))<120000 &&
+      ((ph.length>=10 && _rcDigits(c.phone)===ph) || (ad.length>=6 && String(c.address||'').trim().toLowerCase()===ad)));
+    if(recent && !window._silentDispatch){
+      if(!confirm('Call #'+(recent.callNum||'')+' for this '+((ph.length>=10&&_rcDigits(recent.phone)===ph)?'phone number':'address')+' was created '+Math.max(1,Math.round((Date.now()-(recent.createdAt||0))/1000))+' seconds ago.\n\nCreate ANOTHER call anyway?')) return;
+    }
+  }catch(e){}
+  _createCallInFlight=true;
+  if(_btn){ _btn.disabled=true; _btn.style.opacity='.6'; }
+  try{ return await _createCallInner(); }
+  finally{ _createCallInFlight=false; if(_btn){ _btn.disabled=false; _btn.style.opacity=''; } }
+}
+async function _createCallInner() {
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Only dispatch can create calls'); return; }
 
   // --- Guard: block double-submit (double-tap, or a second tab/device racing) ---
@@ -14465,11 +14486,12 @@ function _keyupOffer(unit){
   if(_ku.cur){ _ku.queue.push(u); return; }
   _kuShow(u);
 }
-function _kuTimer(ms){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClose(false), ms||(_ku.step&&_ku.step!=='role'?20000:_KU_HIDE_MS)); }
+function _kuTimer(ms){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClose(false), ms||(_ku.step&&_ku.step!=='role'&&_ku.step!=='mini'?20000:_KU_HIDE_MS)); }
+function _kuExpand(){ if(!_ku.cur) return; _ku.step='role'; _kuRender(); _kuTimer(); }
 function _kuShow(u){
   const calls=_kuOpenCallsFor(u);
   if(!calls.length){ _kuNext(); return; }
-  _ku.cur=u; _ku.step='role'; _ku.mode=null; _ku.sel=null;
+  _ku.cur=u; _ku.step='mini'; _ku.mode=null; _ku.sel=null;
   _kuRender(); _kuTimer();
 }
 function _kuCanBackup(c){ return _KU_BACKUP_TYPES.includes(String(c.type||'').split(':')[0])||c.priority==='urgent'; }
@@ -14481,11 +14503,23 @@ function _kuRender(){
   if(!all.length){ _kuClose(false); return; }
   let el=document.getElementById('keyupPop');
   if(!el){ el=document.createElement('div'); el.id='keyupPop';
-    el.style.cssText='position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:10001;width:min(300px,calc(100vw - 24px));background:#12151b;border:1.5px solid rgba(34,197,94,.55);border-radius:12px;padding:8px 10px;box-shadow:0 10px 30px rgba(0,0,0,.45);color:#fff;font-family:inherit;';
+    el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:calc(64px + env(safe-area-inset-top));z-index:10001;width:min(320px,calc(100vw - 24px));background:#12151b;border:1.5px solid rgba(34,197,94,.55);border-radius:12px;padding:8px 10px;box-shadow:0 10px 30px rgba(0,0,0,.45);color:#fff;font-family:inherit;';
     el.addEventListener('pointerdown',()=>_kuTimer());
     document.body.appendChild(el); }
   const m=(STATE.members||[]).find(x=>_normUnit(x.unit)===u)||{};
   const nm=_rcEsc(`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim());
+  if(_ku.step==='mini'){
+    // Small strip at the top: who keyed up + one tap to add them to a call. Doesn't block the screen.
+    el.style.padding='6px 8px'; el.style.borderRadius='999px';
+    el.innerHTML='<div style="display:flex;align-items:center;gap:8px;">'
+      +'<div onclick="_kuExpand()" style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;cursor:pointer;">'
+      +'<span style="font-size:13px;font-weight:900;white-space:nowrap;">📻 BC-'+_rcEsc(u)+'</span>'
+      +'<span style="font-size:12px;color:rgba(255,255,255,.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(nm?nm+' · ':'')+'keyed up</span>'
+      +'<span style="margin-left:auto;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border-radius:999px;padding:5px 10px;white-space:nowrap;">＋ Add to call</span></div>'
+      +'<button type="button" onclick="_kuClose(true)" aria-label="Close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;line-height:1;cursor:pointer;padding:0 2px;">×</button></div>';
+    return;
+  }
+  el.style.padding='8px 10px'; el.style.borderRadius='12px';
   const lbl=c=>_rcEsc(_rcTypeLabel(c.type));
   const btn='flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;';
   const back='<button type="button" onclick="_kuBack()" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:12px;font-weight:700;cursor:pointer;padding:6px 0 0;font-family:inherit;">‹ Back</button>';
