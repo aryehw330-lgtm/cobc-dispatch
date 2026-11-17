@@ -16339,10 +16339,18 @@ function getYearData(yr) {
     c.top_type_cnt=c.call_types[c.top_type]||0;
     // Merge in live app calls too — otherwise "All Time" only ever showed the
     // frozen historical snapshot and could look identical to just this year.
-    return mergeWithLive(c, calcLiveStats('all'), 'all');
+    return _currentOnlyTop(mergeWithLive(c, calcLiveStats('all'), 'all'));
   }
   const base = HIST[yr]||HIST['2026'];
-  return mergeWithLive(base, calcLiveStats(yr), yr);
+  return _currentOnlyTop(mergeWithLive(base, calcLiveStats(yr), yr));
+}
+// Leaderboard rows: current members only, top 25 (works whether or not live calls were merged).
+function _currentOnlyTop(d){
+  if(!d || !Array.isArray(d.top25)) return d;
+  const top=d.top25.filter(r=>_isCurrentMemberRow(r[0],r[5])).slice(0,25);
+  const out=Object.assign({}, d, {top25:top});
+  if(top[0]){ out.top_r_bc=top[0][0]; out.top_r_name=top[0][5]; out.top_r_cnt=top[0][1]; }
+  return out;
 }
 
 // ── Live stats from Firestore calls ─────────────────────────────────────────
