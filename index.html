@@ -1144,10 +1144,10 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
       </div>
+      <div id="homeNotifBanner"></div>
       <div class="section-label">Active Calls</div>
       <div id="homePendingBanner" style="display:none;"></div>
       <div id="homeCallsList"></div>
-      <div id="homeNotifBanner"></div>
     </div>
 
     <!-- ══ DISPATCH ══ -->
@@ -7945,7 +7945,11 @@ function renderHome() {
       // Permission allowed but token not yet registered — tap to finish (this is the Android case)
       notifBanner.innerHTML = '<div class="alert alert-amber" style="cursor:pointer;" onclick="enablePushForThisDevice()"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Tap to finish enabling notifications</div><div class="alert-sub">Allowed — tap once to activate alerts on this device</div></div></div>';
     } else if (perm === 'denied') {
-      notifBanner.innerHTML = '';
+      // Notifications are switched OFF on this phone (by the member or by iOS): say so clearly,
+      // with the fix — otherwise a member can miss call alerts for days without knowing.
+      const _fix = isIOS ? 'iPhone Settings → Notifications → COBC → turn on Allow Notifications, then reopen the app.'
+                         : 'Phone Settings → Apps → COBC (or your browser) → Notifications → turn them on, then reopen the app.';
+      notifBanner.innerHTML = '<div class="alert alert-red"><span class="alert-icon">🔕</span><div class="alert-body"><div class="alert-title">Call alerts are OFF on this phone</div><div class="alert-sub">You won\u2019t be alerted to new calls. To fix: '+_fix+'</div></div></div>';
     } else if ('Notification' in window && !localStorage.getItem('cobc_notif_prompt_dismissed')) {
       notifBanner.innerHTML = '<div class="alert alert-amber" style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;" onclick="enablePushForThisDevice()"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Tap to enable push notifications</div><div class="alert-sub">Get alerts when new calls are dispatched</div></div></div><button onclick="event.stopPropagation();localStorage.setItem(\'cobc_notif_prompt_dismissed\',\'1\');this.closest(\'.alert\').remove();" style="flex-shrink:0;background:rgba(0,0,0,.12);border:none;border-radius:50%;width:24px;height:24px;font-size:15px;line-height:1;cursor:pointer;color:inherit;">×</button></div>';
     } else {
