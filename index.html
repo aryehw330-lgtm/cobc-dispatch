@@ -11284,6 +11284,7 @@ function saveCallEdit() {
   if(['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout'].includes(call.type)){
     const car=readEditCar();
     call.carMake=car.carMake; call.carModel=car.carModel; call.carYear=car.carYear; call.carColor=car.carColor;
+    try{ if(!call.isTest && call.carMake) _rcSaveFromCall(call); }catch(e){}
   } else {
     // Switched to a non-car type — clear stale car info so it doesn't linger on the card
     delete call.carMake; delete call.carModel; delete call.carYear; delete call.carColor;
@@ -15249,8 +15250,9 @@ async function _rcSaveProfile(d, data){
 function _rcSaveFromCall(call){
   try{
     const d=_rcDigits(call.phone); if(d.length<10) return;
-    // Name only — location and vehicle are no longer kept for auto-fill.
+    // Name + car are remembered for this number (Nov 2026). Location is still asked fresh.
     const data={}; if(call.caller && !_isGenericCnam(call.caller)) data.caller=call.caller;
+    if(call.carMake){ data.carMake=call.carMake; data.carModel=call.carModel||''; data.carYear=call.carYear||''; data.carColor=call.carColor||''; data.carType=String(call.type||'').split(':')[0]; }
     if(Object.keys(data).length) _rcSaveProfile(d,data);
   }catch(e){}
 }
@@ -15273,7 +15275,8 @@ function _rcBuild(d,past){
     const saved=(prof&&prof.caller&&!_isGenericCnam(prof.caller))?prof.caller:((past[0]&&past[0].caller&&!_isGenericCnam(past[0].caller))?past[0].caller:'');
     if(nmEl && (!nmEl.value || _isGenericCnam(nmEl.value))){ if(saved) nmEl.value=saved; else if(nmEl.value && _isGenericCnam(nmEl.value)) nmEl.value=''; }
   }
-  if(!past.length){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
+  const _known=!!(prof && ((prof.caller && !_isGenericCnam(prof.caller)) || prof.carMake));
+  if(!past.length && !_known){ box.style.display='none'; box.innerHTML=''; _rcMatch=null; return; }
   const last=past[0]||null;
   const carCall=past.find(c=>_RC_CAR_TYPES.includes(String(c.type||'').split(':')[0])&&c.carMake);
   const car=(prof&&prof.carMake)?{carYear:prof.carYear,carColor:prof.carColor,carMake:prof.carMake,carModel:prof.carModel,type:prof.carType||(carCall&&carCall.type)||''}:(carCall?{carYear:carCall.carYear,carColor:carCall.carColor,carMake:carCall.carMake,carModel:carCall.carModel,type:carCall.type}:null);
@@ -15289,8 +15292,8 @@ function _rcRender(){
   const prof=_rcProfiles[m.d]||null;
   const flagged=false; // flagged-caller warning removed Nov 2026 (chief's request)
   const isAdmin=false;  // no flag button
-  // Location and vehicle from earlier calls are no longer offered (asked fresh every call).
-  if(!m.past.length && !flagged){ box.style.display='none'; box.innerHTML=''; return; }
+  // Name + car from earlier calls are offered; location is still asked fresh every call.
+  if(!m.past.length && !flagged && !m.caller && !m.car){ box.style.display='none'; box.innerHTML=''; return; }
   const when=m.last&&m.last.createdAt?new Date(m.last.createdAt).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}):'';
   const sbtn='padding:9px 12px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;';
   let h='<div style="border:1.5px solid '+(flagged?'#dc2626':'var(--gold,#d4a93a)')+';background:'+(flagged?'rgba(220,38,38,.07)':'rgba(212,169,58,.08)')+';border-radius:12px;padding:10px 12px;">';
@@ -15303,15 +15306,20 @@ function _rcRender(){
       +((by||on)?'<div style="font-size:11px;opacity:.85;margin-top:2px;">'+[by?('Flagged by '+_rcEsc(by)):'',_rcEsc(on)].filter(Boolean).join(' · ')+'</div>':'')
       +'</div>';
   }
+  if(!m.past.length){
+    h+='<div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--gold-deep,#b8902a);margin-bottom:4px;">Called before</div>';
+  }
   if(m.past.length){
     h+='<div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--gold-deep,#b8902a);margin-bottom:4px;">Called before · '+m.past.length+' call'+(m.past.length===1?'':'s')+(when?'<span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--text2);"> · last '+_rcEsc(when)+'</span>':'')+'</div>';
   }
   h+='<div style="font-size:13px;color:var(--text);line-height:1.5;">'
     +(m.caller?'<div style="font-weight:700;">'+_rcEsc(m.caller)+'</div>':'')
     +(m.last?'<div>'+_rcEsc(_rcTypeLabel(m.last.type))+(m.last.callNum?' · #'+_rcEsc(m.last.callNum):'')+'</div>':'')
+    +(m.car?'<div style="margin-top:2px;">🚗 '+_rcEsc(_rcCarStr(m.car))+'</div>':'')
     +'</div>';
   h+='<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
     +(isAdmin?'<button type="button" onclick="_rcToggleFlag()" style="'+sbtn+(flagged?'border:1px solid var(--border2,#e2e2e2);background:var(--card,#fff);color:var(--text);':'border:none;background:#dc2626;color:#fff;')+'">'+(flagged?'Remove flag':'🚩 Flag caller')+'</button>':'')
+    +(m.car?'<button type="button" onclick="applyRepeatCar()" style="'+sbtn+'border:none;background:var(--gold,#d4a93a);color:#000;">🚗 Use this car</button>':'')
     +'<button type="button" onclick="dismissRepeatCaller()" style="'+sbtn+'border:none;background:transparent;color:var(--text2);">Dismiss</button>'
     +'</div></div>';
   box.innerHTML=h; box.style.display='block';
