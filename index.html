@@ -9082,7 +9082,7 @@ async function fillCardETAs() {
           const ec = em==null?'#6b7280':em<=5?'var(--green)':em<=12?'var(--amber)':'#6b7280';
           const ebg= em==null?'#f3f4f6':em<=5?'#dcfce7':em<=12?'#fef3c7':'#f3f4f6';
           span.style.cssText += `background:${ebg};color:${ec};`;
-          span.textContent = em==null ? 'Your ETA: …' : `Your ETA: ~${em}m`;
+          span.textContent = em==null ? 'Your ETA: …' : `Your ETA: ${em}m`;
         } else {
           const gm = _ce.mins;
           const gc = gm<=5?'var(--green)':gm<=12?'var(--amber)':'#6b7280';
