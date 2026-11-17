@@ -36,6 +36,8 @@ const APPS_SCRIPT_URL =
 
 // The dispatch app's Google sign-in client (index.html GOOGLE_CLIENT_ID).
 const GOOGLE_CLIENT_ID = '292943991082-m13o9bee38d96s6f1vl3pk5oco8jojcr.apps.googleusercontent.com';
+// The equipment app's Google sign-in client (chaverim-equipment index.html), Nov 2026.
+const GOOGLE_CLIENT_IDS = [GOOGLE_CLIENT_ID, '1083295682041-ssk7ah1msjlgrj5o2l6t2astj556mblj.apps.googleusercontent.com'];
 
 const UNIT_MAX_FAILS   = 5;                 // per unit
 const UNIT_WINDOW_MS   = 15 * 60 * 1000;    // 15 minutes
@@ -211,7 +213,7 @@ async function emailFromGoogle(idToken, accessToken) {
   if (!r.ok) return null;
   const t = await r.json();
   const aud = t.aud || t.azp || t.issued_to;
-  if (aud !== GOOGLE_CLIENT_ID && t.azp !== GOOGLE_CLIENT_ID) return null;   // token made for OUR app
+  if (!GOOGLE_CLIENT_IDS.includes(aud) && !GOOGLE_CLIENT_IDS.includes(t.azp)) return null;   // token made for OUR apps
   if (Number(t.exp || 0) * 1000 < Date.now()) return null;                  // not expired
   if (!(t.email_verified === true || t.email_verified === 'true' ||
         t.verified_email === true || t.verified_email === 'true')) return null;
