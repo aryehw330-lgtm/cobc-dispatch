@@ -60,8 +60,26 @@ async function memberFromIdToken(req) {
     return { unit: normUnit(d.unit), role: d.role || 'member' };
   } catch (e) { return null; }
 }
+// The equipment server only gives the member list to signed-in phones or to this server.
+// This server proves who it is with a Google-signed identity token for its own service
+// account (no shared secret). Cached until shortly before it expires.
+let _svcTok = null, _svcTokExp = 0;
+async function _svcIdentity() {
+  if (_svcTok && Date.now() < _svcTokExp) return _svcTok;
+  try {
+    const r = await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=cobc-equipment-read&format=full',
+      { headers: { 'Metadata-Flavor': 'Google' } });
+    if (!r.ok) return '';
+    _svcTok = (await r.text()).trim(); _svcTokExp = Date.now() + 45 * 60 * 1000;
+    return _svcTok;
+  } catch (e) { return ''; }
+}
+async function _membersUrl() {
+  const t = await _svcIdentity();
+  return APPS_SCRIPT_URL + '?action=getMembers' + (t ? '&svc=' + encodeURIComponent(t) : '');
+}
 async function memberByUnit(unit) {
-  const r = await fetch(APPS_SCRIPT_URL + '?action=getMembers', { redirect: 'follow' });
+  const r = await fetch(await _membersUrl(), { redirect: 'follow' });
   const j = await r.json();
   const m = (j.members || []).find(x => normUnit(x.id || x.unit) === unit);
   return m || null;
@@ -293,7 +311,7 @@ exports.getAuthToken = onRequest(
 exports.cutOffRemovedMembers = onSchedule({ schedule: 'every 60 minutes', region: 'us-east1', timeZone: 'America/New_York' }, async () => {
   let roster; const names = {};
   try {
-    const r = await fetch(APPS_SCRIPT_URL + '?action=getMembers', { redirect: 'follow' });
+    const r = await fetch(await _membersUrl(), { redirect: 'follow' });
     const j = await r.json();
     roster = new Set((j.members || []).map(m => normUnit(m.id || m.unit)).filter(Boolean));
     (j.members || []).forEach(m => { const u = normUnit(m.id || m.unit); if (u) names[u] = String(m.name || ((m.firstName || '') + ' ' + (m.lastName || ''))).toLowerCase().replace(/[^a-z]/g, ''); });

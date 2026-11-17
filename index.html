@@ -4630,6 +4630,14 @@ async function loadInventoryFromSheet(forceRefresh=false){
       sheetGET({action:'getInventory'}),
       sheetGET({action:'getLocations'})
     ]);
+    // Read lock (Nov 2026): if sign-in wasn't ready yet, keep the saved list and retry.
+    if((invData&&invData.authRequired)||!Array.isArray(invData&&invData.items)){
+      window._invRetry=(window._invRetry||0)+1;
+      if(window._invRetry<=12) setTimeout(()=>{ try{ loadInventoryFromSheet(true); }catch(e){} },5000);
+      if(sub) sub.textContent='Waiting for sign-in…';
+      return;
+    }
+    window._invRetry=0;
     STATE.equipment=(invData.items||[]).map(it=>({
       id:'row-'+it.row,
       row:it.row,
@@ -6923,6 +6931,14 @@ async function loadMembersFromSheet(){
   try{
     if(typeof sheetGET!=='function') return [];
     const data=await sheetGET({action:'getMembers', key:'chav-mk-2026-Xp9Q2r7w'});
+    // Read lock (Nov 2026): the member list needs a signed-in phone. If this ran before
+    // sign-in was ready, try again shortly instead of leaving the directory empty.
+    if(data&&data.authRequired){
+      window._mbrRetry=(window._mbrRetry||0)+1;
+      if(window._mbrRetry<=12) setTimeout(()=>{ loadMembersFromSheet().then(()=>{ try{ renderMemberDir&&renderMemberDir(); renderAdminMembers&&renderAdminMembers(); }catch(e){} }); }, 5000);
+      return [];
+    }
+    window._mbrRetry=0;
     if(data&&data.members&&data.members.length){
       const _rawApp=data.members.map(_sheetMemberToApp);
       if(_deletedMemberIds.size){
