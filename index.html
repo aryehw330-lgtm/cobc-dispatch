@@ -14487,7 +14487,7 @@ function _keyupOffer(unit){
   _kuShow(u);
 }
 function _kuTimer(ms){ clearTimeout(_ku.timer); _ku.timer=setTimeout(()=>_kuClose(false), ms||(_ku.step&&_ku.step!=='role'&&_ku.step!=='mini'?20000:_KU_HIDE_MS)); }
-function _kuExpand(){ if(!_ku.cur) return; _ku.step='role'; _kuRender(); _kuTimer(); }
+function _kuExpand(){ if(!_ku.cur) return; _kuRole('respond'); } // straight to Responding (no backup choice)
 function _kuShow(u){
   const calls=_kuOpenCallsFor(u);
   if(!calls.length){ _kuNext(); return; }
@@ -14516,7 +14516,7 @@ function _kuRender(){
       +'<span style="font-size:13px;font-weight:900;white-space:nowrap;">📻 BC-'+_rcEsc(u)+'</span>'
       +'<span style="font-size:12px;color:rgba(255,255,255,.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(nm?nm+' · ':'')+'keyed up</span>'
       +'<span style="margin-left:auto;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border-radius:999px;padding:5px 10px;white-space:nowrap;">＋ Add to call</span></div>'
-      +'<button type="button" onclick="_kuClose(true)" aria-label="Close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;line-height:1;cursor:pointer;padding:0 2px;">×</button></div>';
+      +'<button type="button" onclick="_kuClose(true)" aria-label="Close" style="background:rgba(255,255,255,.12);border:none;color:#fff;font-size:20px;line-height:1;cursor:pointer;width:34px;height:34px;border-radius:50%;flex-shrink:0;">×</button></div>';
     return;
   }
   el.style.padding='8px 10px'; el.style.borderRadius='12px';
@@ -14567,7 +14567,7 @@ function _kuRole(mode){
   _kuRender(); _kuTimer(20000);
 }
 function _kuPick(id){ _ku.sel=id; _ku.step='eta'; _kuRender(); _kuTimer(20000); }
-function _kuBack(){ if(_ku.step==='eta' && _kuCallsForMode(_ku.cur).length>1) _ku.step='call'; else { _ku.step='role'; _ku.mode=null; } _kuRender(); _kuTimer(); }
+function _kuBack(){ if(_ku.step==='eta' && _kuCallsForMode(_ku.cur).length>1) _ku.step='call'; else { _ku.step='mini'; _ku.mode=null; } _kuRender(); _kuTimer(); }
 function _kuAdd(eta){
   const u=_ku.cur, id=_ku.sel; if(!u||!id) return;
   const n=Math.round(Number(eta)); if(!(n>0)){ showToast('Enter the ETA in minutes'); return; }
