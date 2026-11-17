@@ -1144,10 +1144,10 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
       </div>
-      <div id="homeNotifBanner"></div>
       <div class="section-label">Active Calls</div>
       <div id="homePendingBanner" style="display:none;"></div>
       <div id="homeCallsList"></div>
+      <div id="homeNotifBanner"></div>
     </div>
 
     <!-- ══ DISPATCH ══ -->
@@ -3658,6 +3658,12 @@ async function initFirebaseApp() {
 // Quietly re-register this phone for alerts each time the app opens (once per session), when
 // notifications are already allowed. Heals a phone whose push sign-up iOS dropped, or whose
 // entry fell off the server list, without anyone having to tap "Enable" again.
+// Steps to turn call alerts back on, for this kind of phone.
+function _notifFixText(){
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  return ios ? 'Call alerts are off. To fix: iPhone Settings → Notifications → COBC → turn on Allow Notifications (also allow COBC in any Focus mode), then reopen the app.'
+             : 'Call alerts are off. To fix: phone Settings → Apps → COBC (or Chrome) → Notifications → turn on, and set Battery to Unrestricted, then reopen the app.';
+}
 async function _autoRefreshPush(){
   try{
     if(!('Notification' in window) || Notification.permission!=='granted') return;
@@ -3774,7 +3780,7 @@ async function enablePushForThisDevice() {
     // Step 1 — Permission
     if (Notification.permission === 'denied') {
       setStatus('Blocked','btn-ghost');
-      if(desc) desc.textContent = 'Blocked — go to iPhone Settings → COBC → Notifications and enable.';
+      if(desc) desc.textContent = _notifFixText();
       showToast('🔕 Notifications are blocked. Open your phone Settings → this app → Notifications → Allow, then try again.');
       renderHome && renderHome();
       return;
@@ -7945,11 +7951,9 @@ function renderHome() {
       // Permission allowed but token not yet registered — tap to finish (this is the Android case)
       notifBanner.innerHTML = '<div class="alert alert-amber" style="cursor:pointer;" onclick="enablePushForThisDevice()"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Tap to finish enabling notifications</div><div class="alert-sub">Allowed — tap once to activate alerts on this device</div></div></div>';
     } else if (perm === 'denied') {
-      // Notifications are switched OFF on this phone (by the member or by iOS): say so clearly,
-      // with the fix — otherwise a member can miss call alerts for days without knowing.
-      const _fix = isIOS ? 'iPhone Settings → Notifications → COBC → turn on Allow Notifications, then reopen the app.'
-                         : 'Phone Settings → Apps → COBC (or your browser) → Notifications → turn them on, then reopen the app.';
-      notifBanner.innerHTML = '<div class="alert alert-red"><span class="alert-icon">🔕</span><div class="alert-body"><div class="alert-title">Call alerts are OFF on this phone</div><div class="alert-sub">You won\u2019t be alerted to new calls. To fix: '+_fix+'</div></div></div>';
+      // Notifications are switched OFF on this phone (by the member or by iOS): one small line
+      // at the bottom of Home; the full steps are in Admin → Settings → Push Notifications.
+      notifBanner.innerHTML = '<div onclick="showTab(\'more\');setTimeout(()=>{const b=[...document.querySelectorAll(\'#more-sub-tabs .sub-tab\')].find(x=>/Settings/.test(x.textContent));setMoreTab(\'settings\',b);},120);" style="margin:12px 0 4px;padding:9px 12px;border-radius:10px;background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.4);color:#fca5a5;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer;">🔕 Call alerts are off on this phone<span style="margin-left:auto;font-weight:800;color:#fff;">Fix in Settings ›</span></div>';
     } else if ('Notification' in window && !localStorage.getItem('cobc_notif_prompt_dismissed')) {
       notifBanner.innerHTML = '<div class="alert alert-amber" style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><div style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;" onclick="enablePushForThisDevice()"><span class="alert-icon">🔔</span><div class="alert-body"><div class="alert-title">Tap to enable push notifications</div><div class="alert-sub">Get alerts when new calls are dispatched</div></div></div><button onclick="event.stopPropagation();localStorage.setItem(\'cobc_notif_prompt_dismissed\',\'1\');this.closest(\'.alert\').remove();" style="flex-shrink:0;background:rgba(0,0,0,.12);border:none;border-radius:50%;width:24px;height:24px;font-size:15px;line-height:1;cursor:pointer;color:inherit;">×</button></div>';
     } else {
@@ -13510,7 +13514,7 @@ function renderSettingsTab() {
       notifBtn.textContent = 'Blocked';
       notifBtn.className = 'btn-sm btn-ghost';
       notifBtn.style.color = '';
-      if(notifDesc) notifDesc.textContent = 'Blocked — go to iPhone Settings → COBC → Notifications.';
+      if(notifDesc) notifDesc.textContent = _notifFixText();
       if(notifTest) notifTest.style.display = 'none';
     } else {
       notifBtn.textContent = 'Enable';
