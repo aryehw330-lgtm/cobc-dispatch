@@ -3130,6 +3130,10 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
     <button class="btn-full btn-ghost" onclick="hideModal('editMemberRoleModal')">Done</button>
+    <!-- Delete lives here (not on every row of the list) so it can't be tapped by accident -->
+    <div id="editMbrDangerZone" style="display:none;margin-top:14px;padding-top:12px;border-top:1px dashed rgba(220,38,38,.35);">
+      <button type="button" onclick="const u=document.getElementById('editMbrUnit').value; hideModal('editMemberRoleModal'); deleteMemberLocal(u);" style="width:100%;padding:11px;border-radius:10px;background:transparent;color:#dc2626;border:1.5px solid rgba(220,38,38,.55);font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">🗑 Delete this member</button>
+    </div>
   </div>
 </div>
 
@@ -6600,7 +6604,7 @@ function _tryRestoreSession() {
       const _appNow=document.getElementById('app'); if(_appNow){ _appNow.classList.remove('hidden'); _appNow.style.display=''; }
       const rd = {admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};
       const roleLabel = document.getElementById('roleLabel'); if (roleLabel) roleLabel.textContent = rd[s.role]||s.role;
-      const topSub = document.getElementById('topbarSub'); if (topSub) topSub.textContent = s.name+' · '+(s.unit||'');
+      const topSub = document.getElementById('topbarSub'); if (topSub) topSub.textContent = (s.unit?s.unit+' · ':'')+s.name;
       _applyRoleUI(s.role);
       try{ syncPushTopicsIfEnabled_(); }catch(e){}
       renderHome&&renderHome(); renderCalls&&renderCalls(); updateOnDutyBanner&&updateOnDutyBanner();
@@ -7175,7 +7179,7 @@ function doLogin(){
 // ═══════════════════════════════════════════════════════════════════════════
 // §LOGIN  finishLogin, _applyRoleUI, PIN auth
 // ═══════════════════════════════════════════════════════════════════════════
-function finishLogin(member){const _rawRole=(member.roleStr||member.role||'member').toString().toLowerCase();const role=_rawRole.includes('admin')?'admin':_rawRole.includes('dispatch')?'dispatch':_rawRole.includes('equipment')?'equipment':_rawRole.includes('observer')?'observer':'member';SESSION={roleStr:_rawRole,unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||'',phone:member.phone||'',carAccess:member.carAccess===true||member.carAccess==='TRUE'||role==='admin'};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}const _loginScr=document.getElementById('login-screen');_loginScr.style.display='none';_loginScr.style.pointerEvents='none';_loginScr.style.visibility='hidden';_loginScr.style.zIndex='-1';_loginScr.style.transform='translateX(-110vw)';_loginScr.style.position='static';_loginScr.style.height='0';_loginScr.style.overflow='hidden';_loginScr.classList.add('hidden');const _appEl=document.getElementById('app');_appEl.classList.remove('hidden');_appEl.style.display='';const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=SESSION.name+' · '+(SESSION.unit||'');const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';
+function finishLogin(member){const _rawRole=(member.roleStr||member.role||'member').toString().toLowerCase();const role=_rawRole.includes('admin')?'admin':_rawRole.includes('dispatch')?'dispatch':_rawRole.includes('equipment')?'equipment':_rawRole.includes('observer')?'observer':'member';SESSION={roleStr:_rawRole,unit:member.unit,name:(member.firstName||'')+' '+(member.lastName||''),role:role,firstName:member.firstName||'',lastName:member.lastName||'',phone:member.phone||'',carAccess:member.carAccess===true||member.carAccess==='TRUE'||role==='admin'};try{sessionStorage.removeItem('cobcet_ok');}catch(e){}const _loginScr=document.getElementById('login-screen');_loginScr.style.display='none';_loginScr.style.pointerEvents='none';_loginScr.style.visibility='hidden';_loginScr.style.zIndex='-1';_loginScr.style.transform='translateX(-110vw)';_loginScr.style.position='static';_loginScr.style.height='0';_loginScr.style.overflow='hidden';_loginScr.classList.add('hidden');const _appEl=document.getElementById('app');_appEl.classList.remove('hidden');_appEl.style.display='';const roleLabel=document.getElementById('roleLabel');if(roleLabel){const rd={admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'};roleLabel.textContent=rd[role]||role;}const topSub=document.getElementById('topbarSub');if(topSub)topSub.textContent=(SESSION.unit?SESSION.unit+' · ':'')+SESSION.name;const chkTab=document.getElementById('eqChecklistTab');const eqAdmTab=document.getElementById('eqAdminTab');const priv=['admin','dispatch','equipment'].includes(role);if(chkTab)chkTab.style.display=priv?'':'none';if(eqAdmTab)eqAdmTab.style.display=(role==='admin'||role==='equipment')?'':'none';
 // Show Management Panel button for admins
 const mgmtBtn=document.getElementById('adminMgmtBtnWrap');if(mgmtBtn)mgmtBtn.style.display=(role==='admin')?'block':'none';
 // Hide draft filter chip for non-dispatch
@@ -7286,7 +7290,6 @@ function renderAdminMembers(){
         <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#f1f5f9;color:${roleColor};">${(m.role||'member').toUpperCase()}</span>
         <div style="display:flex;gap:4px;">
           <button onclick="openEditMemberRole('${m.unit}')" style="background:var(--border2);color:var(--text2);border:none;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">✏️</button>
-          <button onclick="deleteMemberLocal('${m.unit}')" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer;">✕</button>
         </div>
       </div>
     </div>`;
@@ -7345,7 +7348,7 @@ function initApp() {
   document.getElementById('carInfoSection').style.display='none'; // hidden until a car-related call type is chosen
 
   document.getElementById('roleLabel').textContent = ({admin:'Admin',dispatch:'Dispatch',equipment:'Equipment',member:'Member',observer:'Observer'}[(SESSION.role||'member')]||(SESSION.role||'Member')).toUpperCase();
-  document.getElementById('topbarSub').textContent = SESSION.name;
+  document.getElementById('topbarSub').textContent = (SESSION.unit?SESSION.unit+' · ':'')+SESSION.name;
 
   const isDispatch = ['admin','dispatch'].includes(SESSION.role);
   const isAdmin = SESSION.role==='admin';
@@ -10789,6 +10792,7 @@ function openCallDetail(id) {
   }
 
   document.getElementById('callDetailContent').innerHTML=html;
+  try{ _cdTidyActions(); }catch(e){ console.warn('tidy actions',e); }
   // Glassy status tint: orange when open, green when active
   try{ const _m=document.querySelector('#callDetailModal .modal'); if(_m){ _m.classList.remove('cd-open','cd-active'); if(call.status==='open') _m.classList.add('cd-open'); else if(call.status==='active') _m.classList.add('cd-active'); } }catch(e){}
   showModal('callDetailModal');
@@ -10818,6 +10822,34 @@ function _textWaiver(id){
   location.href='sms:'+ph+sep+'body='+encodeURIComponent(body);
 }
 
+// Call-detail buttons, grouped (Nov 2026): main actions first and large, everything else in a
+// calm neutral grid, and Cancel / Delete moved to their own section at the bottom so they
+// can't be hit by mistake next to Edit or Navigation.
+function _cdTidyActions(){
+  const root=document.getElementById('callDetailContent'); if(!root) return;
+  const wrap=root.querySelector('.detail-actions'); if(!wrap) return;
+  const btns=[...wrap.children].filter(b=>b.tagName==='BUTTON');
+  if(btns.length<3) return;
+  const on=b=>(b.getAttribute('onclick')||'');
+  const isDanger=b=>/cancelCall\(|deleteCall\(/.test(on(b));
+  const isPrimary=b=>/openRadioModal\(|openCompleteModal\(|openRespondModal\(|requestWithdraw\(|resendCallAlert\(|openBackupModal\(/.test(on(b))||b.disabled;
+  const danger=btns.filter(isDanger), primary=btns.filter(b=>!isDanger(b)&&isPrimary(b)), rest=btns.filter(b=>!isDanger(b)&&!isPrimary(b));
+  wrap.innerHTML='';
+  wrap.classList.add('cd-v2');
+  if(primary.length){ const row=document.createElement('div'); row.className='cd-primary'; primary.forEach(b=>row.appendChild(b)); wrap.appendChild(row); }
+  if(rest.length){ const g=document.createElement('div'); g.className='cd-more'; rest.forEach(b=>{ b.classList.add('cd-neutral'); g.appendChild(b); }); wrap.appendChild(g); }
+  if(danger.length){
+    const z=document.createElement('div'); z.className='cd-danger';
+    z.innerHTML='<div class="cd-danger-label">Cancel or remove this call</div>';
+    const r=document.createElement('div'); r.className='cd-danger-row';
+    danger.forEach(b=>{ b.classList.add('cd-danger-btn'); r.appendChild(b); });
+    z.appendChild(r);
+    // put it right above the Close button (after vehicles / equipment)
+    const closeBtn=[...root.querySelectorAll('button')].reverse().find(b=>/hideModal\('callDetailModal'\)/.test(on(b)) && /Close/.test(b.textContent));
+    const anchor=closeBtn?closeBtn.parentElement:null;
+    if(anchor && anchor.parentElement) anchor.parentElement.insertBefore(z, anchor); else root.appendChild(z);
+  }
+}
 function renderCallDetail(id) { openCallDetail(id); } // alias for re-render after status change
 
 // Who may send out a Missing Person call: Admins and Search Supervisors only.
@@ -12815,6 +12847,7 @@ function openEditMemberRole(unit) {
   const m = STATE.members.find(x => String(x.unit) === String(unit));
   if(!m) { showToast('Member not found'); return; }
   document.getElementById('editMbrUnit').value = unit;
+  { const dz=document.getElementById('editMbrDangerZone'); if(dz) dz.style.display=(SESSION.role==='admin')?'block':'none'; }
   const fullName = `${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim();
   document.getElementById('editMbrInfo').innerHTML = `<b>${m.unit}</b> — ${fullName}`;
   const roleStr=(m.roleStr||m.role||'Member').toString(); // full list, so saving never drops a role
@@ -13058,7 +13091,6 @@ function renderMemberDir() {
         ${m.phone?`<button class="responder-call-btn" onclick="event.stopPropagation();window.location='tel:${m.phone}'">📞</button>`:''}
         ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit||m.id}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="Edit role">✏️</button>`:''}
         ${SESSION.role==='dispatch'?`<button onclick="event.stopPropagation();openEditMemberRole('${m.unit||m.id}')" style="background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;" title="View member info">ℹ️</button>`:''}
-        ${SESSION.role==='admin'?`<button onclick="event.stopPropagation();deleteMemberLocal('${m.unit||m.id}')" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">✕</button>`:''}
       </div>
     </div>`).join('');
   if(SESSION.role==='admin') {
@@ -21537,4 +21569,19 @@ function fmtMemberBadgeD(memberStr) {
 <style id="__om-edit-overrides">
 #callDetailContent >.detail-actions { font-size: 6px !important }
 #callDetailContent >.detail-actions { font-size: 13px !important }
+/* Admin + Equipment section menus: a grid that shows every section at once (was a sideways-
+   scrolling row that hid most sections). Role-hidden buttons stay hidden. (Nov 2026) */
+#page-more #more-sub-tabs{display:grid!important;grid-template-columns:repeat(3,1fr);gap:6px;overflow:visible!important;flex-wrap:wrap!important;padding:4px;}
+#page-more #more-sub-tabs .sub-tab{width:100%;white-space:normal;line-height:1.2;min-height:44px;padding:8px 4px;font-size:12px;display:flex;align-items:center;justify-content:center;text-align:center;}
+#page-equipment #eqSubTabs{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:6px;overflow:visible!important;padding:4px;}
+#page-equipment #eqSubTabs .sub-tab{width:100%;white-space:nowrap;min-height:40px;padding:8px 4px;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:4px;}
+#callDetailContent .detail-actions.cd-v2{display:block;}
+#callDetailContent .cd-primary{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:8px;}
+#callDetailContent .cd-primary .btn-sm{min-height:50px;font-size:14px!important;font-weight:800;}
+#callDetailContent .cd-more{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+#callDetailContent .cd-more .cd-neutral{background:#fff!important;color:#1e293b!important;border:1px solid #e2e8f0!important;box-shadow:none!important;font-weight:700;}
+#callDetailContent .cd-danger{margin-top:16px;padding-top:12px;border-top:1px dashed rgba(220,38,38,.35);}
+#callDetailContent .cd-danger-label{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#b91c1c;margin-bottom:8px;}
+#callDetailContent .cd-danger-row{display:flex;gap:8px;}
+#callDetailContent .cd-danger-row .cd-danger-btn{flex:1;background:#fff!important;color:#dc2626!important;border:1.5px solid rgba(220,38,38,.55)!important;box-shadow:none!important;min-height:42px;font-weight:800;}
 </style>
