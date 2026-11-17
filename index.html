@@ -4837,7 +4837,9 @@ function updateCallZoneBadge(){
   if(z.level==='outside' && !z.note && _lastCallLatLng){
     const ll=_lastCallLatLng;
     _countyChaverimLookup(ll.lat, ll.lng, hit=>{
-      if(!hit || _lastCallLatLng!==ll) return;
+      if(_lastCallLatLng!==ll) return;
+      // No local chapter known → refer to Chaverim Interstate (same number as the app's contact list)
+      if(!hit) hit={n:'Call Chaverim Interstate',p:'845-425-4357'};
       const note=hit.n+(hit.p?' · '+hit.p:'');
       badge.textContent='✕ Out of Bergen area — '+note; badge.title=note;
     });
