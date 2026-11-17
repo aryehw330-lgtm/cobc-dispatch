@@ -1791,6 +1791,14 @@ textarea.input{min-height:80px;resize:vertical;}
         <!-- ADMIN TOOLS (admin only): Test Mode, Audit Log, Backup & Restore -->
         <div id="settingsAdminTools" style="display:none;margin-top:4px;">
           <div class="section-label">Admin Tools</div>
+          <!-- ALERTS STATUS: who has a phone registered for app alerts, and when it last checked in -->
+          <div class="card" style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+              <div><div class="card-title">📶 Alerts status</div><div class="card-desc">Which members get app alerts. Phones check in each time the app opens.</div></div>
+              <button class="btn-sm btn-ghost" onclick="renderAlertsStatus()">Refresh</button>
+            </div>
+            <div id="alertsStatusBox" style="margin-top:10px;font-size:13px;">Loading…</div>
+          </div>
           <!-- COMMAND MODE -->
           <div style="background:linear-gradient(135deg,rgba(127,29,29,.35),rgba(185,28,28,.18));border:1px solid rgba(248,113,113,.4);border-radius:14px;padding:16px;margin-bottom:12px;">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
@@ -13357,6 +13365,7 @@ function setMoreTab(tab,el) {
     }
   }
   if(tab==='telzio')  { loadTelzioHistory(false); try{ renderTelzioStats(); }catch(e){} }
+  if(tab==='settings' && (SESSION&&SESSION.role)==='admin'){ try{ renderAlertsStatus(); }catch(e){} }
 }
 
 // Admin member search → renders the full My-Stats-style card for any member.
@@ -14298,6 +14307,35 @@ function _drawTelzioStats(box,s,updating){
     +'<div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);margin:10px 0 4px;">BUSIEST TIMES</div>'
     +'<div style="font-size:12px;line-height:1.6;">'+topH.map(h=>'🕒 '+hr(h)+' — '+s.h[h]+' calls').join('<br>')+(topW!=null?'<br>📅 '+DN[topW]+'s — '+s.w[topW]+' calls':'')+'</div>'
     +'<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:8px;">Inbound hotline calls since '+since+(updating?' · updating…':'')+'</div>';
+}
+// Admin: who gets app alerts. Asks the push server which units have a registered phone and
+// when it last checked in (never the device codes), and lists every roster member.
+async function renderAlertsStatus(){
+  const box=document.getElementById('alertsStatusBox'); if(!box) return;
+  box.textContent='Loading…';
+  try{
+    const r=await fetch(PUSH_SEND_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'tokenStatus',authToken:await _pushAuth()})});
+    const d=await r.json(); if(!d||!d.ok) throw new Error((d&&d.error)||'no data');
+    const by={}; (d.units||[]).forEach(u=>{ by[String(u.unit).replace(/^BC-?0*/i,'')]=u; });
+    const now=Date.now(), DAY=86400000;
+    const rows=(STATE.members||[]).map(m=>{
+      const u=String(m.unit||'').replace(/^BC-?0*/i,''); const s=by[u];
+      const name=`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim();
+      const age=s&&s.last?Math.floor((now-s.last)/DAY):null;
+      const state=!s?'none':(age>30?'old':'ok');
+      return {u,name,s,age,state};
+    }).sort((a,b)=>({none:0,old:1,ok:2}[a.state]-({none:0,old:1,ok:2}[b.state]))||(Number(a.u)-Number(b.u)));
+    const n={ok:0,old:0,none:0}; rows.forEach(x=>n[x.state]++);
+    const esc=s=>String(s||'').replace(/[<>&"']/g,'');
+    const chip=(c,t)=>'<span style="font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;background:'+c+';color:#fff;white-space:nowrap;">'+t+'</span>';
+    box.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'+chip('#16a34a',n.ok+' getting alerts')+chip('#d97706',n.old+' not seen 30+ days')+chip('#dc2626',n.none+' not set up')+'</div>'
+      +'<div style="max-height:320px;overflow-y:auto;border-top:1px solid var(--border2,#e5e7eb);">'
+      +rows.map(x=>'<div style="display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--border2,#e5e7eb);">'
+        +'<b style="min-width:58px;">BC-'+esc(x.u)+'</b><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(x.name)+'</span>'
+        +(x.state==='ok'?chip('#16a34a','✓ '+(x.age===0?'today':x.age+'d ago')):x.state==='old'?chip('#d97706',x.age+'d ago'):chip('#dc2626','not set up'))
+        +'</div>').join('')+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:6px;">"Not set up" = no phone registered for alerts. "Not seen" = their phone hasn’t opened the app in a month; alerts may still arrive.</div>';
+  }catch(e){ box.textContent='Couldn’t load alerts status — tap Refresh.'; console.warn('alerts status',e); }
 }
 function _telzioDateBounds(){
   const fromEl=document.getElementById('telzioHistFrom'), toEl=document.getElementById('telzioHistTo');
