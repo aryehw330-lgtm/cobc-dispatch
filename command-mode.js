@@ -1396,7 +1396,23 @@
     try{ _cmAddLog('✅ Call #'+(c.callNum||'')+' '+verb+' in Dispatch — by BC-'+myUnit(),'status','note'); }catch(e){}
     try{ _cmCloseNotePrompt(callId); }catch(e){}
   }
-  function _cmReportText(){
+  // Privacy (Nov 2026): a missing person's name and photos are never kept after the search.
+  // Archives, the linked call and the settings record keep only "name withheld" + age.
+  function _cmSubjectNames(){
+    var s=(_cmState&&_cmState.subject)||{}; var n=String(s.name||'').trim(); if(!n||/^unknown$/i.test(n)) return [];
+    var parts=[n].concat(n.split(/\s+/).filter(function(w){ return w.length>=3; }));
+    return parts.sort(function(a,b){ return b.length-a.length; });
+  }
+  function _cmScrub(text){
+    var t=String(text||''); _cmSubjectNames().forEach(function(n){
+      var re=new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'); t=t.replace(re,'[name withheld]'); });
+    return t.replace(/(\[name withheld\]\s*)+/g,'[name withheld] ');
+  }
+  function _cmPrivateSubject(){
+    var s=(_cmState&&_cmState.subject)||null; if(!s) return null;
+    return { nameWithheld:true, age:s.age||'' };
+  }
+  function _cmReportText(redact){
     var t=cmIsMissing()?'Missing Person Search':'Command Operation';
     var start=(_cmState&&_cmState.startedAt)||null, end=Date.now();
     var dur=start?Math.round((end-start)/60000):0;
@@ -1408,7 +1424,7 @@
     lines.push('End:   '+fmt(end)+'  ('+dur+' min)');
     var mem=cmMembers().map(function(m){ return 'BC-'+U(m.unit); }).join(', ');
     lines.push('Members ('+cmMembers().length+'): '+(mem||'none'));
-    if(cmIsMissing()&&_cmState&&_cmState.subject){ var s=_cmState.subject; lines.push('Subject: '+(s.name||'Unknown')+(s.age?(', '+s.age):'')); }
+    if(cmIsMissing()&&_cmState&&_cmState.subject){ var s=_cmState.subject; lines.push('Subject: '+(redact?'name withheld (private)':(s.name||'Unknown'))+(s.age?(', '+s.age):'')); }
     var opCalls=_cmOpCalls(start);
     if(opCalls.length){
       lines.push('');
@@ -1430,14 +1446,14 @@
     var log=(_cmLog||[]).slice().sort(function(a,b){ return (a.at||0)-(b.at||0); });
     log.forEach(function(e){ var tm=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); var ch=(e.channel==='dispatch')?'[DISPATCH] ':(e.channel==='members')?'[MEMBERS] ':''; lines.push(tm+'  '+ch+cleanLabel(e.text||'')+(e.by?('  (BC-'+U(e.by)+')'):'')); });
     if(!log.length) lines.push('(no entries)');
-    return lines.join('\n');
+    return redact&&cmIsMissing() ? _cmScrub(lines.join('\n')) : lines.join('\n');
   }
   function _cmHistText(v){ if(v&&v.reportText) return v.reportText; var lines=[]; (v.log||[]).slice().sort(function(a,b){ return (a.at||0)-(b.at||0); }).forEach(function(e){ var tm=new Date(e.at||0).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); lines.push(tm+'  '+cleanLabel(e.text||'')); }); return lines.join('\n')||'(no log)'; }
   function _cmSaveHistory(cb){
     var start=(_cmState&&_cmState.startedAt)||null;
     var title=(cmIsMissing()?'Missing Person Search':'Command Operation')+' · '+(start?new Date(start).toLocaleDateString('en-US',{month:'short',day:'numeric'}):new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}));
-    var _opCallsSnap=_cmOpCalls(start).map(function(c){ return { callNum:c.callNum||'', type:c.type||'', typeLabel:_cmCallTypeLabel(c), town:c.town||'', address:String(c.address||'').replace(/\s*—?\s*📍.*$/,''), status:c.status||'open', createdAt:c.createdAt||null, completedAt:c.completedAt||null, notes:c.notes||'', responders:(c.responders||[]).map(function(r){ return 'BC-'+U(r.unit); }) }; });
-    var summary={ type:cmType(), title:title, startedAt:start, endedAt:Date.now(), leadUnit:cmLeadUnit(), leadName:(_cmState&&_cmState.leadName)||'', members:cmMembers(), calls:_opCallsSnap, mapImage:(cmIsMissing()?_cmStaticMapURL():null), subject:(_cmState&&_cmState.subject)||null, sectors:(_cmState&&_cmState.sectors)||[], grid:(_cmState&&_cmState.grid)||[], linkedCallId:(_cmState&&_cmState.linkedCallId)||null, log:(_cmLog||[]).slice(0,500), reportText:_cmReportText(), endedBy:myUnit(), savedAt:Date.now() };
+    var _opCallsSnap=_cmOpCalls(start).map(function(c){ return { callNum:c.callNum||'', type:c.type||'', typeLabel:_cmCallTypeLabel(c), town:c.town||'', address:String(c.address||'').replace(/\s*—?\s*📍.*$/,''), status:c.status||'open', createdAt:c.createdAt||null, completedAt:c.completedAt||null, notes:(cmIsMissing()?_cmScrub(c.notes||''):(c.notes||'')), responders:(c.responders||[]).map(function(r){ return 'BC-'+U(r.unit); }) }; });
+    var summary={ type:cmType(), title:title, startedAt:start, endedAt:Date.now(), leadUnit:cmLeadUnit(), leadName:(_cmState&&_cmState.leadName)||'', members:cmMembers(), calls:_opCallsSnap, mapImage:(cmIsMissing()?_cmStaticMapURL():null), subject:(cmIsMissing()?_cmPrivateSubject():((_cmState&&_cmState.subject)||null)), sectors:(_cmState&&_cmState.sectors)||[], grid:(_cmState&&_cmState.grid)||[], linkedCallId:(_cmState&&_cmState.linkedCallId)||null, log:(cmIsMissing()?(_cmLog||[]).slice(0,500).map(function(e){ var o={}; for(var k in e){ if(k!=='photo') o[k]=e[k]; } o.text=_cmScrub(o.text); if(e.photo) o.text=(o.text||'')+' (photo removed for privacy)'; return o; }):(_cmLog||[]).slice(0,500)), reportText:_cmReportText(true), endedBy:myUnit(), savedAt:Date.now() };
     try{ db().collection('commandHistory').add(summary).then(function(ref){ if(cb) cb(ref); }).catch(function(){ if(cb) cb(null); }); }catch(e){ if(cb) cb(null); }
   }
   // Verify-then-clear: only delete raw commandLog entries AFTER the archive doc is
@@ -1514,9 +1530,12 @@
       var linked=cmIsMissing()?(STATE.calls||[]).find(function(c){ return c.id===((_cmState&&_cmState.linkedCallId)); }):null;
       if(linked&&linked.status!=='done'&&linked.status!=='cancelled'){
         linked.status='done'; linked.completedAt=_endTs; linked.completedBy=myUnit();
+
         try{ if(typeof logCallEvent==='function') logCallEvent(linked,'completed',{by:myUnit(),responders:(linked.responders||[]).length,durationMin:Math.round((_endTs-linked.createdAt)/60000),viaCommand:true}); }catch(e){}
         _cmSyncCall(linked);
       }
+      // Privacy: the name never stays on the call once the search is over (open or already closed)
+      if(linked){ linked.caller='Missing person (name withheld)'; linked.notes=_cmScrub(linked.notes||''); delete linked.photo; _cmSyncCall(linked); }
     }catch(e){}
     // Save the permanent archive, then verify-then-clear the raw commandLog (admin/lead only)
     _cmSaveHistory(function(ref){
@@ -1537,7 +1556,7 @@
       try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
     }catch(e){}
     if(_cmState) _cmState.members=[];
-    db().collection('config').doc('commandMode').set({ active:false, endedAt:_endTs, members:[] }, {merge:true}).then(function(){ try{ db().collection('commandLocations').get().then(function(s){ s.forEach(function(d){ d.ref.delete().catch(function(){}); }); }); }catch(e){} var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); closeCommandView(); showToast('🏁 Ended — everyone signed out, saved to Command Logs'); });
+    db().collection('config').doc('commandMode').set({ active:false, endedAt:_endTs, members:[], subject:firebase.firestore.FieldValue.delete() }, {merge:true}).then(function(){ try{ db().collection('commandLocations').get().then(function(s){ s.forEach(function(d){ d.ref.delete().catch(function(){}); }); }); }catch(e){} var sh=document.getElementById('cmSheet'); if(sh) sh.remove(); closeCommandView(); showToast('🏁 Ended — everyone signed out, saved to Command Logs'); });
   }
 
   // Command Center Logs — every past incident's notes + log, re-sendable.
