@@ -10466,8 +10466,8 @@ function renderRadioSelected() {
         <span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${mName||uDisp}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <input type="number" min="1" inputmode="numeric" value="${m.eta||5}" onchange="radioSelectedMembers[${i}].eta=this.value" oninput="radioSelectedMembers[${i}].eta=this.value" style="width:62px;padding:7px 8px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;text-align:center;font-family:inherit;" aria-label="ETA minutes"/>
-        <span style="font-size:11px;color:var(--text3);">min</span>
+        ${m.virtual?'<span style="font-size:11px;color:var(--text3);">no ETA</span>':`<input type="number" min="1" inputmode="numeric" value="${m.eta||5}" onchange="radioSelectedMembers[${i}].eta=this.value" oninput="radioSelectedMembers[${i}].eta=this.value" style="width:62px;padding:7px 8px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;text-align:center;font-family:inherit;" aria-label="ETA minutes"/>
+        <span style="font-size:11px;color:var(--text3);">min</span>`}
         <button onclick="radioSelectedMembers.splice(${i},1);renderRadioSelected()" style="background:none;border:none;color:var(--red);font-size:18px;cursor:pointer;line-height:1;">×</button>
       </div>
     </div>`;}).join('');
@@ -10534,7 +10534,7 @@ async function submitRadioResponders() {
     // Remove from pending if they were there
     call.pendingResponders=(call.pendingResponders||[]).filter(r=>String(r.unit)!==String(m.unit));
     if(!call.responders.find(r=>String(r.unit)===String(m.unit))) {
-      const _entry={unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:String(m.eta||5),vehicles:radioVehicles.slice(),via:m.via||'radio',status:'approved',time:Date.now()};
+      const _entry={unit:m.unit,name:`${m.first||m.firstName||''} ${m.last||m.lastName||''}`.trim(),phone:m.phone||'',eta:m.virtual?'':String(m.eta||5),vehicles:radioVehicles.slice(),via:m.via||'radio',status:'approved',time:Date.now()};
       if(m.observerOnly) _entry.observerOnly=true;
       if(m.backup) _entry.backup=true; // for the WhatsApp wording only; stats decide primary/backup themselves
       call.responders.push(_entry); _radioAdded.push(_entry);
@@ -10742,8 +10742,8 @@ function openCallDetail(id) {
       const etaColor=liveEta!=null?(liveEta<=3?'var(--green)':liveEta<=7?'var(--amber)':'var(--text2)'):'';
       html+=`<div class="responder-row">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:14px;font-weight:700;">BC-${unitKey} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}${r.withdrawRequested?' <span style="font-size:10px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.14);border-radius:5px;padding:1px 6px;">WANTS OFF</span>':''}</div>
-          <div style="font-size:11px;color:var(--text3);">Self-reported: ${r.eta} min${(r.vehicles&&r.vehicles.length)?` · 🚚 ${r.vehicles.join(', ')}`:''}${r.notes?` · ${r.notes}`:''}</div>
+          <div style="font-size:14px;font-weight:700;">${_unitTag(unitKey)} — ${r.name}${r.isObserver?' <span class="obs-badge">OBS</span>':''}${r.withdrawRequested?' <span style="font-size:10px;font-weight:800;color:var(--amber);background:rgba(217,119,6,.14);border-radius:5px;padding:1px 6px;">WANTS OFF</span>':''}</div>
+          <div style="font-size:11px;color:var(--text3);">${_isInterstateUnit(unitKey)?'Call handed to Chaverim Interstate':`Self-reported: ${r.eta} min${(r.vehicles&&r.vehicles.length)?` · 🚚 ${r.vehicles.join(', ')}`:''}${r.notes?` · ${r.notes}`:''}`}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
           ${_onDispatchTab&&liveEta!=null?`<span style="font-size:13px;font-weight:800;padding:6px 10px;border-radius:10px;background:${liveEta<=3?'#dcfce7':liveEta<=7?'#fef3c7':'#f1f5f9'};color:${etaColor};white-space:nowrap;">🚗 ${liveEta}m</span>`:''}
