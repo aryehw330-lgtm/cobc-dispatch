@@ -3655,6 +3655,27 @@ async function initFirebaseApp() {
 // ═══════════════════════════════════════════════════════════════════════════
 // §PUSH  Push notifications / FCM / device token
 // ═══════════════════════════════════════════════════════════════════════════
+// Quietly re-register this phone for alerts each time the app opens (once per session), when
+// notifications are already allowed. Heals a phone whose push sign-up iOS dropped, or whose
+// entry fell off the server list, without anyone having to tap "Enable" again.
+async function _autoRefreshPush(){
+  try{
+    if(!('Notification' in window) || Notification.permission!=='granted') return;
+    if(!('serviceWorker' in navigator)) return;
+    if(typeof SESSION==='undefined' || !SESSION || !SESSION.unit) return;
+    try{ if(sessionStorage.getItem('cobc_push_refreshed')) return; sessionStorage.setItem('cobc_push_refreshed','1'); }catch(e){}
+    if(!_fcmMessaging){ try{ await initPushModule(); }catch(e){} }
+    if(!_fcmMessaging) return;
+    const reg=await navigator.serviceWorker.register('/cobc-dispatch/firebase-messaging-sw.js',{scope:'/cobc-dispatch/'});
+    await navigator.serviceWorker.ready;
+    const token=await _fcmMessaging.getToken({vapidKey:FCM_VAPID_KEY, serviceWorkerRegistration:reg});
+    if(!token) return;
+    _fcmToken=token;
+    await fetch(PUSH_SEND_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'register',authToken:await _pushAuth(),unit:SESSION.unit,name:SESSION.name,role:SESSION.role,token})});
+    localStorage.setItem('cobc_fcm_token_'+SESSION.unit, token);
+  }catch(e){ console.warn('auto push refresh:', e); }
+}
 async function initPushModule() {
   if (!_firebaseReady || _fcmMessaging) return;
   try {
@@ -3672,10 +3693,13 @@ async function initPushModule() {
     _fcmMessaging.onMessage((payload) => {
       const t = payload.notification?.title || payload.data?.title || 'COBC';
       const b = payload.notification?.body  || payload.data?.body  || '';
-      // Same alert sent down several paths (dispatch + admin + admin topic): show it once per 30 s
-      try{ const _k=t+'|'+b, _n=Date.now(); window._fgSeen=window._fgSeen||{}; if(_fgSeen[_k] && _n-_fgSeen[_k]<30000) return; _fgSeen[_k]=_n; }catch(e){}
+      // Same alert sent down several paths (dispatch + admin + admin topic): one in-app toast per 30 s.
+      // The phone notification below is ALWAYS handed over (iPhone turns notifications off for apps
+      // that receive pushes without showing them); the service worker replaces duplicates quietly.
+      let _dupToast=false;
+      try{ const _k=t+'|'+b, _n=Date.now(); window._fgSeen=window._fgSeen||{}; _dupToast=!!(_fgSeen[_k] && _n-_fgSeen[_k]<30000); if(!_dupToast) _fgSeen[_k]=_n; }catch(e){}
       // Show in-app toast
-      showToast('🔔 ' + t + (b ? ': ' + b : ''));
+      if(!_dupToast) showToast('🔔 ' + t + (b ? ': ' + b : ''));
       // Also ask the service worker to show a system banner (works on Android/desktop;
       // iOS suppresses banners while the PWA is active — the toast above covers that case)
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -7335,6 +7359,7 @@ function _btnLock(btn, loadingText) {
 // from both the cached-session restore and finishLogin.
 function _startBackgroundOnce(){
   if(window._bgStarted) return; window._bgStarted=true;
+  setTimeout(()=>{ try{ _autoRefreshPush(); }catch(e){} }, 6000);
   try{ startAppHeartbeat(); }catch(e){ console.warn('heartbeat start:', e); }
   try{ loadInventoryFromSheet(); }catch(e){}
   try{

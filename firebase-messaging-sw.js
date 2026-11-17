@@ -134,64 +134,53 @@ function idbStorePendingCall(callId) {
   });
 }
 
-// The same alert can reach this phone twice (e.g. the background handler AND the
-// in-app handler, or an older registration of this phone). Each send carries one
-// unique data.tag, so show each tag only once.
-const _seenTags = new Map();
-function _firstTime(tag) {
-  if (!tag) return true;
-  const now = Date.now();
-  for (const [k, t] of _seenTags) if (now - t > 5 * 60 * 1000) _seenTags.delete(k);
-  if (_seenTags.has(tag)) return false;
-  _seenTags.set(tag, now);
-  return true;
-}
-// One alert is often sent down several paths (a dispatcher who is also an admin gets
-// the dispatch send, the admin send and the admin-topic backstop), and each copy has
-// its own tag. Show the same title + text only once within 30 seconds.
-const _seenText = new Map();
-function _firstText(title, body) {
+// The same alert can reach this phone several times (a dispatcher who is also an admin gets
+// the dispatch send, the admin send and the admin-topic backstop; or an older registration).
+// IMPORTANT (iPhone): every push MUST show a notification. If a web app gets pushes and shows
+// nothing, iOS silently turns its notifications off (that happened Nov 16-17, 2026). So a
+// duplicate is still shown, but with the SAME tag as the first copy and silent: it quietly
+// replaces that notification instead of adding a second banner or sound.
+const _seenAlerts = new Map(); // title|body -> { t, tag }
+function _dupTagFor(title, body, tag) {
   const k = String(title || '') + '|' + String(body || '');
   const now = Date.now();
-  for (const [kk, t] of _seenText) if (now - t > 30 * 1000) _seenText.delete(kk);
-  if (_seenText.has(k)) return false;
-  _seenText.set(k, now);
-  return true;
+  for (const [kk, v] of _seenAlerts) if (now - v.t > 60 * 1000) _seenAlerts.delete(kk);
+  const seen = _seenAlerts.get(k);
+  if (seen) return seen.tag;
+  _seenAlerts.set(k, { t: now, tag: tag });
+  return null;
+}
+function _showAlert(title, body, data, fromForeground) {
+  data = data || {};
+  const urgent = data.urgent === 'true';
+  const ownTag = data.tag || ((fromForeground ? 'cobc-fg-' : 'cobc-') + Date.now());
+  const dupTag = _dupTagFor(title, body, ownTag);
+  return self.registration.showNotification(title || 'COBC Dispatch', {
+    body: body || '',
+    icon: '/cobc-dispatch/icon-192.png',
+    badge: '/cobc-dispatch/icon-badge-mono.png',
+    tag: dupTag || ownTag,
+    renotify: false,
+    silent: !!dupTag,
+    requireInteraction: urgent && !dupTag,
+    vibrate: dupTag ? undefined : (urgent ? [200, 100, 200, 100, 200] : [100, 50, 100]),
+    data: { url: data.url || '/cobc-dispatch/', callId: data.callId || null }
+  });
 }
 
 // Background notifications — shown when app is closed or in background
 messaging.onBackgroundMessage((payload) => {
-  if (!_firstTime(payload.data?.tag)) return;
   const title = payload.notification?.title || payload.data?.title || 'COBC Dispatch';
   const body  = payload.notification?.body  || payload.data?.body  || '';
-  if (!_firstText(title, body)) return;
-  const url   = payload.data?.url || '/';
-
-  self.registration.showNotification(title, {
-    body,
-    icon: '/cobc-dispatch/icon-192.png',
-    badge: '/cobc-dispatch/icon-badge-mono.png',
-    tag: payload.data?.tag || 'cobc-' + Date.now(),
-    requireInteraction: payload.data?.urgent === 'true',
-    vibrate: payload.data?.urgent === 'true' ? [200, 100, 200, 100, 200] : [100, 50, 100],
-    data: { url, callId: payload.data?.callId || null }
-  });
+  return _showAlert(title, body, payload.data || {}, false);
 });
 
 // Show notification when app is in foreground (posted from onMessage handler)
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SHOW_NOTIFICATION') {
     const { title, body, data } = event.data;
-    if (!_firstTime(data?.tag)) return;
-    if (!_firstText(title, body)) return;
-    self.registration.showNotification(title || 'COBC Dispatch', {
-      body: body || '',
-      icon: '/cobc-dispatch/icon-192.png',
-      badge: '/cobc-dispatch/icon-badge-mono.png',
-      tag: data?.tag || ('cobc-fg-' + Date.now()),
-      vibrate: data?.urgent === 'true' ? [200, 100, 200, 100, 200] : [100, 50, 100],
-      data: { url: data?.url || '/cobc-dispatch/', callId: data?.callId || null }
-    });
+    const p = _showAlert(title, body, data || {}, true);
+    if (event.waitUntil) event.waitUntil(p);
   }
 });
 
