@@ -4759,10 +4759,21 @@ let _lastCallLatLng=null;
 // Backup for out-of-area addresses that fall outside every chapter shape (some shapes, e.g.
 // Rockland and Hudson, were squashed to a point when imported; Essex has no shape). Looked up
 // by county via Google (only for those addresses), cached per spot.
+// Town list first (where a county is split between chapters), then whole counties.
+// MetroWest: "West Orange, Livingston and nearby towns" (their nearby towns aren't published).
+// Union County Chaverim lists Newark, Irvington and "the Oranges" (Essex) among its towns.
+const TOWN_CHAVERIM={
+  'Livingston|NJ':{n:'Chaverim of MetroWest NJ',p:'973-283-5886'},
+  'West Orange|NJ':{n:'Chaverim of MetroWest NJ',p:'973-283-5886'},
+  'Orange|NJ':{n:'Union County NJ',p:'908-866-6166'},
+  'East Orange|NJ':{n:'Union County NJ',p:'908-866-6166'},
+  'South Orange|NJ':{n:'Union County NJ',p:'908-866-6166'},
+  'South Orange Village|NJ':{n:'Union County NJ',p:'908-866-6166'},
+  'Irvington|NJ':{n:'Union County NJ',p:'908-866-6166'}
+};
 const COUNTY_CHAVERIM={
   'Rockland County|NY':{n:'Rockland County NY',p:'845-371-6333'},
-  'Hudson County|NJ':{n:'Hudson County NJ',p:'201-472-3608'},
-  'Essex County|NJ':{n:'Chaverim of MetroWest NJ',p:'973-283-5886'}
+  'Hudson County|NJ':{n:'Hudson County NJ',p:'201-472-3608'}
 };
 const _countyChCache={};
 function _countyChaverimLookup(lat,lng,cb){
@@ -4773,8 +4784,11 @@ function _countyChaverimLookup(lat,lng,cb){
       let hit=null;
       if(st==='OK'&&res){
         for(const r of res){
-          let c='',s=''; (r.address_components||[]).forEach(x=>{ if(x.types.includes('administrative_area_level_2')) c=x.long_name; if(x.types.includes('administrative_area_level_1')) s=x.short_name; });
-          if(c&&s){ hit=COUNTY_CHAVERIM[c+'|'+s]||null; break; }
+          let c='',s='',towns=[]; (r.address_components||[]).forEach(x=>{ if(x.types.includes('administrative_area_level_2')) c=x.long_name; if(x.types.includes('administrative_area_level_1')) s=x.short_name; if(x.types.includes('locality')||x.types.includes('administrative_area_level_3')||x.types.includes('sublocality')) towns.push(x.long_name); });
+          if(!s) continue;
+          for(const tw of towns){ if(TOWN_CHAVERIM[tw+'|'+s]){ hit=TOWN_CHAVERIM[tw+'|'+s]; break; } }
+          if(!hit && c) hit=COUNTY_CHAVERIM[c+'|'+s]||null;
+          if(hit || c) break;
         }
       }
       _countyChCache[k]=hit; cb(hit);
