@@ -10004,13 +10004,14 @@ function openRespondModal(id) {
   }
   // Update title/hint/submit based on urgency
   const isUrgent = call && call.priority==='urgent' && SESSION.role!=='observer';
+  const autoJoin = isUrgent && URGENT_AUTO_JOIN && call.type!=='missing_person';
   const titleEl = document.getElementById('respondModalTitle');
   if(titleEl) titleEl.innerHTML = isUrgent ? '🚨 Urgent — Respond Now' : '✋ Request to Respond';
   const hintEl = document.getElementById('respondUrgentHint');
-  if(hintEl) hintEl.style.display = isUrgent ? 'block' : 'none';
+  if(hintEl) hintEl.style.display = autoJoin ? 'block' : 'none';
   const submitBtn = document.getElementById('respondSubmitBtn');
   if(submitBtn) {
-    submitBtn.textContent = isUrgent ? '🚨 Confirm Response (Auto-Approved)' : 'Send Request to Dispatcher';
+    submitBtn.textContent = autoJoin ? '🚨 Confirm Response (Auto-Approved)' : (isUrgent ? '🚨 Send Urgent Request to Dispatcher' : 'Send Request to Dispatcher');
     submitBtn.style.background = isUrgent ? 'var(--red)' : '';
   }
   showModal('respondModal');
@@ -10103,7 +10104,7 @@ function confirmRespond() {
 
   // 🚨 URGENT calls: skip approval queue — auto-approve member responders
   // (Missing Person searches always require dispatch approval, even when urgent.)
-  if(call.priority==='urgent' && !isObserver && call.type!=='missing_person') {
+  if(URGENT_AUTO_JOIN && call.priority==='urgent' && !isObserver && call.type!=='missing_person') {
     call.responders=call.responders||[];
     if(!call.responders.find(r=>String(r.unit)===String(SESSION.unit))) {
       var _meEntry={
@@ -10350,6 +10351,10 @@ function isAllowedForObserver(callType, unit) {
   return list.includes(callType);
 }
 
+// Urgent calls: should members auto-join, or wait for dispatch/admin like any call?
+// OFF (Nov 2026, pending the chief): every request needs approval. Set true to bring back
+// auto-join (it stays safe for many members at once — they're added, never overwritten).
+const URGENT_AUTO_JOIN = false;
 function approveResponder(callId,unit) {
   const call=STATE.calls.find(c=>c.id===callId);
   if(!call) return;
@@ -10413,7 +10418,49 @@ function approveResponder(callId,unit) {
   }
   _doApproveResponder(callId, unit, call, req);
 }
-function _doApproveResponder(callId, unit, call, req) {
+// Two dispatchers/admins acting on the SAME request at once (Nov 2026): the decision is made in
+// one server transaction — "is this request still waiting? then decide it". The first tap wins;
+// the other dispatcher is told who already handled it, and only the winner sends alerts.
+const _normU = u => String(u||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'').trim();
+async function _decidePending(callId, unit, makeUpdate){
+  const u=_normU(unit);
+  const ref=firebase.firestore().collection('calls').doc(String(callId));
+  return firebase.firestore().runTransaction(async tx=>{
+    const snap=await tx.get(ref); const d=snap.data()||{};
+    const pend=d.pendingResponders||[];
+    const req=pend.find(r=>_normU(r.unit)===u);
+    if(!req){
+      const ap=(d.responders||[]).find(r=>_normU(r.unit)===u);
+      const rj=(d.rejectedResponders||[]).slice().reverse().find(r=>_normU(r.unit)===u);
+      return { ok:false, already: ap?('approved by BC-'+_normU(ap.approvedBy||'?')) : rj?('rejected by BC-'+_normU(rj.rejectedBy||'?')) : 'no longer waiting (withdrawn)' };
+    }
+    const upd=makeUpdate(d, req, pend.filter(r=>_normU(r.unit)!==u));
+    upd.updatedAt=Date.now();
+    tx.update(ref, upd);
+    return { ok:true, req };
+  });
+}
+function _alreadyHandled(unit, already){
+  showToast('ℹ️ BC-'+_normU(unit)+' was already '+already);
+  try{ renderCalls(); renderHome(); }catch(e){}
+}
+async function _doApproveResponder(callId, unit, call, req) {
+  // Decide on the server first (first tap wins)
+  let _res=null;
+  try{
+    const _entry={...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
+    _res=await _decidePending(callId, unit, (d, sreq, rest)=>{
+      const e={...sreq,status:'approved',approvedBy:SESSION.unit,approvedAt:_entry.approvedAt};
+      const up={ pendingResponders: rest, responders: firebase.firestore.FieldValue.arrayUnion(e), status:'active', activatedAt: d.activatedAt||Date.now() };
+      if(!d.callNum && call.callNum) up.callNum=call.callNum;
+      return up;
+    });
+  }catch(e){ console.warn('approve transaction', e); _res=null; }
+  if(_res && !_res.ok){ _alreadyHandled(unit, _res.already); return; }
+  if(_res && _res.ok) req=_res.req;
+  return _doApproveResponderApply(callId, unit, call, req, !!(_res && _res.ok));
+}
+function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
   call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
   call.responders=call.responders||[];
   const _approvedEntry = {...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
@@ -10424,9 +10471,9 @@ function _doApproveResponder(callId, unit, call, req) {
   call.activatedAt=call.activatedAt||Date.now();
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
   save();
-  // Atomic move: remove from pending + add to responders without overwriting the whole
-  // doc, so a simultaneous assign/approve on another device can't clobber it.
-  try{
+  // Atomic move (only if the transaction above couldn't run, e.g. offline): remove from
+  // pending + add to responders without overwriting the whole doc.
+  if(!savedOnServer) try{
     const _ref=firebase.firestore().collection('calls').doc(call.id);
     const _upd={ responders: firebase.firestore.FieldValue.arrayUnion(_approvedEntry), status:'active', activatedAt:call.activatedAt };
     if(req) _upd.pendingResponders = firebase.firestore.FieldValue.arrayRemove(req);
@@ -10464,11 +10511,22 @@ function rejectResponder(callId,unit) {
   const _ru=String(unit).replace(/^BC-?/i,'');
   const req=(call.pendingResponders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===_ru);
   if(!req) return;
-  call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit).replace(/^BC-?/i,'')!==_ru);
+  const _rejAt=Date.now();
+  _decidePending(callId, unit, (d, sreq, rest)=>({
+    pendingResponders: rest,
+    rejectedResponders: firebase.firestore.FieldValue.arrayUnion({...sreq,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:_rejAt})
+  })).then(res=>{
+    if(!res.ok){ _alreadyHandled(unit, res.already); return; }
+    _rejectResponderApply(call, unit, res.req, _rejAt);
+  }).catch(e=>{ console.warn('reject transaction', e); showToast('⚠️ Could not reject — check signal and try again'); });
+}
+function _rejectResponderApply(call, unit, req, _rejAt){
+  const _ru=String(unit).replace(/^BC-?/i,'');
+  call.pendingResponders=(call.pendingResponders||[]).filter(r=>String(r.unit).replace(/^BC-?/i,'')!==_ru);
   call.rejectedResponders=call.rejectedResponders||[];
-  call.rejectedResponders.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:Date.now()});
+  call.rejectedResponders.push({...req,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:_rejAt});
   logCallEvent(call, 'responder_rejected', {responder:unit, rejectedBy:SESSION.unit});
-  save(); firestoreUpsertCall(call); renderCalls(); renderHome();
+  save(); renderCalls(); renderHome();
   showToast(`❌ BC-${String(unit||'').replace(/^BC-?/i,'')} rejected`);
   // Smart rejection message: if member not allowed for this call type → chiefs message, else → capacity message
   const notAllowed = memberHasRestriction(unit) && !isAllowedForUnit(call.type, unit);
