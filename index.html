@@ -3670,6 +3670,8 @@ async function initFirebaseApp() {
             user.getIdToken().then(t => { window._fbIdToken = t; }).catch(()=>{});
             _startRealtimeSync();
             try{ setTimeout(()=>{ try{ _autoRefreshPush(); }catch(e){} }, 1500); }catch(e){}   // register alerts once signed in
+            // Zello login an admin set for this dispatcher: re-check once signed in (slow iPhone restore)
+            try{ setTimeout(()=>{ try{ if(['admin','dispatch'].includes((SESSION&&SESSION.role)||'')) _zelloFetchAssigned(); }catch(e){} }, 2000); }catch(e){}
             // iPhone restores the sign-in a while after the app opens; the equipment list and
             // member list asked before that were refused (read lock). Load them now (Nov 2026).
             try{
