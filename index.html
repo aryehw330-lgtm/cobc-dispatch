@@ -6536,6 +6536,7 @@ function initFirestore(){
       }
     }
     const firestoreCalls=[...map.values()];
+    _recordCallBase(firestoreCalls);
     const firestoreIds=new Set(map.keys());
     // Keep (and upload) only genuinely-unsynced calls that belong IN the window —
     // recent (last 7 days) or still unfinished. Old finished calls outside the
@@ -6687,7 +6688,87 @@ function _callFieldsUpdate(call, fields){
     return firebase.firestore().collection('calls').doc(String(call.id)).update(fields).catch(e=>console.warn('call update',e));
   }catch(e){ console.warn('call update',e); }
 }
-async function firestoreUpsertCall(call){try{ if(call) call.updatedAt=Date.now(); /* lets History pick up edits to older calls */ await firebase.firestore().collection('calls').doc(String(call.id)).set(call);}catch(e){console.warn('firestoreUpsertCall error:',e);}}
+// Saving a call (Nov 2026): only the fields THIS phone changed are sent, and lists
+// (requests, responders, backups, equipment) are MERGED with what's on the server — so a
+// dispatcher editing the address can't erase a request that arrived meanwhile.
+// Needs the last version of the call this phone received from the server (_callBase).
+window._callBase = window._callBase || {};
+function _recordCallBase(list){ try{ (list||[]).forEach(c=>{ if(c&&c.id) _callBase[c.id]=JSON.stringify(c); }); }catch(e){} }
+const _CALL_LIST_KEYS = ['responders','pendingResponders','rejectedResponders','pendingBackups','backupRequests','assignedEquipment'];
+const _CALL_MAP_KEYS  = ['liveLocations'];
+function _callItemKey(x){
+  if(x==null || typeof x!=='object') return 'v:'+JSON.stringify(x);
+  const u=String(x.unit||x.by||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'');
+  return 'o:'+u+'|'+(x.time||x.at||x.requestedAt||x.approvedAt||x.rejectedAt||'')+'|'+(x.type||'')+'|'+(x.status||'')+'|'+(x.withdrawRequested?'w':'');
+}
+function _mergeCallList(server, base, local){
+  server=Array.isArray(server)?server:[]; base=Array.isArray(base)?base:[]; local=Array.isArray(local)?local:[];
+  const bk=new Set(base.map(_callItemKey)), lk=new Set(local.map(_callItemKey));
+  const removed=new Set([...bk].filter(k=>!lk.has(k)));
+  const out=server.filter(x=>!removed.has(_callItemKey(x)));
+  const have=new Set(out.map(_callItemKey));
+  local.forEach(x=>{ const k=_callItemKey(x); if(!bk.has(k) && !have.has(k)){ out.push(x); have.add(k); } });
+  return out;
+}
+function _mergeCallMap(server, base, local){
+  const out=Object.assign({}, server||{}); base=base||{}; local=local||{};
+  new Set([...Object.keys(base), ...Object.keys(local)]).forEach(k=>{
+    if(JSON.stringify(base[k])===JSON.stringify(local[k])) return;
+    if(local[k]===undefined) delete out[k]; else out[k]=local[k];
+  });
+  return out;
+}
+// Work out the update for one call: fields this phone changed vs the server version it saw.
+function _callChanges(server, base, local){
+  const upd={}, del=[];
+  new Set([...Object.keys(base||{}), ...Object.keys(local||{})]).forEach(k=>{
+    if(k==='id') return;
+    if(JSON.stringify((base||{})[k])===JSON.stringify((local||{})[k])) return;   // this phone didn't change it
+    if(_CALL_LIST_KEYS.includes(k)) upd[k]=_mergeCallList((server||{})[k], (base||{})[k], local[k]);
+    else if(_CALL_MAP_KEYS.includes(k)) upd[k]=_mergeCallMap((server||{})[k], (base||{})[k], local[k]);
+    else if(local[k]===undefined) del.push(k);
+    else upd[k]=local[k];
+  });
+  return { upd, del };
+}
+async function firestoreUpsertCall(call){
+  if(!call || !call.id) return;
+  call.updatedAt=Date.now();
+  const local=JSON.parse(JSON.stringify(call));
+  const ref=firebase.firestore().collection('calls').doc(String(call.id));
+  const baseStr=_callBase[call.id];
+  try{
+    const merged=await firebase.firestore().runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists){
+        if(baseStr) return null;              // deleted on another phone — don't bring it back
+        tx.set(ref, local); return local;     // brand-new call
+      }
+      const server=snap.data()||{};
+      // No server version seen yet on this phone: treat the server copy as the base
+      // (fields this phone set differently win; lists are combined, nothing removed).
+      const base = baseStr ? JSON.parse(baseStr) : server;
+      const { upd, del } = _callChanges(server, base, local);
+      del.forEach(k=>{ upd[k]=firebase.firestore.FieldValue.delete(); });
+      if(Object.keys(upd).length) tx.update(ref, upd);
+      const after=Object.assign({}, server); Object.keys(upd).forEach(k=>{ if(del.includes(k)) delete after[k]; else after[k]=upd[k]; });
+      return Object.assign(after, { id: call.id });
+    });
+    if(merged){
+      _callBase[call.id]=JSON.stringify(merged);
+      // Keep this phone's copy in step with what was really saved (merged lists).
+      _CALL_LIST_KEYS.concat(_CALL_MAP_KEYS).forEach(k=>{ if(k in merged) call[k]=merged[k]; });
+    }
+  }catch(e){
+    // Offline / transaction failed: queue a plain update of just the changed fields.
+    try{
+      const base = baseStr ? JSON.parse(baseStr) : {};
+      const { upd, del } = _callChanges(base, base, local);
+      del.forEach(k=>{ upd[k]=firebase.firestore.FieldValue.delete(); });
+      if(Object.keys(upd).length) ref.set(upd, { merge: true }).catch(err=>console.warn('firestoreUpsertCall fallback:', err));
+    }catch(e2){ console.warn('firestoreUpsertCall error:', e, e2); }
+  }
+}
 
 var _savePending = false;
 function save() {
@@ -10292,11 +10373,16 @@ function cancelCall(id) {
     _doCancelCall(id,call);
   };
 }
-function _doCancelCall(id,call) {
+async function _doCancelCall(id,call) {
+  const _cl=await _claimCallClose(id, 'cancelled');
+  if(!_cl.ok){ hideModal('callDetailModal'); showToast('ℹ️ '+_cl.msg); try{ renderCalls(); renderHome(); }catch(e){} return; }
+  return _doCancelCallApply(id, call);
+}
+function _doCancelCallApply(id,call) {
   const prevResponders=[...(call.responders||[]),...(call.pendingResponders||[])];
   call.status='cancelled';
   call.cancelledAt=Date.now();
-  call.cancelledBy=SESSION.unit;
+  call.cancelledBy=SESSION.unit; call.closedBy=SESSION.unit;
   logCallEvent(call,'cancelled',{cancelledBy:SESSION.unit});
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   hideModal('callDetailModal');
@@ -10466,7 +10552,10 @@ async function _decidePending(callId, unit, decision, makeUpdate){
     if(!prior) return { ok:false, already:'no longer waiting (withdrawn)' };
     const label = prior.what+' by BC-'+_normU(prior.by||'?');
     const mine = decision==='approve' ? 'approved' : 'rejected';
-    const wins = (prior.what!==mine) && (Date.now()-prior.at < 10000) &&   // only near-simultaneous taps (≤10 s)
+    // FIRST TAP WINS (owner's choice, Nov 2026): a decision already made is never replaced
+    // automatically — the second person is told who decided. (Rank rule kept below, switched off.)
+    const RANK_RULE = false;
+    const wins = RANK_RULE && (prior.what!==mine) && (Date.now()-prior.at < 10000) &&
                  (myRank>prior.rank || (myRank===prior.rank && decision==='approve'));
     if(!wins) return { ok:false, already: label };
     const base={...prior.entry}; delete base.status; delete base.approvedBy; delete base.approvedAt; delete base.approvedRank; delete base.rejectedBy; delete base.rejectedAt; delete base.rejectedRank; delete base.overrode;
@@ -10872,8 +10961,17 @@ async function submitRadioResponders() {
   try{
     const _upd={ status:'active', activatedAt:call.activatedAt };
     if(call.callNum) _upd.callNum=call.callNum;
-    if(_radioAdded.length) _upd.responders=firebase.firestore.FieldValue.arrayUnion(..._radioAdded);
-    firebase.firestore().collection('calls').doc(call.id).update(_upd).catch(()=>{ firestoreUpsertCall(call); });
+    // Two dispatchers assigning the same member at once: add only units the SERVER doesn't
+    // already have on the call (no duplicate entries).
+    const _rref=firebase.firestore().collection('calls').doc(call.id);
+    firebase.firestore().runTransaction(async tx=>{
+      const sn=await tx.get(_rref); const d=(sn.data()||{});
+      const have=new Set((d.responders||[]).map(r=>_normU(r.unit)));
+      const add=_radioAdded.filter(e=>!have.has(_normU(e.unit)));
+      const u=Object.assign({}, _upd, { updatedAt:Date.now() });
+      if(add.length) u.responders=firebase.firestore.FieldValue.arrayUnion(...add);
+      tx.update(_rref, u);
+    }).catch(()=>{ firestoreUpsertCall(call); });
   }catch(e){ firestoreUpsertCall(call); }
   hideModal('radioModal');
   renderCalls(); renderHome(); showTab('dispatch');
@@ -11760,7 +11858,32 @@ function confirmWhoResponded(id){
   document.getElementById('completeNoteGroup').style.display='none';
   showModal('callCompleteModal');
 }
-function confirmCompleteCall() {
+// Closing a call (Nov 2026): decided on the server first — if another dispatcher already
+// completed or cancelled it, this one stops (no second group message).
+async function _claimCallClose(callId, newStatus){
+  try{
+    const ref=firebase.firestore().collection('calls').doc(String(callId));
+    return await firebase.firestore().runTransaction(async tx=>{
+      const snap=await tx.get(ref); if(!snap.exists) return { ok:true };
+      const d=snap.data()||{};
+      if(d.status==='done' || d.status==='cancelled'){
+        const by=_normU(d.status==='done' ? (d.completedBy||d.closedBy||'') : (d.cancelledBy||d.closedBy||''));
+        return { ok:false, msg:'Call #'+(d.callNum||'')+' was already '+(d.status==='done'?'completed':'cancelled')+(by?' by BC-'+by:'') };
+      }
+      const now=Date.now();
+      const u={ status:newStatus, closedBy:SESSION.unit, updatedAt:now };
+      if(newStatus==='done'){ u.completedAt=now; u.completedBy=SESSION.unit; } else { u.cancelledAt=now; u.cancelledBy=SESSION.unit; }
+      tx.update(ref, u); return { ok:true };
+    });
+  }catch(e){ console.warn('claim close', e); return { ok:true, offline:true }; }   // offline: carry on as before
+}
+async function confirmCompleteCall() {
+  const _cid=document.getElementById('completeCallId').value;
+  const _cl=await _claimCallClose(_cid, 'done');
+  if(!_cl.ok){ hideModal('callCompleteModal'); showToast('ℹ️ '+_cl.msg); try{ renderCalls(); renderHome(); }catch(e){} return; }
+  return _confirmCompleteCallApply();
+}
+function _confirmCompleteCallApply() {
   const id=document.getElementById('completeCallId').value;
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
@@ -11768,7 +11891,7 @@ function confirmCompleteCall() {
   const cnc=document.getElementById('completeNote').value.trim();
   const notes=document.getElementById('completeNotes').value.trim();
   call.status='done';
-  call.completedAt=Date.now();
+  call.completedAt=Date.now(); call.completedBy=SESSION.unit; call.closedBy=SESSION.unit;
   call.completionOutcome=outcome;  call.completionNote=outcome==='CNC'?cnc:'';
   call.completionNotes=notes;
   delete call.completionRequest; // clear any pending member completion request
@@ -11864,13 +11987,21 @@ function _submitCompletionNotify(call){
   // Admins + on-duty dispatchers (all dispatchers if nobody is on duty), one alert per person.
   _notifyStaff('📋 Completion Request', `Completion request for call #${call.callNum||''}`, '/cobc-dispatch/?page=dispatch');
 }
-function approveCallCompletion(id){
+async function approveCallCompletion(id){
+  const _c0=STATE.calls.find(c=>c.id===id);
+  if(!_c0 || !_c0.completionRequest) return;
+  if(!['admin','dispatch'].includes(SESSION.role)){ showToast('Only dispatch can approve'); return; }
+  const _cl=await _claimCallClose(id, 'done');
+  if(!_cl.ok){ showToast('ℹ️ '+_cl.msg); try{ renderCalls(); renderHome(); }catch(e){} return; }
+  return _approveCallCompletionApply(id);
+}
+function _approveCallCompletionApply(id){
   const call=STATE.calls.find(c=>c.id===id);
   if(!call || !call.completionRequest) return;
   if(!['admin','dispatch'].includes(SESSION.role)){ showToast('Only dispatch can approve'); return; }
   const cr=call.completionRequest;
   call.status='done';
-  call.completedAt=Date.now();
+  call.completedAt=Date.now(); call.completedBy=SESSION.unit; call.closedBy=SESSION.unit;
   call.completionOutcome=cr.outcome;
   call.completionNote=cr.outcome==='CNC'?(cr.note||''):'';
   call.completionNotes=`Reported complete by BC-${String(cr.by||'').replace(/^BC-?/i,'')}${cr.name?' '+cr.name:''}`;
@@ -16243,24 +16374,44 @@ function takeScheduleSlot(shiftIdx, dayIdx){
 }
 // Apply the chosen assignment — both Primary and Secondary are date-only fill-ins
 // (long-term recurring changes are done via the pencil edit).
-function _assignSlot(shiftIdx, dayIdx, mode){
+async function _assignSlot(shiftIdx, dayIdx, mode){
   const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return;
   const recur=row.slots[dayIdx]; if(!recur) return;
   const myLabel=_myScheduleLabel();
   const dateStr=_schedDateFor(dayIdx);
   STATE.schedOverrides=STATE.schedOverrides||{};
-  STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
-  const cur=STATE.schedOverrides[dateStr][shiftIdx]||{};
-  const curP=(cur.p)||recur.p||'OPEN';
-  const curS=(cur.s)||recur.s||'OPEN';
-  if(mode==='secondary'){
-    STATE.schedOverrides[dateStr][shiftIdx]={ p:curP, s:myLabel, by:SESSION.unit, at:Date.now() };
-    showToast('✅ Secondary for '+_schedDateLabel(dayIdx));
-  } else {
-    STATE.schedOverrides[dateStr][shiftIdx]={ p:myLabel, s:curS, by:SESSION.unit, at:Date.now() };
-    showToast('✅ Primary for '+_schedDateLabel(dayIdx));
+  const cur=(STATE.schedOverrides[dateStr]||{})[shiftIdx]||{};
+  const seen = mode==='secondary' ? ((cur.s)||recur.s||'OPEN') : ((cur.p)||recur.p||'OPEN');
+  // Two dispatchers taking shifts at once (Nov 2026): check on the server that the role is
+  // still what this phone showed, and write ONLY this date/shift — never the whole schedule.
+  let val=null;
+  try{
+    const ref=firebase.firestore().collection('config').doc('schedOverrides');
+    const res=await firebase.firestore().runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      const ov=((snap.data()||{}).overrides)||{};
+      const sc=(ov[dateStr]||{})[shiftIdx]||{};
+      const sP=(sc.p)||recur.p||'OPEN', sS=(sc.s)||recur.s||'OPEN';
+      const now = mode==='secondary' ? sS : sP;
+      if(now!==seen && now!==myLabel) return { ok:false, who:now };
+      const v = mode==='secondary' ? { p:sP, s:myLabel, by:SESSION.unit, at:Date.now() } : { p:myLabel, s:sS, by:SESSION.unit, at:Date.now() };
+      tx.set(ref, { overrides:{ [dateStr]:{ [shiftIdx]: v } }, updatedAt:Date.now(), updatedBy:SESSION.unit }, { merge:true });
+      return { ok:true, v };
+    });
+    if(!res.ok){ showToast('⚠️ '+res.who+' just took that shift'); renderSchedule(); return; }
+    val=res.v;
+  }catch(e){
+    console.warn('take shift', e);   // offline: keep the old behaviour
+    val = mode==='secondary' ? { p:(cur.p)||recur.p||'OPEN', s:myLabel, by:SESSION.unit, at:Date.now() } : { p:myLabel, s:(cur.s)||recur.s||'OPEN', by:SESSION.unit, at:Date.now() };
+    STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{}; STATE.schedOverrides[dateStr][shiftIdx]=val;
+    save(); pushSchedOverridesToFirestore(); renderSchedule();
+    showToast('✅ '+(mode==='secondary'?'Secondary':'Primary')+' for '+_schedDateLabel(dayIdx));
+    return;
   }
-  save(); pushSchedOverridesToFirestore(); renderSchedule();
+  STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
+  STATE.schedOverrides[dateStr][shiftIdx]=val;
+  save(); renderSchedule();
+  showToast('✅ '+(mode==='secondary'?'Secondary':'Primary')+' for '+_schedDateLabel(dayIdx));
 }
 // Remove a temporary fill-in (revert that date back to the recurring schedule).
 function clearSlotOverride(shiftIdx, dayIdx){
@@ -16268,7 +16419,11 @@ function clearSlotOverride(shiftIdx, dayIdx){
   if(STATE.schedOverrides && STATE.schedOverrides[dateStr]){
     delete STATE.schedOverrides[dateStr][shiftIdx];
     if(Object.keys(STATE.schedOverrides[dateStr]).length===0) delete STATE.schedOverrides[dateStr];
-    save(); pushSchedOverridesToFirestore(); renderSchedule();
+    save(); renderSchedule();
+    // Remove only this one fill-in on the server (never rewrite the whole schedule).
+    try{ firebase.firestore().collection('config').doc('schedOverrides')
+      .update(new firebase.firestore.FieldPath('overrides', dateStr, String(shiftIdx)), firebase.firestore.FieldValue.delete(), 'updatedAt', Date.now())
+      .catch(()=>pushSchedOverridesToFirestore()); }catch(e){ pushSchedOverridesToFirestore(); }
     showToast('Fill-in removed');
   }
 }
@@ -22247,7 +22402,7 @@ function fmtMemberBadgeD(memberStr) {
   };
 })();
 </script>
-<script src="command-mode.js?v=20261117a"></script>
+<script src="command-mode.js?v=20261117b"></script>
 </body>
 </html>
 

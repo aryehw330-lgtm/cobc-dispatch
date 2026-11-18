@@ -109,6 +109,22 @@
   var _cmDispatchSyncTimer=null;
   function _cmStartDispatchSync(){ if(_cmDispatchSyncTimer) return; _cmDispatchSyncTimer=setInterval(_cmDispatchSyncTick,5*60*1000); }
   function _cmStopDispatchSync(){ if(_cmDispatchSyncTimer){ clearInterval(_cmDispatchSyncTimer); _cmDispatchSyncTimer=null; } }
+  // Roster changes (Nov 2026): add or remove only the given members on the server, so two
+  // people joining or leaving at the same moment can't drop each other.
+  function _cmRosterChange(addList, removeUnits){
+    var ref=db().collection('config').doc('commandMode');
+    return firebase.firestore().runTransaction(function(tx){
+      return tx.get(ref).then(function(s){
+        var cur=(((s.data()||{}).members)||[]).slice(), rm={};
+        (removeUnits||[]).forEach(function(u){ rm[U(u)]=1; });
+        var next=cur.filter(function(m){ return !rm[U(m.unit)]; }), have={};
+        next.forEach(function(m){ have[U(m.unit)]=1; });
+        (addList||[]).forEach(function(a){ if(a && !have[U(a.unit)]){ next.push(a); have[U(a.unit)]=1; } });
+        tx.update(ref, { members: next });
+        return next;
+      });
+    });
+  }
   function _cmDispatchSyncTick(){
     if(!cmIsActive()||myUnit()!==cmLeadUnit()) return;
     try{
@@ -118,8 +134,8 @@
       if(!toAdd.length) return;
       var mem=(STATE.members||[]);
       var members=cmMembers().concat(toAdd.map(function(u){ var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); return { unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'' }; }));
-      db().collection('config').doc('commandMode').update({ members:members }).then(function(){
-        if(_cmState) _cmState.members=members;
+      _cmRosterChange(members.slice(cmMembers().length), []).then(function(next){
+        if(_cmState) _cmState.members=next;
         _cmAddLog('👥 Added incoming on-duty dispatcher(s) to roster: '+toAdd.map(function(u){ return 'BC-'+u; }).join(', '),'roster');
       }).catch(function(){});
     }catch(e){}
@@ -233,7 +249,7 @@
     if(!confirm('Sign out? You will stop sharing your location and be taken off the roster and any calls.')) return;
     var u=myUnit(); _cmStopShare();
     try{ db().collection('commandLocations').doc(u).delete().catch(function(){}); }catch(e){}
-    try{ db().collection('config').doc('commandMode').update({ members:cmMembers().filter(function(m){ return U(m.unit)!==u; }) }); }catch(e){}
+    try{ _cmRosterChange([], [u]).catch(function(){}); }catch(e){}
     if(_cmState) _cmState.members=cmMembers().filter(function(m){ return U(m.unit)!==u; });
     (STATE.calls||[]).forEach(function(c){
       if(c.status!=='open'&&c.status!=='active') return;
@@ -1335,8 +1351,8 @@
     var picked=Object.keys(_cmPick); if(!picked.length){ showToast('Tap members to select'); return; }
     var mem=(STATE.members||[]); var add=picked.map(function(u){ var m=mem.find(function(x){ return U(x.unit||x.id)===u; }); return { unit:u, name:m?((m.firstName||m.name||'')+' '+(m.lastName||'')).trim():'' }; });
     var next=cmMembers().concat(add);
-    db().collection('config').doc('commandMode').set({ members:next }, {merge:true}).then(function(){
-      if(_cmState) _cmState.members=next;   // optimistic — the snapshot reconciles
+    _cmRosterChange(add, []).then(function(saved){
+      if(_cmState) _cmState.members=saved;   // the snapshot reconciles too
       _cmAddLog('➕ Added '+add.map(function(a){ return 'BC-'+a.unit; }).join(', '),'roster');
       add.forEach(function(a){ try{ sendPush({ target:'unit', unit:a.unit, title:(cmIsMissing()?'🔍 Search':'🎖️ Command'), body:'You\'ve been added — location sharing is on. Open the app.', url:'/cobc-dispatch/?page=dispatch', urgent:'true' }); }catch(e){} });
       var s=document.getElementById('cmSheet'); if(s) s.remove(); _cmPick={}; _cmBuildSidebar(); showToast('Added '+add.length);
@@ -1631,8 +1647,8 @@
     overlay.querySelector('#__cmrm_yes').addEventListener('click',function(){
       close();
       var members=cmMembers().filter(function(m){ return U(m.unit)!==u; });
-      db().collection('config').doc('commandMode').update({ members:members }).then(function(){
-        if(_cmState) _cmState.members=members;
+      _cmRosterChange([], [u]).then(function(saved){
+        if(_cmState) _cmState.members=saved;
         (STATE.calls||[]).forEach(function(c){
           if(c.status!=='open'&&c.status!=='active') return;
           if(!(c.responders||[]).some(function(r){ return U(r.unit)===u; })) return;
@@ -1658,9 +1674,8 @@
       if(!cmIsActive()||!cmIsMissing()) return;
       var u=U(unit); if(!u) return;
       if(cmMembers().some(function(m){ return U(m.unit)===u; })) return;
-      var members=cmMembers().concat([{unit:u,name:name||''}]);
-      db().collection('config').doc('commandMode').update({ members:members }).then(function(){
-        if(_cmState) _cmState.members=members;
+      _cmRosterChange([{unit:u,name:name||''}], []).then(function(saved){
+        if(_cmState) _cmState.members=saved;
         showToast('BC-'+u+' added to missing-person roster');
       }).catch(function(){});
     }catch(e){}
