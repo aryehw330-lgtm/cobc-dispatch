@@ -11107,7 +11107,9 @@ function openCallDetail(id) {
   const _myU=String(SESSION.unit||'').replace(/^BC-?/i,'').trim();
   const _iAmOnCall=(call.responders||[]).some(r=>String(r.unit||'').replace(/^BC-?/i,'').trim()===_myU);
   const _canActOnCall = isDispatch || (call.status==='active' && _iAmOnCall);
-  if(isDispatch && call.status!=='draft') html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
+  const _finished = call.status==='done' || call.status==='cancelled';
+  if(isDispatch && call.status!=='draft' && !_finished) html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
+  if(isDispatch && _finished) html+=`<button class="btn-sm btn-ghost" onclick="openCreditAdd('${id}')">➕ Add responder (credit)</button>`;
   if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
@@ -11667,6 +11669,32 @@ function openCompleteModal(id) {
 }
 // "Who responded?" multi-select popup, shown when completing an open call.
 let _whoRespondedSel=[];
+// Finished calls: dispatch/admin add members afterwards so they get credit in history/stats.
+// The call stays completed/cancelled — no alerts, no WhatsApp, no reopening (Nov 2026).
+let _whoMode='complete';
+function openCreditAdd(id){ _whoMode='credit'; openWhoResponded(id); }
+async function confirmCreditAdd(id){
+  const call=STATE.calls.find(c=>c.id===id); if(!call) return;
+  const have=new Set((call.responders||[]).map(r=>_normU(r.unit)));
+  const add=_whoRespondedSel.map(_normU).filter(u=>u && !have.has(u));
+  const modal=document.getElementById('whoRespondedModal'); if(modal) modal.remove();
+  _whoMode='complete';
+  if(!add.length){ showToast('Nobody new to add'); try{ renderCallDetail(id); }catch(e){} return; }
+  const now=Date.now();
+  const entries=add.map(u=>{ const m=_assignPool().find(x=>_normU(x.unit)===u)||{};
+    const e={unit:u,name:((m.first||m.firstName||'')+' '+(m.last||m.lastName||'')).trim(),phone:'',eta:'',via:'credit',status:'approved',
+             creditOnly:true,addedBy:SESSION.unit,addedAt:now,time:now};
+    if(m.virtual) e.virtual=true; return e; });
+  try{
+    await firebase.firestore().collection('calls').doc(String(id)).update({
+      responders: firebase.firestore.FieldValue.arrayUnion(...entries), updatedAt: now });
+    call.responders=[...(call.responders||[]), ...entries];
+    try{ logCallEvent(call,'credit_added',{units:add,by:SESSION.unit}); }catch(e){}
+    save(); renderCalls(); renderHome(); try{ renderCallDetail(id); }catch(e){}
+    try{ renderMoreHistory(); }catch(e){}
+    showToast('✅ Added for credit: '+add.map(u=>_unitTag(u)).join(', '));
+  }catch(e){ console.warn('credit add',e); showToast('⚠️ Could not save — check signal and try again'); }
+}
 function openWhoResponded(id){
   const call=STATE.calls.find(c=>c.id===id); if(!call) return;
   // Pre-select anyone already on the call
@@ -11677,13 +11705,13 @@ function openWhoResponded(id){
   ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;';
   ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML=`<div style="background:#16140d;border:1px solid rgba(255,255,255,.15);border-radius:18px 18px 0 0;width:100%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;padding:18px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.5);">
-    <div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:3px;">Who responded?</div>
-    <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:12px;">Select everyone who handled this call — you can pick more than one.</div>
+    <div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:3px;">${_whoMode==='credit'?'Add responders for credit':'Who responded?'}</div>
+    <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:12px;">${_whoMode==='credit'?'Pick the members who helped on this call. They get credit in history and stats — the call stays closed and nobody is alerted.':'Select everyone who handled this call — you can pick more than one.'}</div>
     <input id="whoRespSearch" type="text" placeholder="Search members…" oninput="renderWhoResponded()" style="width:100%;padding:11px 13px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(255,255,255,.06);color:#fff;font-size:14px;font-family:inherit;margin-bottom:10px;box-sizing:border-box;"/>
     <div id="whoRespList" style="flex:1;overflow-y:auto;margin-bottom:12px;-webkit-overflow-scrolling:touch;"></div>
     <div style="display:flex;gap:8px;">
-      <button onclick="document.getElementById('whoRespondedModal').remove();showModal('callDetailModal')" style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:11px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
-      <button onclick="confirmWhoResponded('${id}')" style="flex:2;background:var(--green);border:none;color:#fff;border-radius:11px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Continue →</button>
+      <button onclick="document.getElementById('whoRespondedModal').remove();_whoMode='complete';showModal('callDetailModal')" style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:11px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button onclick="${_whoMode==='credit'?'confirmCreditAdd':'confirmWhoResponded'}('${id}')" style="flex:2;background:var(--green);border:none;color:#fff;border-radius:11px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">${_whoMode==='credit'?'Add credit':'Continue →'}</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
