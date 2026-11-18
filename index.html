@@ -10422,22 +10422,68 @@ function approveResponder(callId,unit) {
 // one server transaction — "is this request still waiting? then decide it". The first tap wins;
 // the other dispatcher is told who already handled it, and only the winner sends alerts.
 const _normU = u => String(u||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'').trim();
-async function _decidePending(callId, unit, makeUpdate){
+// Who wins when two people decide the same request (owner's rule, Nov 2026):
+//   Admin (4) > on-duty PRIMARY dispatcher (3) > on-duty SECONDARY (2) > off-duty dispatcher (1).
+//   Higher rank replaces a lower rank's earlier decision; at the SAME rank, approval beats rejection.
+//   Replacing is only allowed within 15 min of the first decision.
+function _onDutySlot(){
+  try{
+    if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length) return {};
+    const shiftIdx=getShiftIndexNow(); const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return {};
+    const today=new Date(); today.setHours(0,0,0,0);
+    const ov=STATE.schedOverrides && STATE.schedOverrides[_dateStrOf(today)] && STATE.schedOverrides[_dateStrOf(today)][shiftIdx];
+    const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[today.getDay()]||{});
+    const u=nm=>(!nm||nm==='OPEN'||nm==='CHIEFS')?'':_normU(_shiftUnitOf(nm)||'');
+    return { p:u(slot.p), s:u(slot.s) };
+  }catch(e){ return {}; }
+}
+function _decisionRank(unit, role){
+  if(role==null){ const m=(STATE.members||[]).find(x=>_normU(x.unit)===_normU(unit)); role=String((m&&(m.roleStr||m.role))||''); }
+  if(/admin/i.test(String(role))) return 4;
+  const sl=_onDutySlot(), u=_normU(unit);
+  if(sl.p && u===sl.p) return 3;
+  if(sl.s && u===sl.s) return 2;
+  return 1;
+}
+async function _decidePending(callId, unit, decision, makeUpdate){
   const u=_normU(unit);
+  const myRank=_decisionRank(SESSION.unit, SESSION.role);
   const ref=firebase.firestore().collection('calls').doc(String(callId));
   return firebase.firestore().runTransaction(async tx=>{
     const snap=await tx.get(ref); const d=snap.data()||{};
     const pend=d.pendingResponders||[];
     const req=pend.find(r=>_normU(r.unit)===u);
-    if(!req){
-      const ap=(d.responders||[]).find(r=>_normU(r.unit)===u);
-      const rj=(d.rejectedResponders||[]).slice().reverse().find(r=>_normU(r.unit)===u);
-      return { ok:false, already: ap?('approved by BC-'+_normU(ap.approvedBy||'?')) : rj?('rejected by BC-'+_normU(rj.rejectedBy||'?')) : 'no longer waiting (withdrawn)' };
+    if(req){
+      const upd=makeUpdate(d, req, pend.filter(r=>_normU(r.unit)!==u), myRank);
+      upd.updatedAt=Date.now(); tx.update(ref, upd);
+      return { ok:true, req };
     }
-    const upd=makeUpdate(d, req, pend.filter(r=>_normU(r.unit)!==u));
-    upd.updatedAt=Date.now();
-    tx.update(ref, upd);
-    return { ok:true, req };
+    // Already decided by someone else — does this decision replace theirs?
+    const ap=(d.responders||[]).find(r=>_normU(r.unit)===u && r.approvedBy);
+    const rj=(d.rejectedResponders||[]).slice().reverse().find(r=>_normU(r.unit)===u);
+    const prior = ap ? {what:'approved', by:ap.approvedBy, at:ap.approvedAt||0, rank:(ap.approvedRank!=null?ap.approvedRank:_decisionRank(ap.approvedBy)), entry:ap}
+                : rj ? {what:'rejected', by:rj.rejectedBy, at:rj.rejectedAt||0, rank:(rj.rejectedRank!=null?rj.rejectedRank:_decisionRank(rj.rejectedBy)), entry:rj} : null;
+    if(!prior) return { ok:false, already:'no longer waiting (withdrawn)' };
+    const label = prior.what+' by BC-'+_normU(prior.by||'?');
+    const mine = decision==='approve' ? 'approved' : 'rejected';
+    const wins = (prior.what!==mine) && (Date.now()-prior.at < 15*60000) &&
+                 (myRank>prior.rank || (myRank===prior.rank && decision==='approve'));
+    if(!wins) return { ok:false, already: label };
+    const base={...prior.entry}; delete base.status; delete base.approvedBy; delete base.approvedAt; delete base.approvedRank; delete base.rejectedBy; delete base.rejectedAt; delete base.rejectedRank; delete base.overrode;
+    const now=Date.now(); let upd;
+    if(decision==='approve'){
+      const e={...base,status:'approved',approvedBy:SESSION.unit,approvedAt:now,approvedRank:myRank,overrode:label};
+      upd={ responders:[...(d.responders||[]).filter(r=>_normU(r.unit)!==u), e],
+            rejectedResponders:(d.rejectedResponders||[]).filter(r=>_normU(r.unit)!==u),
+            status:'active', activatedAt:d.activatedAt||now };
+    } else {
+      const rest=(d.responders||[]).filter(r=>_normU(r.unit)!==u);
+      upd={ responders:rest,
+            rejectedResponders:[...(d.rejectedResponders||[]), {...base,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:now,rejectedRank:myRank,overrode:label}] };
+      if(!rest.length && d.status==='active') upd.status='open';
+    }
+    upd.updatedAt=now; tx.update(ref, upd);
+    return { ok:true, req:base, overrode:label };
   });
 }
 function _alreadyHandled(unit, already){
@@ -10449,8 +10495,8 @@ async function _doApproveResponder(callId, unit, call, req) {
   let _res=null;
   try{
     const _entry={...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
-    _res=await _decidePending(callId, unit, (d, sreq, rest)=>{
-      const e={...sreq,status:'approved',approvedBy:SESSION.unit,approvedAt:_entry.approvedAt};
+    _res=await _decidePending(callId, unit, 'approve', (d, sreq, rest, rank)=>{
+      const e={...sreq,status:'approved',approvedBy:SESSION.unit,approvedAt:_entry.approvedAt,approvedRank:rank};
       const up={ pendingResponders: rest, responders: firebase.firestore.FieldValue.arrayUnion(e), status:'active', activatedAt: d.activatedAt||Date.now() };
       if(!d.callNum && call.callNum) up.callNum=call.callNum;
       return up;
@@ -10458,6 +10504,7 @@ async function _doApproveResponder(callId, unit, call, req) {
   }catch(e){ console.warn('approve transaction', e); _res=null; }
   if(_res && !_res.ok){ _alreadyHandled(unit, _res.already); return; }
   if(_res && _res.ok) req=_res.req;
+  if(_res && _res.overrode){ showToast('✅ BC-'+_normU(unit)+' approved — replaced earlier decision ('+_res.overrode+')'); window._approveOverrode=_res.overrode; }
   return _doApproveResponderApply(callId, unit, call, req, !!(_res && _res.ok));
 }
 function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
@@ -10489,7 +10536,7 @@ function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
   // Push 1: personal approval to the member
   sendPush({
     target:'unit', unit:String(unit),
-    title:`✅ Approved to respond to call #${call.callNum||''}`,
+    title: window._approveOverrode ? `✅ Update: you ARE approved for call #${call.callNum||''}` : `✅ Approved to respond to call #${call.callNum||''}`,
     body:`${typeLabel} · ${fmtLoc(call)} · ETA ${req.eta} min`,
     url:'/cobc-dispatch/', callId:call.id, urgent:'true'
   });
@@ -10500,6 +10547,7 @@ function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
     body:`#${call.callNum||''} · BC-${String(unit||'').replace(/^BC-?/i,'')} is responding — ${typeLabel}, ${call.town}`,
     url:'/cobc-dispatch/', callId:call.id
   }),0);
+  window._approveOverrode=null;
   hideModal('callDetailModal');
   showTab(SESSION.role==='dispatch'||SESSION.role==='admin' ? 'dispatch' : 'home');
 }
@@ -10512,11 +10560,20 @@ function rejectResponder(callId,unit) {
   const req=(call.pendingResponders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===_ru);
   if(!req) return;
   const _rejAt=Date.now();
-  _decidePending(callId, unit, (d, sreq, rest)=>({
+  _decidePending(callId, unit, 'reject', (d, sreq, rest, rank)=>({
     pendingResponders: rest,
-    rejectedResponders: firebase.firestore.FieldValue.arrayUnion({...sreq,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:_rejAt})
+    rejectedResponders: firebase.firestore.FieldValue.arrayUnion({...sreq,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:_rejAt,rejectedRank:rank})
   })).then(res=>{
     if(!res.ok){ _alreadyHandled(unit, res.already); return; }
+    if(res.overrode){
+      // Replaced an approval (higher rank): take them off the call and tell them once.
+      call.responders=(call.responders||[]).filter(r=>_normU(r.unit)!==_normU(unit));
+      try{ logCallEvent(call,'responder_rejected',{responder:unit,rejectedBy:SESSION.unit,overrode:res.overrode}); }catch(e){}
+      save(); renderCalls(); renderHome();
+      showToast('❌ BC-'+_normU(unit)+' rejected — replaced earlier decision ('+res.overrode+')');
+      sendPush({target:'unit',unit:String(unit),title:`Update: you're NOT on call #${call.callNum||''}`,body:'Dispatch changed the decision — please do not respond to this call.',url:'/cobc-dispatch/',callId:call.id,urgent:'true'});
+      return;
+    }
     _rejectResponderApply(call, unit, res.req, _rejAt);
   }).catch(e=>{ console.warn('reject transaction', e); showToast('⚠️ Could not reject — check signal and try again'); });
 }
