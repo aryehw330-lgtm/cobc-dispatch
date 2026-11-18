@@ -6693,7 +6693,10 @@ function _callFieldsUpdate(call, fields){
 // dispatcher editing the address can't erase a request that arrived meanwhile.
 // Needs the last version of the call this phone received from the server (_callBase).
 window._callBase = window._callBase || {};
-function _recordCallBase(list){ try{ (list||[]).forEach(c=>{ if(c&&c.id) _callBase[c.id]=JSON.stringify(c); }); }catch(e){} }
+// Each call object also carries (hidden) the server version IT came from, so a copy held
+// for a moment while newer versions arrive is still compared against its own starting point.
+function _setCallBase(c, str){ try{ Object.defineProperty(c,'__base',{value:str,enumerable:false,writable:true,configurable:true}); }catch(e){} }
+function _recordCallBase(list){ try{ (list||[]).forEach(c=>{ if(c&&c.id){ const j=JSON.stringify(c); _callBase[c.id]=j; _setCallBase(c, j); } }); }catch(e){} }
 const _CALL_LIST_KEYS = ['responders','pendingResponders','rejectedResponders','pendingBackups','backupRequests','assignedEquipment'];
 const _CALL_MAP_KEYS  = ['liveLocations'];
 function _callItemKey(x){
@@ -6736,7 +6739,7 @@ async function firestoreUpsertCall(call){
   call.updatedAt=Date.now();
   const local=JSON.parse(JSON.stringify(call));
   const ref=firebase.firestore().collection('calls').doc(String(call.id));
-  const baseStr=_callBase[call.id];
+  const baseStr=call.__base || _callBase[call.id];
   try{
     const merged=await firebase.firestore().runTransaction(async tx=>{
       const snap=await tx.get(ref);
@@ -6755,7 +6758,7 @@ async function firestoreUpsertCall(call){
       return Object.assign(after, { id: call.id });
     });
     if(merged){
-      _callBase[call.id]=JSON.stringify(merged);
+      _callBase[call.id]=JSON.stringify(merged); _setCallBase(call, _callBase[call.id]);
       // Keep this phone's copy in step with what was really saved (merged lists).
       _CALL_LIST_KEYS.concat(_CALL_MAP_KEYS).forEach(k=>{ if(k in merged) call[k]=merged[k]; });
     }
