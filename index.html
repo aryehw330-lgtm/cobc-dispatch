@@ -10579,12 +10579,35 @@ async function _decidePending(callId, unit, decision, makeUpdate){
     return { ok:true, req:base, overrode:label };
   });
 }
-function _alreadyHandled(unit, already){
+// Reload one call from the server and redraw (undoes an instant on-screen change that the
+// server didn't accept).
+async function _refreshCallFromServer(id){
+  try{
+    const d=await firebase.firestore().collection('calls').doc(String(id)).get({source:'server'});
+    if(!d.exists) return;
+    const obj=Object.assign({ id }, d.data());
+    _recordCallBase([obj]);
+    const i=(STATE.calls||[]).findIndex(c=>c.id===id);
+    if(i>=0) STATE.calls[i]=obj; else (STATE.calls=STATE.calls||[]).push(obj);
+    save(); renderCalls(); renderHome(); try{ renderCallDetail(id); }catch(e){}
+  }catch(e){}
+}
+function _alreadyHandled(unit, already, callId){
   showToast('ℹ️ BC-'+_normU(unit)+' was already '+already);
-  try{ renderCalls(); renderHome(); }catch(e){}
+  if(callId) _refreshCallFromServer(callId); else { try{ renderCalls(); renderHome(); }catch(e){} }
 }
 async function _doApproveResponder(callId, unit, call, req) {
-  // Decide on the server first (first tap wins)
+  // Instant on screen (Nov 2026): show the approval NOW; the server confirms in the
+  // background (first tap wins) and only then do the alerts go out.
+  try{
+    const u0=_normU(unit);
+    call.pendingResponders=(call.pendingResponders||[]).filter(r=>_normU(r.unit)!==u0);
+    call.responders=call.responders||[];
+    if(!call.responders.some(r=>_normU(r.unit)===u0)) call.responders.push({...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()});
+    call.status='active';
+    renderCalls(); renderHome(); showToast('✅ BC-'+u0+' approved');
+    hideModal('callDetailModal');
+  }catch(e){}
   let _res=null;
   try{
     const _entry={...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
@@ -10595,17 +10618,17 @@ async function _doApproveResponder(callId, unit, call, req) {
       return up;
     });
   }catch(e){ console.warn('approve transaction', e); _res=null; }
-  if(_res && !_res.ok){ _alreadyHandled(unit, _res.already); return; }
+  if(_res && !_res.ok){ _alreadyHandled(unit, _res.already, callId); return; }
   if(_res && _res.ok) req=_res.req;
   call=(STATE.calls||[]).find(c=>c.id===callId) || call;   // fresh copy after the server check
   if(_res && _res.overrode){ showToast('✅ BC-'+_normU(unit)+' approved — replaced earlier decision ('+_res.overrode+')'); window._approveOverrode=_res.overrode; }
   return _doApproveResponderApply(callId, unit, call, req, !!(_res && _res.ok));
 }
 function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
-  call.pendingResponders=call.pendingResponders.filter(r=>String(r.unit)!==String(unit));
+  call.pendingResponders=(call.pendingResponders||[]).filter(r=>_normU(r.unit)!==_normU(unit));
   call.responders=call.responders||[];
   const _approvedEntry = {...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
-  call.responders.push(_approvedEntry);
+  if(!call.responders.some(r=>_normU(r.unit)===_normU(unit))) call.responders.push(_approvedEntry);   // (already shown instantly)
   try{ if(typeof cmSyncMember==='function') cmSyncMember(unit,req.name,req.phone); }catch(e){}
   if(!call.callNum && !call.callNumPending){ call.callNumPending=true; _queueCallNumReconcile(call.id); setTimeout(()=>{ try{ _drainCallNumQueue(); }catch(e){} },0); }   // server issues it (never made up on the phone)
   call.status='active';
@@ -10621,8 +10644,7 @@ function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
     if(call.callNum) _upd.callNum=call.callNum;
     _ref.update(_upd).catch(()=>{ firestoreUpsertCall(call); });
   }catch(e){ firestoreUpsertCall(call); }
-  renderCalls(); renderHome();
-  showToast(`✅ BC-${String(unit||'').replace(/^BC-?/i,'')} approved`);
+  renderCalls(); renderHome();   // (the ✅ toast was already shown instantly)
   // WA: group update — "BC-X is responding to call #X"
   setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }); } catch(e){} }, 800);
   // (duplicate push removed — single approval notification below)
@@ -10654,11 +10676,13 @@ function rejectResponder(callId,unit) {
   const req=(call.pendingResponders||[]).find(r=>String(r.unit).replace(/^BC-?/i,'')===_ru);
   if(!req) return;
   const _rejAt=Date.now();
+  // Instant on screen: drop them from the waiting list now; the server confirms in the background.
+  try{ call.pendingResponders=(call.pendingResponders||[]).filter(r=>_normU(r.unit)!==_normU(unit)); renderCalls(); renderHome(); showToast(`❌ BC-${_normU(unit)} rejected`); }catch(e){}
   _decidePending(callId, unit, 'reject', (d, sreq, rest, rank)=>({
     pendingResponders: rest,
     rejectedResponders: firebase.firestore.FieldValue.arrayUnion({...sreq,status:'rejected',rejectedBy:SESSION.unit,rejectedAt:_rejAt,rejectedRank:rank})
   })).then(res=>{
-    if(!res.ok){ _alreadyHandled(unit, res.already); return; }
+    if(!res.ok){ _alreadyHandled(unit, res.already, callId); return; }
     if(res.overrode){
       // Replaced an approval (higher rank): take them off the call and tell them once.
       call.responders=(call.responders||[]).filter(r=>_normU(r.unit)!==_normU(unit));
@@ -10669,7 +10693,7 @@ function rejectResponder(callId,unit) {
       return;
     }
     _rejectResponderApply(call, unit, res.req, _rejAt);
-  }).catch(e=>{ console.warn('reject transaction', e); showToast('⚠️ Could not reject — check signal and try again'); });
+  }).catch(e=>{ console.warn('reject transaction', e); showToast('⚠️ Could not reject — check signal and try again'); _refreshCallFromServer(callId); });
 }
 function _rejectResponderApply(call, unit, req, _rejAt){
   const _ru=String(unit).replace(/^BC-?/i,'');
