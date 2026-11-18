@@ -10376,7 +10376,7 @@ function cancelCall(id) {
 async function _doCancelCall(id,call) {
   const _cl=await _claimCallClose(id, 'cancelled');
   if(!_cl.ok){ hideModal('callDetailModal'); showToast('ℹ️ '+_cl.msg); try{ renderCalls(); renderHome(); }catch(e){} return; }
-  return _doCancelCallApply(id, call);
+  return _doCancelCallApply(id, (STATE.calls||[]).find(c=>c.id===id) || call);   // fresh copy after the server check
 }
 function _doCancelCallApply(id,call) {
   const prevResponders=[...(call.responders||[]),...(call.pendingResponders||[])];
@@ -10593,6 +10593,7 @@ async function _doApproveResponder(callId, unit, call, req) {
   }catch(e){ console.warn('approve transaction', e); _res=null; }
   if(_res && !_res.ok){ _alreadyHandled(unit, _res.already); return; }
   if(_res && _res.ok) req=_res.req;
+  call=(STATE.calls||[]).find(c=>c.id===callId) || call;   // fresh copy after the server check
   if(_res && _res.overrode){ showToast('✅ BC-'+_normU(unit)+' approved — replaced earlier decision ('+_res.overrode+')'); window._approveOverrode=_res.overrode; }
   return _doApproveResponderApply(callId, unit, call, req, !!(_res && _res.ok));
 }
