@@ -16374,6 +16374,48 @@ function takeScheduleSlot(shiftIdx, dayIdx){
 }
 // Apply the chosen assignment — both Primary and Secondary are date-only fill-ins
 // (long-term recurring changes are done via the pencil edit).
+// ── Undo for schedule changes (Nov 2026) ─────────────────────────────────────────
+// After any schedule change, a bar offers "Undo" for 20 s and puts back exactly what was there.
+let _schedUndoFn=null, _schedUndoTimer=null;
+function _offerSchedUndo(msg, restoreFn){
+  _schedUndoFn=restoreFn;
+  let bar=document.getElementById('schedUndoBar');
+  if(!bar){ bar=document.createElement('div'); bar.id='schedUndoBar';
+    bar.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom));z-index:10050;background:#111827;color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:10px 12px 10px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,.45);max-width:92vw;font-size:14px;font-weight:700;';
+    document.body.appendChild(bar); }
+  bar.innerHTML='<span style="flex:1;min-width:0;">'+String(msg).replace(/</g,'&lt;')+'</span><button onclick="_schedUndoNow()" style="background:#e6c463;color:#1a1306;border:none;border-radius:10px;padding:9px 16px;font-weight:900;font-size:14px;cursor:pointer;">Undo</button>';
+  bar.style.display='flex';
+  clearTimeout(_schedUndoTimer);
+  _schedUndoTimer=setTimeout(()=>{ _schedUndoFn=null; const b=document.getElementById('schedUndoBar'); if(b) b.style.display='none'; }, 20000);
+}
+function _schedUndoNow(){
+  const f=_schedUndoFn; _schedUndoFn=null; clearTimeout(_schedUndoTimer);
+  const b=document.getElementById('schedUndoBar'); if(b) b.style.display='none';
+  if(f) try{ f(); }catch(e){ console.warn('undo', e); showToast('⚠️ Could not undo — please fix it by hand'); }
+}
+// Put one date's fill-in back to what it was (or remove it if there was none).
+function _restoreOverride(dateStr, shiftIdx, prev){
+  STATE.schedOverrides=STATE.schedOverrides||{};
+  if(prev){ STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{}; STATE.schedOverrides[dateStr][shiftIdx]=prev; }
+  else if(STATE.schedOverrides[dateStr]){ delete STATE.schedOverrides[dateStr][shiftIdx]; if(!Object.keys(STATE.schedOverrides[dateStr]).length) delete STATE.schedOverrides[dateStr]; }
+  save(); renderSchedule();
+  try{
+    const ref=firebase.firestore().collection('config').doc('schedOverrides');
+    const p = prev ? ref.set({ overrides:{ [dateStr]:{ [shiftIdx]: prev } }, updatedAt:Date.now(), updatedBy:SESSION.unit }, { merge:true })
+                   : ref.update(new firebase.firestore.FieldPath('overrides', dateStr, String(shiftIdx)), firebase.firestore.FieldValue.delete(), 'updatedAt', Date.now());
+    p.catch(()=>pushSchedOverridesToFirestore());
+  }catch(e){ pushSchedOverridesToFirestore(); }
+  showToast('↩️ Undone');
+}
+// Put one weekly (permanent) slot back.
+function _restoreTemplate(shiftIdx, dayIdx, prev){
+  if(!DISPATCH_SCHEDULE[shiftIdx]) return;
+  DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx] = { p:prev.p, s:prev.s };
+  STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r => ({shift:r.shift, slots:[...r.slots]}));
+  save(); pushScheduleToFirestore(); renderSchedule();
+  showToast('↩️ Undone');
+}
+const _clone = o => o==null ? null : JSON.parse(JSON.stringify(o));
 async function _assignSlot(shiftIdx, dayIdx, mode){
   const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return;
   const recur=row.slots[dayIdx]; if(!recur) return;
@@ -16381,6 +16423,7 @@ async function _assignSlot(shiftIdx, dayIdx, mode){
   const dateStr=_schedDateFor(dayIdx);
   STATE.schedOverrides=STATE.schedOverrides||{};
   const cur=(STATE.schedOverrides[dateStr]||{})[shiftIdx]||{};
+  const _prevOv=_clone((STATE.schedOverrides[dateStr]||{})[shiftIdx]);
   const seen = mode==='secondary' ? ((cur.s)||recur.s||'OPEN') : ((cur.p)||recur.p||'OPEN');
   // Two dispatchers taking shifts at once (Nov 2026): check on the server that the role is
   // still what this phone showed, and write ONLY this date/shift — never the whole schedule.
@@ -16405,18 +16448,19 @@ async function _assignSlot(shiftIdx, dayIdx, mode){
     val = mode==='secondary' ? { p:(cur.p)||recur.p||'OPEN', s:myLabel, by:SESSION.unit, at:Date.now() } : { p:myLabel, s:(cur.s)||recur.s||'OPEN', by:SESSION.unit, at:Date.now() };
     STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{}; STATE.schedOverrides[dateStr][shiftIdx]=val;
     save(); pushSchedOverridesToFirestore(); renderSchedule();
-    showToast('✅ '+(mode==='secondary'?'Secondary':'Primary')+' for '+_schedDateLabel(dayIdx));
+    _offerSchedUndo('✅ '+(mode==='secondary'?'Secondary':'Primary')+' for '+_schedDateLabel(dayIdx), ()=>_restoreOverride(dateStr, shiftIdx, _prevOv));
     return;
   }
   STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
   STATE.schedOverrides[dateStr][shiftIdx]=val;
   save(); renderSchedule();
-  showToast('✅ '+(mode==='secondary'?'Secondary':'Primary')+' for '+_schedDateLabel(dayIdx));
+  _offerSchedUndo('✅ '+(mode==='secondary'?'Secondary':'Primary')+' for '+_schedDateLabel(dayIdx), ()=>_restoreOverride(dateStr, shiftIdx, _prevOv));
 }
 // Remove a temporary fill-in (revert that date back to the recurring schedule).
 function clearSlotOverride(shiftIdx, dayIdx){
   const dateStr=_schedDateFor(dayIdx);
   if(STATE.schedOverrides && STATE.schedOverrides[dateStr]){
+    const _prevOv=_clone(STATE.schedOverrides[dateStr][shiftIdx]);
     delete STATE.schedOverrides[dateStr][shiftIdx];
     if(Object.keys(STATE.schedOverrides[dateStr]).length===0) delete STATE.schedOverrides[dateStr];
     save(); renderSchedule();
@@ -16424,7 +16468,7 @@ function clearSlotOverride(shiftIdx, dayIdx){
     try{ firebase.firestore().collection('config').doc('schedOverrides')
       .update(new firebase.firestore.FieldPath('overrides', dateStr, String(shiftIdx)), firebase.firestore.FieldValue.delete(), 'updatedAt', Date.now())
       .catch(()=>pushSchedOverridesToFirestore()); }catch(e){ pushSchedOverridesToFirestore(); }
-    showToast('Fill-in removed');
+    _offerSchedUndo('Fill-in removed', ()=>_restoreOverride(dateStr, shiftIdx, _prevOv));
   }
 }
 
@@ -16499,22 +16543,24 @@ function _applyScheduleEdit(shiftIdx, dayIdx, primary, secondary, mode) {
   if(mode==='onetime' && typeof _schedDateFor==='function'){
     const dateStr=_schedDateFor(dayIdx);
     STATE.schedOverrides=STATE.schedOverrides||{};
+    const _prevOv=_clone((STATE.schedOverrides[dateStr]||{})[shiftIdx]);
     STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
     STATE.schedOverrides[dateStr][shiftIdx]={ p:primary, s:secondary, by:SESSION.unit, at:Date.now() };
     save();
     pushSchedOverridesToFirestore();
     hideModal('schedEditModal');
     renderSchedule();
-    showToast('✅ One-time change saved for '+((typeof _schedDateLabel==='function')?_schedDateLabel(dayIdx):'this date'));
+    _offerSchedUndo('✅ One-time change for '+((typeof _schedDateLabel==='function')?_schedDateLabel(dayIdx):'this date'), ()=>_restoreOverride(dateStr, shiftIdx, _prevOv));
     return;
   }
+  const _prevSlot=_clone(DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx]);
   DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx] = { p: primary, s: secondary };
   STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r => ({shift:r.shift, slots:[...r.slots]}));
   save();
   pushScheduleToFirestore();
   hideModal('schedEditModal');
   renderSchedule();
-  showToast('✅ Schedule updated permanently');
+  _offerSchedUndo('✅ Weekly schedule changed (every '+SCHED_DAYS_FULL[dayIdx]+')', ()=>_restoreTemplate(shiftIdx, dayIdx, _prevSlot));
 }
 
 function resetScheduleSlot() {
@@ -16522,13 +16568,14 @@ function resetScheduleSlot() {
   // Find seed value (we don't keep a separate const, so just set both to OPEN as a safe default)
   const shiftIdx = parseInt(document.getElementById('schedEditShiftIdx').value);
   const dayIdx = parseInt(document.getElementById('schedEditDayIdx').value);
+  const _prevSlot=_clone(DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx]);
   DISPATCH_SCHEDULE[shiftIdx].slots[dayIdx] = { p:'OPEN', s:'OPEN' };
   STATE.dispatchSchedule = DISPATCH_SCHEDULE.map(r => ({shift:r.shift, slots:[...r.slots]}));
   save();
   pushScheduleToFirestore();
   hideModal('schedEditModal');
   renderSchedule();
-  showToast('Slot reset to OPEN');
+  _offerSchedUndo('Slot reset to OPEN (every '+SCHED_DAYS_FULL[dayIdx]+')', ()=>_restoreTemplate(shiftIdx, dayIdx, _prevSlot));
 }
 
 const SCHED_DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
