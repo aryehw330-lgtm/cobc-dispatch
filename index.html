@@ -4461,7 +4461,7 @@ async function _drainCallNumQueue(){
     if(call.status==='draft') continue;                   // drafts get no number → drop
     if(call.callNum && !call.callNumPending) continue;     // already resolved → drop
     try{
-      const num=await _nextCallNumAtomic();
+      const num=_spareCallNums.length ? _spareCallNums.shift() : await _nextCallNumAtomic();
       if(num){
         call.callNum=num; call.callNumPending=false; save();
         try{ firebase.firestore().collection('calls').doc(String(call.id)).update({callNum:num, callNumPending:false}); }catch(e){}
@@ -9558,6 +9558,7 @@ function _resolveNewCallNum(){
 // Atomic Firestore-transaction call number — makes duplicate call numbers physically
 // impossible even across simultaneous submits on different devices. Respects a manual
 // override, and syncs the local counter forward so previews stay accurate.
+var _spareCallNums=[];   // numbers the server issued after a slow answer — used before asking again
 async function _nextCallNumAtomic(){
   const ov=window._newCallNumOverride;
   if(ov){
@@ -9589,12 +9590,12 @@ async function _nextCallNumAtomic(){
   const timer=new Promise(res=>setTimeout(()=>res(TIMEOUT),4000));
   const result=await Promise.race([txPromise, timer]);
   if(result===TIMEOUT){
-    const local=(typeof _peekNextCallNum==='function')?_peekNextCallNum():((parseInt(localStorage.getItem('cobc_callnum_'+year)||'0',10)||0)+1);
-    try{ localStorage.setItem('cobc_callnum_'+year,String(local)); }catch(e){}
-    // Let the (still-pending) transaction settle in the background; ignore its result/errors.
-    txPromise.then(n=>{ try{ const cur=parseInt(localStorage.getItem('cobc_callnum_'+year)||'0',10)||0; if(n>cur) localStorage.setItem('cobc_callnum_'+year,String(n)); }catch(e){} }).catch(()=>{});
-    console.warn('Call-number mint timed out — using local #'+local+'; will reconcile.');
-    return local;
+    // Nov 2026: NEVER make up a number on the phone (two phones could pick the same one).
+    // The call is created "number coming"; the server's number fills in when it answers.
+    // If this slow transaction does finish, its number is kept as a spare for that call.
+    txPromise.then(n=>{ if(n){ _spareCallNums.push(n); try{ const cur=parseInt(localStorage.getItem('cobc_callnum_'+year)||'0',10)||0; if(n>cur) localStorage.setItem('cobc_callnum_'+year,String(n)); }catch(e){} try{ _drainCallNumQueue(); }catch(e){} } }).catch(()=>{});
+    console.warn('Call-number server slow — call created with number pending');
+    throw new Error('callnum-timeout');
   }
   try{ localStorage.setItem('cobc_callnum_'+year,String(result)); }catch(e){}
   return result;
@@ -10606,7 +10607,7 @@ function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
   const _approvedEntry = {...req,status:'approved',approvedBy:SESSION.unit,approvedAt:Date.now()};
   call.responders.push(_approvedEntry);
   try{ if(typeof cmSyncMember==='function') cmSyncMember(unit,req.name,req.phone); }catch(e){}
-  if(!call.callNum) call.callNum = _nextCallNum();
+  if(!call.callNum && !call.callNumPending){ call.callNumPending=true; _queueCallNumReconcile(call.id); setTimeout(()=>{ try{ _drainCallNumQueue(); }catch(e){} },0); }   // server issues it (never made up on the phone)
   call.status='active';
   call.activatedAt=call.activatedAt||Date.now();
   logCallEvent(call, 'responder_approved', {responder:unit, approvedBy:SESSION.unit});
@@ -10957,7 +10958,7 @@ async function submitRadioResponders() {
       try{ if(!m.virtual && typeof cmSyncMember==='function') cmSyncMember(m.unit,_entry.name,m.phone); }catch(e){}
     }
   });
-  if(!call.callNum) call.callNum = _nextCallNum();
+  if(!call.callNum && !call.callNumPending){ call.callNumPending=true; _queueCallNumReconcile(call.id); setTimeout(()=>{ try{ _drainCallNumQueue(); }catch(e){} },0); }   // server issues it (never made up on the phone)
   call.status='active';
   call.activatedAt=call.activatedAt||Date.now();
   save();
