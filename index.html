@@ -6683,6 +6683,23 @@ function initFirestore(){
 
 // Save only the given fields of a call (members may only touch their own participation:
 // the database refuses member edits to the call's info). Falls back to nothing on failure.
+// Members may only change THEIR OWN line in a call's responder list (server rule, Nov 2026).
+// So member actions edit their line on the server's current list, never re-send the whole list
+// (an out-of-date copy would otherwise look like changing someone else's line and be refused).
+// fn(entry) returns the new entry, or null to remove it.
+function _updateMyResponderEntry(callId, fn){
+  const me=_normU(SESSION.unit);
+  const ref=firebase.firestore().collection('calls').doc(String(callId));
+  const attempt=n=>firebase.firestore().runTransaction(async tx=>{
+    const snap=await tx.get(ref); if(!snap.exists) return;
+    const list=(snap.data()||{}).responders||[];
+    let changed=false; const out=[];
+    list.forEach(r=>{ if(r && _normU(r.unit)===me){ const nr=fn({...r}); changed=true; if(nr) out.push(nr); } else out.push(r); });
+    if(changed) tx.update(ref,{ responders:out, updatedAt:Date.now() });
+  }).catch(e=>{ if(n<3) return new Promise(r=>setTimeout(r,1500*(n+1)+Math.random()*1000)).then(()=>attempt(n+1)); console.warn('my responder entry',e); });
+  return attempt(0);
+}
+window._updateMyResponderEntry=_updateMyResponderEntry;
 function _callFieldsUpdate(call, fields){
   try{ fields.updatedAt=Date.now(); if(call) call.updatedAt=fields.updatedAt;
     return firebase.firestore().collection('calls').doc(String(call.id)).update(fields).catch(e=>console.warn('call update',e));
@@ -10293,7 +10310,8 @@ function requestWithdraw(id){
   if(!r){ showToast('You are not on this call'); return; }
   if(r.withdrawRequested){ showToast('Already requested'); return; }
   r.withdrawRequested=true; r.withdrawAt=Date.now();
-  save(); _callFieldsUpdate(call,{responders:call.responders});
+  const _wAt=r.withdrawAt;
+  save(); _updateMyResponderEntry(call.id, e=>Object.assign(e,{withdrawRequested:true, withdrawAt:_wAt}));
   try{ renderCallDetail(id); }catch(e){}
   renderCalls(); renderHome();
   showToast('Request sent to dispatch');
@@ -22478,7 +22496,7 @@ function fmtMemberBadgeD(memberStr) {
   };
 })();
 </script>
-<script src="command-mode.js?v=20261117b"></script>
+<script src="command-mode.js?v=20261117c"></script>
 </body>
 </html>
 

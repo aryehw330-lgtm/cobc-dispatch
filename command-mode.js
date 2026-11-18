@@ -256,7 +256,8 @@
       if(!(c.responders||[]).some(function(r){ return U(r.unit)===u; })) return;
       _cmAutoRemoved[c.id+'|'+u]=1;
       c.responders=(c.responders||[]).filter(function(r){ return U(r.unit)!==u; });
-      try{ db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
+      try{ if(typeof window._updateMyResponderEntry==='function') window._updateMyResponderEntry(c.id, function(){ return null; });
+           else db().collection('calls').doc(String(c.id)).update({ responders:c.responders }); }catch(e){}
     });
     try{ if(typeof save==='function') save(); if(typeof renderCalls==='function') renderCalls(); if(typeof renderHome==='function') renderHome(); }catch(e){}
     showToast('Signed out');
