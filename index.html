@@ -10425,7 +10425,7 @@ const _normU = u => String(u||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'').t
 // Who wins when two people decide the same request (owner's rule, Nov 2026):
 //   Admin (4) > on-duty PRIMARY dispatcher (3) > on-duty SECONDARY (2) > off-duty dispatcher (1).
 //   Higher rank replaces a lower rank's earlier decision; at the SAME rank, approval beats rejection.
-//   Replacing is only allowed within 15 min of the first decision.
+//   This only settles near-SIMULTANEOUS taps (within 10 s); after that the first decision stands.
 function _onDutySlot(){
   try{
     if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length) return {};
@@ -10466,7 +10466,7 @@ async function _decidePending(callId, unit, decision, makeUpdate){
     if(!prior) return { ok:false, already:'no longer waiting (withdrawn)' };
     const label = prior.what+' by BC-'+_normU(prior.by||'?');
     const mine = decision==='approve' ? 'approved' : 'rejected';
-    const wins = (prior.what!==mine) && (Date.now()-prior.at < 15*60000) &&
+    const wins = (prior.what!==mine) && (Date.now()-prior.at < 10000) &&   // only near-simultaneous taps (≤10 s)
                  (myRank>prior.rank || (myRank===prior.rank && decision==='approve'));
     if(!wins) return { ok:false, already: label };
     const base={...prior.entry}; delete base.status; delete base.approvedBy; delete base.approvedAt; delete base.approvedRank; delete base.rejectedBy; delete base.rejectedAt; delete base.rejectedRank; delete base.overrode;
