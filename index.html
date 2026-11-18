@@ -4043,11 +4043,23 @@ async function sendPush(payload) {
       const { waText, waChat, ...noWa } = payload;
       payload = noWa;
     }
-    await fetch(PUSH_SEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'send', authToken: await _pushAuth(), ...payload })
-    });
+    // Busy moments (many members tapping at once) can make the push server refuse a few
+    // sends. Check the answer and retry with growing, randomised waits (Nov 2026).
+    const _waits=[0, 2000, 5000, 10000];
+    for (let i=0; i<_waits.length; i++) {
+      if (_waits[i]) await new Promise(r=>setTimeout(r, _waits[i] + Math.random()*1500));
+      try {
+        const r = await fetch(PUSH_SEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'send', authToken: await _pushAuth(), ...payload })
+        });
+        let j = null; try { j = await r.json(); } catch(e) {}
+        if (r.ok && j && j.ok !== false) return;
+        if (j && /unauthorized/i.test(String(j.error||'')) && i>=1) { await _waitAuthToken(15000); }
+        console.warn('Push send not accepted (try '+(i+1)+'):', j && j.error);
+      } catch (e) { console.warn('Push send failed (try '+(i+1)+'):', e); }
+    }
   } catch (e) { console.warn('Push send failed:', e); }
 }
 
@@ -10094,17 +10106,21 @@ function confirmRespond() {
   if(call.priority==='urgent' && !isObserver && call.type!=='missing_person') {
     call.responders=call.responders||[];
     if(!call.responders.find(r=>String(r.unit)===String(SESSION.unit))) {
-      call.responders.push({
+      var _meEntry={
         unit:SESSION.unit,name:SESSION.name,phone:SESSION.phone||'',eta,notes,vehicles,
         isObserver:false,time:Date.now(),status:'approved',
         approvedBy:'AUTO (urgent)',approvedAt:Date.now(),autoApproved:true
-      });
+      };
+      call.responders.push(_meEntry);
       try{ if(typeof cmSyncMember==='function') cmSyncMember(SESSION.unit,SESSION.name,SESSION.phone); }catch(e){}
       var _wasOpen=(call.status==='open');
       if(_wasOpen) { call.status='active'; call.activatedAt=call.activatedAt||Date.now(); }
       logCallEvent(call, 'auto_approved', {responder:SESSION.unit, eta, urgent:true});
-      const _au={responders:call.responders}; if(_wasOpen){ _au.status='active'; _au.activatedAt=call.activatedAt; }
-      _callFieldsUpdate(call,_au);
+      // Many members can auto-join at the same moment: ADD this member on the server
+      // (arrayUnion) instead of saving the whole list, which would drop the others.
+      const _au={responders:firebase.firestore.FieldValue.arrayUnion(_meEntry)}; if(_wasOpen){ _au.status='active'; _au.activatedAt=call.activatedAt; }
+      const _auSend=(n)=>{ try{ _au.updatedAt=Date.now(); return firebase.firestore().collection('calls').doc(String(call.id)).update(_au).catch(e=>{ if(n<3) setTimeout(()=>_auSend(n+1), 1500*(n+1)+Math.random()*1000); else console.warn('urgent join save',e); }); }catch(e){} };
+      _auSend(0);
     }
     save(); hideModal('respondModal');
     renderCalls(); renderHome();
@@ -10159,10 +10175,11 @@ function confirmRespond() {
   // Atomic add so two members requesting at the same time don't clobber each other
   // (a full-doc upsert is last-write-wins and drops the other person's request).
   try{
-    firebase.firestore().collection('calls').doc(call.id).update({
-      pendingResponders: firebase.firestore.FieldValue.arrayUnion(_pendReq)
-    }).catch(()=>{ firestoreUpsertCall(call); });
-  }catch(e){ firestoreUpsertCall(call); }
+    const _prSend=(n)=>firebase.firestore().collection('calls').doc(call.id).update({
+      pendingResponders: firebase.firestore.FieldValue.arrayUnion(_pendReq), updatedAt: Date.now()
+    }).catch(e=>{ if(n<3) setTimeout(()=>_prSend(n+1), 1500*(n+1)+Math.random()*1000); else { console.warn('request save',e); showToast('⚠️ Request not sent — check signal and tap again'); } });
+    _prSend(0);
+  }catch(e){ console.warn('request save',e); }
   hideModal('respondModal');
   renderCalls(); renderHome();
   // WA: notify dispatchers/admins that this member wants to respond
