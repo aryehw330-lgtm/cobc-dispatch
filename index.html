@@ -9479,6 +9479,7 @@ function selectCallType(type, btn) {
   const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas','vehicle_stalled','vehicle_pullout','stuck_snow','bumper_hanging','plastic_hanging'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
   { const _mr=document.getElementById('mpRulesSection'); if(_mr) _mr.style.display=(type==='missing_person')?'block':'none'; }
+  try{ updateDispatchBtn(); }catch(e){}
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
   // Flood → show equipment-needed multi-select
   const floodSec=document.getElementById('floodNeedsSection');
@@ -9557,7 +9558,11 @@ function updateDispatchBtn() {
   const cb = document.getElementById('callDontPublish');
   const btn = document.getElementById('callSubmitBtn');
   if(!cb || !btn) return;
-  if(cb.checked) {
+  const _isMP = (document.getElementById('callType')||{}).value==='missing_person';
+  if(_isMP && !cb.checked) {   // Missing Person never goes straight to members (Nov 2026)
+    btn.textContent = '🔍 Submit for Approval';
+    btn.style.background = 'linear-gradient(135deg,#1d4ed8,#2563eb)';
+  } else if(cb.checked) {
     btn.textContent = '📝 Save as Draft';
     btn.style.background = 'linear-gradient(135deg,#7c3aed,#9333ea)';
   } else {
