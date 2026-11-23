@@ -2569,6 +2569,16 @@ textarea.input{min-height:80px;resize:vertical;}
       <div id="otherTypeSuggest" style="display:none;margin-top:4px;border:1px solid var(--border2,#e2e2e2);border-radius:10px;background:var(--card,#fff);max-height:220px;overflow-y:auto;box-shadow:0 6px 18px rgba(0,0,0,.12);"></div>
     </div>
 
+    <!-- MISSING PERSON: how it works (shown when Missing Person is picked) — Nov 2026 -->
+    <div id="mpRulesSection" style="display:none;margin-bottom:12px;padding:12px 14px;border-radius:12px;background:rgba(37,99,235,.12);border:1.5px solid rgba(96,165,250,.5);font-size:13px;line-height:1.55;color:var(--text);">
+      <div style="font-weight:900;font-size:14px;margin-bottom:6px;">🔍 Missing Person — how this works</div>
+      <div><b>1. Intake:</b> fill in the call. In the notes write: name, age, description &amp; clothing, last seen (where + when), medical needs, and whether police were called.</div>
+      <div><b>2. Pending:</b> it saves as <b>pending approval</b> — members are <b>NOT</b> alerted yet.</div>
+      <div><b>3. Approval:</b> Admins &amp; Search Supervisors get a push to approve or reject (with a reason).</div>
+      <div><b>4. Dispatch:</b> once approved you get a push — open the call and tap <b>🚨 Acknowledge &amp; Dispatch</b>. That's when members are alerted.</div>
+      <div><b>5. Search:</b> an Admin / Search Supervisor starts the search map from the call.</div>
+    </div>
+
     <!-- CAR INFO (shown for tire/lockout/jump) -->
     <div id="carInfoSection" style="display:none;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
@@ -8766,7 +8776,7 @@ function callCardHTML(call, mini=false) {
   const timeStr = (_dateLabel?_dateLabel+' · ':'') + ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   // Sequential call number — drafts have none yet; otherwise stored callNum or chronological position
   const callNumStr = call.status==='draft'
-    ? (call.needsApproval ? '— · 🔍 needs approval' : '—')
+    ? (call.needsApproval ? '— · 🔍 needs approval' : (call.mpApprovedAt ? '— · ✅ approved, ready to dispatch' : '—'))
     : (call.callNum
         ? String(call.callNum)
         : (function(){
@@ -9468,6 +9478,7 @@ function selectCallType(type, btn) {
   if(btn) btn.classList.add('active');
   const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas','vehicle_stalled','vehicle_pullout','stuck_snow','bumper_hanging','plastic_hanging'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
+  { const _mr=document.getElementById('mpRulesSection'); if(_mr) _mr.style.display=(type==='missing_person')?'block':'none'; }
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
   // Flood → show equipment-needed multi-select
   const floodSec=document.getElementById('floodNeedsSection');
@@ -9897,7 +9908,7 @@ async function _createCallInner() {
     try{
       const _me=String(SESSION.unit||'').replace(/^BC-?/i,'');
       const _apTitle=(call.isTest?'🧪 TEST — ':'')+'🔍 Missing Person — needs your approval';
-      const _apBody=(call.address?call.address+' · ':'')+'Created by BC-'+_me+'. Open the app to approve & send out.';
+      const _apBody=(call.address?call.address+' · ':'')+'Intake by BC-'+_me+'. Open the app to approve or reject.';
       _dedupeUnits([..._adminUnits(), ..._searchSupUnits()])
         .filter(u=>String(u)!==_me)
         .forEach(u=>setTimeout(()=>{ try{ sendPush({ target:'unit', unit:String(u), title:_apTitle, body:_apBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true', callId:call.id }); }catch(e){} },0));
@@ -11298,6 +11309,15 @@ function openCallDetail(id) {
       html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
     }
   }
+  // Missing Person call that's out: one tap to start / open the search map linked to it (Nov 2026)
+  if(call.type==='missing_person' && (call.status==='open'||call.status==='active')){
+    const _opOn=(typeof cmIsActive==='function' && cmIsActive());
+    const _linked=_opOn && typeof cmIsLinkedMissingCall==='function' && cmIsLinkedMissingCall(call.id);
+    if(_linked && typeof openCommandView==='function' && (isDispatch || _canApproveMissing()))
+      html+=`<button class="btn-sm" style="background:#1d4ed8;color:#fff;border:none;font-weight:800;" onclick="hideModal('callDetailModal');openCommandView()">🗺️ Open search map</button>`;
+    else if(!_opOn && _canApproveMissing())
+      html+=`<button class="btn-sm" style="background:#1d4ed8;color:#fff;border:none;font-weight:800;" onclick="hideModal('callDetailModal');cmStartSearchForCall('${id}')">🔍 Start search map</button>`;
+  }
   if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Navigation</button>`;
   // Share my location — for approved responders who are on their way
   const _iAmApprovedDetail = (call.responders||[]).some(r=>String(r.unit)===String(SESSION.unit));
@@ -11336,15 +11356,26 @@ function openCallDetail(id) {
   }
   // Bottom row: drafts get Make Real Call + Delete + Close side by side; others just Close.
   if(call.status==='draft' && call.needsApproval && (isDispatch || _canApproveMissing())){
+    // Missing Person intake (Nov 2026): Admin / Search Supervisor approves or rejects;
+    // after approval a dispatcher acknowledges & dispatches (that's when members are alerted).
     const _canAp=_canApproveMissing();
-    html+=`</div><div style="margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.1);border:1.5px solid rgba(37,99,235,.45);font-size:13px;font-weight:700;color:var(--text);">🔍 Missing Person — needs Admin or Search Supervisor approval before it goes out.</div>`
+    html+=`</div><div style="margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.1);border:1.5px solid rgba(37,99,235,.45);font-size:13px;font-weight:700;color:var(--text);">🔍 Missing Person intake — waiting for Admin / Search Supervisor approval. Members have NOT been alerted.</div>`
       +`<div style="margin-top:8px;display:flex;gap:8px;">`
       +(_canAp
-        ? `<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="hideModal('callDetailModal');_mpApproveAndOffer('${id}')">✅ Approve &amp; Send Out</button>`
-        : `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:13px 6px;background:var(--border2,#eef0f3);color:var(--text2);font-weight:800;font-size:13px;">⏳ Waiting for approval</div>`)
-      +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="deleteCall('${id}')">🗑️ Delete Draft</button>`
+        ? `<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="hideModal('callDetailModal');_mpApprove('${id}')">✅ Approve</button>`
+          +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="hideModal('callDetailModal');_mpReject('${id}')">❌ Reject</button>`
+        : `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:13px 6px;background:var(--border2,#eef0f3);color:var(--text2);font-weight:800;font-size:13px;">⏳ Waiting for approval</div>`
+          +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="deleteCall('${id}')">🗑️ Delete Draft</button>`)
       +`</div>`
-      +(_canAp ? `<div style="margin-top:8px;"><button class="btn-full" style="background:rgba(37,99,235,.14);color:var(--text);border:1.5px solid rgba(37,99,235,.45);font-weight:800;border-radius:12px;padding:12px 6px;" onclick="openCallEdit('${id}')">✏️ Edit before sending</button></div>` : '')
+      +`<div style="margin-top:8px;"><button class="btn-full" style="background:rgba(37,99,235,.14);color:var(--text);border:1.5px solid rgba(37,99,235,.45);font-weight:800;border-radius:12px;padding:12px 6px;" onclick="openCallEdit('${id}')">✏️ Edit intake</button></div>`
+      +`<div style="margin-top:8px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
+  } else if(call.status==='draft' && call.mpApprovedAt && (isDispatch || _canApproveMissing())){
+    html+=`</div><div style="margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(22,163,74,.12);border:1.5px solid rgba(22,163,74,.5);font-size:13px;font-weight:700;color:var(--text);">✅ Approved by BC-${_normU(call.mpApprovedBy||'')} — ready to dispatch. Members have NOT been alerted yet.</div>`
+      +`<div style="margin-top:8px;display:flex;gap:8px;">`
+      +(isDispatch
+        ? `<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="hideModal('callDetailModal');_mpDispatch('${id}')">🚨 Acknowledge & Dispatch</button>`
+        : `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:13px 6px;background:var(--border2,#eef0f3);color:var(--text2);font-weight:800;font-size:13px;">⏳ Waiting for a dispatcher</div>`)
+      +`</div>`
       +`<div style="margin-top:8px;"><button class="btn-full btn-ghost" onclick="hideModal('callDetailModal')">Close</button></div>`;
   } else if(call.status==='draft' && isDispatch){
     html+=`</div><div style="margin-top:12px;display:flex;gap:8px;">`
@@ -11428,15 +11459,58 @@ function _myRoleStr(){
   try{ const me=(STATE.members||[]).find(m=>_normUnit(m.unit)===_normUnit(SESSION.unit)); if(me) s+=' '+String(me.roleStr||'')+' '+String(me.role||me.status||''); }catch(e){}
   return s.toLowerCase();
 }
-// Approve a Missing Person call, then offer to open the search dashboard linked to it
-// (only admins and Search Supervisors can approve, so only they get the offer).
-async function _mpApproveAndOffer(id){
-  try{ await publishCall(id); }catch(e){ console.warn('approve', e); return; }
-  const c=(STATE.calls||[]).find(x=>x.id===id);
-  if(!c || c.needsApproval || c.status==='draft') return;
-  if(typeof cmStartSearchForCall!=='function') return;
-  if(typeof cmIsActive==='function' && cmIsActive()) return;
-  if(confirm('✅ Sent out.\n\nStart the Missing Person search dashboard for this call now?')) cmStartSearchForCall(id);
+// ── Missing Person intake flow (Nov 2026) ────────────────────────────────────
+// 1) Dispatch does intake → draft "needs approval" (approvers pushed — see _createCallInner).
+// 2) Admin / Search Supervisor approves → push to intake dispatcher + on-duty dispatchers + admins.
+//    Or rejects with a reason → call cancelled, intake dispatcher pushed. No member alerts either way.
+// 3) A dispatcher taps "Acknowledge & Dispatch" → publishCall() → members alerted as usual.
+function _mpPush(units, title, body, callId){
+  const me=_normU(SESSION.unit||'');
+  _dedupeUnits(units).filter(u=>_normU(u)!==me).forEach(u=>setTimeout(()=>{ try{ sendPush({ target:'unit', unit:String(_normU(u)), title, body, url:'/cobc-dispatch/?page=dispatch', urgent:'true', callId }); }catch(e){} },0));
+}
+async function _mpApprove(id){
+  const call=(STATE.calls||[]).find(c=>c.id===id); if(!call) return;
+  if(!_canApproveMissing()){ showToast('Only an Admin or Search Supervisor can approve'); return; }
+  if(!(call.status==='draft' && call.needsApproval)){ showToast('This intake was already handled'); return; }
+  const intake=call.mpIntakeBy||call.createdBy||'';
+  call.needsApproval=false; call.mpApprovedBy=SESSION.unit; call.mpApprovedAt=Date.now(); call.mpIntakeBy=intake;
+  save(); renderCalls(); renderHome();
+  try{ await firestoreUpsertCall(call); }catch(e){}
+  showToast('✅ Approved — dispatchers notified to dispatch it');
+  let onDuty=[]; try{ onDuty=_onDutyDispatchUnits()||[]; }catch(e){}
+  _mpPush([intake, ...onDuty, ..._adminUnits()], (call.isTest?'🧪 TEST — ':'')+'✅ Missing Person approved — dispatch it',
+    (call.address?call.address+' · ':'')+'Approved by BC-'+_normU(SESSION.unit)+'. Open the app → Acknowledge & Dispatch.', call.id);
+}
+async function _mpReject(id){
+  const call=(STATE.calls||[]).find(c=>c.id===id); if(!call) return;
+  if(!_canApproveMissing()){ showToast('Only an Admin or Search Supervisor can reject'); return; }
+  if(!(call.status==='draft' && call.needsApproval)){ showToast('This intake was already handled'); return; }
+  const reason=(prompt('Reason for not approving (sent to the dispatcher):')||'').trim();
+  if(!reason){ showToast('Not rejected — a reason is needed'); return; }
+  const intake=call.mpIntakeBy||call.createdBy||'';
+  call.needsApproval=false; call.status='cancelled'; call.cancelledBy=SESSION.unit; call.cancelledAt=Date.now();
+  call.mpRejected={ by:SESSION.unit, at:Date.now(), reason }; call.mpIntakeBy=intake;
+  call.cancelReason='Missing Person not approved: '+reason;
+  save(); renderCalls(); renderHome();
+  try{ await firestoreUpsertCall(call); }catch(e){}
+  try{ logCallEvent(call,'cancelled',{by:SESSION.unit, reason:'Missing Person not approved: '+reason}); }catch(e){}
+  showToast('❌ Not approved — dispatcher notified');
+  _mpPush([intake], (call.isTest?'🧪 TEST — ':'')+'❌ Missing Person not approved',
+    'Reason: '+reason+' (BC-'+_normU(SESSION.unit)+')', call.id);
+}
+async function _mpDispatch(id){
+  const call=(STATE.calls||[]).find(c=>c.id===id); if(!call) return;
+  if(!['admin','dispatch'].includes(SESSION.role)){ showToast('Dispatch or admin only'); return; }
+  if(!(call.status==='draft' && call.mpApprovedAt && !call.needsApproval)){ showToast('This call is not ready to dispatch'); return; }
+  call.mpDispatchedBy=SESSION.unit; call.mpDispatchedAt=Date.now();
+  try{ await publishCall(id); }catch(e){ console.warn('mp dispatch', e); return; }
+  const c=(STATE.calls||[]).find(x=>x.id===id); if(!c || c.status==='draft') return;
+  const opActive=(typeof cmIsActive==='function' && cmIsActive());
+  // Connect the search map to THIS call: tell approvers it's out; an approver dispatching can start it right away.
+  if(!opActive) _mpPush([..._adminUnits(), ..._searchSupUnits()], (c.isTest?'🧪 TEST — ':'')+'🔍 Missing Person dispatched — start the search map',
+    'Call #'+(c.callNum||'')+(c.address?' · '+c.address:'')+'. Open the call → Start search map.', c.id);
+  if(!opActive && _canApproveMissing() && typeof cmStartSearchForCall==='function'
+     && confirm('🚨 Dispatched.\n\nStart the Missing Person search map for this call now?')) cmStartSearchForCall(id);
 }
 function _canApproveMissing(){ const r=_myRoleStr(); return r.includes('admin') || r.includes('search supervisor'); }
 // Let approvers know when a Missing Person call is waiting (once per call per session).
