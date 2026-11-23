@@ -18789,7 +18789,8 @@ function renderEquipmentDashboard() {
         const cls=(['Missing','Damaged'].includes(e.equipStatus))?'alert-red':'alert-amber';
         return `<div class="alert ${cls}" style="margin-bottom:0;display:block;min-width:0;">
           <div style="font-weight:700;font-size:13px;line-height:1.25;">${e.name}</div>
-          <div style="font-size:11px;margin-top:2px;line-height:1.35;"><b style="font-weight:800;">${e.location}</b>${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}</div>
+          <div style="font-size:11px;margin-top:2px;line-height:1.35;"><b style="font-weight:800;">${e.location}</b>${e.equipStatus==='Missing'?'':((e.checkedOutBy?' · '+fmtEqHolder(e):'')+(e.callNum?' · Call #'+e.callNum:''))}</div>
+          ${e.equipStatus==='Missing'?`<div style="font-size:11px;margin-top:2px;line-height:1.35;">${e.status==='out'?'Last signed out by ':'Not signed out — last checked in by '}${e.checkedOutBy?fmtEqHolder(e):'unknown'}${e.callNum?' · Call #'+e.callNum:''}</div>`:''}
           ${e.equipStatus&&e.equipStatus!=='OK'?`<div style="font-size:11px;font-weight:700;margin-top:3px;line-height:1.3;">${e.equipStatus}${e.equipNote?' — '+e.equipNote.replace(/^[A-Z ]+\s*-\s*/i,''):''}</div>`:''}
           ${e.isCNC?`<div style="font-size:11px;color:var(--amber);margin-top:2px;line-height:1.3;">CNC — wrong location — ${(e.cncNote||e.ccnc||'').replace(/^in vehicle:\s*/i,'in vehicle ')}</div>`:''}
           ${e.lastUpdated?`<div style="font-size:10px;font-weight:600;opacity:.7;margin-top:4px;white-space:nowrap;">🕒 ${fmtEqTime(e.lastUpdated)}</div>`:''}
@@ -18997,7 +18998,8 @@ function renderInventory() {
   const canEdit = true; // all logged-in members can check in/out
   el.innerHTML=items.map(e=>{
     const isOut=e.status==='out';
-    const statusBadge=isOut?'<span class="badge badge-red">OUT</span>':'<span class="badge badge-green">IN</span>';
+    const _miss=e.equipStatus==='Missing';   // Missing: no IN/OUT badge (an item can't be "in" and missing) — Nov 2026
+    const statusBadge=_miss?'':(isOut?'<span class="badge badge-red">OUT</span>':'<span class="badge badge-green">IN</span>');
     const equipBadge=e.equipStatus&&e.equipStatus!=='OK'?`<span class="badge ${e.equipStatus==='Missing'?'badge-red':e.equipStatus==='Damaged'?'badge-amber':e.equipStatus==='Need More'?'badge-blue':'badge-blue'}" style="font-size:10px;">${e.equipStatus}</span>`:'';
     const _inVeh=/^in vehicle/i.test(e.cncNote||'');
     const cncBadge=e.isCNC?`<span class="badge badge-amber" style="font-size:10px;">${_inVeh?'IN VEHICLE':'CNC'}</span>`:'';
@@ -19015,7 +19017,8 @@ function renderInventory() {
         <div style="font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.name}</div>
         <div style="display:flex;gap:4px;flex-shrink:0;">${_eqSaveBadgeD(e.row)}${statusBadge}${equipBadge}${cncBadge}</div>
       </div>
-      <div style="font-size:12px;color:var(--text3);"><b style="color:#fff;font-weight:800;">${e.location}</b>${e.checkedOutBy?' · '+fmtEqHolder(e):''}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>
+      <div style="font-size:12px;color:var(--text3);"><b style="color:#fff;font-weight:800;">${e.location}</b>${_miss?'':((e.checkedOutBy?' · '+fmtEqHolder(e):'')+(e.callNum?' · Call #'+e.callNum:'')+(e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''))}</div>
+      ${_miss?`<div style="font-size:12px;font-weight:700;color:#fecaca;margin-top:4px;">${isOut?'Last signed out by ':'Not signed out — last checked in by '}${e.checkedOutBy?fmtEqHolder(e):'unknown'}${e.callNum?' · Call #'+e.callNum:''}${e.lastUpdated?' · '+fmtEqTime(e.lastUpdated):''}</div>`:''}
       ${e.isCNC?`<div style="font-size:12px;color:var(--amber);background:#fff3e0;border-radius:6px;padding:4px 8px;margin-top:6px;">CNC — wrong location — ${(e.cncNote||e.ccnc||'').replace(/^in vehicle:\s*/i,'in vehicle ')}</div>`:''}
       ${canEdit?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
         <button style="padding:11px;background:var(--navy);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'IN')">Check IN</button>
