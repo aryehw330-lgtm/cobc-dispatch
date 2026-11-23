@@ -4235,16 +4235,15 @@ function _waMsgBackup(call, backupReq) {
   return msg;
 }
 
-// "✅ Call complete — thank you"
+// "✅ Call #322 completed. Thank you BC-29, BC-38" — short (Nov 2026: no type/location)
 function _waMsgComplete(call) {
-  const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const _int = call.completionOutcome==='INT';
-  let msg = _int ? `*Call #${call.callNum||''} Closed — Sent to Chaverim Interstate*\n${typeLabel} · ${fmtLoc(call)}`
-                 : `*Call #${call.callNum||''} Complete*\n${typeLabel} · ${fmtLoc(call)}`;
+  let msg = _int ? `*Call #${call.callNum||''} closed — sent to Chaverim Interstate.*`
+                 : `*Call #${call.callNum||''} completed.*`;
   const responders = (call.responders||[]).filter(r=>!_isInterstateUnit(r.unit));
   if (responders.length) {
     const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
-    msg += `\nThank you for responding: ${names}`;
+    msg += ` Thank you ${names}`;
   }
   return msg;
 }
