@@ -10001,9 +10001,10 @@ async function _createCallInner() {
       const _me=String(SESSION.unit||'').replace(/^BC-?/i,'');
       const _apTitle=(call.isTest?'🧪 TEST — ':'')+'🔍 Missing Person — needs your approval';
       const _apBody=(call.address?call.address+' · ':'')+'Intake by BC-'+_me+'. Open the app to approve or reject.';
-      // Everyone who approves gets it; the person who made the intake too if they're an admin (owner, Nov 23).
+      // Every approver EXCEPT the person who made it — they already see the red banner, and if they
+      // approve it themselves a push would just be a double (owner, Nov 23: "make sure no doubles go out").
       _dedupeUnits([..._adminUnits(), ..._searchSupUnits()])
-        .filter(u=>String(u)!==_me || SESSION.role==='admin')
+        .filter(u=>String(u)!==_me)
         .forEach(u=>setTimeout(()=>{ try{ sendPush({ target:'unit', unit:String(u), title:_apTitle, body:_apBody, url:'/cobc-dispatch/?page=dispatch', urgent:'true', callId:call.id }); }catch(e){} },0));
     }catch(e){ console.warn('approval push', e); }
   } else if (dontPublish) {
