@@ -1598,10 +1598,13 @@ textarea.input{min-height:80px;resize:vertical;}
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('equipment',this)">📦 Equipment</button>
         <button class="sub-tab member-allowed" onclick="setMoreTab('stats',this)">📊 My Stats</button>
         <button class="sub-tab member-allowed" onclick="setMoreTab('numbers',this)">☎️ Numbers</button>
+        <button class="sub-tab member-allowed" onclick="setMoreTab('info',this)">ℹ️ Info</button>
         <button class="sub-tab active member-allowed" onclick="setMoreTab('settings',this)">⚙️ Settings</button>
         <button class="sub-tab admin-only-sub" onclick="setMoreTab('telzio',this)">☎️ Telzio Log</button>
         <button class="sub-tab admin-strict-sub" onclick="setMoreTab('vehicles',this)">🚐 Vehicles</button>
       </div>
+      <!-- INFO (everyone): donate, EZ-Spare availability, storage locations — Nov 2026 -->
+      <div id="more-info" style="display:none;"><div id="infoTabBody"></div></div>
       <!-- TELZIO LOG (admin/dispatch: read-only phone-number history) -->
       <div id="more-telzio" style="display:none;">
         <div class="section-label">📊 Hotline Call Stats</div>
@@ -14015,8 +14018,54 @@ function _ensureAdminStatsLayout(){
   }
   _adminStatsRelocated=true;
 }
+// ── ℹ️ Info tab (everyone, anytime) — Nov 2026 ───────────────────────────────
+// Members can look up EZ-Spare availability + where things are kept, and donate.
+// (The EZ-Spare fitment lookup on a call card stays a dispatch tool.)
+const DONATE_URL='https://www.cobchelp.org/?campaign=donate-';
+function _infoAvailable(e){ return e && e.status==='in' && !e.isCNC && !['Damaged','Missing','Not Active'].includes(e.equipStatus); }
+function renderInfoTab(){
+  const el=document.getElementById('infoTabBody'); if(!el) return;
+  const eq=STATE.equipment||[];
+  if(!eq.length && !window._infoEqLoading){ window._infoEqLoading=true; try{ Promise.resolve(loadInventoryFromSheet()).finally(()=>{ window._infoEqLoading=false; if((STATE.equipment||[]).length) renderInfoTab(); }); }catch(e){ window._infoEqLoading=false; } }
+  const esc=v=>escapeHTML(String(v==null?'':v));
+  const ez={};
+  eq.filter(e=>/ez.?spare/i.test(e.name||'') && e.equipStatus!=='Not Active').forEach(e=>{
+    const size=String(e.name).replace(/^ez.?spare\s*/i,'').replace(/\s+\d+$/,'').trim()||'—';
+    ez[size]=ez[size]||{n:0,locs:{}};
+    if(_infoAvailable(e)){ ez[size].n++; const l=(e.location||'').trim()||'Unknown'; ez[size].locs[l]=(ez[size].locs[l]||0)+1; }
+  });
+  const chip=t=>`<span style="display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:7px;padding:2px 8px;margin:4px 4px 0 0;font-size:12px;font-weight:700;">${t}</span>`;
+  const ezRows=Object.keys(ez).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(sz=>{ const r=ez[sz];
+    const locs=Object.keys(r.locs).map(l=>chip(esc(l)+(r.locs[l]>1?' ×'+r.locs[l]:''))).join('');
+    return `<div style="padding:9px 0;border-top:1px solid rgba(255,255,255,.08);"><div style="display:flex;justify-content:space-between;gap:8px;"><b>🛞 ${esc(sz)}</b><span style="font-weight:800;color:${r.n?'#86efac':'#fca5a5'};">${r.n?r.n+' available':'none available'}</span></div>${locs?'<div>'+locs+'</div>':''}</div>`; }).join('');
+  const locs={};
+  eq.filter(e=>e.equipStatus!=='Not Active' && !(typeof isCarItem==='function'&&isCarItem(e.name))).forEach(e=>{ const l=(e.location||'').trim(); if(!l) return; if(!(l in locs)) locs[l]=0; if(_infoAvailable(e)) locs[l]++; });
+  const locRows=Object.keys(locs).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map((l,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid rgba(255,255,255,.08);"><div style="min-width:0;"><b>📍 ${esc(l)}</b><div style="font-size:12px;color:var(--text3);">${locs[l]} item${locs[l]===1?'':'s'} available</div></div>${/^\d+\s+[A-Za-z]/.test(l)?`<button class="btn-sm btn-ghost" style="flex-shrink:0;" data-loc="${esc(l)}" onclick="openMaps(this.dataset.loc)">🗺 Directions</button>`:''}</div>`).join('');
+  el.innerHTML=`
+    <div class="section-label">💳 Donate</div>
+    <div class="card" style="margin-bottom:12px;text-align:center;">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px;">Support Chaverim of Bergen County — scan or tap.</div>
+      <img src="donate-qr.png" alt="Donate QR code" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:8px;">
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <a class="btn-sm" href="${DONATE_URL}" target="_blank" rel="noopener" style="flex:1;background:#16a34a;color:#fff;border:none;font-weight:800;text-decoration:none;display:flex;align-items:center;justify-content:center;padding:11px;">💳 Open donate page</a>
+        <button class="btn-sm btn-ghost" style="flex:1;" onclick="_shareDonate()">📤 Share link</button>
+      </div>
+    </div>
+    <div class="section-label">🛞 EZ-Spare — what's available</div>
+    <div class="card" style="margin-bottom:12px;">
+      <a href="https://www.ezsparewheel.com/pages/fitment-guide" target="_blank" rel="noopener" class="btn-sm" style="display:flex;align-items:center;justify-content:center;background:var(--navy);color:#fff;border:none;font-weight:800;text-decoration:none;padding:11px;margin-bottom:6px;">🔎 EZ-Spare fitment guide</a>
+      ${ezRows || '<div style="font-size:13px;color:var(--text3);padding:6px 0;">Loading EZ-Spares…</div>'}
+    </div>
+    <div class="section-label">📍 Storage locations</div>
+    <div class="card" style="margin-bottom:12px;">${locRows || '<div style="font-size:13px;color:var(--text3);">Loading…</div>'}</div>`;
+}
+function _shareDonate(){
+  const d={title:'Donate to Chaverim of Bergen County', url:DONATE_URL};
+  if(navigator.share){ navigator.share(d).catch(()=>{}); return; }
+  try{ navigator.clipboard.writeText(DONATE_URL); showToast('📋 Donate link copied'); }catch(e){ showToast(DONATE_URL); }
+}
 function setMoreTab(tab,el) {
-  ['numbers','stats','adminstats','settings','schedule','equipment','vehicles','history','telzio'].forEach(t=>{
+  ['numbers','stats','adminstats','settings','schedule','equipment','vehicles','history','telzio','info'].forEach(t=>{
     const e=document.getElementById(`more-${t}`); if(e) e.style.display=t===tab?'':'none';
   });
   document.querySelectorAll('#page-more .sub-tab').forEach(x=>x.classList.remove('active'));
@@ -14026,6 +14075,7 @@ function setMoreTab(tab,el) {
   if(tab==='schedule') renderSchedule();
   if(tab==='vehicles') renderVehicles();
   if(tab==='numbers')  renderNumbers();
+  if(tab==='info')     renderInfoTab();
   if(tab==='history')  renderMoreHistory();
   if(tab==='equipment') renderMoreEquipment();
   if(tab==='settings'){
