@@ -6874,7 +6874,14 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 
 // Members see only what's available + their own items in Equip (Nov 2026): no statuses,
 // nothing broken/missing, no names of who has what. Admin & dispatch see everything.
-function _eqMemberView(){ return !['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||''); }
+// Owner (Nov 23): only ADMIN (and the Equipment Team, who fix items) see Missing/Damaged/who-has-it.
+// Everyone else — dispatchers included — gets the simple Available + My items view.
+function _eqMemberView(){
+  const r=(typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||'';
+  if(r==='admin') return false;
+  try{ if(typeof _myRoleStr==='function' && _myRoleStr().includes('equipment team')) return false; }catch(e){}
+  return true;
+}
 // Car booking (car shifts) switch — OFF for now (Nov 2026, nobody uses it). The code stays;
 // set to true to bring the Car tab back (then admin & dispatch only).
 // Assigning vehicles to a call (call screen → Fleet) is separate and always on.
@@ -6918,7 +6925,7 @@ function _applyRoleUI(role) {
     b.style.display = (role==='admin') ? '' : 'none';
   });
   // Equip tab for members: Inventory only, no counts/filters (Nov 2026)
-  { const mv=!(role==='admin'||role==='dispatch');
+  { const mv=_eqMemberView();
     document.querySelectorAll('#eqSubTabs .eq-staff-sub').forEach(b=>{ b.style.display = mv ? 'none' : ''; });
     ['eqStatGrid','eqFilters'].forEach(id=>{ const x=document.getElementById(id); if(x) x.style.display = mv ? 'none' : ''; });
     const it=document.getElementById('eqInvTab'); if(it) it.textContent = mv ? 'Available' : 'Inventory'; }
