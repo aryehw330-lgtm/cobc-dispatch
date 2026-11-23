@@ -14151,6 +14151,29 @@ function renderInfoTab(){
       <a href="https://www.ezsparewheel.com/pages/fitment-guide" target="_blank" rel="noopener" class="btn-sm" style="display:flex;align-items:center;justify-content:center;background:var(--navy);color:#fff;border:none;font-weight:800;text-decoration:none;padding:11px;margin-bottom:6px;">🔎 EZ-Spare fitment guide</a>
       ${ezRows || '<div style="font-size:13px;color:var(--text3);padding:6px 0;">Loading EZ-Spares…</div>'}
     </div>
+    <div class="section-label">📱 Phone notification setup</div>
+    <div class="card" style="margin-bottom:12px;font-size:13.5px;line-height:1.5;">
+      <details style="margin-bottom:8px;"><summary style="font-weight:800;cursor:pointer;padding:4px 0;">🤖 Android — make alerts pop up on screen</summary>
+        <ol style="margin:6px 0 4px 18px;padding:0;">
+          <li>Open the app from the <b>COBC icon on your home screen</b> (Chrome menu ⋮ → <b>Add to Home screen / Install app</b> if you don't have it).</li>
+          <li>Phone <b>Settings → Apps → COBC</b> (or <b>Chrome</b> if there's no COBC app) <b>→ Notifications</b>.</li>
+          <li>Make sure notifications are <b>On</b>, then tap the notification category.</li>
+          <li>Turn on <b>Pop on screen</b> and <b>Sound</b>. On <b>Samsung</b>: choose <b>Alert</b> (not Silent) and turn on <b>Show as pop-up</b>.</li>
+          <li>Also turn off <b>battery optimization</b> for the app: Settings → Apps → COBC → Battery → <b>Unrestricted</b>.</li>
+        </ol>
+        <div style="font-size:12px;color:var(--text3);">Floating chat "bubbles" only work for Play Store apps — our alerts show as pop-up banners instead.</div>
+      </details>
+      <details><summary style="font-weight:800;cursor:pointer;padding:4px 0;">🍎 iPhone — get alerts with the app closed</summary>
+        <ol style="margin:6px 0 4px 18px;padding:0;">
+          <li>In <b>Safari</b>, open the app → tap <b>Share</b> → <b>Add to Home Screen</b>.</li>
+          <li>Always open COBC from that <b>home-screen icon</b> (not from Safari).</li>
+          <li>Settings tab in the app → turn on <b>Notifications</b> → tap <b>Allow</b>.</li>
+          <li>iPhone <b>Settings → Notifications → COBC</b>: Allow Notifications <b>On</b>, Banners <b>Persistent</b>, Sounds <b>On</b>.</li>
+          <li>Check <b>Focus / Do Not Disturb</b> isn't silencing COBC.</li>
+        </ol>
+      </details>
+      <div style="margin-top:8px;font-size:12.5px;color:rgba(255,255,255,.82);">Then send yourself a <b>test notification</b> from the app's Settings tab — with the app closed — to make sure it pops up.</div>
+    </div>
     <div class="section-label">📍 Storage locations</div>
     <div class="card" style="margin-bottom:12px;">${locRows || '<div style="font-size:13px;color:var(--text3);">Loading…</div>'}</div>`;
 }
