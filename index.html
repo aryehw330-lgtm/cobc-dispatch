@@ -2579,7 +2579,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <div><b>1. Intake:</b> fill in the call. In the notes write: name, age, description &amp; clothing, last seen (where + when), medical needs, and whether police were called.</div>
       <div><b>2. Pending:</b> it saves as <b>pending approval</b> — members are <b>NOT</b> alerted yet.</div>
       <div><b>3. Approval:</b> Admins &amp; Search Supervisors get a push to approve or reject (with a reason).</div>
-      <div><b>4. Dispatch:</b> once approved you get a push — open the call and tap <b>🚨 Acknowledge &amp; Dispatch</b>. That's when members are alerted.</div>
+      <div><b>4. Out:</b> once approved it goes out as a call to all members right away, and you get a push.</div>
     </div>
 
     <!-- CAR INFO (shown for tire/lockout/jump) -->
@@ -6561,6 +6561,7 @@ function initFirestore(){
       }
     }catch(e){}
     _recordCallBase(firestoreCalls);
+    try{ setTimeout(()=>{ try{ _renderMpBanner(); }catch(e){} },0); }catch(e){}   // Missing Person banner follows live data
     const firestoreIds=new Set(map.keys());
     // Keep (and upload) only genuinely-unsynced calls that belong IN the window —
     // recent (last 7 days) or still unfinished. Old finished calls outside the
@@ -7972,7 +7973,35 @@ function openPendingModal() {
   showModal('pendingModal');
 }
 
+// ── Missing Person banner on every screen (Nov 2026) ─────────────────────────
+// Approvers (admin / search supervisor): "waiting for your approval". Dispatch/admin: "approved —
+// Acknowledge & Dispatch". Tap → opens that call. Stacks above the gold pending-approvals banner.
+function _renderMpBanner(){
+  try{
+    let el=document.getElementById('mpGlobalBanner');
+    const calls=(STATE.calls||[]).filter(c=>c && c.type==='missing_person' && c.status==='draft');
+    const pend=(typeof _canApproveMissing==='function' && _canApproveMissing()) ? calls.filter(c=>c.needsApproval) : [];
+    const ready=['admin','dispatch'].includes(SESSION.role) ? calls.filter(c=>!c.needsApproval && c.mpApprovedAt) : [];
+    const c=pend[0]||ready[0];
+    if(!c){ if(el) el.style.display='none'; return; }
+    if(!el){ el=document.createElement('div'); el.id='mpGlobalBanner'; document.body.appendChild(el); }
+    const goldOn=(()=>{ const g=document.getElementById('globalPendingBanner'); return g && g.style.display!=='none'; })();
+    el.style.cssText='position:fixed;left:0;right:0;z-index:905;padding:0 12px;bottom:calc('+(goldOn?136:70)+'px + env(safe-area-inset-bottom));';
+    const isPend=!!pend[0], n=isPend?pend.length:ready.length;
+    const where=[c.address,c.town].filter(Boolean).join(', ');
+    el.innerHTML=`<div onclick="openCallDetail('${c.id}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:14px;background:${isPend?'linear-gradient(135deg,#b91c1c,#7f1d1d)':'linear-gradient(135deg,#15803d,#14532d)'};color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.2);">
+      <div style="font-size:20px;">${isPend?'🔍':'✅'}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13.5px;font-weight:900;">${isPend?'Missing Person — waiting for your approval':'Missing Person approved — Acknowledge & Dispatch'}${n>1?' ('+n+')':''}</div>
+        <div style="font-size:11.5px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(where||'Tap to open')}${c.isTest?' · 🧪 TEST':''} · Tap to ${isPend?'review':'dispatch'}</div>
+      </div>
+      <div style="font-size:18px;">›</div>
+    </div>`;
+    el.style.display='block';
+  }catch(e){}
+}
 function renderPendingRespondersBanner(targetEl) {
+  try{ setTimeout(_renderMpBanner,0); }catch(e){}
   const isDisp = ['admin','dispatch'].includes(SESSION.role);
   // Build pending list once for both in-page banners and the global floater
   const pendingItems = [];
@@ -11369,12 +11398,14 @@ function openCallDetail(id) {
       html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
     }
   }
-  if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Navigation</button>`;
+  // Missing Person not yet dispatched: keep the screen to the details + the approval box (Nov 2026)
+  const _mpDraft = call.type==='missing_person' && call.status==='draft';
+  if(call.address && !_mpDraft) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Navigation</button>`;
   // Share my location — for approved responders who are on their way
   const _iAmApprovedDetail = (call.responders||[]).some(r=>String(r.unit)===String(SESSION.unit));
   if(_iAmApprovedDetail && call.status!=='done') html+=`<button class="btn-sm" style="background:#25d366;color:#fff;border:none;" onclick="shareMyLocationOnCall('${id}')">📍 Send Live Location</button>`;
 
-  if(isDispatch) {
+  if(isDispatch && !_mpDraft) {
     if(['flat_tire_spare','flat_tire_no_spare'].includes(call.type) && call.status!=='draft') html+=`<button class="btn-sm" style="background:linear-gradient(135deg,var(--gold-light),var(--gold-deep));color:#0f2540;border:none;font-weight:800;" onclick="openEzSpareFitment('${id}')">🛞 EZ Spare Fit</button>`;
     if(call.status==='draft') html+=``;
     // ▶ Active button removed — calls go active automatically when a responder is approved/radio-assigned
@@ -11413,7 +11444,7 @@ function openCallDetail(id) {
     html+=`</div><div style="margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.1);border:1.5px solid rgba(37,99,235,.45);font-size:13px;font-weight:700;color:var(--text);">🔍 Missing Person intake — waiting for Admin / Search Supervisor approval. Members have NOT been alerted.</div>`
       +`<div style="margin-top:8px;display:flex;gap:8px;">`
       +(_canAp
-        ? `<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="hideModal('callDetailModal');_mpApprove('${id}')">✅ Approve</button>`
+        ? `<button class="btn-full" style="flex:1;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;font-weight:800;border-radius:12px;padding:13px 6px;" onclick="hideModal('callDetailModal');_mpApprove('${id}')">✅ Approve &amp; send out</button>`
           +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="hideModal('callDetailModal');_mpReject('${id}')">❌ Reject</button>`
         : `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:13px 6px;background:var(--border2,#eef0f3);color:var(--text2);font-weight:800;font-size:13px;">⏳ Waiting for approval</div>`
           +`<button class="btn-full" style="flex:1;background:transparent;color:#fca5a5;border:1.5px solid rgba(248,113,113,.5);font-weight:800;border-radius:12px;padding:13px 6px;" onclick="deleteCall('${id}')">🗑️ Delete Draft</button>`)
@@ -11539,14 +11570,14 @@ async function _mpApprove(id){
   const call=(STATE.calls||[]).find(c=>c.id===id); if(!call) return;
   if(!_canApproveMissing()){ showToast('Only an Admin or Search Supervisor can approve'); return; }
   if(!(call.status==='draft' && call.needsApproval)){ showToast('This intake was already handled'); return; }
+  // Owner (Nov 23): Approve = it goes out as a call right away (number, member alerts, WhatsApp).
   const intake=call.mpIntakeBy||call.createdBy||'';
-  call.needsApproval=false; call.mpApprovedBy=SESSION.unit; call.mpApprovedAt=Date.now(); call.mpIntakeBy=intake;
-  save(); renderCalls(); renderHome();
-  try{ await firestoreUpsertCall(call); }catch(e){}
-  showToast('✅ Approved — dispatchers notified to dispatch it');
-  let onDuty=[]; try{ onDuty=_onDutyDispatchUnits()||[]; }catch(e){}
-  _mpPush([intake, ...onDuty, ..._adminUnits()], (call.isTest?'🧪 TEST — ':'')+'✅ Missing Person approved — dispatch it',
-    (call.address?call.address+' · ':'')+'Approved by BC-'+_normU(SESSION.unit)+'. Open the app → Acknowledge & Dispatch.', call.id);
+  call.mpApprovedBy=SESSION.unit; call.mpApprovedAt=Date.now(); call.mpIntakeBy=intake;
+  try{ await publishCall(id); }catch(e){ console.warn('mp approve/publish', e); showToast('⚠️ Could not send it out — try again'); return; }
+  const c=(STATE.calls||[]).find(x=>x.id===id)||call;
+  showToast('✅ Approved — sent out as call #'+(c.callNum||''));
+  _mpPush([intake], (c.isTest?'🧪 TEST — ':'')+'✅ Missing Person approved — sent out',
+    'Call #'+(c.callNum||'')+(c.address?' · '+c.address:'')+' · approved by BC-'+_normU(SESSION.unit), c.id);
 }
 async function _mpReject(id){
   const call=(STATE.calls||[]).find(c=>c.id===id); if(!call) return;
