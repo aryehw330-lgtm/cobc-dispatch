@@ -1015,7 +1015,7 @@ textarea.input{min-height:80px;resize:vertical;}
   <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.2);"></div>
 </div>
     <label class="lv2-label" for="loginUnit">BC number</label>
-    <input class="login-input" id="loginUnit" type="text" inputmode="numeric" placeholder="BC #" autocomplete="off"/>
+    <input class="login-input" id="loginUnit" type="text" inputmode="numeric" placeholder="Unit number" autocomplete="off"/>
     <label class="lv2-label" for="loginPass">PIN</label>
     <input class="login-input" id="loginPass" type="password" inputmode="numeric" placeholder="Your PIN" autocomplete="off"/>
     <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
@@ -1237,17 +1237,17 @@ textarea.input{min-height:80px;resize:vertical;}
           <button class="btn-sm btn-ghost" onclick="showModal('scanModal')">Scan QR</button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+      <div id="eqStatGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
         <div class="stat-card stat-blue" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-total" style="font-size:22px;">0</div><div class="stat-label">Total</div></div>
         <div class="stat-card stat-red" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-out" style="font-size:22px;">0</div><div class="stat-label">Out</div></div>
         <div class="stat-card stat-amber" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-issues" style="font-size:22px;">0</div><div class="stat-label">Issues</div></div>
         <div class="stat-card stat-green" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-in" style="font-size:22px;">0</div><div class="stat-label">In</div></div>
       </div>
       <div class="sub-tabs" id="eqSubTabs">
-        <button class="sub-tab active" onclick="setEqTab('dashboard',this)">Dashboard</button>
-        <button class="sub-tab" onclick="setEqTab('inventory',this)">Inventory</button>
-        <button class="sub-tab" id="eqChecklistTab" onclick="setEqTab('checklist',this)">Checklist</button>
-        <button class="sub-tab" onclick="setEqTab('reports',this)">Reports</button>
+        <button class="sub-tab active eq-staff-sub" onclick="setEqTab('dashboard',this)">Dashboard</button>
+        <button class="sub-tab" id="eqInvTab" onclick="setEqTab('inventory',this)">Inventory</button>
+        <button class="sub-tab eq-staff-sub" id="eqChecklistTab" onclick="setEqTab('checklist',this)">Checklist</button>
+        <button class="sub-tab eq-staff-sub" onclick="setEqTab('reports',this)">Reports</button>
         <button class="sub-tab" id="eqCarTab" onclick="setEqTab('car',this)">🚗 Car <span id="carReqBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 6px;margin-left:2px;">0</span></button>
         <button class="sub-tab" id="eqAdminTab" style="display:none;" onclick="setEqTab('admin',this)">⚙️ Admin</button>
       </div>
@@ -1383,7 +1383,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <button data-type="Other" onclick="selRptType('Other',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">📋 Other</span></button>
         </div>
         <div class="input-group"><label class="input-label">Item</label><select class="input" id="reportItem"></select></div>
-        <div class="input-group"><label class="input-label">Your BC Member #</label><input class="input" type="text" inputmode="numeric" id="reportMember" placeholder="BC #"/></div>
+        <div class="input-group"><label class="input-label">Your BC Member #</label><input class="input" type="text" inputmode="numeric" id="reportMember" placeholder="Unit number"/></div>
         <div class="input-group"><label class="input-label">Notes</label><textarea class="input" id="reportNotes" placeholder="Describe the issue..."></textarea></div>
         <button class="btn-full btn-primary" onclick="submitReport()">Submit Report</button>
         <div class="section-label" style="margin-top:16px;">Open Reports</div>
@@ -6863,6 +6863,9 @@ function _tryRestoreSession() {
 // SESSION is set (guarded above).
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_tryRestoreSession); else _tryRestoreSession();
 
+// Members see only what's available + their own items in Equip (Nov 2026): no statuses,
+// nothing broken/missing, no names of who has what. Admin & dispatch see everything.
+function _eqMemberView(){ return !['admin','dispatch'].includes((typeof SESSION!=='undefined'&&SESSION&&SESSION.role)||''); }
 // Car booking (car shifts) switch — OFF for now (Nov 2026, nobody uses it). The code stays;
 // set to true to bring the Car tab back (then admin & dispatch only).
 // Assigning vehicles to a call (call screen → Fleet) is separate and always on.
@@ -6905,6 +6908,11 @@ function _applyRoleUI(role) {
   document.querySelectorAll('#more-sub-tabs .admin-strict-sub').forEach(b => {
     b.style.display = (role==='admin') ? '' : 'none';
   });
+  // Equip tab for members: Inventory only, no counts/filters (Nov 2026)
+  { const mv=!(role==='admin'||role==='dispatch');
+    document.querySelectorAll('#eqSubTabs .eq-staff-sub').forEach(b=>{ b.style.display = mv ? 'none' : ''; });
+    ['eqStatGrid','eqFilters'].forEach(id=>{ const x=document.getElementById(id); if(x) x.style.display = mv ? 'none' : ''; });
+    const it=document.getElementById('eqInvTab'); if(it) it.textContent = mv ? 'Available' : 'Inventory'; }
   // Equip tab: Car sub-tab = admin & dispatch only (Nov 2026)
   { const ct=document.getElementById('eqCarTab'); if(ct) ct.style.display = (CAR_BOOKING_ENABLED && (role==='admin'||role==='dispatch')) ? '' : 'none'; }
   // Equip tab: Active Alerts, Activity History, Dispatch Call History = admin only (Nov 2026)
@@ -7726,7 +7734,7 @@ function showTab(tab) {
   try { renderPendingRespondersBanner(null); } catch(e){}
   if(tab==='home') renderHome();
   if(tab==='dispatch') { renderCalls(); try{updateOnDutyBanner();}catch(e){} }
-  if(tab==='equipment') { renderEquipmentDashboard(); loadInventoryFromSheet(); }
+  if(tab==='equipment') { if(_eqMemberView()){ try{ setEqTab('inventory', document.getElementById('eqInvTab')); }catch(e){} } else renderEquipmentDashboard(); loadInventoryFromSheet(); }
   if(tab==='members') renderMemberDir();
   if(tab==='more') { setTimeout(()=>{ const st=[...document.querySelectorAll('#more-sub-tabs .sub-tab')].find(b=>b.textContent.includes('Settings')); setMoreTab('settings',st); },80); }
 }
@@ -18493,6 +18501,7 @@ function _canUseChecklist(){
   return r.includes('admin') || r.includes('equipment');
 }
 function setEqTab(tab,el) {
+  if(_eqMemberView() && tab!=='inventory'){ tab='inventory'; el=document.getElementById('eqInvTab'); }
   if(tab==='car' && !_carTabAllowed()){ showToast(CAR_BOOKING_ENABLED?'Car is for admin & dispatch':'Car booking is turned off for now'); return; }
   if(tab==='checklist') {
     // Checklist: admins and the equipment team only (from their role in the member sheet). No shared password.
@@ -18698,6 +18707,7 @@ function renderEqGlance(){
   }).join('');
 }
 function renderEquipmentDashboard() {
+  if(_eqMemberView()) return;   // members: no dashboard (Nov 2026)
   try{ renderEqGlance(); }catch(e){ console.warn('glance',e); }
   const active=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
   const total=active.length;
@@ -18885,7 +18895,30 @@ function fireConfetti() {
   requestAnimationFrame(frame);
   try { haptic && haptic('success'); } catch(e){}
 }
+function _renderInventoryMember(){
+  const el=document.getElementById('eqList'); if(!el) return;
+  const search=(document.getElementById('eqSearch')?.value||'').toLowerCase();
+  const me=_normU((SESSION&&SESSION.unit)||'');
+  const bad=['Damaged','Missing','Not Active'];
+  let all=(STATE.equipment||[]).filter(e=>!bad.includes(e.equipStatus));
+  if(eqCurCat!=='all') all=all.filter(e=>getCat(e.name)===eqCurCat);
+  if(eqCurLoc!=='all') all=all.filter(e=>e.location===eqCurLoc);
+  if(search) all=all.filter(e=>(e.name||'').toLowerCase().includes(search)||(e.location||'').toLowerCase().includes(search));
+  const mine=all.filter(e=>e.status==='out' && _normU(e.checkedOutBy||'')===me);
+  const avail=all.filter(e=>e.status==='in' && !e.isCNC);
+  const byName=(a,b)=>String(a.name).localeCompare(String(b.name),undefined,{numeric:true,sensitivity:'base'});
+  const card=(e,btn)=>`<div data-row="${e.row||0}" class="eq-inv-card" style="background:#fff;border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${e.name}</div>
+      <div style="font-size:12px;color:var(--text3);">${e.location||''}${btn==='IN'&&e.callNum?' · Call #'+e.callNum:''}</div>
+      <button style="width:100%;margin-top:10px;padding:11px;background:${btn==='IN'?'var(--navy)':'var(--red)'};color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'${btn}')">${btn==='IN'?'Check IN':'Check OUT'}</button>
+    </div>`;
+  let html='';
+  if(mine.length) html+='<div class="section-label">My items</div>'+mine.sort(byName).map(e=>card(e,'IN')).join('');
+  html+='<div class="section-label">Available</div>'+(avail.length?avail.sort(byName).map(e=>card(e,'OUT')).join(''):'<div class="empty-state"><div class="empty-text">No items found</div></div>');
+  el.innerHTML=html;
+}
 function renderInventory() {
+  if(_eqMemberView()) return _renderInventoryMember();
   const search=(document.getElementById('eqSearch')?.value||'').toLowerCase();
   let items=STATE.equipment.filter(e=>e.equipStatus!=='Not Active');
   if(eqFilter==='out') items=items.filter(e=>e.status==='out');
