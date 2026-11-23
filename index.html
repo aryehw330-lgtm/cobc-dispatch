@@ -18928,8 +18928,11 @@ function _eqGlanceCat(n){ n=String(n||''); if(/ez.?spare/i.test(n)) return 'EZ S
 window._eqGlanceOpen = window._eqGlanceOpen || {};
 function _eqGlanceToggle(k){ window._eqGlanceOpen[k]=!window._eqGlanceOpen[k]; renderEqGlance(); }
 function renderEqGlance(){
-  const el=document.getElementById('eq-glance-list'); if(!el) return;
-  const items=(STATE.equipment||[]).filter(e=>e.equipStatus!=='Not Active');
+  // Members (Nov 2026): only what's AVAILABLE — no out / missing / broken counts, no names.
+  const _mv=_eqMemberView();
+  const el=document.getElementById(_mv?'eq-glance-list-m':'eq-glance-list'); if(!el) return;
+  const items=(STATE.equipment||[]).filter(e=>e.equipStatus!=='Not Active'
+    && (!_mv || (e.status==='in' && !e.isCNC && !['Damaged','Missing'].includes(e.equipStatus) && !(typeof isCarItem==='function'&&isCarItem(e.name)))));
   if(!items.length){ el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 2px;">No equipment loaded</div>'; return; }
   const groups={};
   items.forEach(e=>{ const k=_eqGlanceCat(e.name); (groups[k]=groups[k]||[]).push(e); });
@@ -18945,9 +18948,9 @@ function renderEqGlance(){
       +`<span style="flex:1;min-width:0;font-size:14px;font-weight:700;line-height:1.25;">${k} <span style="font-size:11px;opacity:.55;display:inline-block;transition:transform .15s;${open?'transform:rotate(180deg);':''}">▾</span></span>`
       +`<span style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;">`
       +pill(c.avail,'in','#86efac','rgba(34,197,94,.14)','rgba(34,197,94,.35)')
-      +pill(c.out,'out','#e6c463','rgba(212,169,58,.16)','rgba(212,169,58,.45)')
-      +pill(c.broken,'broken','#fca5a5','rgba(220,38,38,.16)','rgba(248,113,113,.45)')
-      +pill(g.length,'total','rgba(255,255,255,.7)','rgba(255,255,255,.06)','rgba(255,255,255,.14)')
+      +(_mv?'':pill(c.out,'out','#e6c463','rgba(212,169,58,.16)','rgba(212,169,58,.45)'))
+      +(_mv?'':pill(c.broken,'broken','#fca5a5','rgba(220,38,38,.16)','rgba(248,113,113,.45)'))
+      +(_mv?'':pill(g.length,'total','rgba(255,255,255,.7)','rgba(255,255,255,.06)','rgba(255,255,255,.14)'))
       +`</span></button>`;
     if(open){
       const rank={out:0,broken:1,avail:2};
@@ -19168,10 +19171,11 @@ function _renderInventoryMember(){
       <div style="font-size:12px;color:var(--text3);">${e.location||''}${btn==='IN'&&e.callNum?' · Call #'+e.callNum:''}</div>
       <button style="width:100%;margin-top:10px;padding:11px;background:${btn==='IN'?'var(--navy)':'var(--red)'};color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'${btn}')">${btn==='IN'?'Check IN':'Check OUT'}</button>
     </div>`;
-  let html='';
+  let html='<div class="section-label">At a Glance</div><div id="eq-glance-list-m" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>';
   if(mine.length) html+='<div class="section-label">My items</div>'+mine.sort(byName).map(e=>card(e,'IN')).join('');
   html+='<div class="section-label">Available</div>'+(avail.length?avail.sort(byName).map(e=>card(e,'OUT')).join(''):'<div class="empty-state"><div class="empty-text">No items found</div></div>');
   el.innerHTML=html;
+  try{ renderEqGlance(); }catch(e){}
 }
 function renderInventory() {
   if(_eqMemberView()) return _renderInventoryMember();
