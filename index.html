@@ -6547,6 +6547,14 @@ function initFirestore(){
       }
     }
     const firestoreCalls=[...map.values()];
+    // Waiver just signed on a call → quick note for dispatch / admin (Nov 2026)
+    try{
+      if(['admin','dispatch'].includes(SESSION.role)){
+        window._waiverSeen=window._waiverSeen||{}; const first=!window._waiverSeenInit; window._waiverSeenInit=true;
+        firestoreCalls.forEach(c=>{ if(_waiverSigned(c) && !window._waiverSeen[c.id]){ window._waiverSeen[c.id]=1;
+          if(!first && (Date.now()-c.waiver.signedAt)<10*60000) showToast('✍️ Waiver signed — call #'+(c.callNum||'')+(c.waiver.name?' ('+c.waiver.name+')':'')); } });
+      }
+    }catch(e){}
     _recordCallBase(firestoreCalls);
     const firestoreIds=new Set(map.keys());
     // Keep (and upload) only genuinely-unsynced calls that belong IN the window —
@@ -8806,7 +8814,7 @@ function callCardHTML(call, mini=false) {
   const statusColors={open:'var(--amber)',active:'var(--green)',done:'var(--text3)',draft:'var(--purple)'};
   const sc = statusColors[call.status]||'var(--text3)';
   const etaChip = `<span class="card-eta-wrap" id="card-etawrap-${call.id}" style="display:none;"><span id="card-eta-${call.id}" style="display:none;"></span></span>`;
-  const cornerMeta = `<div class="call-card-corner" style="flex-direction:row;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;">${townChipInline?`<div style="display:flex;align-items:center;gap:6px;">${townChipInline}</div>`:'<span></span>'}<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span><span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
+  const cornerMeta = `<div class="call-card-corner" style="flex-direction:row;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;">${townChipInline?`<div style="display:flex;align-items:center;gap:6px;">${townChipInline}</div>`:'<span></span>'}<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;"><span style="font-family:'DM Mono',monospace;font-weight:700;">#${callNumStr}</span>${(_waiverSigned(call) && ['admin','dispatch'].includes(SESSION.role))?'<span title="Waiver signed">✍️</span>':''}<span style="opacity:.55;">·</span><span style="white-space:nowrap;">${timeStr}</span></span></div>`;
   const etaWrap = '';
   const carInfo = call.carMake ? `${[call.carYear,call.carMake,call.carModel,call.carTrim,call.carColor].filter(Boolean).join(' ')}` : '';
   // Boost calls: show the vehicle inline next to the call type after a small dash
@@ -9945,7 +9953,7 @@ async function _createCallInner() {
       (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
       if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
       if (call.caller||call.phone) m += `${[call.caller,call.phone].filter(Boolean).join(' · ')}\n`;
-      m += `Waiver: https://form.jotform.com/212776438913868\n`;
+      m += `Waiver: ${_waiverUrl(call)}\n`;
       m += `App: tinyurl.com/cobc-dispatch`;
       return m;
     })();
@@ -11396,25 +11404,41 @@ function openCallDetail(id) {
 }
 
 // ── Caller waiver (same JotForm link the WhatsApp dispatch message uses) ──
+// Nov 2026: the link carries the call (?callId=…) — the form's hidden "callId" field fills in,
+// and when the waiver is submitted the server (login server → jotformWaiver) marks the call
+// as signed: call.waiver = { signedAt, name, matchedBy }. Switch forms by changing WAIVER_URL.
 const WAIVER_URL='https://form.jotform.com/212776438913868';
+function _waiverUrl(c){
+  if(!c || !c.id) return WAIVER_URL;
+  return WAIVER_URL+'?callId='+encodeURIComponent(c.id)+(c.callNum?'&callNumber='+encodeURIComponent(c.callNum):'');
+}
+function _waiverSigned(c){ return !!(c && c.waiver && c.waiver.signedAt); }
 function _waiverBoxHTML(call){
   const ph=String(call.phone||'').replace(/\D+/g,'');
+  if(_waiverSigned(call)){
+    const w=call.waiver; const t=new Date(w.signedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    return `<div style="margin:10px 0 12px;padding:10px 12px;border-radius:12px;background:rgba(22,163,74,.12);border:1.5px solid rgba(22,163,74,.5);">
+      <div style="font-size:14px;font-weight:800;color:var(--text);">✅ Waiver signed · ${t}</div>
+      ${w.name?`<div style="font-size:12px;color:var(--text2);margin-top:2px;">Signed by ${escapeHTML(String(w.name))}</div>`:''}
+      <div style="margin-top:6px;font-size:12px;">${ph?`<a href="${_waiverSmsHref(call)}" style="color:var(--text3);font-weight:700;">send again</a>`:`<a href="#" onclick="_openWaiver('${call.id}');return false;" style="color:var(--text3);font-weight:700;">open waiver</a>`}</div>
+    </div>`;
+  }
   return `<div style="margin:10px 0 12px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.08);border:1.5px solid rgba(37,99,235,.35);">
-    <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--text);">📝 Please have the caller sign the waiver</div>
+    <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--text);">📝 Please have the caller sign the waiver <span style="font-weight:700;color:var(--text3);font-size:12px;">· ⏳ not signed yet</span></div>
     <div style="display:flex;gap:8px;">
-      <button class="btn-sm" style="flex:1;background:var(--blue);color:#fff;border:none;font-weight:800;" onclick="_openWaiver()">📝 Caller waiver</button>
+      <button class="btn-sm" style="flex:1;background:var(--blue);color:#fff;border:none;font-weight:800;" onclick="_openWaiver('${call.id}')">📝 Caller waiver</button>
       ${ph?`<a class="btn-sm" href="${_waiverSmsHref(call)}" style="flex:1;background:#dcfce7;color:#15803d;border:none;font-weight:800;text-decoration:none;display:flex;align-items:center;justify-content:center;">💬 Text to caller</a>`:''}
     </div>
   </div>`;
 }
-function _openWaiver(){ try{ window.open(WAIVER_URL,'_blank','noopener'); }catch(e){ location.href=WAIVER_URL; } }
+function _openWaiver(id){ const c=(STATE.calls||[]).find(x=>x.id===id); const u=_waiverUrl(c); try{ window.open(u,'_blank','noopener'); }catch(e){ location.href=u; } }
 // Opens the dispatcher's own Messages app with the caller's number and the waiver link
 // filled in (the app can't send texts itself). A real link (not a JS redirect) is what
 // iPhone home-screen apps reliably allow; "?&body=" works on both iPhone and Android.
 function _waiverSmsHref(c){
   let ph=String((c&&c.phone)||'').replace(/\D+/g,'');
   if(ph.length===10) ph='+1'+ph; else if(ph.length===11&&ph[0]==='1') ph='+'+ph;
-  const body='Chaverim of Bergen County: please sign our waiver before we help you: '+WAIVER_URL;
+  const body='Chaverim of Bergen County: please sign our waiver before we help you: '+_waiverUrl(c);
   return 'sms:'+ph+'?&body='+encodeURIComponent(body);
 }
 function _textWaiver(id){
@@ -11550,7 +11574,7 @@ async function publishCall(id) {
     if (call.caller) m += `Caller: ${call.caller}`;
     if (call.phone)  m += ` · ${call.phone}`;
     if (call.caller||call.phone) m += `\n`;
-    m += `Waiver: https://form.jotform.com/212776438913868\n`;
+    m += `Waiver: ${_waiverUrl(call)}\n`;
     m += `App: tinyurl.com/cobc-dispatch`;
     return m;
   })();

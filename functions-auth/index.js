@@ -423,3 +423,86 @@ exports.monthlyFullBackup = onSchedule(
   { schedule: 'every day 03:15', region: 'us-east1', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB' },
   async () => { await runFullBackup(); }
 );
+
+// ── Caller waiver (Jotform) → mark the call as signed (Nov 2026) ─────────────────
+// Jotform form → Settings → Integrations → Webhooks → paste this function's URL with ?k=<key>
+// (key = secret WAIVER_HOOK_KEY; the full URL is saved in the private Keys folder).
+// Matches the submission to a call by the form's hidden "callId" field, or else by the
+// caller's phone on an open call. Stores ONLY { signedAt, name, matchedBy, submissionId }.
+const { defineSecret } = require('firebase-functions/params');
+const WAIVER_HOOK_KEY = defineSecret('WAIVER_HOOK_KEY');
+const WAIVER_FORM_IDS = ['212776438913868'];   // + config/waiver.formIds (admin can add the new form)
+
+function _parseMultipart(raw, ctype) {
+  const out = {};
+  const m = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ctype || '');
+  if (!m || !raw) return out;
+  const parts = raw.toString('utf8').split('--' + (m[1] || m[2]));
+  for (const p of parts) {
+    const i = p.indexOf('\r\n\r\n'); if (i < 0) continue;
+    const name = /name="([^"]+)"/i.exec(p.slice(0, i)); if (!name) continue;
+    out[name[1]] = p.slice(i + 4).replace(/\r\n$/, '');
+  }
+  return out;
+}
+function _flatStrings(v, acc) {
+  if (v == null) return acc;
+  if (typeof v === 'object') { Object.values(v).forEach(x => _flatStrings(x, acc)); return acc; }
+  acc.push(String(v)); return acc;
+}
+function _pickField(answers, re) {
+  for (const k of Object.keys(answers || {})) if (re.test(k)) return answers[k];
+  return null;
+}
+
+exports.jotformWaiver = onRequest({ region: 'us-east1', secrets: [WAIVER_HOOK_KEY], maxInstances: 3 }, async (req, res) => {
+  try {
+    const db = admin.firestore();
+    if (req.method !== 'POST') { res.status(405).send('POST only'); return; }
+    const key = String((req.query && req.query.k) || '');
+    if (!key || key !== WAIVER_HOOK_KEY.value()) { res.status(403).send('forbidden'); return; }
+
+    const ctype = req.get('content-type') || '';
+    let body;
+    if (/multipart\/form-data/i.test(ctype)) body = _parseMultipart(req.rawBody || (Buffer.isBuffer(req.body) ? req.body : null), ctype);
+    else if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) body = req.body;
+    else body = {};
+    const formID = String(body.formID || body.formId || '');
+    let allowed = WAIVER_FORM_IDS.slice();
+    try { const cfg = await db.collection('config').doc('waiver').get(); if (cfg.exists && Array.isArray(cfg.data().formIds)) allowed = allowed.concat(cfg.data().formIds.map(String)); } catch (e) {}
+    if (!allowed.includes(formID)) { res.status(200).json({ ok: false, why: 'form not allowed' }); return; }
+
+    let answers = {};
+    try { answers = typeof body.rawRequest === 'string' ? JSON.parse(body.rawRequest) : (body.rawRequest || {}); } catch (e) {}
+    const callIdRaw = _pickField(answers, /callid$/i) || body.callId || '';
+    const callId = String(_flatStrings(callIdRaw, []).join('')).trim();
+    const nameV = _pickField(answers, /name/i);
+    const name = _flatStrings(nameV, []).join(' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const phoneDigits = _flatStrings(_pickField(answers, /phone/i), []).join('').replace(/\D+/g, '').slice(-10);
+    const now = Date.now();
+    const rec = (how) => ({ signedAt: now, name: name || null, matchedBy: how, submissionId: String(body.submissionID || body.submissionId || '') });
+
+    let ref = null, how = '';
+    if (callId && /^[A-Za-z0-9_-]{3,80}$/.test(callId)) {
+      const d = await db.collection('calls').doc(callId).get();
+      if (d.exists) { ref = d.ref; how = 'callId'; }
+    }
+    if (!ref && phoneDigits.length === 10) {
+      const snap = await db.collection('calls').where('status', 'in', ['open', 'active', 'draft']).get();
+      let best = null;
+      snap.forEach(doc => {
+        const c = doc.data() || {};
+        const p = String(c.phone || '').replace(/\D+/g, '').slice(-10);
+        if (p === phoneDigits && (now - (c.createdAt || 0)) < 24 * 3600 * 1000 && (!best || (c.createdAt || 0) > (best.c.createdAt || 0))) best = { doc, c };
+      });
+      if (best) { ref = best.doc.ref; how = 'phone'; }
+    }
+    if (!ref) { console.log('waiver: no matching call', { formID, hasCallId: !!callId, hasPhone: phoneDigits.length === 10 }); res.status(200).json({ ok: false, why: 'no matching call' }); return; }
+    await ref.update({ waiver: rec(how), updatedAt: now });
+    console.log('waiver: signed', { call: ref.id, how });
+    res.status(200).json({ ok: true, call: ref.id, matchedBy: how });
+  } catch (e) {
+    console.error('waiver error', e);
+    res.status(200).json({ ok: false });
+  }
+});
