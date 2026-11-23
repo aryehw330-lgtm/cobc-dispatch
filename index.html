@@ -18933,7 +18933,8 @@ function renderEqGlance(){
   const _mv=_eqMemberView();
   const el=document.getElementById(_mv?'eq-glance-list-m':'eq-glance-list'); if(!el) return;
   const items=(STATE.equipment||[]).filter(e=>e.equipStatus!=='Not Active'
-    && (!_mv || (e.status==='in' && !e.isCNC && !['Damaged','Missing'].includes(e.equipStatus) && !(typeof isCarItem==='function'&&isCarItem(e.name)))));
+    && !(typeof isCarItem==='function'&&isCarItem(e.name))   // no trucks / COBC vehicles in At a Glance (owner, Nov 23)
+    && (!_mv || (e.status==='in' && !e.isCNC && !['Damaged','Missing'].includes(e.equipStatus))));
   if(!items.length){ el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 2px;">No equipment loaded</div>'; return; }
   const groups={};
   items.forEach(e=>{ const k=_eqGlanceCat(e.name); (groups[k]=groups[k]||[]).push(e); });
