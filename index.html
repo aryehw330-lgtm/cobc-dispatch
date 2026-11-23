@@ -6863,6 +6863,11 @@ function _tryRestoreSession() {
 // SESSION is set (guarded above).
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_tryRestoreSession); else _tryRestoreSession();
 
+// Car booking (car shifts) switch — OFF for now (Nov 2026, nobody uses it). The code stays;
+// set to true to bring the Car tab back (then admin & dispatch only).
+// Assigning vehicles to a call (call screen → Fleet) is separate and always on.
+var CAR_BOOKING_ENABLED = false;
+function _carTabAllowed(){ return CAR_BOOKING_ENABLED && ['admin','dispatch'].includes((SESSION&&SESSION.role)||''); }
 function _applyRoleUI(role) {
   const isDispatch = ['admin','dispatch'].includes(role);
   const isMember = !isDispatch;
@@ -6901,7 +6906,7 @@ function _applyRoleUI(role) {
     b.style.display = (role==='admin') ? '' : 'none';
   });
   // Equip tab: Car sub-tab = admin & dispatch only (Nov 2026)
-  { const ct=document.getElementById('eqCarTab'); if(ct) ct.style.display = (role==='admin'||role==='dispatch') ? '' : 'none'; }
+  { const ct=document.getElementById('eqCarTab'); if(ct) ct.style.display = (CAR_BOOKING_ENABLED && (role==='admin'||role==='dispatch')) ? '' : 'none'; }
   // Equip tab: Active Alerts, Activity History, Dispatch Call History = admin only (Nov 2026)
   document.querySelectorAll('.eq-admin-only').forEach(b => { b.style.display = (role==='admin') ? '' : 'none'; });
   { const aw=document.getElementById('eq-alerts-wrap'); if(aw && role!=='admin') aw.style.display='none'; }
@@ -11503,7 +11508,8 @@ function toggleVehicleOnCall(callId, vName) {
   call.assignedVehicles=call.assignedVehicles||[];
   const idx=call.assignedVehicles.indexOf(vName);
   if(idx>-1) call.assignedVehicles.splice(idx,1); else call.assignedVehicles.push(vName);
-  save(); openCallDetail(callId);
+  // Nov 2026: save to the server too, so every phone sees the vehicle on the call (was this phone only).
+  save(); try{ _callFieldsUpdate(call,{assignedVehicles:call.assignedVehicles}); }catch(e){} openCallDetail(callId);
 }
 // ── Assign equipment to a call (searchable picker) ──
 function openEquipAssign(callId){
@@ -18487,8 +18493,7 @@ function _canUseChecklist(){
   return r.includes('admin') || r.includes('equipment');
 }
 function setEqTab(tab,el) {
-  // Car tab (car shifts / vehicles): admin & dispatch only (Nov 2026)
-  if(tab==='car' && !['admin','dispatch'].includes((SESSION&&SESSION.role)||'')){ showToast('Car is for admin & dispatch'); return; }
+  if(tab==='car' && !_carTabAllowed()){ showToast(CAR_BOOKING_ENABLED?'Car is for admin & dispatch':'Car booking is turned off for now'); return; }
   if(tab==='checklist') {
     // Checklist: admins and the equipment team only (from their role in the member sheet). No shared password.
     if(!_canUseChecklist()){ showToast('Checklist is for the equipment team'); return; }
