@@ -14022,7 +14022,10 @@ function _ensureAdminStatsLayout(){
 // Members can look up EZ-Spare availability + where things are kept, and donate.
 // (The EZ-Spare fitment lookup on a call card stays a dispatch tool.)
 const DONATE_URL='https://www.cobchelp.org/?campaign=donate-';
-function _infoAvailable(e){ return e && e.status==='in' && !e.isCNC && !['Damaged','Missing','Not Active'].includes(e.equipStatus); }
+// Locations NOT shown in Info (owner, Nov 23): private places like a member's garage.
+const INFO_HIDDEN_LOCATIONS=['bc-46 garage'];
+function _infoHiddenLoc(l){ return INFO_HIDDEN_LOCATIONS.includes(String(l||'').trim().toLowerCase()); }
+function _infoAvailable(e){ return e && e.status==='in' && !e.isCNC && !['Damaged','Missing','Not Active'].includes(e.equipStatus) && !_infoHiddenLoc(e.location); }
 function renderInfoTab(){
   const el=document.getElementById('infoTabBody'); if(!el) return;
   const eq=STATE.equipment||[];
@@ -14039,7 +14042,7 @@ function renderInfoTab(){
     const locs=Object.keys(r.locs).map(l=>chip(esc(l)+(r.locs[l]>1?' ×'+r.locs[l]:''))).join('');
     return `<div style="padding:9px 0;border-top:1px solid rgba(255,255,255,.08);"><div style="display:flex;justify-content:space-between;gap:8px;"><b>🛞 ${esc(sz)}</b><span style="font-weight:800;color:${r.n?'#86efac':'#fca5a5'};">${r.n?r.n+' available':'none available'}</span></div>${locs?'<div>'+locs+'</div>':''}</div>`; }).join('');
   const locs={};
-  eq.filter(e=>e.equipStatus!=='Not Active' && !(typeof isCarItem==='function'&&isCarItem(e.name))).forEach(e=>{ const l=(e.location||'').trim(); if(!l) return; if(!(l in locs)) locs[l]=0; if(_infoAvailable(e)) locs[l]++; });
+  eq.filter(e=>e.equipStatus!=='Not Active' && !(typeof isCarItem==='function'&&isCarItem(e.name))).forEach(e=>{ const l=(e.location||'').trim(); if(!l || _infoHiddenLoc(l)) return; if(!(l in locs)) locs[l]=0; if(_infoAvailable(e)) locs[l]++; });
   const locRows=Object.keys(locs).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map((l,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid rgba(255,255,255,.08);"><div style="min-width:0;"><b>📍 ${esc(l)}</b><div style="font-size:12px;color:var(--text3);">${locs[l]} item${locs[l]===1?'':'s'} available</div></div>${/^\d+\s+[A-Za-z]/.test(l)?`<button class="btn-sm btn-ghost" style="flex-shrink:0;" data-loc="${esc(l)}" onclick="openMaps(this.dataset.loc)">🗺 Directions</button>`:''}</div>`).join('');
   el.innerHTML=`
     <div class="section-label">💳 Donate</div>
