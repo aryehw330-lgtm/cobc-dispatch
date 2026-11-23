@@ -1015,7 +1015,7 @@ textarea.input{min-height:80px;resize:vertical;}
   <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.2);"></div>
 </div>
     <label class="lv2-label" for="loginUnit">BC number</label>
-    <input class="login-input" id="loginUnit" type="text" inputmode="numeric" placeholder="e.g. 38" autocomplete="off"/>
+    <input class="login-input" id="loginUnit" type="text" inputmode="numeric" placeholder="BC #" autocomplete="off"/>
     <label class="lv2-label" for="loginPass">PIN</label>
     <input class="login-input" id="loginPass" type="password" inputmode="numeric" placeholder="Your PIN" autocomplete="off"/>
     <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
@@ -1383,7 +1383,7 @@ textarea.input{min-height:80px;resize:vertical;}
           <button data-type="Other" onclick="selRptType('Other',this)" style="padding:14px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;text-align:center;"><span style="font-size:22px;display:block;margin-bottom:4px;">📋 Other</span></button>
         </div>
         <div class="input-group"><label class="input-label">Item</label><select class="input" id="reportItem"></select></div>
-        <div class="input-group"><label class="input-label">Your BC Member #</label><input class="input" type="text" inputmode="numeric" id="reportMember" placeholder="e.g. 38"/></div>
+        <div class="input-group"><label class="input-label">Your BC Member #</label><input class="input" type="text" inputmode="numeric" id="reportMember" placeholder="BC #"/></div>
         <div class="input-group"><label class="input-label">Notes</label><textarea class="input" id="reportNotes" placeholder="Describe the issue..."></textarea></div>
         <button class="btn-full btn-primary" onclick="submitReport()">Submit Report</button>
         <div class="section-label" style="margin-top:16px;">Open Reports</div>
