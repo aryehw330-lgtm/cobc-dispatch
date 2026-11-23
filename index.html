@@ -1276,7 +1276,7 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
         <!-- Equipment Activity History — synced from Firestore (Apps Script writes events) -->
-        <div class="eq-acc" style="margin-top:4px;">
+        <div class="eq-acc eq-admin-only" style="margin-top:4px;display:none;">
           <button class="eq-acc-head" onclick="_toggleEqAcc(this);_ensureEqActivityHistorySub();renderEqActivityHistory()">
             <span>📋 Activity History</span>
             <span class="eq-acc-arrow">▾</span>
@@ -1296,7 +1296,7 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
         <!-- Dispatch Call History — look up a call (and its caller phone) to chase overdue equipment -->
-        <div class="eq-acc" style="margin-top:4px;background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(18,18,22,.5));border-color:rgba(37,99,235,.4);">
+        <div class="eq-acc eq-admin-only" style="margin-top:4px;display:none;background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(18,18,22,.5));border-color:rgba(37,99,235,.4);">
           <button class="eq-acc-head" onclick="_toggleEqAcc(this);renderEqCallHistory()">
             <span>📞 Dispatch Call History</span>
             <span class="eq-acc-arrow">▾</span>
@@ -6898,6 +6898,9 @@ function _applyRoleUI(role) {
   document.querySelectorAll('#more-sub-tabs .admin-strict-sub').forEach(b => {
     b.style.display = (role==='admin') ? '' : 'none';
   });
+  // Equip tab: Active Alerts, Activity History, Dispatch Call History = admin only (Nov 2026)
+  document.querySelectorAll('.eq-admin-only').forEach(b => { b.style.display = (role==='admin') ? '' : 'none'; });
+  { const aw=document.getElementById('eq-alerts-wrap'); if(aw && role!=='admin') aw.style.display='none'; }
   const chkSubmitBtn = document.getElementById('chkSubmitBtn');
   if (chkSubmitBtn) chkSubmitBtn.style.display = (role.includes('admin')||role.includes('equipment')) ? 'block' : 'none';
   const alltimeBanner1 = document.getElementById('alltimeBanner');
@@ -8384,6 +8387,7 @@ function setEqHistRange(r, el){
   renderEqCallHistory();
 }
 function renderEqCallHistory(){
+  if(!(SESSION&&SESSION.role==='admin')) return;   // admin only (Nov 2026)
   const list=document.getElementById('eqHistList');
   const summary=document.getElementById('eqHistSummary');
   if(!list) return;
@@ -8430,6 +8434,7 @@ function renderEqCallHistory(){
 }
 // ── Equipment Activity History (synced from Firestore via Apps Script) ──
 function renderEqActivityHistory(){
+  if(!(SESSION&&SESSION.role==='admin')) return;   // admin only (Nov 2026)
   const list=document.getElementById('eqActHistList');
   if(!list) return;
   const fromEl=document.getElementById('eqActHistFrom'), toEl=document.getElementById('eqActHistTo');
@@ -18694,7 +18699,7 @@ function renderEquipmentDashboard() {
   const alerts=STATE.equipment.filter(e=>e.isCNC||['Missing','Damaged','Need More'].includes(e.equipStatus))
     .sort((a,b)=>{ const ta=a.lastUpdated?new Date(a.lastUpdated).getTime():0, tb=b.lastUpdated?new Date(b.lastUpdated).getTime():0; return tb-ta; }); // newest first
   const aw=document.getElementById('eq-alerts-wrap');
-  if(aw) aw.style.display='block';
+  if(aw) aw.style.display=(SESSION&&SESSION.role==='admin')?'block':'none';   // admin only (Nov 2026)
   const al=document.getElementById('eq-alerts-list');
   if(al){
     if(alerts.length){
