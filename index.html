@@ -1928,7 +1928,7 @@ textarea.input{min-height:80px;resize:vertical;}
             <div class="input-group"><label class="input-label">Phone</label><input class="input" type="tel" id="numPhone" placeholder="201-555-0000"/></div>
             <div class="input-group"><label class="input-label">Category</label>
               <select class="input" id="numCat">
-                <option>Police</option><option>Dispatch</option><option>Ambulance</option><option>Roadside</option><option>Hospital</option><option>Chaverims</option><option>Internal</option><option>Other</option>
+                <option>Chiefs</option><option>Police</option><option>Dispatch</option><option>Ambulance</option><option>Roadside</option><option>Hospital</option><option>Chaverims</option><option>Internal</option><option>Other</option>
               </select>
             </div>
             <div class="input-group"><label class="input-label">Or new section</label><input class="input" id="numNewCat" placeholder="e.g. Chaverims, Tow Companies"/></div>
@@ -2512,6 +2512,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn" data-top="1" onclick="selectCallType('flood',this)">Flood</button>
       <button class="qtype-btn qtype-group" data-top="1" onclick="openCallTypeGroup('lockout')">Lockout ▸<br><span style="font-size:10px;opacity:.7;">Car · House</span></button>
       <button class="qtype-btn" data-top="1" onclick="selectCallType('missing_person',this)">Missing Person</button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('medical',this)">🚑 Medical</button>
       <button class="qtype-btn" data-top="1" onclick="selectCallType('out_of_gas',this)">⛽ Out Of Gas</button>
       <button class="qtype-btn" data-top="1" onclick="selectCallType('transport',this)">📦 Transport</button>
       <button class="qtype-btn qtype-group" data-top="1" onclick="openCallTypeGroup('vehicle')">Vehicle ▸<br><span style="font-size:10px;opacity:.7;">Stalled · Snow · More</span></button>
@@ -2834,6 +2835,7 @@ textarea.input{min-height:80px;resize:vertical;}
         <option value="lockout">House Lockout</option>
         <option value="child_lockout">🚨 Child Locked in Car</option>
         <option value="missing_person">Missing Person</option>
+        <option value="medical">Medical</option>
         <option value="flood">Flood</option>
         <option value="needs_ac">❄️ Needs A/C</option>
         <option value="needs_fan">💨 Needs Fans</option>
@@ -8215,6 +8217,7 @@ function renderHome() {
 //  DISPATCH
 // ──────────────────────────────────────────────
 const CALL_TYPE_LABELS = {
+  medical:'Medical',
   flat_tire_spare:'Flat Tire - Has Spare',flat_tire_no_spare:'Flat Tire - No Spare',lockout:'House Lockout',car_lockout:'Car Lockout',child_lockout:'Child Locked in Car',missing_person:'Missing Person',jump_start:'⚡ Boost',
   flood:'Flood',ac_heat:'A/C or Heat',generator:'Generator',
   needs_ac:'Needs A/C',needs_fan:'Needs Fans',needs_heat:'Needs Heater',out_of_gas:'Out Of Gas',
@@ -9496,6 +9499,8 @@ function selectCallType(type, btn) {
   const carTypes=['flat_tire_spare','flat_tire_no_spare','jump_start','car_lockout','child_lockout','out_of_gas','vehicle_stalled','vehicle_pullout','stuck_snow','bumper_hanging','plastic_hanging'];
   document.getElementById('carInfoSection').style.display=carTypes.includes(type)?'block':'none';
   { const _mr=document.getElementById('mpRulesSection'); if(_mr) _mr.style.display=(type==='missing_person')?'block':'none'; }
+  if(type==='medical' && prevType!=='medical'){ window._medPopupSeen=true; try{ _medicalChiefsPopup(); }catch(e){} }
+  if(type!=='medical' && prevType==='medical') window._medPopupSeen=false;
   try{ updateDispatchBtn(); }catch(e){}
   document.getElementById('otherTypeGroup').style.display=type==='other'?'block':'none';
   // Flood → show equipment-needed multi-select
@@ -9758,8 +9763,42 @@ document.addEventListener('click',e=>{ if(!e.target.closest('.color-pick')) docu
 // created (or fails) — the old 1.5 s timer let a second tap through when saving was slow,
 // which sent the same call out twice. Also asks before creating what looks like a repeat.
 let _createCallInFlight=false;
+// ── Medical call → "call the chiefs" pop-up (Nov 2026) ─────────────────────────
+// Shows when the Medical type is picked, and at Dispatch when the type/notes read medical.
+// Chiefs' numbers come from ☎️ Numbers → section "Chiefs" (admin adds them, Dispatch only).
+const _MEDICAL_RE=/\b(medical|injur\w*|bleed\w*|unconscious|unresponsive|chest pain|(?:not|trouble|difficulty|can'?t|cannot|short(?:ness)? of) breath\w*|ambulance|ems|hatzol\w*|hatzal\w*|overdos\w*|seizure\w*|stroke|cardiac|heart attack|faint\w*|passed out)\b/i;
+function _isMedicalCallForm(){
+  const v=id=>String((document.getElementById(id)||{}).value||'');
+  if(v('callType')==='medical') return true;
+  return _MEDICAL_RE.test(v('otherTypeText')+' '+v('callNotes'));
+}
+function _chiefNumbers(){ return (STATE.numbers||[]).filter(n=>/chief/i.test(String(n.category||n.cat||''))&&(n.phone||n.number)); }
+function _medicalChiefsPopup(){
+  return new Promise(resolve=>{
+    const old=document.getElementById('medChiefsPop'); if(old) old.remove();
+    const chiefs=_chiefNumbers();
+    const esc=x=>escapeHTML(String(x==null?'':x));
+    const list=chiefs.length
+      ? chiefs.map(n=>{ const ph=String(n.phone||n.number); const tel=ph.replace(/[^\d+]/g,''); return `<a href="tel:${tel}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;margin-top:8px;border-radius:12px;background:#dc2626;color:#fff;text-decoration:none;font-weight:800;"><span>📞 ${esc(n.label||n.name)}</span><span style="font-weight:700;opacity:.9;">${esc(ph)}</span></a>`; }).join('')
+      : `<div style="margin-top:10px;font-size:13px;color:rgba(255,255,255,.75);">No chiefs' numbers saved yet. Admin: add them in ☎️ Numbers → new section <b>Chiefs</b> (Dispatch only).</div>`;
+    const ov=document.createElement('div'); ov.id='medChiefsPop';
+    ov.style.cssText='position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML=`<div style="background:#1c1c1e;border:2px solid rgba(239,68,68,.7);border-radius:18px;padding:20px 18px;max-width:360px;width:100%;color:#fff;">
+      <div style="font-size:30px;text-align:center;">🚑</div>
+      <div style="font-size:18px;font-weight:900;text-align:center;margin-top:4px;">Medical call — call the chiefs</div>
+      <div style="font-size:13px;text-align:center;color:rgba(255,255,255,.7);margin-top:4px;">Let the chiefs know before you dispatch.</div>
+      ${list}
+      <button id="medChiefsOk" style="width:100%;margin-top:14px;padding:12px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-weight:800;font-size:15px;cursor:pointer;">Continue</button>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#medChiefsOk').onclick=()=>{ ov.remove(); resolve(); };
+  });
+}
 async function createCall() {
   if(_createCallInFlight){ return; }
+  // Medical (by type or words) → make sure the chiefs pop-up was seen for this call
+  try{ if(_isMedicalCallForm() && !window._medPopupSeen){ await _medicalChiefsPopup(); } }catch(e){}
+  window._medPopupSeen=false;
   const _btn=document.getElementById('callSubmitBtn');
   try{
     const ph=_rcDigits((document.getElementById('callPhone')||{}).value||'');
