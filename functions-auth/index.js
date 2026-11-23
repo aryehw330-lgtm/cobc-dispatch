@@ -248,8 +248,11 @@ exports.getAuthToken = onRequest(
         if (u.fails >= UNIT_MAX_FAILS) {
           res.status(429).json({ ok: false, error: 'Too many wrong PINs for this unit. Wait 15 minutes.' }); return;
         }
+        // Nov 2026: send our signed identity so the equipment server doesn't count this repeat
+        // check as a second wrong PIN (we count our own above) — 5 tries everywhere.
+        const _pst = await _svcIdentity();
         const r = await fetch(APPS_SCRIPT_URL + '?action=getMemberByPin&pin=' + encodeURIComponent(pin) +
-                              '&unit=' + encodeURIComponent('BC-' + unit), { redirect: 'follow' });
+                              '&unit=' + encodeURIComponent('BC-' + unit) + (_pst ? '&svc=' + encodeURIComponent(_pst) : ''), { redirect: 'follow' });
         const j = await r.json();
         if (j && j.id && normUnit(j.id) === unit) {
           memberData = j;
@@ -261,8 +264,10 @@ exports.getAuthToken = onRequest(
         // ── Google sign-in (verified with Google) ─────────────────────────
         const email = await emailFromGoogle(body.googleIdToken, body.googleAccessToken);
         if (!email) { res.status(401).json({ ok: false, error: 'Google sign-in could not be verified' }); return; }
-        const r = await fetch(APPS_SCRIPT_URL + '?action=checkMemberEmail&email=' + encodeURIComponent(email),
-                              { redirect: 'follow' });
+        // Nov 2026: the equipment server only answers this for us (signed service identity).
+        const _st = await _svcIdentity();
+        const r = await fetch(APPS_SCRIPT_URL + '?action=checkMemberEmail&email=' + encodeURIComponent(email)
+                              + (_st ? '&svc=' + encodeURIComponent(_st) : ''), { redirect: 'follow' });
         const j = await r.json();
         if (j && j.authorized && j.id) memberData = Object.assign({ email: email }, j);
 
