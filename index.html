@@ -1237,11 +1237,11 @@ textarea.input{min-height:80px;resize:vertical;}
           <button class="btn-sm btn-ghost" onclick="showModal('scanModal')">Scan QR</button>
         </div>
       </div>
-      <div id="eqStatGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
-        <div class="stat-card stat-blue" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-total" style="font-size:22px;">0</div><div class="stat-label">Total</div></div>
-        <div class="stat-card stat-red" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-out" style="font-size:22px;">0</div><div class="stat-label">Out</div></div>
-        <div class="stat-card stat-amber" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-issues" style="font-size:22px;">0</div><div class="stat-label">Issues</div></div>
-        <div class="stat-card stat-green" style="padding:10px 6px;text-align:center;"><div class="stat-num" id="eq-in" style="font-size:22px;">0</div><div class="stat-label">In</div></div>
+      <div id="eqStatGrid" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:12px;">
+        <div class="stat-card stat-blue" style="padding:8px 4px;text-align:center;"><div class="stat-num" id="eq-total" style="font-size:20px;">0</div><div class="stat-label">Total</div></div>
+        <div class="stat-card stat-red" style="padding:8px 4px;text-align:center;"><div class="stat-num" id="eq-out" style="font-size:20px;">0</div><div class="stat-label">Out</div></div>
+        <div class="stat-card stat-amber" style="padding:8px 4px;text-align:center;"><div class="stat-num" id="eq-issues" style="font-size:20px;">0</div><div class="stat-label">Issues</div></div>
+        <div class="stat-card stat-green" style="padding:8px 4px;text-align:center;"><div class="stat-num" id="eq-in" style="font-size:20px;">0</div><div class="stat-label">In</div></div>
       </div>
       <div class="sub-tabs" id="eqSubTabs">
         <button class="sub-tab active eq-staff-sub" onclick="setEqTab('dashboard',this)">Dashboard</button>
@@ -6941,7 +6941,8 @@ function _applyRoleUI(role) {
   // Equip tab for members: Inventory only, no counts/filters (Nov 2026)
   { const mv=_eqMemberView();
     document.querySelectorAll('#eqSubTabs .eq-staff-sub').forEach(b=>{ b.style.display = mv ? 'none' : ''; });
-    ['eqStatGrid','eqFilters'].forEach(id=>{ const x=document.getElementById(id); if(x) x.style.display = mv ? 'none' : ''; });
+    { const sg=document.getElementById('eqStatGrid'); if(sg) sg.style.display = mv ? 'none' : 'grid'; }   // keep the 4 boxes in one row
+    { const ef=document.getElementById('eqFilters'); if(ef) ef.style.display = mv ? 'none' : ''; }
     const it=document.getElementById('eqInvTab'); if(it) it.textContent = mv ? 'Available' : 'Inventory'; }
   // Equip tab: Car sub-tab = admin & dispatch only (Nov 2026)
   { const ct=document.getElementById('eqCarTab'); if(ct) ct.style.display = (CAR_BOOKING_ENABLED && (role==='admin'||role==='dispatch')) ? '' : 'none'; }
