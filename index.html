@@ -4226,7 +4226,7 @@ function _waMsgResponderUpdate(call, newResponder) {
   const unitDisp  = String(newResponder.unit||'').replace(/^BC-?/i,'');
   const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ');
   const callNum = call.callNum ? ` to call #${call.callNum}` : '';
-  let msg = `*BC-${unitDisp} is ${newResponder.observerOnly?'observing':(newResponder.backup?'backing up':'responding')}${callNum}*`;
+  let msg = `*BC-${unitDisp} ${newResponder.observerOnly?'observing':(newResponder.backup?'backing up':'responding')}${callNum}*`;
   // Only list "On call" when someone ELSE is already on the call (Nov 2026) — no repeat for the first responder.
   const _norm = u => String(u||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'');
   const _others = (call.responders||[]).some(r => _norm(r.unit) !== _norm(unitDisp));
@@ -4237,8 +4237,8 @@ function _waMsgResponderUpdate(call, newResponder) {
 // "🆘 BACKUP NEEDED"
 function _waMsgBackup(call, backupReq) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  let msg = `*BACKUP NEEDED — Call #${call.callNum||''}*\n`;
-  msg += `${typeLabel}\n📍 ${fmtLoc(call)}`;
+  let msg = `*🆘 Backup needed — call #${call.callNum||''}*\n`;
+  msg += `${typeLabel} · 📍 ${fmtLoc(call)}`;
   if (backupReq.equipment) msg += `\n🧰 ${backupReq.equipment}`;
   if (backupReq.notes)     msg += `\n📝 ${backupReq.notes}`;
   return msg;
@@ -4260,7 +4260,7 @@ function _waMsgComplete(call) {
 // "✏️ Update to call #X" — sent on a dispatch edit
 function _waMsgUpdate(call) {
   const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  let msg = `*✏️ Update to Call #${call.callNum||''}*\n${typeLabel} · ${fmtLoc(call)}`;
+  let msg = `*✏️ Call #${call.callNum||''} updated*\n${typeLabel} · ${fmtLoc(call)}`;
   if (call.priority==='urgent') msg += `\n⚠️ URGENT`;
   if (call.caller) msg += `\nCaller: ${call.caller}`;
   if (call.phone) msg += `\nPhone: ${call.phone}`;
@@ -9928,21 +9928,18 @@ async function _createCallInner() {
     const _waDispatch = (()=>{
       const urg = (priority === 'high' || priority === 'urgent');
       const _tp = call.isTest ? '🧪 TEST — ' : '';
-      let m = urg ? `${_tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${_tp}*COBC Call #${call.callNum||''}*\n\n`;
-      m += `*Call Type:* ${_typeLabel}\n`;
+      let m = urg ? `${_tp}🚨 *URGENT — COBC Call #${call.callNum||''} — ${_typeLabel}*\n` : `${_tp}*COBC Call #${call.callNum||''} — ${_typeLabel}*\n`;
       if (call.notes) m += `Note: ${call.notes}\n`;
       if (call.noSpareAction==='plug') m += `🔧 Possible Plug\n`;
       if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel,call.carTrim].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
       if (call.safeLocation==='no') m += `⚠️ Vehicle NOT in a safe location\n`;
       (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
-      m += `\n`;
-      m += `${fmtLoc(call)}\n`;
+      m += `📍 ${fmtLoc(call)}\n`;
       (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
       if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
-      m += `\n`;
-      if (call.caller||call.phone) m += `${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
-      m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
-      m += `${'tinyurl.com/cobc-dispatch'}`;
+      if (call.caller||call.phone) m += `${[call.caller,call.phone].filter(Boolean).join(' · ')}\n`;
+      m += `Waiver: https://form.jotform.com/212776438913868\n`;
+      m += `App: tinyurl.com/cobc-dispatch`;
       return m;
     })();
 setTimeout(() => {
@@ -10456,7 +10453,7 @@ function _doCancelCallApply(id,call) {
     url:'/cobc-dispatch/'
   }),0);
   // WhatsApp group: the call was posted there, so the cancel goes there too
-  setTimeout(()=>{ try{ sendWA({ target:'all', message:`*🚫 Call #${call.callNum||''} Cancelled*\n${_cxTypeLabel} · ${fmtLoc(call)}\nPlease do not respond.` }); }catch(e){} },400);
+  setTimeout(()=>{ try{ sendWA({ target:'all', message:`*🚫 Call #${call.callNum||''} cancelled — do not respond*\n${_cxTypeLabel} · ${fmtLoc(call)}` }); }catch(e){} },400);
   // Also send personal "do not respond" to each responder
   if(prevResponders.length) {
     prevResponders.forEach(r=>{
@@ -11076,7 +11073,7 @@ async function submitRadioResponders() {
       const callNumTxt = call.callNum ? ` to call #${call.callNum}` : '';
       const respList = _newMembers.map(m=>`BC-${String(m.unit).replace(/^BC-?/i,'')}`).join(', ');
       const onCall = (call.responders||[]).map(r=>`BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
-      waMsg = `*Multiple BC members responding${callNumTxt}: ${respList}*`;
+      waMsg = `*${respList} responding${callNumTxt}*`;   // e.g. "BC-50, BC-52 responding to call #322" (Nov 2026)
       // Only list "On call" when someone was already on before these were added (Nov 2026).
       const _norm = u => String(u||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'');
       const _newSet = new Set(_newMembers.map(m=>_norm(m.unit)));
@@ -11534,23 +11531,20 @@ async function publishCall(id) {
   const _typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
   const _waMsg = (()=>{
     const urg = (call.priority === 'high' || call.priority === 'urgent');
-    let m = urg ? `${call.isTest?'🧪 TEST — ':''}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${call.isTest?'🧪 TEST — ':''}*COBC Call #${call.callNum||''}*\n\n`;
-    m += `*Call Type:* ${_typeLabel}\n`;
+    let m = urg ? `${call.isTest?'🧪 TEST — ':''}🚨 *URGENT — COBC Call #${call.callNum||''} — ${_typeLabel}*\n` : `${call.isTest?'🧪 TEST — ':''}*COBC Call #${call.callNum||''} — ${_typeLabel}*\n`;
     if (call.notes) m += `Note: ${call.notes}\n`;
     if (call.noSpareAction==='plug') m += `🔧 Possible Plug\n`;
     if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel,call.carTrim].filter(Boolean).join(' '); if(_cs) m += `${_cs}\n`; }
       if (call.safeLocation==='no') m += `⚠️ Vehicle NOT in a safe location\n`;
     (()=>{ const _ezF=call.ezSpareFitment; const _ezS=(_ezF&&_ezF.size_1)||call.ezSpareSize||''; if(_ezS){ const _ezY=(_ezF&&_ezF.year)||call.carYear||''; m += `🛞 EZ-Spare ${_ezS}${_ezY?` (${_ezY})`:''}\n`; } })();
-    m += `\n`;
-    m += `${fmtLoc(call)}\n`;
+    m += `📍 ${fmtLoc(call)}\n`;
     (()=>{ try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){} })();
     if(call.floodNeeds&&call.floodNeeds.length) m += `${call.floodNeeds.join(', ')}\n`;
-    m += `\n`;
     if (call.caller) m += `Caller: ${call.caller}`;
     if (call.phone)  m += ` · ${call.phone}`;
-    if (call.caller||call.phone) m += `\n\n`;
-    m += `Waiver: https://form.jotform.com/212776438913868\n\n`;
-    m += `Open COBC Dispatch: tinyurl.com/cobc-dispatch`;
+    if (call.caller||call.phone) m += `\n`;
+    m += `Waiver: https://form.jotform.com/212776438913868\n`;
+    m += `App: tinyurl.com/cobc-dispatch`;
     return m;
   })();
 
@@ -18962,7 +18956,7 @@ function _renderInventoryMember(){
   const search=(document.getElementById('eqSearch')?.value||'').toLowerCase();
   const me=_normU((SESSION&&SESSION.unit)||'');
   const bad=['Damaged','Missing','Not Active'];
-  let all=(STATE.equipment||[]).filter(e=>!bad.includes(e.equipStatus));
+  let all=(STATE.equipment||[]).filter(e=>!bad.includes(e.equipStatus) && !(typeof isCarItem==='function' && isCarItem(e.name)));   // no vehicles for members
   if(eqCurCat!=='all') all=all.filter(e=>getCat(e.name)===eqCurCat);
   if(eqCurLoc!=='all') all=all.filter(e=>e.location===eqCurLoc);
   if(search) all=all.filter(e=>(e.name||'').toLowerCase().includes(search)||(e.location||'').toLowerCase().includes(search));
