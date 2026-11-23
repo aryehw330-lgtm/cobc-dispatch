@@ -2576,7 +2576,6 @@ textarea.input{min-height:80px;resize:vertical;}
       <div><b>2. Pending:</b> it saves as <b>pending approval</b> — members are <b>NOT</b> alerted yet.</div>
       <div><b>3. Approval:</b> Admins &amp; Search Supervisors get a push to approve or reject (with a reason).</div>
       <div><b>4. Dispatch:</b> once approved you get a push — open the call and tap <b>🚨 Acknowledge &amp; Dispatch</b>. That's when members are alerted.</div>
-      <div><b>5. Search:</b> an Admin / Search Supervisor starts the search map from the call.</div>
     </div>
 
     <!-- CAR INFO (shown for tire/lockout/jump) -->
@@ -11314,15 +11313,6 @@ function openCallDetail(id) {
       html+=`<button class="btn-sm btn-primary" onclick="openRespondModal('${id}');hideModal('callDetailModal')">✋ Respond</button>`;
     }
   }
-  // Missing Person call that's out: one tap to start / open the search map linked to it (Nov 2026)
-  if(call.type==='missing_person' && (call.status==='open'||call.status==='active')){
-    const _opOn=(typeof cmIsActive==='function' && cmIsActive());
-    const _linked=_opOn && typeof cmIsLinkedMissingCall==='function' && cmIsLinkedMissingCall(call.id);
-    if(_linked && typeof openCommandView==='function' && (isDispatch || _canApproveMissing()))
-      html+=`<button class="btn-sm" style="background:#1d4ed8;color:#fff;border:none;font-weight:800;" onclick="hideModal('callDetailModal');openCommandView()">🗺️ Open search map</button>`;
-    else if(!_opOn && _canApproveMissing())
-      html+=`<button class="btn-sm" style="background:#1d4ed8;color:#fff;border:none;font-weight:800;" onclick="hideModal('callDetailModal');cmStartSearchForCall('${id}')">🔍 Start search map</button>`;
-  }
   if(call.address) html+=`<button class="btn-sm btn-ghost" onclick="openMaps('${call.address} ${call.town} NJ')">🗺 Navigation</button>`;
   // Share my location — for approved responders who are on their way
   const _iAmApprovedDetail = (call.responders||[]).some(r=>String(r.unit)===String(SESSION.unit));
@@ -11508,14 +11498,7 @@ async function _mpDispatch(id){
   if(!['admin','dispatch'].includes(SESSION.role)){ showToast('Dispatch or admin only'); return; }
   if(!(call.status==='draft' && call.mpApprovedAt && !call.needsApproval)){ showToast('This call is not ready to dispatch'); return; }
   call.mpDispatchedBy=SESSION.unit; call.mpDispatchedAt=Date.now();
-  try{ await publishCall(id); }catch(e){ console.warn('mp dispatch', e); return; }
-  const c=(STATE.calls||[]).find(x=>x.id===id); if(!c || c.status==='draft') return;
-  const opActive=(typeof cmIsActive==='function' && cmIsActive());
-  // Connect the search map to THIS call: tell approvers it's out; an approver dispatching can start it right away.
-  if(!opActive) _mpPush([..._adminUnits(), ..._searchSupUnits()], (c.isTest?'🧪 TEST — ':'')+'🔍 Missing Person dispatched — start the search map',
-    'Call #'+(c.callNum||'')+(c.address?' · '+c.address:'')+'. Open the call → Start search map.', c.id);
-  if(!opActive && _canApproveMissing() && typeof cmStartSearchForCall==='function'
-     && confirm('🚨 Dispatched.\n\nStart the Missing Person search map for this call now?')) cmStartSearchForCall(id);
+  try{ await publishCall(id); }catch(e){ console.warn('mp dispatch', e); }
 }
 function _canApproveMissing(){ const r=_myRoleStr(); return r.includes('admin') || r.includes('search supervisor'); }
 // Let approvers know when a Missing Person call is waiting (once per call per session).
