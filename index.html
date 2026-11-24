@@ -3782,8 +3782,12 @@ async function initPushModule() {
       // that receive pushes without showing them); the service worker replaces duplicates quietly.
       let _dupToast=false;
       try{ const _k=t+'|'+b, _n=Date.now(); window._fgSeen=window._fgSeen||{}; _dupToast=!!(_fgSeen[_k] && _n-_fgSeen[_k]<30000); if(!_dupToast) _fgSeen[_k]=_n; }catch(e){}
-      // Show in-app toast
-      if(!_dupToast) showToast('🔔 ' + t + (b ? ': ' + b : ''));
+      // Show in-app toast (the "BC-x is responding" alert reads as "Approved" on BC-x's own phone)
+      let _tt=t, _tb=b;
+      try{ const _m=/Assigned to Call/i.test(t)&&/^#(\S*)\s*·\s*BC-0*(\d+) is responding\s*—\s*(.*)$/i.exec(b);
+        const _mine=String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'');
+        if(_m && _mine && _m[2]===_mine){ _tt='✅ Approved to respond to call #'+_m[1]; _tb=_m[3]; } }catch(e){}
+      if(!_dupToast) showToast('🔔 ' + _tt + (_tb ? ': ' + _tb : ''));
       // Also ask the service worker to show a system banner (works on Android/desktop;
       // iOS suppresses banners while the PWA is active — the toast above covers that case)
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -10807,14 +10811,9 @@ function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
   setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgResponderUpdate(call, _approvedEntry) }); } catch(e){} }, 800);
   // (duplicate push removed — single approval notification below)
   const typeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  // Push 1: personal approval to the member
-  sendPush({
-    target:'unit', unit:String(unit),
-    title: window._approveOverrode ? `✅ Update: you ARE approved for call #${call.callNum||''}` : `✅ Approved to respond to call #${call.callNum||''}`,
-    body:`${typeLabel} · ${fmtLoc(call)} · ETA ${req.eta} min`,
-    url:'/cobc-dispatch/', callId:call.id, urgent:'true'
-  });
-  // Push 2: tell everyone this member is responding — simple broadcast (same reliable path as radio adds)
+  // ONE push only (Nov 2026): the broadcast "BC-x is responding". On BC-x's own phone the
+  // service worker shows it as "✅ Approved to respond" — so that member gets a single alert
+  // (iPhone can't merge two alerts after they arrive, so the separate approval push was dropped).
   setTimeout(()=>sendPush({
     target:'all',
     title:'Assigned to Call',

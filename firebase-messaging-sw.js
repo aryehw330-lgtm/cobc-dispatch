@@ -186,7 +186,7 @@ async function _showAlert(title, body, data, fromForeground) {
       let t = title, b = body;
       if (aboutMe) {   // keep the personal approval wording on this phone
         if (existing) { t = existing.title; b = existing.body; }
-        else { const num = (/#(\S+)/.exec(String(body || '')) || [])[1] || ''; t = '✅ You\'re on call #' + num; b = String(body || '').replace(/^#\S+\s*·\s*/, ''); }
+        else { const num = (/#(\S+)/.exec(String(body || '')) || [])[1] || ''; t = '✅ Approved to respond to call #' + num; b = String(body || '').replace(/^#\S*\s*·\s*BC-?\d+ is responding\s*—\s*/i, ''); }
       }
       await self.registration.showNotification(t || 'COBC Dispatch', {
         body: b || '',
@@ -195,7 +195,7 @@ async function _showAlert(title, body, data, fromForeground) {
         tag: tag,
         renotify: false,
         silent: !!existing,                       // second one: quietly takes the first one's place
-        requireInteraction: data.urgent === 'true' && !existing,
+        requireInteraction: (data.urgent === 'true' || aboutMe) && !existing,
         vibrate: existing ? undefined : [100, 50, 100],
         data: { url: data.url || '/cobc-dispatch/', callId: callId, mine: true }
       });
