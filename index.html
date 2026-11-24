@@ -6904,7 +6904,18 @@ function _eqMemberView(){
 // Assigning vehicles to a call (call screen → Fleet) is separate and always on.
 var CAR_BOOKING_ENABLED = false;
 function _carTabAllowed(){ return CAR_BOOKING_ENABLED && ['admin','dispatch'].includes((SESSION&&SESSION.role)||''); }
+// Tell the notification handler which unit this phone belongs to (merges "BC-x is responding"
+// with BC-x's own "Approved to respond" into one notification on that phone — Nov 2026).
+function _swStoreMyUnit(){
+  try{
+    const u=String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,''); if(!u) return;
+    const req=indexedDB.open('cobc_sw_store',1);
+    req.onupgradeneeded=e=>{ e.target.result.createObjectStore('kv',{keyPath:'k'}); };
+    req.onsuccess=e=>{ try{ const db=e.target.result; if(!db.objectStoreNames.contains('kv')) return; db.transaction('kv','readwrite').objectStore('kv').put({k:'myUnit',v:u}); }catch(err){} };
+  }catch(e){}
+}
 function _applyRoleUI(role) {
+  try{ _swStoreMyUnit(); }catch(e){}
   const isDispatch = ['admin','dispatch'].includes(role);
   const isMember = !isDispatch;
   const mgmtBtn = document.getElementById('adminMgmtBtnWrap');

@@ -150,8 +150,57 @@ function _dupTagFor(title, body, tag) {
   _seenAlerts.set(k, { t: now, tag: tag });
   return null;
 }
-function _showAlert(title, body, data, fromForeground) {
+// This phone's own unit (the app saves it at sign-in) — used to merge "BC-95 is responding"
+// with BC-95's own "✅ Approved to respond" so that member gets ONE notification (Nov 2026).
+function _idbGet(key) {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open('cobc_sw_store', 1);
+      req.onupgradeneeded = (e) => { e.target.result.createObjectStore('kv', { keyPath: 'k' }); };
+      req.onsuccess = (e) => {
+        try {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('kv')) { resolve(null); return; }
+          const g = db.transaction('kv', 'readonly').objectStore('kv').get(key);
+          g.onsuccess = () => resolve(g.result ? g.result.v : null);
+          g.onerror = () => resolve(null);
+        } catch (err) { resolve(null); }
+      };
+      req.onerror = () => resolve(null);
+    } catch (err) { resolve(null); }
+  });
+}
+const _normUnitSW = (u) => String(u || '').trim().toUpperCase().replace(/^BC-?/, '').replace(/^0+(?=\d)/, '');
+async function _showAlert(title, body, data, fromForeground) {
   data = data || {};
+  try {
+    const callId = data.callId || null;
+    const isApproval = /Approved to respond|you ARE approved/i.test(String(title || ''));
+    const m = /Assigned to Call/i.test(String(title || '')) && /BC-0*(\d+) is responding/i.exec(String(body || ''));
+    const myUnit = (isApproval || m) ? _normUnitSW(await _idbGet('myUnit')) : '';
+    const aboutMe = !!(m && myUnit && _normUnitSW(m[1]) === myUnit);
+    if (callId && (isApproval || aboutMe)) {
+      const tag = 'cobc-mine-' + callId;
+      let existing = null;
+      try { existing = (await self.registration.getNotifications({ tag })).find((n) => n && n.data && n.data.mine) || null; } catch (e) {}
+      let t = title, b = body;
+      if (aboutMe) {   // keep the personal approval wording on this phone
+        if (existing) { t = existing.title; b = existing.body; }
+        else { const num = (/#(\S+)/.exec(String(body || '')) || [])[1] || ''; t = '✅ You\'re on call #' + num; b = String(body || '').replace(/^#\S+\s*·\s*/, ''); }
+      }
+      return self.registration.showNotification(t || 'COBC Dispatch', {
+        body: b || '',
+        icon: '/cobc-dispatch/icon-192.png',
+        badge: '/cobc-dispatch/icon-badge-mono.png',
+        tag: tag,
+        renotify: false,
+        silent: !!existing,                       // second one: quietly takes the first one's place
+        requireInteraction: data.urgent === 'true' && !existing,
+        vibrate: existing ? undefined : [100, 50, 100],
+        data: { url: data.url || '/cobc-dispatch/', callId: callId, mine: true }
+      });
+    }
+  } catch (e) { /* fall through to the normal path below */ }
   const urgent = data.urgent === 'true';
   const ownTag = data.tag || ((fromForeground ? 'cobc-fg-' : 'cobc-') + Date.now());
   const dupTag = _dupTagFor(title, body, ownTag);
