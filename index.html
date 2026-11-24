@@ -3743,6 +3743,37 @@ async function _registerPushToken(token){
     console.warn('push register refused:', j && j.error); return false;
   }catch(e){ console.warn('push register failed:', e); return false; }
 }
+// ── Android battery step (Nov 2026) ──────────────────────────────────────────────
+// Android's battery saving can put Chrome to sleep after a quiet night; alerts then silently stop
+// (BC-05 / BC-1000, Nov 24). Shown when an Android member turns alerts on, and once on next open
+// for Android members who already had alerts on. Resolves when closed.
+function _isAndroid(){ return /android/i.test(navigator.userAgent||''); }
+function _androidBatteryStep(force){
+  return new Promise(resolve=>{
+    try{
+      if(!_isAndroid()) { resolve(); return; }
+      if(!force){ try{ if(localStorage.getItem('cobc_batt_step_seen')) { resolve(); return; } }catch(e){} }
+      try{ localStorage.setItem('cobc_batt_step_seen', String(Date.now())); }catch(e){}
+      const old=document.getElementById('battStepModal'); if(old) old.remove();
+      const ov=document.createElement('div'); ov.id='battStepModal';
+      ov.style.cssText='position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;';
+      ov.innerHTML='<div style="background:#16140d;border:1px solid rgba(230,196,99,.45);border-radius:18px;max-width:420px;width:100%;padding:20px 18px;color:#fff;box-shadow:0 20px 50px rgba(0,0,0,.6);">'
+        +'<div style="font-size:18px;font-weight:900;color:#e6c463;margin-bottom:6px;">🔋 One more step — so alerts never stop</div>'
+        +'<div style="font-size:13.5px;line-height:1.5;color:rgba(255,255,255,.85);margin-bottom:10px;">Android puts Chrome to sleep to save battery, and then COBC alerts stop arriving. Please do this once:</div>'
+        +'<ol style="margin:0 0 10px 18px;padding:0;font-size:14px;line-height:1.55;">'
+        +'<li>Phone <b>Settings → Apps → Chrome</b></li>'
+        +'<li><b>Battery</b> (or <b>App battery usage</b>) → <b>Unrestricted</b></li>'
+        +'<li>If <b>COBC</b> is listed as its own app, do the same for it</li>'
+        +'<li><b>Motorola:</b> Settings → Battery → turn off <b>Adaptive battery</b></li>'
+        +'</ol>'
+        +'<div style="font-size:12.5px;color:rgba(255,255,255,.65);margin-bottom:14px;">If alerts ever stop anyway: restart the phone and open COBC once.</div>'
+        +'<button id="battStepDone" style="width:100%;background:linear-gradient(180deg,#5fe09a,#16a34a);color:#fff;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:900;cursor:pointer;">Done</button>'
+        +'</div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#battStepDone').onclick=()=>{ ov.remove(); resolve(); };
+    }catch(e){ resolve(); }
+  });
+}
 async function _autoRefreshPush(){
   try{
     if(!('Notification' in window) || Notification.permission!=='granted') return;
@@ -3758,6 +3789,7 @@ async function _autoRefreshPush(){
     _fcmToken=token;
     const ok=await _registerPushToken(token);
     if(!ok){ try{ sessionStorage.removeItem('cobc_push_refreshed'); }catch(e){} setTimeout(()=>{ try{ _autoRefreshPush(); }catch(e){} }, 60000); }   // try again in a minute
+    else setTimeout(()=>{ try{ _androidBatteryStep(false); }catch(e){} }, 3000);   // Android members who already had alerts on: show the battery step once
   }catch(e){ console.warn('auto push refresh:', e); try{ sessionStorage.removeItem('cobc_push_refreshed'); }catch(_){} }
 }
 async function initPushModule() {
@@ -3918,11 +3950,13 @@ async function enablePushForThisDevice() {
     showToast('✅ Notifications enabled!');
     renderHome && renderHome();
 
-    // Offer a test push to confirm end-to-end delivery
+    // Android: battery step first (Chrome put to sleep = alerts silently stop), then the test offer.
     setTimeout(() => {
-      if (confirm('Notifications enabled ✅\n\nSend a test notification to confirm delivery on this device?')) {
-        sendTestPush();
-      }
+      _androidBatteryStep(true).then(() => {
+        if (confirm('Notifications enabled ✅\n\nSend a test notification to confirm delivery on this device?')) {
+          sendTestPush();
+        }
+      });
     }, 600);
 
   } catch(e) {
@@ -14645,6 +14679,9 @@ async function forceGetLatestVersion(btn){
     }
     showToast('⬆️ Fetching latest version…');
   }catch(e){}
+  // Unregistering the service worker cancels this phone's alert sign-up. Clear the "already
+  // signed up this session" flag so the reloaded app signs the phone up again right away (Nov 2026).
+  try{ sessionStorage.removeItem('cobc_push_refreshed'); }catch(e){}
   setTimeout(()=>{ location.replace(location.pathname+'?v='+Date.now()); }, 700);
 }
 function showInstallInstructions() {
