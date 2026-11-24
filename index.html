@@ -7866,7 +7866,7 @@ function updateOnDutyBanner() {
   let name2 = '', phone2 = '';
   try {
     if (typeof DISPATCH_SCHEDULE !== 'undefined' && typeof getShiftIndexNow === 'function') {
-      const now2 = new Date();
+      const now2 = _schedDayNow();
       const shiftIdx2 = getShiftIndexNow();
       let slot2 = DISPATCH_SCHEDULE[shiftIdx2]?.slots?.[now2.getDay()] || null;
       // Apply today's short-term fill-in override if present
@@ -7915,7 +7915,7 @@ function callDispatchOnDuty2() {
   // Check schedule slot.s first (same logic as updateOnDutyBanner)
   try {
     if (typeof DISPATCH_SCHEDULE !== 'undefined' && typeof getShiftIndexNow === 'function') {
-      const slot2 = DISPATCH_SCHEDULE[getShiftIndexNow()]?.slots?.[new Date().getDay()] || null;
+      const slot2 = DISPATCH_SCHEDULE[getShiftIndexNow()]?.slots?.[_schedDayNow().getDay()] || null;
       const slotSec = slot2?.s || '';
       if (slotSec && slotSec !== 'OPEN' && slotSec !== 'CHIEFS') {
         phone = getDispatcherPhone ? (getDispatcherPhone(slotSec) || '') : '';
@@ -10273,7 +10273,7 @@ function getOnDutyDispatcher() {
   let slotPrimary = '';
   try {
     if(typeof DISPATCH_SCHEDULE !== 'undefined' && typeof getShiftIndexNow === 'function') {
-      const now = new Date();
+      const now = _schedDayNow();
       const dow = now.getDay();
       const shiftIdx = getShiftIndexNow();
       slot = DISPATCH_SCHEDULE[shiftIdx]?.slots?.[dow] || null;
@@ -10686,7 +10686,7 @@ function _onDutySlot(){
   try{
     if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length) return {};
     const shiftIdx=getShiftIndexNow(); const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return {};
-    const today=new Date(); today.setHours(0,0,0,0);
+    const today=_schedDayNow();
     const ov=STATE.schedOverrides && STATE.schedOverrides[_dateStrOf(today)] && STATE.schedOverrides[_dateStrOf(today)][shiftIdx];
     const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[today.getDay()]||{});
     const u=nm=>(!nm||nm==='OPEN'||nm==='CHIEFS')?'':_normU(_shiftUnitOf(nm)||'');
@@ -13268,9 +13268,7 @@ function _telzioStatusForUnit(unit){
         const parts=(row.shift||'').split('-'); if(parts.length<2) return;
         const [sHH,sMM]=parts[0].split(':').map(Number);
         const [eHH,eMM]=parts[1].split(':').map(Number);
-        const start=new Date(baseDate); start.setHours(sHH,sMM,0,0);
-        let end=new Date(baseDate); end.setHours(eHH,eMM,0,0);
-        if(end<=start) end.setDate(end.getDate()+1);
+        const _tt=_shiftTimes(row, baseDate); const start=_tt.start, end=_tt.end;   // 03-07 = next morning
         const minsToStart=(start-now)/60000, minsToEnd=(end-now)/60000;
         const prevIdx=(shiftIdx+DISPATCH_SCHEDULE.length-1)%DISPATCH_SCHEDULE.length;
         const prevBase = shiftIdx===0 ? new Date(baseDate.getTime()-86400000) : baseDate;
@@ -13358,7 +13356,7 @@ function _onDutyDispatchUnits(){
     if(typeof DISPATCH_SCHEDULE==='undefined' || !DISPATCH_SCHEDULE.length) return [];
     const shiftIdx=getShiftIndexNow();
     const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return [];
-    const today=new Date(); today.setHours(0,0,0,0);
+    const today=_schedDayNow();
     const dateStr=_dateStrOf(today);
     const ov=STATE.schedOverrides && STATE.schedOverrides[dateStr] && STATE.schedOverrides[dateStr][shiftIdx];
     const slot = ov ? {p:ov.p,s:ov.s} : (row.slots[today.getDay()]||{p:'OPEN',s:'OPEN'});
@@ -13434,9 +13432,7 @@ function _myTelzioShiftStatus(){
         const parts=(row.shift||'').split('-'); if(parts.length<2) return;
         const [sHH,sMM]=parts[0].split(':').map(Number);
         const [eHH,eMM]=parts[1].split(':').map(Number);
-        const start=new Date(baseDate); start.setHours(sHH,sMM,0,0);
-        let end=new Date(baseDate); end.setHours(eHH,eMM,0,0);
-        if(end<=start) end.setDate(end.getDate()+1);
+        const _tt=_shiftTimes(row, baseDate); const start=_tt.start, end=_tt.end;   // 03-07 = next morning
         const minsToStart=(start-now)/60000, minsToEnd=(end-now)/60000;
         const prevIdx=(shiftIdx+DISPATCH_SCHEDULE.length-1)%DISPATCH_SCHEDULE.length;
         const prevBase = shiftIdx===0 ? new Date(baseDate.getTime()-86400000) : baseDate;
@@ -13516,9 +13512,7 @@ function checkShiftSignInOutReminders(){
         if(parts.length<2) return;
         const [sHH,sMM]=parts[0].split(':').map(Number);
         const [eHH,eMM]=parts[1].split(':').map(Number);
-        const start=new Date(baseDate); start.setHours(sHH,sMM,0,0);
-        let end=new Date(baseDate); end.setHours(eHH,eMM,0,0);
-        if(end<=start) end.setDate(end.getDate()+1); // shift crosses midnight
+        const _tt=_shiftTimes(row, baseDate); const start=_tt.start, end=_tt.end;   // 03-07 = next morning
         const minsToStart=(start-now)/60000;
         const minsToEnd=(end-now)/60000;
         const keyBase=`${_dateStrOf(baseDate)}_${shiftIdx}_${role}`;
@@ -16624,16 +16618,9 @@ function _dateStrOf(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStar
 // matters when date === today; for past/future days this is irrelevant since the
 // whole day is already past or the shift hasn't started yet).
 function _isShiftPastForDate(row, date){
-  const today=new Date(); today.setHours(0,0,0,0);
   const d=new Date(date); d.setHours(0,0,0,0);
-  if(d.getTime()!==today.getTime()) return false; // only applies to today
-  const parts=(row.shift||'').split('-'); if(parts.length<2) return false;
-  const [eHH,eMM]=parts[1].split(':').map(Number);
-  const [sHH,sMM]=parts[0].split(':').map(Number);
-  const end=new Date(); end.setHours(eHH,eMM,0,0);
-  const start=new Date(); start.setHours(sHH,sMM,0,0);
-  if(end<=start) end.setDate(end.getDate()+1); // overnight shift
-  return new Date() > end;
+  const t=_shiftTimes(row, d); if(!t) return false;
+  return new Date() > t.end;
 }
 function _dayCoverageStatus(date){
   if(typeof DISPATCH_SCHEDULE==='undefined') return null;
@@ -16935,7 +16922,7 @@ function resetScheduleSlot() {
 
 const SCHED_DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const SCHED_DAYS_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-let schedCurDay=new Date().getDay();
+let schedCurDay=_schedDayNow().getDay();
 let schedWeekOffset=0; // weeks from current week (0=this, 1=next, -1=last)
 function schedNavWeek(delta) {
   if(delta===0) schedWeekOffset=0; else schedWeekOffset+=delta;
@@ -16999,6 +16986,20 @@ function schedCalPickDay(y,m,d){
   renderSchedule();
 }
 
+// A schedule "day" runs 07:00 → 07:00 the next morning (same as the Google Sheet): Monday's
+// 23:00-03:00 and 03:00-07:00 shifts are Monday NIGHT into Tuesday morning. Before 7 am we are
+// still in yesterday's column (Nov 2026).
+function _schedDayNow(){ const d=new Date(); if(d.getHours()<7) d.setDate(d.getDate()-1); d.setHours(0,0,0,0); return d; }
+// Real start/end clock times of shift row on schedule day `day`.
+function _shiftTimes(row, day){
+  const parts=String(row&&row.shift||'').split('-'); if(parts.length<2) return null;
+  const [sHH,sMM]=parts[0].split(':').map(Number), [eHH,eMM]=parts[1].split(':').map(Number);
+  const start=new Date(day); start.setHours(sHH,sMM||0,0,0);
+  const end=new Date(day); end.setHours(eHH,eMM||0,0,0);
+  if(sHH<7){ start.setDate(start.getDate()+1); end.setDate(end.getDate()+1); }   // 03:00-07:00 = next morning
+  if(end<=start) end.setDate(end.getDate()+1);                                       // 23:00-03:00 crosses midnight
+  return {start,end};
+}
 function getShiftIndexNow() {
   const h=new Date().getHours();
   if(h>=7 &&h<9)  return 0;
@@ -17027,11 +17028,12 @@ function getDispatcherPhone(nameStr) {
 
 function renderSchedule() {
   const now=new Date();
-  const dow=now.getDay();
+  const _sd=_schedDayNow();
+  const dow=_sd.getDay();
   const shiftIdx=getShiftIndexNow();
   const curShift=DISPATCH_SCHEDULE[shiftIdx];
   _pruneSchedOverrides();
-  const _todayStr=_dateStrOf(now);
+  const _todayStr=_dateStrOf(_sd);
   const _ovNow=(STATE.schedOverrides&&STATE.schedOverrides[_todayStr]&&STATE.schedOverrides[_todayStr][shiftIdx])||null;
   const curSlot=_ovNow?{p:_ovNow.p,s:_ovNow.s}:curShift?.slots[dow];
 
@@ -17165,9 +17167,9 @@ function renderSchedWeekGrid(){
     h+='<tr><td class="t">'+String(row.shift||'').replace(/:00/g,'').replace('-','–')+'</td>';
     days.forEach(d=>{
       const s=_schedSlotOn(d,si), w=_schedWho(s.p);
-      const past=_isShiftPastForDate(row,d) || d<today;
+      const past=_isShiftPastForDate(row,d);
       const cls=s.p==='OPEN'?'sw-cell-open':s.p==='CHIEFS'?'sw-cell-chiefs':'sw-cell-ok';
-      const isNow=d.getTime()===today.getTime() && si===curSi;
+      const isNow=d.getTime()===_schedDayNow().getTime() && si===curSi;
       h+='<td class="'+cls+(past?' sw-cell-past':'')+(isNow?' sw-cell-now':'')+'" onclick="schedOpenDay('+d.getFullYear()+','+d.getMonth()+','+d.getDate()+')">'
         +'<div class="sw-bc"'+(s.p==='OPEN'?' style="color:#fde68a;font-size:10.5px;"':'')+'>'+_rcEsc(w.bc)+(s.temp?'*':'')+'</div>'
         +(w.nm?'<div class="sw-nm">'+_rcEsc(w.nm)+'</div>':'')
@@ -17175,7 +17177,7 @@ function renderSchedWeekGrid(){
     });
     h+='</tr>';
   });
-  h+='</table><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;line-height:1.5;">Green = covered · <b style="color:#fde68a;">Orange = OPEN</b> · * = one-time change · Gold outline = on duty now.<br>Tap any box to open that day.</div>';
+  h+='</table><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;line-height:1.5;">Green = covered · <b style="color:#fde68a;">Orange = OPEN</b> · * = one-time change · Gold outline = on duty now.<br>Each day runs 7 am to 7 am: the 23–03 and 03–07 shifts are that night into the next morning.<br>Tap any box to open that day.</div>';
   el.innerHTML=h;
 }
 function renderSchedMonthView(){
@@ -17210,7 +17212,7 @@ function _schedMonthNav(d){ _schedMonthM+=d; if(_schedMonthM<0){_schedMonthM=11;
 function renderSchedOpenView(){
   const el=document.getElementById('schedOpenView'); if(!el) return;
   const canTake=['admin','dispatch'].includes(SESSION&&SESSION.role);
-  const today=new Date(); today.setHours(0,0,0,0);
+  const today=_schedDayNow();   // before 7 am, last night's shifts are still in yesterday's column
   const out=[];
   for(let k=0;k<14;k++){
     const d=new Date(today); d.setDate(d.getDate()+k);
@@ -17237,7 +17239,10 @@ function renderSchedOpenView(){
 function renderScheduleDay() {
   const now=new Date();
   const curHourShift=getShiftIndexNow();
-  const isToday=schedWeekOffset===0 && schedCurDay===now.getDay();
+  const isToday=_schedDateFor(schedCurDay)===_dateStrOf(_schedDayNow());
+  const _dayDate=(()=>{ const [y,m,d]=_schedDateFor(schedCurDay).split('-').map(Number); return new Date(y,m-1,d); })();
+  const _md=d=>SCHED_DAYS[d.getDay()]+' '+(d.getMonth()+1)+'/'+d.getDate();
+  const _nextDate=new Date(_dayDate); _nextDate.setDate(_nextDate.getDate()+1);
   const el=document.getElementById('schedDayContent');
   el.innerHTML=DISPATCH_SCHEDULE.map((row,si)=>{
     const _dateStr=_schedDateFor(schedCurDay);
@@ -17259,6 +17264,7 @@ function renderScheduleDay() {
           <div style="font-size:15px;font-weight:800;color:var(--gold-light,#e6c463);font-family:'DM Mono',monospace;margin-bottom:4px;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.4);">
             ${row.shift}${isNow?' <span style="background:var(--gold-light,#e6c463);color:#1a1407;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:800;">NOW</span>':''}
           </div>
+          <div style="font-size:12.5px;font-weight:700;color:rgba(255,255,255,.62);margin:-2px 0 5px;">${(()=>{ const _sh=parseInt(String(row.shift).split(':')[0],10), _eh=parseInt(String(row.shift).split('-')[1],10); if(_sh<7) return _md(_nextDate)+' early morning'; if(_eh<=_sh) return _md(_dayDate)+' night → '+_md(_nextDate); return _md(_dayDate); })()}</div>
           <div style="font-size:18px;font-weight:800;color:${nameColor};text-shadow:0 1px 2px rgba(0,0,0,.4);">${isOpen?'OPEN':isChiefs?'Chiefs':slot.p}</div>
           ${isTemp?`<div style="font-size:11px;font-weight:700;color:#fbbf24;margin-top:3px;">● Fill-in for ${_schedDateLabel(schedCurDay)}${['admin','dispatch'].includes(SESSION.role)?` · <span onclick="event.stopPropagation();clearSlotOverride(${si},${schedCurDay})" style="text-decoration:underline;cursor:pointer;">remove</span>`:''}</div>`:''}
           ${isChiefs?'':(!slot.s||slot.s==='OPEN')?`<div style="font-size:13px;color:#fbbf24;font-weight:700;margin-top:3px;">Secondary: OPEN</div>`:`<div style="font-size:13px;color:rgba(255,255,255,.7);margin-top:3px;">Secondary: ${slot.s===slot.p?'same as primary':slot.s}</div>`}
