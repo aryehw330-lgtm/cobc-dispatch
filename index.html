@@ -9803,6 +9803,7 @@ const _MEDICAL_RE=/\b(medical|injur\w*|bleed\w*|unconscious|unresponsive|chest p
 function _isMedicalCallForm(){
   const v=id=>String((document.getElementById(id)||{}).value||'');
   if(v('callType')==='medical') return true;
+  if(v('callType')==='missing_person') return false;   // has its own approval flow; its notes ask for "medical needs"
   return _MEDICAL_RE.test(v('otherTypeText')+' '+v('callNotes'));
 }
 function _chiefNumbers(){ return (STATE.numbers||[]).filter(n=>/chief/i.test(String(n.category||n.cat||''))&&(n.phone||n.number)); }
@@ -16666,7 +16667,8 @@ function _pruneSchedOverrides(){
   if(!STATE.schedOverrides) return;
   const today=_dateStrOf(new Date()); let changed=false;
   for(const k of Object.keys(STATE.schedOverrides)){ if(k<today){ delete STATE.schedOverrides[k]; changed=true; } }
-  if(changed){ save(); try{ pushSchedOverridesToFirestore(); }catch(e){} }
+  // Only dispatch/admin may save shifts (rules, Nov 2026) — members just tidy their own copy.
+  if(changed){ save(); if(['admin','dispatch'].includes((SESSION&&SESSION.role)||'')){ try{ Promise.resolve(pushSchedOverridesToFirestore()).catch(()=>{}); }catch(e){} } }
 }
 // Admin: wipe ALL one-time schedule fill-ins (e.g. to clear test data). Does not
 // touch the recurring weekly template.
