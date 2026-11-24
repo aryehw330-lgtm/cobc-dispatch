@@ -4057,6 +4057,9 @@ async function sendPush(payload) {
       const { waText, waChat, ...noWa } = payload;
       payload = noWa;
     }
+    // One-time ID for this alert, kept across retries: if the phone goes to the background and
+    // re-sends after the server already did it, the server ignores the repeat (push server v50).
+    if (!payload.pushId) payload = { ...payload, pushId: Date.now().toString(36) + Math.random().toString(36).slice(2, 10) };
     // Busy moments (many members tapping at once) can make the push server refuse a few
     // sends. Check the answer and retry with growing, randomised waits (Nov 2026).
     const _waits=[0, 2000, 5000, 10000];
@@ -9938,6 +9941,7 @@ async function _createCallInner() {
     createdBy: SESSION.unit,
     rrCount: 0,
     rrLastSent: (dontPublish||_silent)?null:Date.now(),
+    publishedAt: (dontPublish||_silent)?null:Date.now(),
     carMake:carMake||null, carModel:carModel||null, carYear:carYear||null, carColor:carColor||null,
     carTrim:carTrim||null, safeLocation:safeLocation||null,
     needsApproval:_mpNeedsApproval||null,
@@ -11632,7 +11636,7 @@ async function publishCall(id) {
     try{ call.callNum = await _nextCallNumAtomic(); call.callNumPending=false; }
     catch(e){ console.warn('Call-number atomic mint (publish) failed (offline?) — assigning on sync'); call.callNum=null; call.callNumPending=true; _queueCallNumReconcile(call.id); try{ _drainCallNumQueue(); }catch(_e){} }
   }
-  call.status='open'; call.rrLastSent=Date.now();
+  call.status='open'; call.rrLastSent=Date.now(); call.publishedAt=Date.now();   // reminders time from when it went out
   // The dispatcher who makes the draft real becomes the call's dispatcher (not the draft author).
   call.createdBy = SESSION.unit;
 
