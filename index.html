@@ -3751,7 +3751,7 @@ function _isAndroid(){ return /android/i.test(navigator.userAgent||''); }
 function _androidBatteryStep(force){
   return new Promise(resolve=>{
     try{
-      if(!_isAndroid()) { resolve(); return; }
+      if(!_isAndroid() || _isNativeApp()) { resolve(); return; }
       if(!force){ try{ if(localStorage.getItem('cobc_batt_step_seen')) { resolve(); return; } }catch(e){} }
       try{ localStorage.setItem('cobc_batt_step_seen', String(Date.now())); }catch(e){}
       const old=document.getElementById('battStepModal'); if(old) old.remove();
@@ -3774,8 +3774,53 @@ function _androidBatteryStep(force){
     }catch(e){ resolve(); }
   });
 }
+// ── Android app (Play Store) — native alerts (Nov 2026) ─────────────────────────────
+// Inside the COBC Dispatch Android app (Capacitor), alerts come through Android's own Firebase
+// messaging, not Chrome's web push: high priority, own channel, not put to sleep by battery saving.
+// The same push server sends to these phones; Android shows the notification itself.
+function _isNativeApp(){ try{ return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }catch(e){ return false; } }
+function _notifPerm(){
+  if(_isNativeApp()){ try{ return localStorage.getItem('cobc_native_perm')||'default'; }catch(e){ return 'default'; } }
+  return ('Notification' in window) ? Notification.permission : 'unsupported';
+}
+let _nativePushWired=false;
+async function _nativePushSetup(askPermission){
+  try{
+    if(!_isNativeApp() || typeof SESSION==='undefined' || !SESSION || !SESSION.unit) return false;
+    const PN = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications; if(!PN) return false;
+    if(!_nativePushWired){
+      _nativePushWired=true;
+      PN.addListener('registration', async t=>{
+        const tok=t&&t.value; if(!tok) return;
+        _fcmToken=tok;
+        const ok=await _registerPushToken(tok);
+        if(!ok) setTimeout(()=>{ try{ PN.register(); }catch(e){} }, 60000);   // try again in a minute
+        try{ renderSettingsTab(); }catch(e){} try{ renderHome && renderHome(); }catch(e){}
+      });
+      PN.addListener('registrationError', e=>console.warn('native push registration error', e));
+      // App open: Android doesn't show the banner itself — show it in the app.
+      PN.addListener('pushNotificationReceived', n=>{
+        const d=(n&&n.data)||{}; const t=(n&&n.title)||d.title||'COBC'; const b=(n&&n.body)||d.body||'';
+        let tt=t, tb=b; try{ const mn=_mineAlertText(t,b,_normUnitPg(SESSION&&SESSION.unit)); if(mn){ tt=mn.t; tb=mn.b; } }catch(e){}
+        showToast('🔔 '+tt+(tb?': '+tb:''));
+      });
+      // Tapped a notification → open that call.
+      PN.addListener('pushNotificationActionPerformed', a=>{
+        const d=(a&&a.notification&&a.notification.data)||{};
+        if(d.callId){ window._pendingDeepLink=d.callId; try{ tryOpenPendingDeepLink(); }catch(e){} }
+      });
+    }
+    let p=await PN.checkPermissions();
+    if(p.receive!=='granted' && askPermission) p=await PN.requestPermissions();
+    try{ localStorage.setItem('cobc_native_perm', p.receive==='granted'?'granted':(p.receive==='denied'?'denied':'default')); }catch(e){}
+    if(p.receive!=='granted') return false;
+    await PN.register();          // → 'registration' listener above signs this phone up with the push server
+    return true;
+  }catch(e){ console.warn('native push setup', e); return false; }
+}
 async function _autoRefreshPush(){
   try{
+    if(_isNativeApp()){ _nativePushSetup(true); return; }   // Android app: native alerts
     if(!('Notification' in window) || Notification.permission!=='granted') return;
     if(!('serviceWorker' in navigator)) return;
     if(typeof SESSION==='undefined' || !SESSION || !SESSION.unit) return;
@@ -3857,6 +3902,7 @@ async function initPushModule() {
 }
 
 async function enablePushForThisDevice() {
+  if(_isNativeApp()){ const ok=await _nativePushSetup(true); showToast(ok?'✅ Notifications enabled!':'⚠️ Allow notifications for COBC Dispatch in Android Settings → Apps'); try{ renderSettingsTab(); }catch(e){} return; }
   if (!SESSION.unit) { showToast('Log in first'); return; }
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -8292,7 +8338,7 @@ function renderHome() {
     const isStandalone = (window.navigator.standalone === true) ||
                          window.matchMedia('(display-mode: standalone)').matches;
     const has = !!localStorage.getItem('cobc_fcm_token_' + SESSION.unit);
-    const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+    const perm = _notifPerm();
 
     if (isIOS && !isStandalone) {
       // On iOS Safari (not PWA) — prompt to install
@@ -14229,6 +14275,7 @@ let _missedCheckAt=0;
 async function _checkMissedAlerts(){
   try{
     if(!SESSION || !SESSION.unit) return;
+    if(_isNativeApp()) return;   // Android app: Android shows alerts itself (the web record isn't used there)
     if(typeof Notification==='undefined' || Notification.permission!=='granted') return;   // "Blocked" is shown elsewhere
     if(!localStorage.getItem('cobc_fcm_token_'+SESSION.unit)) return;                          // phone not signed up for alerts
     if(Date.now()-_missedCheckAt<20000) return; _missedCheckAt=Date.now();
@@ -14514,7 +14561,7 @@ function renderSettingsTab() {
   const notifTest = document.getElementById('settings-notif-test');
   if(notifBtn) {
     const has = !!localStorage.getItem('cobc_fcm_token_' + (SESSION?.unit||''));
-    const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+    const perm = _notifPerm();
     if(perm === 'granted' && has) {
       notifBtn.textContent = 'Turn Off';
       notifBtn.className = 'btn-sm btn-ghost';
@@ -14618,7 +14665,7 @@ function toggleLocationSharing(enabled) {
 
 function togglePushNotifications() {
   const has = !!localStorage.getItem('cobc_fcm_token_' + (SESSION?.unit||''));
-  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  const perm = _notifPerm();
   if(perm === 'granted' && has) {
     disablePushForThisDevice();
   } else {
@@ -14640,7 +14687,8 @@ async function disablePushForThisDevice() {
         body: JSON.stringify({ action: 'unregister', authToken: await _pushAuth(), unit: SESSION.unit, token })
       }).catch(()=>{});
       // Delete token from FCM
-      if(_fcmMessaging) await _fcmMessaging.deleteToken().catch(()=>{});
+      if(_isNativeApp()){ try{ await window.Capacitor.Plugins.PushNotifications.unregister(); }catch(e){} }
+      else if(_fcmMessaging) await _fcmMessaging.deleteToken().catch(()=>{});
     }
     localStorage.removeItem('cobc_fcm_token_' + SESSION.unit);
     if(btn) { btn.textContent = 'Enable'; btn.className = 'btn-sm btn-primary'; btn.disabled = false; }
