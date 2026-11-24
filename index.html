@@ -3784,9 +3784,7 @@ async function initPushModule() {
       try{ const _k=t+'|'+b, _n=Date.now(); window._fgSeen=window._fgSeen||{}; _dupToast=!!(_fgSeen[_k] && _n-_fgSeen[_k]<30000); if(!_dupToast) _fgSeen[_k]=_n; }catch(e){}
       // Show in-app toast (the "BC-x is responding" alert reads as "Approved" on BC-x's own phone)
       let _tt=t, _tb=b;
-      try{ const _m=/Assigned to Call/i.test(t)&&/^#(\S*)\s*·\s*BC-0*(\d+) is responding\s*—\s*(.*)$/i.exec(b);
-        const _mine=String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'');
-        if(_m && _mine && _m[2]===_mine){ _tt='✅ Approved to respond to call #'+_m[1]; _tb=_m[3]; } }catch(e){}
+      try{ const _mn=_mineAlertText(t, b, _normUnitPg(SESSION&&SESSION.unit)); if(_mn){ _tt=_mn.t; _tb=_mn.b; } }catch(e){}
       if(!_dupToast) showToast('🔔 ' + _tt + (_tb ? ': ' + _tb : ''));
       // Also ask the service worker to show a system banner (works on Android/desktop;
       // iOS suppresses banners while the PWA is active — the toast above covers that case)
@@ -4037,6 +4035,27 @@ function syncPushTopicsIfEnabled_() {
     if (!token) return;
     syncPushTopics_(token, SESSION.role).catch(()=>{});
   } catch(e) {}
+}
+const _normUnitPg = (u) => String(u || '').trim().toUpperCase().replace(/^BC-?/, '').replace(/^0+(?=\d)/, '');
+// "Assigned to Call" alerts name the members on the call. On a phone whose member is one of them,
+// show it as their own alert: "✅ Approved to respond…" (one approved member) or "✅ You're assigned…"
+// (dispatcher assign), plus who else is on the call (Nov 2026). Returns null if it's not about this phone.
+// Body formats: "#412 · BC-95 is responding — Lockout, Teaneck · Also on call: BC-50"
+//               "#412 · BC-50, BC-52 responding — Lockout, Teaneck · Also on call: BC-60"
+//               "#412 · BC-50, BC-52 — Lockout, Teaneck"   (older app versions)
+function _mineAlertText(title, body, myUnit) {
+  if (!myUnit || !/Assigned to Call/i.test(String(title || ''))) return null;
+  const b = String(body || '');
+  const m = /^#(\S*)\s*·\s*(.+?)\s+(is\s+)?responding\s*—\s*(.*)$/i.exec(b) || /^#(\S*)\s*·\s*((?:BC-?\d+\s*,?\s*)+)()—\s*(.*)$/i.exec(b);
+  if (!m) return null;
+  const units = (m[2].match(/\d+/g) || []).map(_normUnitPg);
+  if (units.indexOf(myUnit) < 0) return null;
+  let place = m[4], also = [];
+  const am = /^(.*?)\s*·\s*Also on call:\s*(.*)$/i.exec(place);
+  if (am) { place = am[1]; also = (am[2].match(/\d+/g) || []).map(_normUnitPg); }
+  const others = units.concat(also).filter((u, i, a) => u !== myUnit && a.indexOf(u) === i).map((u) => 'BC-' + u);
+  const t = (m[3] && units.length === 1) ? ('✅ Approved to respond to call #' + m[1]) : ('✅ You\'re assigned to call #' + m[1]);
+  return { t: t, b: (others.length ? 'With ' + others.join(', ') + ' — ' : '') + place };
 }
 async function sendPush(payload) {
   // payload: { target: 'all' | 'dispatchers' | 'unit', unit?: '24', title, body, url?, urgent?, excludeUnit? }
@@ -10821,7 +10840,8 @@ function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
   setTimeout(()=>sendPush({
     target:'all',
     title:'Assigned to Call',
-    body:`#${call.callNum||''} · BC-${String(unit||'').replace(/^BC-?/i,'')} is responding — ${typeLabel}, ${call.town}`,
+    body:`#${call.callNum||''} · BC-${String(unit||'').replace(/^BC-?/i,'')} is responding — ${typeLabel}, ${call.town}`
+      + (()=>{ const _o=(call.responders||[]).map(r=>String(r.unit||'').replace(/^BC-?/i,'')).filter(u=>u && _normU(u)!==_normU(unit) && !_isInterstateUnit(u)); return _o.length?` · Also on call: ${[...new Set(_o)].map(u=>'BC-'+u).join(', ')}`:''; })(),
     url:'/cobc-dispatch/', callId:call.id
   }),0);
   window._approveOverrode=null;
@@ -11172,7 +11192,9 @@ async function submitRadioResponders() {
   // Single clean push to all with call number — only the newly-added members
   const _rLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   const _rNames=_newMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
-  setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} — ${_rLabel}, ${call.town}`,url:'/cobc-dispatch/',callId:id}),0);
+  const _newSet=new Set(_newMembers.map(m=>_normU(m.unit)));
+  const _alsoOn=[...new Set((call.responders||[]).map(r=>String(r.unit||'').replace(/^BC-?/i,'')).filter(u=>u && !_newSet.has(_normU(u)) && !_isInterstateUnit(u)))];
+  setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} responding — ${_rLabel}, ${call.town}`+(_alsoOn.length?` · Also on call: ${_alsoOn.map(u=>'BC-'+u).join(', ')}`:''),url:'/cobc-dispatch/',callId:id}),0);
   // WA: one consolidated message for the newly-added responders (not one per member)
   setTimeout(() => {
     let waMsg;

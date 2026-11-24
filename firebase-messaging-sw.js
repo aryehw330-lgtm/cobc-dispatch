@@ -171,14 +171,35 @@ function _idbGet(key) {
   });
 }
 const _normUnitSW = (u) => String(u || '').trim().toUpperCase().replace(/^BC-?/, '').replace(/^0+(?=\d)/, '');
+// "Assigned to Call" alerts name the members on the call. On a phone whose member is one of them,
+// show it as their own alert: "✅ Approved to respond…" (one approved member) or "✅ You're assigned…"
+// (dispatcher assign), plus who else is on the call (Nov 2026). Returns null if it's not about this phone.
+// Body formats: "#412 · BC-95 is responding — Lockout, Teaneck · Also on call: BC-50"
+//               "#412 · BC-50, BC-52 responding — Lockout, Teaneck · Also on call: BC-60"
+//               "#412 · BC-50, BC-52 — Lockout, Teaneck"   (older app versions)
+function _mineAlertText(title, body, myUnit) {
+  if (!myUnit || !/Assigned to Call/i.test(String(title || ''))) return null;
+  const b = String(body || '');
+  const m = /^#(\S*)\s*·\s*(.+?)\s+(is\s+)?responding\s*—\s*(.*)$/i.exec(b) || /^#(\S*)\s*·\s*((?:BC-?\d+\s*,?\s*)+)()—\s*(.*)$/i.exec(b);
+  if (!m) return null;
+  const units = (m[2].match(/\d+/g) || []).map(_normUnitSW);
+  if (units.indexOf(myUnit) < 0) return null;
+  let place = m[4], also = [];
+  const am = /^(.*?)\s*·\s*Also on call:\s*(.*)$/i.exec(place);
+  if (am) { place = am[1]; also = (am[2].match(/\d+/g) || []).map(_normUnitSW); }
+  const others = units.concat(also).filter((u, i, a) => u !== myUnit && a.indexOf(u) === i).map((u) => 'BC-' + u);
+  const t = (m[3] && units.length === 1) ? ('✅ Approved to respond to call #' + m[1]) : ('✅ You\'re assigned to call #' + m[1]);
+  return { t: t, b: (others.length ? 'With ' + others.join(', ') + ' — ' : '') + place };
+}
 async function _showAlert(title, body, data, fromForeground) {
   data = data || {};
   try {
     const callId = data.callId || null;
     const isApproval = /Approved to respond|you ARE approved/i.test(String(title || ''));
-    const m = /Assigned to Call/i.test(String(title || '')) && /BC-0*(\d+) is responding/i.exec(String(body || ''));
-    const myUnit = (isApproval || m) ? _normUnitSW(await _idbGet('myUnit')) : '';
-    const aboutMe = !!(m && myUnit && _normUnitSW(m[1]) === myUnit);
+    const isAssigned = /Assigned to Call/i.test(String(title || ''));
+    const myUnit = (isApproval || isAssigned) ? _normUnitSW(await _idbGet('myUnit')) : '';
+    const mine = isAssigned ? _mineAlertText(title, body, myUnit) : null;
+    const aboutMe = !!mine;
     if (callId && (isApproval || aboutMe)) {
       const tag = 'cobc-mine-' + callId;
       let existing = null;
@@ -186,7 +207,7 @@ async function _showAlert(title, body, data, fromForeground) {
       let t = title, b = body;
       if (aboutMe) {   // keep the personal approval wording on this phone
         if (existing) { t = existing.title; b = existing.body; }
-        else { const num = (/#(\S+)/.exec(String(body || '')) || [])[1] || ''; t = '✅ Approved to respond to call #' + num; b = String(body || '').replace(/^#\S*\s*·\s*BC-?\d+ is responding\s*—\s*/i, ''); }
+        else { t = mine.t; b = mine.b; }
       }
       await self.registration.showNotification(t || 'COBC Dispatch', {
         body: b || '',
