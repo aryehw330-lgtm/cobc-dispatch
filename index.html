@@ -17170,11 +17170,12 @@ function renderSchedWeekGrid(){
       const isNow=d.getTime()===today.getTime() && si===curSi;
       h+='<td class="'+cls+(past?' sw-cell-past':'')+(isNow?' sw-cell-now':'')+'" onclick="schedOpenDay('+d.getFullYear()+','+d.getMonth()+','+d.getDate()+')">'
         +'<div class="sw-bc"'+(s.p==='OPEN'?' style="color:#fde68a;font-size:10.5px;"':'')+'>'+_rcEsc(w.bc)+(s.temp?'*':'')+'</div>'
-        +(w.nm?'<div class="sw-nm">'+_rcEsc(w.nm)+'</div>':'')+'</td>';
+        +(w.nm?'<div class="sw-nm">'+_rcEsc(w.nm)+'</div>':'')
+        +(s.p==='CHIEFS'?'':(!s.s||s.s==='OPEN')?'<div class="sw-nm" style="color:#fde68a;">2nd open</div>':(s.s!==s.p?'<div class="sw-nm" style="opacity:.75;">2nd '+_rcEsc(_schedWho(s.s).bc)+'</div>':''))+'</td>';
     });
     h+='</tr>';
   });
-  h+='</table><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;line-height:1.5;">Green = covered · <b style="color:#fde68a;">Orange = OPEN</b> · * = one-time change · Gold outline = on duty now.<br>Tap any box to open that day.</div>';
+  h+='</table><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:8px;line-height:1.5;">Green = covered · <b style="color:#fde68a;">Orange = OPEN</b> · "2nd" = secondary · * = one-time change · Gold outline = on duty now.<br>Tap any box to open that day.</div>';
   el.innerHTML=h;
 }
 function renderSchedMonthView(){
@@ -17216,7 +17217,7 @@ function renderSchedOpenView(){
     DISPATCH_SCHEDULE.forEach((row,si)=>{
       if(_isShiftPastForDate(row,d)) return;
       const s=_schedSlotOn(d,si);
-      if(s.p==='OPEN') out.push({d,si,row,s});
+      if(s.p==='OPEN' || (s.p!=='CHIEFS' && (!s.s || s.s==='OPEN'))) out.push({d,si,row,s});
     });
   }
   if(!out.length){ el.innerHTML='<div class="card" style="text-align:center;padding:22px;"><div style="font-size:28px;">✅</div><div style="font-weight:800;margin-top:6px;">Every shift is covered for the next 2 weeks</div></div>'; return; }
@@ -17224,7 +17225,8 @@ function renderSchedOpenView(){
   out.forEach(o=>{
     const dl=o.d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
     if(dl!==lastDay){ h+='<div class="section-label" style="margin:12px 0 6px;">'+dl+'</div>'; lastDay=dl; }
-    const sec=o.s.s&&o.s.s!=='OPEN'?'2nd: '+_rcEsc(o.s.s):'';
+    const _pOpen=o.s.p==='OPEN', _sOpen=!o.s.s||o.s.s==='OPEN';
+    const sec=(_pOpen&&_sOpen)?'Primary + Secondary open':_pOpen?'Primary open · 2nd: '+_rcEsc(o.s.s):'Secondary open · Primary: '+_rcEsc(o.s.p);
     h+='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;margin-bottom:6px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);">'
       +'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:900;color:#fff;">'+_rcEsc(o.row.shift)+'</div>'+(sec?'<div style="font-size:11.5px;color:rgba(255,255,255,.7);">'+sec+'</div>':'')+'</div>'
       +(canTake?'<button class="btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:800;" onclick="_schedGoto(new Date('+o.d.getFullYear()+','+o.d.getMonth()+','+o.d.getDate()+'));takeScheduleSlot('+o.si+','+o.d.getDay()+')">Take</button>':'')
@@ -17259,7 +17261,7 @@ function renderScheduleDay() {
           </div>
           <div style="font-size:18px;font-weight:800;color:${nameColor};text-shadow:0 1px 2px rgba(0,0,0,.4);">${isOpen?'OPEN':isChiefs?'Chiefs':slot.p}</div>
           ${isTemp?`<div style="font-size:11px;font-weight:700;color:#fbbf24;margin-top:3px;">● Fill-in for ${_schedDateLabel(schedCurDay)}${['admin','dispatch'].includes(SESSION.role)?` · <span onclick="event.stopPropagation();clearSlotOverride(${si},${schedCurDay})" style="text-decoration:underline;cursor:pointer;">remove</span>`:''}</div>`:''}
-          ${slot.s&&slot.s!=='OPEN'&&slot.s!==slot.p?`<div style="font-size:13px;color:rgba(255,255,255,.7);margin-top:3px;">2nd: ${slot.s}</div>`:''}
+          ${isChiefs?'':(!slot.s||slot.s==='OPEN')?`<div style="font-size:13px;color:#fbbf24;font-weight:700;margin-top:3px;">2nd: OPEN</div>`:`<div style="font-size:13px;color:rgba(255,255,255,.7);margin-top:3px;">2nd: ${slot.s===slot.p?'same as primary':slot.s}</div>`}
         </div>
         ${['admin','dispatch'].includes(SESSION.role)?`<button onclick="takeScheduleSlot(${si},${schedCurDay})" style="background:linear-gradient(180deg,#5fe09a,#16a34a);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.3);">Take</button>`:''}
         ${['admin','dispatch'].includes(SESSION.role)?`<button onclick="openScheduleEdit(${si},${schedCurDay})" style="background:rgba(230,196,99,.18);border:1px solid rgba(230,196,99,.4);color:var(--gold-light,#e6c463);border-radius:8px;padding:8px 12px;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0;">✏️</button>`:''}
