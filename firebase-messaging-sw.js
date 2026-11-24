@@ -188,7 +188,7 @@ async function _showAlert(title, body, data, fromForeground) {
         if (existing) { t = existing.title; b = existing.body; }
         else { const num = (/#(\S+)/.exec(String(body || '')) || [])[1] || ''; t = '✅ You\'re on call #' + num; b = String(body || '').replace(/^#\S+\s*·\s*/, ''); }
       }
-      return self.registration.showNotification(t || 'COBC Dispatch', {
+      await self.registration.showNotification(t || 'COBC Dispatch', {
         body: b || '',
         icon: '/cobc-dispatch/icon-192.png',
         badge: '/cobc-dispatch/icon-badge-mono.png',
@@ -199,6 +199,10 @@ async function _showAlert(title, body, data, fromForeground) {
         vibrate: existing ? undefined : [100, 50, 100],
         data: { url: data.url || '/cobc-dispatch/', callId: callId, mine: true }
       });
+      // iPhone doesn't replace a notification that has the same tag — it adds another. So once the
+      // new one is showing, close the earlier copy: only one stays in the list (Nov 2026).
+      if (existing) { try { existing.close(); } catch (e) {} }
+      return;
     }
   } catch (e) { /* fall through to the normal path below */ }
   const urgent = data.urgent === 'true';
