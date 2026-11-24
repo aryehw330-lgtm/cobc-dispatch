@@ -170,6 +170,30 @@ function _idbGet(key) {
     } catch (err) { resolve(null); }
   });
 }
+// Missed-alert check (Nov 2026): remember which calls this phone actually got an alert for. Each one is
+// its own key ("recv_<callId>") so a burst of alerts can't overwrite each other. The app compares this
+// with the calls that went out and warns the member if their phone stayed silent.
+function _recordPush(data) {
+  return new Promise((resolve) => {
+    try {
+      const callId = data && data.callId;
+      if (!callId) { resolve(); return; }
+      const req = indexedDB.open('cobc_sw_store', 1);
+      req.onupgradeneeded = (e) => { e.target.result.createObjectStore('kv', { keyPath: 'k' }); };
+      req.onsuccess = (e) => {
+        try {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('kv')) { resolve(); return; }
+          const tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').put({ k: 'recv_' + callId, v: Date.now() });
+          tx.oncomplete = () => resolve(); tx.onerror = () => resolve(); tx.onabort = () => resolve();
+        } catch (err) { resolve(); }
+      };
+      req.onerror = () => resolve();
+      req.onblocked = () => resolve();
+    } catch (err) { resolve(); }
+  });
+}
 const _normUnitSW = (u) => String(u || '').trim().toUpperCase().replace(/^BC-?/, '').replace(/^0+(?=\d)/, '');
 // "Assigned to Call" alerts name the members on the call. On a phone whose member is one of them,
 // show it as their own alert: "✅ Approved to respond…" (one approved member) or "✅ You're assigned…"
@@ -246,14 +270,14 @@ async function _showAlert(title, body, data, fromForeground) {
 messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title || payload.data?.title || 'COBC Dispatch';
   const body  = payload.notification?.body  || payload.data?.body  || '';
-  return _showAlert(title, body, payload.data || {}, false);
+  return Promise.all([_showAlert(title, body, payload.data || {}, false), _recordPush(payload.data || {})]);
 });
 
 // Show notification when app is in foreground (posted from onMessage handler)
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SHOW_NOTIFICATION') {
     const { title, body, data } = event.data;
-    const p = _showAlert(title, body, data || {}, true);
+    const p = Promise.all([_showAlert(title, body, data || {}, true), _recordPush(data || {})]);
     if (event.waitUntil) event.waitUntil(p);
   }
 });

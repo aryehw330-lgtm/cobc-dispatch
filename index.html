@@ -6565,6 +6565,7 @@ function initFirestore(){
   }
   function _applyCallsMerge(){
     if(_bufRecent===null && _bufOpen===null) return;
+    try{ setTimeout(()=>{ try{ _checkMissedAlerts(); }catch(e){} }, 5000); }catch(e){}
     _restoreBootCalls();
     const map=new Map();
     (_bufOpen||[]).forEach(c=>{ if(c&&c.id) map.set(c.id,c); });
@@ -14159,6 +14160,81 @@ function _infoNavTarget(l){
   return '';
 }
 function _infoAvailable(e){ return e && e.status==='in' && !e.isCNC && !['Damaged','Missing','Not Active'].includes(e.equipStatus) && !_infoHiddenLoc(e.location); }
+
+// ── Missed-alert check (Nov 2026) ───────────────────────────────────────────────
+// The service worker records every call this phone actually got an alert for (IDB kv "recv_<callId>").
+// If a call went out a few minutes ago and this phone never got its alert, show a red bar
+// "Your phone didn't ring…" that opens the phone-setup steps. Android battery saving can silently
+// cut a phone off from alerts until it's restarted — this catches it after the first missed call.
+const _MISSED_GRACE_MS = 3*60*1000;
+function _missedTrackSince(){
+  try{
+    let t=+localStorage.getItem('cobc_missed_since')||0;
+    if(!t){ t=Date.now(); localStorage.setItem('cobc_missed_since', String(t)); }
+    return t;
+  }catch(e){ return Date.now(); }
+}
+function _idbRecvCalls(){
+  return new Promise(resolve=>{
+    try{
+      const req=indexedDB.open('cobc_sw_store',1);
+      req.onupgradeneeded=e=>{ e.target.result.createObjectStore('kv',{keyPath:'k'}); };
+      req.onsuccess=e=>{ try{
+        const db=e.target.result; if(!db.objectStoreNames.contains('kv')){ resolve(null); return; }
+        const st=db.transaction('kv','readwrite').objectStore('kv'); const g=st.getAll();
+        g.onsuccess=()=>{ const out=new Set(), old=Date.now()-3*86400000;
+          (g.result||[]).forEach(r=>{ if(r && typeof r.k==='string' && r.k.indexOf('recv_')===0){ if(r.v<old){ try{ st.delete(r.k); }catch(x){} } else out.add(r.k.slice(5)); } });
+          resolve(out); };
+        g.onerror=()=>resolve(null);
+      }catch(err){ resolve(null); } };
+      req.onerror=()=>resolve(null); req.onblocked=()=>resolve(null);
+    }catch(e){ resolve(null); }
+  });
+}
+let _missedCheckAt=0;
+async function _checkMissedAlerts(){
+  try{
+    if(!SESSION || !SESSION.unit) return;
+    if(typeof Notification==='undefined' || Notification.permission!=='granted') return;   // "Blocked" is shown elsewhere
+    if(!localStorage.getItem('cobc_fcm_token_'+SESSION.unit)) return;                          // phone not signed up for alerts
+    if(Date.now()-_missedCheckAt<20000) return; _missedCheckAt=Date.now();
+    const since=_missedTrackSince(), now=Date.now();
+    const sent=(STATE.calls||[]).filter(c=>c && c.publishedAt && !c.silent && !(c.isTest && c.type==='missing_person')
+      && c.publishedAt>since && c.publishedAt<now-_MISSED_GRACE_MS && c.publishedAt>now-24*3600000);
+    if(!sent.length){ _showMissedBanner([]); return; }
+    const got=await _idbRecvCalls(); if(!got) return;   // can't read — say nothing rather than guess
+    let dismissed=[]; try{ dismissed=JSON.parse(localStorage.getItem('cobc_missed_dismissed')||'[]'); }catch(e){}
+    const missed=sent.filter(c=>!got.has(c.id) && !dismissed.includes(c.id));
+    _showMissedBanner(missed);
+  }catch(e){ console.warn('missed-alert check', e); }
+}
+function _showMissedBanner(missed){
+  let bar=document.getElementById('missedAlertsBar');
+  if(!missed || !missed.length){ if(bar) bar.remove(); return; }
+  if(!bar){ bar=document.createElement('div'); bar.id='missedAlertsBar';
+    bar.style.cssText='position:fixed;left:10px;right:10px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:10040;background:#b91c1c;color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:14px;padding:11px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:13.5px;font-weight:700;line-height:1.35;';
+    document.body.appendChild(bar); }
+  const nums=missed.map(c=>c.callNum?('#'+c.callNum):'a call').slice(0,3).join(', ')+(missed.length>3?' and more':'');
+  window._missedIds=missed.map(c=>c.id);
+  bar.innerHTML='<span style="font-size:20px;">⚠️</span><span style="flex:1;min-width:0;cursor:pointer;" onclick="_openMissedFix()">Your phone didn\'t ring for '+nums+'. <u>Tap to fix your alerts</u></span>'
+    +'<button onclick="_dismissMissed()" aria-label="Dismiss" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:9px;padding:6px 10px;font-weight:900;font-size:14px;cursor:pointer;">✕</button>';
+}
+function _dismissMissed(){
+  try{ let d=JSON.parse(localStorage.getItem('cobc_missed_dismissed')||'[]'); d=d.concat(window._missedIds||[]).slice(-200); localStorage.setItem('cobc_missed_dismissed', JSON.stringify(d)); }catch(e){}
+  const b=document.getElementById('missedAlertsBar'); if(b) b.remove();
+}
+function _openMissedFix(){
+  _dismissMissed();
+  try{ showTab('more'); }catch(e){}
+  setTimeout(()=>{ try{ const b=document.querySelector('[onclick*="setMoreTab(\'info\'"]'); if(b) b.click(); }catch(e){} }, 250);
+  setTimeout(()=>{ try{
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const d=isIOS ? document.querySelector('#infoAndroidSetup ~ details') : document.getElementById('infoAndroidSetup');
+    if(d){ d.open=true; d.scrollIntoView({behavior:'smooth', block:'center'}); }
+  }catch(e){} }, 700);
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') setTimeout(_checkMissedAlerts, 4000); });
+setInterval(()=>{ if(document.visibilityState==='visible') _checkMissedAlerts(); }, 60000);
 function renderInfoTab(){
   const el=document.getElementById('infoTabBody'); if(!el) return;
   const eq=STATE.equipment||[];
@@ -14194,13 +14270,17 @@ function renderInfoTab(){
     </div>
     <div class="section-label">📱 Phone notification setup</div>
     <div class="card" style="margin-bottom:12px;font-size:13.5px;line-height:1.5;">
-      <details style="margin-bottom:8px;"><summary style="font-weight:800;cursor:pointer;padding:4px 0;">🤖 Android — make alerts pop up on screen</summary>
+      <details id="infoAndroidSetup" style="margin-bottom:8px;"><summary style="font-weight:800;cursor:pointer;padding:4px 0;">🤖 Android — make alerts pop up on screen</summary>
         <ol style="margin:6px 0 4px 18px;padding:0;">
           <li>Open the app from the <b>COBC icon on your home screen</b> (Chrome menu ⋮ → <b>Add to Home screen / Install app</b> if you don't have it).</li>
           <li>Phone <b>Settings → Apps → COBC</b> (or <b>Chrome</b> if there's no COBC app) <b>→ Notifications</b>.</li>
           <li>Make sure notifications are <b>On</b>, then tap the notification category.</li>
           <li>Turn on <b>Pop on screen</b> and <b>Sound</b>. On <b>Samsung</b>: choose <b>Alert</b> (not Silent) and turn on <b>Show as pop-up</b>.</li>
-          <li>Also turn off <b>battery optimization</b> for the app: Settings → Apps → COBC → Battery → <b>Unrestricted</b>.</li>
+          <li><b>Stop the phone from putting alerts to sleep</b> (most important — otherwise alerts can stop after a quiet night):
+            Settings → Apps → <b>Chrome</b> → Battery → <b>Unrestricted</b>. Do the same for <b>COBC</b> if it's listed as its own app.</li>
+          <li><b>Motorola:</b> also Settings → Battery → turn off <b>Adaptive battery</b> (or exclude Chrome).
+            <b>Pixel:</b> Settings → Battery → make sure <b>Battery Saver</b> isn't on all the time.</li>
+          <li>If alerts ever stop: <b>restart the phone</b> and open the COBC app once.</li>
         </ol>
         <div style="font-size:12px;color:var(--text3);">Floating chat "bubbles" only work for Play Store apps — our alerts show as pop-up banners instead.</div>
       </details>
