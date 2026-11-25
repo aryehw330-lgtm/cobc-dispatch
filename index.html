@@ -8952,6 +8952,13 @@ function eqAvailBoxHTML(call, light){
   }catch(e){ return ''; }
 }
 function callCardHTML(call, mini=false) {
+  if(mini && _isRealDispatchRole() && call && call.status!=='draft'){
+    const _prev=window._asMemberView; window._asMemberView=true;
+    try{ return _callCardHTMLInner(call, mini); } finally { window._asMemberView=_prev; }
+  }
+  return _callCardHTMLInner(call, mini);
+}
+function _callCardHTMLInner(call, mini=false) {
   if(!call) return '';
   if(!call.status) call = Object.assign({}, call, {status:'open'}); // guard against transient/malformed call objects
   // EZ Spare fitment badge — shown on the card whenever a fitment/size has been saved to the call
@@ -11392,6 +11399,13 @@ function tryOpenPendingDeepLink() {
 
 // ── Call Detail ──
 function openCallDetail(id) {
+  const _c=(STATE.calls||[]).find(c=>c.id===id);
+  // Member view outside the Dispatch tab — except Missing Person drafts waiting for approval.
+  const _asMember = _isRealDispatchRole() && (typeof currentTab==='undefined' || currentTab!=='dispatch') && !(_c && _c.status==='draft');
+  const _prev=window._asMemberView; window._asMemberView=_asMember;
+  try{ return _openCallDetailInner(id); } finally { window._asMemberView=_prev; }
+}
+function _openCallDetailInner(id) {
   const call=STATE.calls.find(c=>c.id===id);
   if(!call) return;
   window._openDetailId=id; // track for live re-render while the card is left open
@@ -17932,7 +17946,11 @@ function refreshStatsIfVisible() {
 
 // ── Role helpers ──
 const isAdminRole = ()=>(SESSION.role||'').includes('admin');
-const isDispatchRole = ()=>(SESSION.role||'').includes('admin')||(SESSION.role||'').includes('dispatch');
+const _isRealDispatchRole = ()=>(SESSION.role||'').includes('admin')||(SESSION.role||'').includes('dispatch');
+// While an admin/dispatcher's Open Calls card or call details are drawn, they see the MEMBER view
+// (no Assign Unit / Interstate / Group message / Edit / live-location share / Share / i911 / fleet /
+// Cancel / Delete) — owner, Nov 24 2026. The Dispatch tab keeps every dispatcher tool.
+const isDispatchRole = ()=> !window._asMemberView && _isRealDispatchRole();
 const isMemberOnly = ()=>!isDispatchRole();
 
 function buildStatsSubNav() {
