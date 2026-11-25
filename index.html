@@ -8299,7 +8299,6 @@ function homeEmptyCallsHTML(){
   ];
   const m=msgs[new Date().getDate()%msgs.length];
   return `<div class="empty-state" style="color:rgba(255,255,255,.6);">
-    <div class="empty-icon">${m.i}</div>
     <div class="empty-text" style="color:#fff;">${m.t}</div>
     <div class="empty-sub" style="color:rgba(255,255,255,.6);">${m.s}</div>
   </div>`;
@@ -9083,7 +9082,7 @@ function callCardHTML(call, mini=false) {
       ${(typeof cmRosterBadgesHTML==='function')?cmRosterBadgesHTML(call):''}
       ${cornerMeta}
       ${_isLinkedMissing?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;"><button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button></div>`
-      :(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();dialWithName('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}</div>`:''}
+      :(miniRespond||miniComplete)?`<div class="call-card-footer cc-foot-fill" style="align-items:stretch;">${miniRespond}${miniComplete}${(call.phone && iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#f0fdf4;color:var(--green);" onclick="event.stopPropagation();dialWithName('${call.phone}','${(call.caller||'').replace(/'/g,'')}')">📞 Call Caller</button>`:''}<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:var(--border2);color:var(--text2);" onclick="event.stopPropagation();openCallDetail('${call.id}')">Details</button>${(iAmApproved && call.status==='active')?`<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:#fef2f2;color:#dc2626;" onclick="event.stopPropagation();openBackupModal('${call.id}')">Backup</button>`:''}${((iAmApproved||isDispatch) && (call.status==='active'||call.status==='open'))?_waiverCardBtn(call):''}</div>`:''}
     </div>`;
   }
 
@@ -9608,7 +9607,7 @@ function renderCalls() {
   }
   if (_callsLoading) { el.innerHTML=_callsLoadingHTML(); return; }
   if (!list.length) {
-    el.innerHTML='<div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">No calls</div><div class="empty-sub">Create a call with the + button</div></div>';
+    el.innerHTML='<div class="empty-state"><div class="empty-text">No calls</div><div class="empty-sub">Create a call with the + button</div></div>';
     return;
   }
   el.innerHTML=list.map(c=>callCardHTML(c)).join('');
@@ -11671,9 +11670,35 @@ function _waiverBoxHTML(call){
     <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--text);">📝 Please have the caller sign the waiver <span style="font-weight:700;color:var(--text3);font-size:12px;">· ⏳ not signed yet</span></div>
     <div style="display:flex;gap:8px;">
       <button class="btn-sm" style="flex:1;background:var(--blue);color:#fff;border:none;font-weight:800;" onclick="_openWaiver('${call.id}')">📝 Caller waiver</button>
-      ${ph?`<a class="btn-sm" href="${_waiverSmsHref(call)}" style="flex:1;background:#dcfce7;color:#15803d;border:none;font-weight:800;text-decoration:none;display:flex;align-items:center;justify-content:center;">💬 Text to caller</a>`:''}
+      ${ph?`<a class="btn-sm" href="${_waiverSmsHref(call)}" style="flex:1;background:#dcfce7;color:#15803d;border:none;font-weight:800;text-decoration:none;display:flex;align-items:center;justify-content:center;">💬 Text waiver to caller</a>`:''}
     </div>
   </div>`;
+}
+// Open Calls card: ✍️ Waiver → pop-up "Sign waiver now" / "Send waiver to caller (text)" (Nov 24 2026, owner)
+function _waiverCardBtn(call){
+  const signed=_waiverSigned(call);
+  return `<button class="call-action" style="padding:9px 6px;font-size:12px;font-weight:700;background:${signed?'#dcfce7':'#dbeafe'};color:${signed?'var(--green)':'#1d4ed8'};" onclick="event.stopPropagation();_waiverChoice('${call.id}')">${signed?'✅ Waiver signed':'✍️ Waiver'}</button>`;
+}
+function _waiverChoice(id){
+  const c=(STATE.calls||[]).find(x=>x.id===id); if(!c) return;
+  const ph=String(c.phone||'').replace(/\D+/g,'');
+  const old=document.getElementById('waiverChoiceModal'); if(old) old.remove();
+  const ov=document.createElement('div'); ov.id='waiverChoiceModal';
+  ov.style.cssText='position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;';
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  const signed=_waiverSigned(c);
+  const t=signed?new Date(c.waiver.signedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'';
+  const bs='display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:12px;font-size:16px;font-weight:800;border:none;cursor:pointer;font-family:inherit;text-decoration:none;margin-bottom:10px;';
+  ov.innerHTML='<div style="background:var(--card,#16140d);border-radius:18px 18px 0 0;width:100%;max-width:480px;padding:20px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.5);">'
+    +'<div style="font-size:18px;font-weight:900;color:var(--text,#fff);margin-bottom:4px;">📝 Caller waiver'+(c.callNum?' · Call #'+escapeHTML(String(c.callNum)):'')+'</div>'
+    +(signed?'<div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:12px;">✅ Already signed · '+t+(c.waiver.name?' · '+escapeHTML(String(c.waiver.name)):'')+'</div>'
+            :'<div style="font-size:13px;color:var(--text2,#bbb);margin-bottom:12px;">Have the caller sign before we help.</div>')
+    +'<button style="'+bs+'background:var(--blue,#2563eb);color:#fff;" onclick="document.getElementById(\'waiverChoiceModal\').remove();_openWaiver(\''+c.id+'\')">✍️ Sign waiver now</button>'
+    +(ph?'<a style="'+bs+'background:#dcfce7;color:#15803d;" href="'+_waiverSmsHref(c)+'" onclick="setTimeout(()=>{const m=document.getElementById(\'waiverChoiceModal\'); if(m) m.remove();},300)">💬 Send waiver to caller (text)</a>'
+        :'<div style="font-size:12.5px;color:var(--text3,#999);text-align:center;margin-bottom:10px;">No caller phone number on this call — use "Sign waiver now".</div>')
+    +'<button style="'+bs+'background:transparent;color:var(--text2,#bbb);margin-bottom:0;" onclick="document.getElementById(\'waiverChoiceModal\').remove()">Cancel</button>'
+    +'</div>';
+  document.body.appendChild(ov);
 }
 function _openWaiver(id){ const c=(STATE.calls||[]).find(x=>x.id===id); const u=_waiverUrl(c); try{ window.open(u,'_blank','noopener'); }catch(e){ location.href=u; } }
 // Opens the dispatcher's own Messages app with the caller's number and the waiver link
