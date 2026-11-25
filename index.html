@@ -11563,7 +11563,7 @@ function _openCallDetailInner(id) {
   const _finished = call.status==='done' || call.status==='cancelled';
   if(isDispatch && call.status!=='draft' && !_finished) html+=`<button class="btn-sm btn-ghost" onclick="openRadioModal('${id}')">📻 Assign Unit</button>`;
   if(isDispatch && _finished) html+=`<button class="btn-sm btn-ghost" onclick="openCreditAdd('${id}')">➕ Add responder (credit)</button>`;
-  if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 Backup</button>`;
+  if(_canActOnCall && call.status==='active') html+=`<button class="btn-sm btn-amber" onclick="openBackupModal('${id}')">🆘 ${isDispatch?'Backup':'Request Backup'}</button>`;
   if(isDispatch && call.status!=='done'&&call.status!=='cancelled'&&call.status!=='draft') html+=`<button class="btn-sm btn-green" onclick="openCompleteModal('${id}')">✅ Complete</button>`;
   if(isDispatch && call.status==='open') html+=`<button class="btn-sm" style="background:#fef3c7;color:var(--amber);font-weight:700;" onclick="resendCallAlert('${id}',this)">📢 Any Units Available Alert</button>`;
   if(isDispatch && (call.status==='open'||call.status==='active')) html+=`<button class="btn-sm" style="background:linear-gradient(135deg,#047857,#059669);color:#fff;font-weight:700;" onclick="sendCallToInterstate('${id}')">🌐 Send to Interstate</button>`;
