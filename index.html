@@ -7995,7 +7995,7 @@ function showTab(tab) {
 // ──────────────────────────────────────────────
 //  MODALS
 // ──────────────────────────────────────────────
-function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){try{loadGoogleMapsAPI();}catch(e){}try{var _ne=document.getElementById('newCallNumInput');if(_ne){window._newCallNumOverride=null;_ne.value=_peekNextCallNum();}}catch(e){}if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof populateCarYearSelect==='function')populateCarYearSelect('carYear');if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);}if(id==='scanModal')_openScanner();}
+function showModal(id){document.getElementById(id).classList.remove('hidden');if(id==='newCallModal'){try{loadGoogleMapsAPI();}catch(e){}try{var _ne=document.getElementById('newCallNumInput');if(_ne){window._newCallNumOverride=null;_ne.value=_peekNextCallNum();}}catch(e){}if(typeof populateCarMakeSelect==='function')populateCarMakeSelect();if(typeof populateCarYearSelect==='function')populateCarYearSelect('carYear');if(typeof resetCallTypeGrid==='function')resetCallTypeGrid();if(typeof autoPullCallerOnOpen==='function')autoPullCallerOnOpen();if(typeof setUrgentToggle==='function')setUrgentToggle(false);try{_askPrimaryIfNeeded();}catch(e){}}if(id==='scanModal')_openScanner();}
 function hideModal(id){document.getElementById(id).classList.add('hidden');if(id==='callDetailModal')window._openDetailId=null;}
 document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{if(e.target===o)o.classList.add('hidden');});
@@ -17008,6 +17008,73 @@ function clearAllSchedOverrides(){
 
 // "Take" a slot: ask whether it's a temporary fill-in (this date only) or a
 // long-term recurring claim (every week until someone else takes it).
+// ── New Call: "Are you the primary dispatcher now?" (owner, Nov 25 2026) ──────────
+// A dispatcher/admin who isn't the scheduled primary for the CURRENT shift gets asked when they
+// open New Call. Yes → they take this shift's Primary slot (today's date only, same as "Take as
+// Primary"). No → nothing changes; the call goes on. "No" isn't asked again for the same shift.
+function _schedUnitOf(label){ const m=String(label||'').match(/BC-?\s*0*(\d+)/i); return m?m[1]:''; }
+function _myUnitNum(){ return String((SESSION&&SESSION.unit)||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,''); }
+function _askPrimaryIfNeeded(){
+  if(typeof _isRealDispatchRole!=='function' || !_isRealDispatchRole()) return;
+  if(typeof DISPATCH_SCHEDULE==='undefined' || typeof getShiftIndexNow!=='function') return;
+  const shiftIdx=getShiftIndexNow(); const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return;
+  const key=_dateStrOf(_schedDayNow())+'#'+shiftIdx;
+  if(window._primaryAskNo===key) return;
+  const cur=(getOnDutyDispatcher()||{}).name||'';
+  if(_schedUnitOf(cur) && _schedUnitOf(cur)===_myUnitNum()) return;   // already the primary
+  const old=document.getElementById('primaryAsk'); if(old) old.remove();
+  const esc=t=>String(t||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const who=(!cur||cur==='OPEN')?'OPEN':(cur==='CHIEFS'?'Chiefs':cur);
+  const ov=document.createElement('div'); ov.id='primaryAsk';
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML=`<div style="background:#16140d;border:1px solid rgba(230,196,99,.45);border-radius:18px;width:100%;max-width:420px;padding:20px 18px;box-shadow:0 10px 34px rgba(0,0,0,.55);">
+    <div style="font-size:18px;font-weight:800;color:#e6c463;margin-bottom:6px;">Are you the primary dispatcher now?</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:16px;line-height:1.45;">Shift ${esc(row.shift)} · Primary on the schedule: <b style="color:#fff;">${esc(who)}</b></div>
+    <button onclick="_primaryAskYes()" style="width:100%;background:linear-gradient(180deg,rgba(230,196,99,.28),rgba(230,196,99,.12));border:1px solid rgba(230,196,99,.55);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;text-align:left;">
+      <div style="font-size:15px;font-weight:800;color:#e6c463;">Yes — I'm primary</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Puts you in the Primary slot for this shift (${esc(row.shift)}).</div>
+    </button>
+    <button onclick="_primaryAskNo()" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;cursor:pointer;color:#fff;font-family:inherit;text-align:left;">
+      <div style="font-size:15px;font-weight:800;">No — just make the call</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">The schedule stays as it is.</div>
+    </button>
+  </div>`;
+  ov.dataset.key=key; ov.dataset.shift=String(shiftIdx);
+  document.body.appendChild(ov);
+}
+function _primaryAskNo(){ const ov=document.getElementById('primaryAsk'); if(ov){ window._primaryAskNo=ov.dataset.key; ov.remove(); } }
+async function _primaryAskYes(){
+  const ov=document.getElementById('primaryAsk'); if(!ov) return;
+  const shiftIdx=Number(ov.dataset.shift); ov.remove();
+  const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return;
+  const day=_schedDayNow(); const dateStr=_dateStrOf(day); const recur=row.slots[day.getDay()]||{};
+  const myLabel=_myScheduleLabel();
+  STATE.schedOverrides=STATE.schedOverrides||{};
+  const _prevOv=_clone((STATE.schedOverrides[dateStr]||{})[shiftIdx]);
+  let val=null;
+  try{
+    const ref=firebase.firestore().collection('config').doc('schedOverrides');
+    val=await firebase.firestore().runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      const sc=((((snap.data()||{}).overrides)||{})[dateStr]||{})[shiftIdx]||{};
+      const v={ p:myLabel, s:(sc.s)||recur.s||'OPEN', by:SESSION.unit, at:Date.now() };
+      tx.set(ref, { overrides:{ [dateStr]:{ [shiftIdx]: v } }, updatedAt:Date.now(), updatedBy:SESSION.unit }, { merge:true });
+      return v;
+    });
+  }catch(e){
+    console.warn('take primary (new call)', e);   // offline: save locally and push the whole override list
+    const cur=(STATE.schedOverrides[dateStr]||{})[shiftIdx]||{};
+    val={ p:myLabel, s:(cur.s)||recur.s||'OPEN', by:SESSION.unit, at:Date.now() };
+    STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{}; STATE.schedOverrides[dateStr][shiftIdx]=val;
+    save(); pushSchedOverridesToFirestore();
+  }
+  STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{};
+  STATE.schedOverrides[dateStr][shiftIdx]=val;
+  save();
+  try{ renderSchedule(); }catch(e){}
+  try{ updateOnDutyBanner(); }catch(e){}
+  _offerSchedUndo('✅ You are Primary for '+row.shift, ()=>_restoreOverride(dateStr, shiftIdx, _prevOv));
+}
 function takeScheduleSlot(shiftIdx, dayIdx){
   if(!['admin','dispatch'].includes(SESSION.role)) { showToast('Admin or Dispatch only'); return; }
   const row=DISPATCH_SCHEDULE[shiftIdx]; if(!row) return;
