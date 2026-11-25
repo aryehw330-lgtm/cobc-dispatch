@@ -16292,6 +16292,8 @@ function _rcBuild(d,past){
 }
 function _rcRender(){
   const box=document.getElementById('repeatCallerBox'); const m=_rcMatch; if(!box||!m) return;
+  // Owner, Nov 24 2026: don't show a caller's past calls / "Called before · N calls" in New Call.
+  box.style.display='none'; box.innerHTML=''; return;
   const prof=_rcProfiles[m.d]||null;
   const flagged=false; // flagged-caller warning removed Nov 2026 (chief's request)
   const isAdmin=false;  // no flag button
