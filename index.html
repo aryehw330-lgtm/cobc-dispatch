@@ -3772,6 +3772,7 @@ async function _registerPushToken(token){
 // for Android members who already had alerts on. Resolves when closed.
 function _isAndroid(){ return /android/i.test(navigator.userAgent||''); }
 function _androidBatteryStep(force){
+  return Promise.resolve(); // Removed Nov 25 2026 (owner) — Android members use the Play Store app now.
   return new Promise(resolve=>{
     try{
       resolve(); return; // Retired Nov 25 2026: Android members use the Play Store app now (no Chrome battery step).
