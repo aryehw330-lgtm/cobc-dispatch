@@ -4357,6 +4357,15 @@ function _sendGroupWA(){
 
 // "🚗 BC-24 is responding to call #142"
 // "BC-38 and BC-97" / "BC-97, BC-37 and BC-23"
+// Completed-call push: thank the members by BC # ("Thank you BC-46, BC-38 and BC-47 for responding 🙏")
+function _thanksBody(call){
+  try{
+    const seen=new Set(), units=[];
+    (call.responders||[]).forEach(r=>{ const u=String((r&&r.unit)||r||'').replace(/^BC-?/i,'').trim(); if(u && !seen.has(u)){ seen.add(u); units.push('BC-'+u); } });
+    if(units.length) return `Thank you ${_waJoinUnits(units)} for responding 🙏`;
+  }catch(e){}
+  return `Thank you for responding 🙏`;
+}
 function _waJoinUnits(units){ const l=units.filter(Boolean); return l.length<=1 ? (l[0]||'') : l.slice(0,-1).join(', ')+' and '+l[l.length-1]; }
 // WhatsApp line when member(s) get on a call (owner's wording, Nov 24 2026):
 //   first on the call:        *BC-38 responding to call #330*
@@ -12382,7 +12391,7 @@ function _confirmCompleteCallApply() {
   try{ if(window.cmExternalComplete) window.cmExternalComplete(call.id); }catch(e){}
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:`Thank you for responding 🙏`,url:'/cobc-dispatch/'}),0);
+    setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:_thanksBody(call),url:'/cobc-dispatch/'}),0);
     setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgComplete(call) }); } catch(e){} },800);
 }
 // ── MEMBER COMPLETION REQUEST (needs dispatch approval) ──
@@ -12494,7 +12503,7 @@ function _approveCallCompletionApply(id){
   // Notify the member who requested it
   sendPush({target:'unit',unit:String(cr.by),title:'✅ Completion Approved',body:`Dispatch confirmed your ${cr.outcome} report. Call closed.`,url:'/cobc-dispatch/',callId:call.id});
   const _cl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:`Thank you for responding 🙏`,url:'/cobc-dispatch/'}),0);
+  setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:_thanksBody(call),url:'/cobc-dispatch/'}),0);
   setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgComplete(call) }); } catch(e){} },800);
 }
 function denyCallCompletion(id){
