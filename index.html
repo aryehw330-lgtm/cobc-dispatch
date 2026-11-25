@@ -17022,6 +17022,10 @@ function _askPrimaryIfNeeded(){
   if(window._primaryAskNo===key) return;
   const cur=(getOnDutyDispatcher()||{}).name||'';
   if(_schedUnitOf(cur) && _schedUnitOf(cur)===_myUnitNum()) return;   // already the primary
+  // Am I this shift's Secondary? Then the question is "are you primary now?" and Yes moves me up.
+  let curSec='';
+  try{ const day=_schedDayNow(); const ov=((STATE.schedOverrides||{})[_dateStrOf(day)]||{})[shiftIdx]; curSec=(ov&&ov.s)||((row.slots[day.getDay()]||{}).s)||''; }catch(e){}
+  const iAmSec=!!(_schedUnitOf(curSec) && _schedUnitOf(curSec)===_myUnitNum());
   const old=document.getElementById('primaryAsk'); if(old) old.remove();
   const esc=t=>String(t||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const who=(!cur||cur==='OPEN')?'OPEN':(cur==='CHIEFS'?'Chiefs':cur);
@@ -17029,10 +17033,10 @@ function _askPrimaryIfNeeded(){
   ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;';
   ov.innerHTML=`<div style="background:#16140d;border:1px solid rgba(230,196,99,.45);border-radius:18px;width:100%;max-width:420px;padding:20px 18px;box-shadow:0 10px 34px rgba(0,0,0,.55);">
     <div style="font-size:18px;font-weight:800;color:#e6c463;margin-bottom:6px;">Are you the primary dispatcher now?</div>
-    <div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:16px;line-height:1.45;">Shift ${esc(row.shift)} · Primary on the schedule: <b style="color:#fff;">${esc(who)}</b></div>
+    <div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:16px;line-height:1.45;">${iAmSec?'You are the <b style="color:#fff;">Secondary</b> for this shift. ':''}Shift ${esc(row.shift)} · Primary on the schedule: <b style="color:#fff;">${esc(who)}</b></div>
     <button onclick="_primaryAskYes()" style="width:100%;background:linear-gradient(180deg,rgba(230,196,99,.28),rgba(230,196,99,.12));border:1px solid rgba(230,196,99,.55);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;color:#fff;font-family:inherit;text-align:left;">
       <div style="font-size:15px;font-weight:800;color:#e6c463;">Yes — I'm primary</div>
-      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Puts you in the Primary slot for this shift (${esc(row.shift)}).</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;">Puts you in the Primary slot for this shift (${esc(row.shift)})${iAmSec?' — Secondary becomes open':''}.</div>
     </button>
     <button onclick="_primaryAskNo()" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px;cursor:pointer;color:#fff;font-family:inherit;text-align:left;">
       <div style="font-size:15px;font-weight:800;">No — just make the call</div>
@@ -17057,14 +17061,17 @@ async function _primaryAskYes(){
     val=await firebase.firestore().runTransaction(async tx=>{
       const snap=await tx.get(ref);
       const sc=((((snap.data()||{}).overrides)||{})[dateStr]||{})[shiftIdx]||{};
-      const v={ p:myLabel, s:(sc.s)||recur.s||'OPEN', by:SESSION.unit, at:Date.now() };
+      let sec=(sc.s)||recur.s||'OPEN';
+      if(_schedUnitOf(sec) && _schedUnitOf(sec)===_myUnitNum()) sec='OPEN';   // was Secondary → moves up, Secondary opens
+      const v={ p:myLabel, s:sec, by:SESSION.unit, at:Date.now() };
       tx.set(ref, { overrides:{ [dateStr]:{ [shiftIdx]: v } }, updatedAt:Date.now(), updatedBy:SESSION.unit }, { merge:true });
       return v;
     });
   }catch(e){
     console.warn('take primary (new call)', e);   // offline: save locally and push the whole override list
     const cur=(STATE.schedOverrides[dateStr]||{})[shiftIdx]||{};
-    val={ p:myLabel, s:(cur.s)||recur.s||'OPEN', by:SESSION.unit, at:Date.now() };
+    let sec=(cur.s)||recur.s||'OPEN'; if(_schedUnitOf(sec) && _schedUnitOf(sec)===_myUnitNum()) sec='OPEN';
+    val={ p:myLabel, s:sec, by:SESSION.unit, at:Date.now() };
     STATE.schedOverrides[dateStr]=STATE.schedOverrides[dateStr]||{}; STATE.schedOverrides[dateStr][shiftIdx]=val;
     save(); pushSchedOverridesToFirestore();
   }
