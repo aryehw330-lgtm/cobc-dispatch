@@ -5996,13 +5996,14 @@ async function manualSync(){
   const step=async(fn)=>{ try{ await fn(); ok++; }catch(e){ fail++; console.warn('refresh step', e); } };
   try{
     await Promise.all([
-      step(async()=>{ if(window._forceCallsResync) window._forceCallsResync(); }),             // calls: fresh server read
+      step(async()=>{ await _refreshCallsHard(); }),                                               // calls: check sign-in + fresh server read
       step(async()=>{ await loadInventoryFromSheet(true); }),                                      // equipment / EZ-Spares
       step(async()=>{ await loadMembersFromSheet(); try{ renderMemberDir&&renderMemberDir(); renderAdminMembers&&renderAdminMembers(); }catch(e){} }),
       step(async()=>{ try{ sessionStorage.removeItem('cobc_push_refreshed'); }catch(e){} if(typeof _autoRefreshPush==='function') _autoRefreshPush(); }) // re-check alert sign-up
     ]);
     try{ renderCalls&&renderCalls(); renderHome&&renderHome(); renderSchedule&&renderSchedule(); }catch(e){}
-    showToast(fail ? '⚠️ Refreshed — some parts could not load, check connection' : '✅ Everything refreshed');
+    if(window._callsAuthLostShown) showToast('⚠️ Not connected to live calls — tap the red bar to sign in again');
+    else showToast(fail ? '⚠️ Refreshed — some parts could not load, check connection' : '✅ Everything refreshed');
   }catch(e){
     showToast('Could not refresh — check connection');
   }finally{ setTimeout(done, 600); }
@@ -6768,6 +6769,7 @@ function initFirestore(){
         catch(e){console.warn('calls recent snap:',e);}
       }, e=>{
         console.warn('calls recent listener error:',e);
+        try{ _checkCallsAuthErr(e); }catch(_){}
         _recentErrCount++;
         if(_recentErrCount<=MAX_SCOPED_RETRY) setTimeout(_attachRecentListener, _scopedRetryDelay(_recentErrCount));
         else _attachFullListener();
@@ -6782,6 +6784,7 @@ function initFirestore(){
         catch(e){console.warn('calls open snap:',e);}
       }, e=>{
         console.warn('calls open listener error:',e);
+        try{ _checkCallsAuthErr(e); }catch(_){}
         _openErrCount++;
         if(_openErrCount<=MAX_SCOPED_RETRY) setTimeout(_attachOpenListener, _scopedRetryDelay(_openErrCount));
         else _attachFullListener();
@@ -7886,6 +7889,49 @@ function signOut() {
   try { location.replace(location.pathname + location.search); }
   catch(e){ location.reload(); }
 }
+
+// ── Lost sign-in safety net (Nov 2026) ──────────────────────────────────────
+// A phone can still LOOK signed in (saved session) while its database sign-in has
+// expired or been dropped — then every call read is refused and Open Calls is just
+// empty (BC-1000, Nov 25). Detect that and show a red bar: tap → sign in again.
+function _isCallsAuthErr(e){
+  const c=String((e&&e.code)||'').toLowerCase(), m=String((e&&e.message)||'').toLowerCase();
+  return c.includes('permission-denied')||c.includes('unauthenticated')||m.includes('insufficient permissions')||m.includes('unauthenticated');
+}
+function _checkCallsAuthErr(e){ if(_isCallsAuthErr(e)) _showCallsAuthLost(); }
+function _showCallsAuthLost(){
+  try{
+    if(!SESSION||!SESSION.unit) return;
+    window._callsAuthLostShown=true;
+    if(document.getElementById('callsAuthLostBar')) return;
+    const b=document.createElement('div');
+    b.id='callsAuthLostBar';
+    b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:100000;background:#c62828;color:#fff;font-weight:700;font-size:15px;text-align:center;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 12px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.4);';
+    b.textContent='⚠️ Not connected to live calls — tap here to sign in again';
+    b.onclick=_reSignInNow;
+    document.body.appendChild(b);
+  }catch(e){}
+}
+function _reSignInNow(){
+  try{ firebase.auth().signOut(); }catch(e){}
+  try{ sessionStorage.removeItem('cobcet_ok'); }catch(e){}
+  try{ localStorage.removeItem('cobc_session'); }catch(e){}
+  try{ location.replace(location.pathname + location.search); }catch(e){ location.reload(); }
+}
+// ↻ button: make sure the database sign-in is alive, then do a real server read of calls.
+async function _refreshCallsHard(){
+  let u=null; try{ u=firebase.auth().currentUser; }catch(e){}
+  if(!u){ _showCallsAuthLost(); throw new Error('not signed in to database'); }
+  try{ await u.getIdToken(true); }catch(e){ if(!/network/i.test(String(e&&e.code||e))) _showCallsAuthLost(); throw e; }
+  const db=firebase.firestore();
+  try{
+    await db.collection('calls').where('status','in',['open','active','draft']).limit(1).get({source:'server'});
+  }catch(e){ if(_isCallsAuthErr(e)) _showCallsAuthLost(); throw e; }
+  try{ window._callsAuthLostShown=false; const b=document.getElementById('callsAuthLostBar'); if(b) b.remove(); }catch(e){}
+  if(window._forceCallsResync) window._forceCallsResync();
+}
+// Watchdog: shown as signed in, but no database sign-in after 25 s → red bar.
+setTimeout(()=>{ try{ if(SESSION&&SESSION.unit&&!(window.firebase&&firebase.auth&&firebase.auth().currentUser)) _showCallsAuthLost(); }catch(e){} }, 25000);
 
 // ──────────────────────────────────────────────
 //  NAVIGATION
