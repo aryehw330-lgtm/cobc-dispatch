@@ -1102,10 +1102,8 @@ textarea.input{min-height:80px;resize:vertical;}
       </div>
     </div>
     <div class="topbar-right">
-      <div id="homeWeather" class="topbar-weather">…</div>
       <button class="topbar-sync" onclick="goToNumbers()" title="Important Numbers" aria-label="Important Numbers">☎️</button>
       <button id="topbarSync" class="topbar-sync" onclick="manualSync()" title="Sync inventory from Google Sheet" aria-label="Sync">↻</button>
-      <div class="status-pill"><span class="dot-live"></span><span id="activeCalls">0 Active</span></div>
       <div style="cursor:pointer;font-size:14px;color:rgba(255,255,255,.6);padding:4px;" onclick="signOut()">⎋</div>
     </div>
   </div>
@@ -8234,6 +8232,8 @@ function _fetchHomeWeather(lat,lon){
 function initHomeWidgets(){
   _updateHomeClock();
   if(!_homeClockTimer) _homeClockTimer=setInterval(_updateHomeClock,10000);
+  // Weather + Active pill were removed from the top bar (owner, Nov 24 2026) — no weather fetch.
+  if(!document.getElementById('homeWeather')) return;
   // Refresh weather at most every 15 minutes
   if(Date.now()-_homeWeatherAt < 15*60*1000) return;
   _homeWeatherAt=Date.now();
