@@ -3774,7 +3774,7 @@ function _isAndroid(){ return /android/i.test(navigator.userAgent||''); }
 function _androidBatteryStep(force){
   return new Promise(resolve=>{
     try{
-      if(!_isAndroid() || _isNativeApp()) { resolve(); return; }
+      resolve(); return; // Retired Nov 25 2026: Android members use the Play Store app now (no Chrome battery step).
       if(!force){ try{ if(localStorage.getItem('cobc_batt_step_seen')) { resolve(); return; } }catch(e){} }
       try{ localStorage.setItem('cobc_batt_step_seen', String(Date.now())); }catch(e){}
       const old=document.getElementById('battStepModal'); if(old) old.remove();
