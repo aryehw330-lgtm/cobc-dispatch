@@ -19284,13 +19284,19 @@ function _eqGlanceCat(n){ n=String(n||''); if(/ez.?spare/i.test(n)) return 'EZ S
 window._eqGlanceOpen = window._eqGlanceOpen || {};
 function _eqGlanceToggle(k){ window._eqGlanceOpen[k]=!window._eqGlanceOpen[k]; renderEqGlance(); }
 function renderEqGlance(){
-  // Members (Nov 2026): only what's AVAILABLE — no out / missing / broken counts, no names.
+  // Members: in + out items (no missing / broken, no names), with Check IN / OUT buttons on each row.
   const _mv=_eqMemberView();
   const el=document.getElementById(_mv?'eq-glance-list-m':'eq-glance-list'); if(!el) return;
+  // Members: follows the All / Out / In pills, category, location and search above it.
+  const _mSearch=_mv?(document.getElementById('eqSearch')?.value||'').toLowerCase():'';
   const items=(STATE.equipment||[]).filter(e=>e.equipStatus!=='Not Active'
     && !(typeof isCarItem==='function'&&isCarItem(e.name))   // no trucks / COBC vehicles in At a Glance (owner, Nov 23)
-    && (!_mv || (e.status==='in' && !e.isCNC && !['Damaged','Missing'].includes(e.equipStatus))));
-  if(!items.length){ el.innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 2px;">No equipment loaded</div>'; return; }
+    && (!_mv || (!['Damaged','Missing'].includes(e.equipStatus)
+        && ((e.status==='out' && eqFilter!=='in') || (e.status==='in' && !e.isCNC && eqFilter!=='out'))
+        && (eqCurCat==='all' || getCat(e.name)===eqCurCat)
+        && (eqCurLoc==='all' || e.location===eqCurLoc)
+        && (!_mSearch || (e.name||'').toLowerCase().includes(_mSearch) || (e.location||'').toLowerCase().includes(_mSearch)))));
+  if(!items.length){ el.innerHTML=`<div style="font-size:13px;color:var(--text3);padding:8px 2px;">${_mv?'No items match':'No equipment loaded'}</div>`; return; }
   const groups={};
   items.forEach(e=>{ const k=_eqGlanceCat(e.name); (groups[k]=groups[k]||[]).push(e); });
   const state=e=>['Damaged','Missing'].includes(e.equipStatus)?'broken':(e.status==='out'?'out':'avail');
@@ -19299,13 +19305,13 @@ function renderEqGlance(){
   const keys=Object.keys(groups).sort((a,b)=>{ const ia=order.indexOf(a), ib=order.indexOf(b); if(ia>-1||ib>-1) return (ia<0?99:ia)-(ib<0?99:ib); return a.localeCompare(b); });
   el.innerHTML=keys.map(k=>{
     const g=groups[k]; const c={avail:0,out:0,broken:0}; g.forEach(e=>c[state(e)]++);
-    const open=!!window._eqGlanceOpen[k]; const kEsc=k.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const open=!!window._eqGlanceOpen[k] || (_mv && !!_mSearch);   /* searching opens the groups */ const kEsc=k.replace(/'/g,"\\'").replace(/"/g,'&quot;');
     let h=`<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden;">`
       +`<button type="button" onclick="_eqGlanceToggle('${kEsc}')" style="width:100%;display:flex;align-items:center;gap:8px;padding:11px 12px;background:transparent;border:none;color:#fff;cursor:pointer;font-family:inherit;text-align:left;">`
       +`<span style="flex:1;min-width:0;font-size:14px;font-weight:700;line-height:1.25;">${k} <span style="font-size:11px;opacity:.55;display:inline-block;transition:transform .15s;${open?'transform:rotate(180deg);':''}">▾</span></span>`
       +`<span style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;">`
       +pill(c.avail,'in','#86efac','rgba(34,197,94,.14)','rgba(34,197,94,.35)')
-      +(_mv?'':pill(c.out,'out','#e6c463','rgba(212,169,58,.16)','rgba(212,169,58,.45)'))
+      +pill(c.out,'out','#e6c463','rgba(212,169,58,.16)','rgba(212,169,58,.45)')
       +(_mv?'':pill(c.broken,'broken','#fca5a5','rgba(220,38,38,.16)','rgba(248,113,113,.45)'))
       +(_mv?'':pill(g.length,'total','rgba(255,255,255,.7)','rgba(255,255,255,.06)','rgba(255,255,255,.14)'))
       +`</span></button>`;
@@ -19314,8 +19320,9 @@ function renderEqGlance(){
       h+=`<div style="border-top:1px solid rgba(255,255,255,.08);padding:4px 12px 8px;">`+g.slice().sort((a,b)=>rank[state(a)]-rank[state(b)]||String(a.name).localeCompare(String(b.name))).map(e=>{
         const s=state(e);
         const tag=s==='out'?'<span class="badge badge-amber" style="font-size:10px;">OUT</span>':s==='broken'?`<span class="badge badge-red" style="font-size:10px;">${String(e.equipStatus).toUpperCase()}</span>`:'<span class="badge badge-green" style="font-size:10px;">IN</span>';
-        const meta=[e.location, s==='out'&&e.checkedOutBy?fmtEqHolder(e):'', s==='out'&&e.callNum?'Call #'+e.callNum:''].filter(Boolean).join(' · ');
-        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:#fff;line-height:1.25;">${e.name}</div><div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:1px;line-height:1.3;">${meta}</div></div>${tag}</div>`;
+        const meta=[e.location, !_mv&&s==='out'&&e.checkedOutBy?fmtEqHolder(e):'', s==='out'&&e.callNum?'Call #'+e.callNum:''].filter(Boolean).join(' · ');   // members never see who has it
+        const act=_mv&&s!=='broken'?`<button type="button" onclick="openCheckout(${e.row||0},'${s==='out'?'IN':'OUT'}')" style="flex-shrink:0;padding:7px 11px;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:inherit;background:${s==='out'?'var(--navy)':'var(--red)'};">${s==='out'?'Check IN':'Check OUT'}</button>`:tag;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);"><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:#fff;line-height:1.25;">${e.name}</div><div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:1px;line-height:1.3;">${meta}</div></div>${act}</div>`;
       }).join('')+`</div>`;
     }
     return h+`</div>`;
