@@ -4362,9 +4362,9 @@ function _thanksBody(call){
   try{
     const seen=new Set(), units=[];
     (call.responders||[]).forEach(r=>{ const u=String((r&&r.unit)||r||'').replace(/^BC-?/i,'').trim(); if(u && !seen.has(u)){ seen.add(u); units.push('BC-'+u); } });
-    if(units.length) return `Thank you ${_waJoinUnits(units)} for responding 🙏`;
+    if(units.length) return `Thank you ${_waJoinUnits(units)} for responding`;
   }catch(e){}
-  return `Thank you for responding 🙏`;
+  return `Thank you for responding`;
 }
 function _waJoinUnits(units){ const l=units.filter(Boolean); return l.length<=1 ? (l[0]||'') : l.slice(0,-1).join(', ')+' and '+l[l.length-1]; }
 // WhatsApp line when member(s) get on a call (owner's wording, Nov 24 2026):
