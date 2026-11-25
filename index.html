@@ -4355,17 +4355,28 @@ function _sendGroupWA(){
 }
 
 // "🚗 BC-24 is responding to call #142"
-function _waMsgResponderUpdate(call, newResponder) {
-  const typeLabel = cleanLabel(call.type?.startsWith('other:') ? call.type.replace('other:','') : CALL_TYPE_LABELS[call.type] || call.type);
-  const unitDisp  = String(newResponder.unit||'').replace(/^BC-?/i,'');
-  const allResponders = (call.responders||[]).map(r => 'BC-'+String(r.unit||'').replace(/^BC-?/i,'')).join(', ');
-  const callNum = call.callNum ? ` to call #${call.callNum}` : '';
-  let msg = `*BC-${unitDisp} ${newResponder.observerOnly?'observing':(newResponder.backup?'backing up':'responding')}${callNum}*`;
-  // Only list "On call" when someone ELSE is already on the call (Nov 2026) — no repeat for the first responder.
+// "BC-38 and BC-97" / "BC-97, BC-37 and BC-23"
+function _waJoinUnits(units){ const l=units.filter(Boolean); return l.length<=1 ? (l[0]||'') : l.slice(0,-1).join(', ')+' and '+l[l.length-1]; }
+// WhatsApp line when member(s) get on a call (owner's wording, Nov 24 2026):
+//   first on the call:        *BC-38 responding to call #330*
+//   joining others:           *BC-97 backing up call #330*            + On call: BC-38 and BC-97
+//   several at once, joining: *BC-38 and BC-97 backing up call #123*  + On call: BC-97, BC-37 and BC-23
+function _waMsgRespondersJoined(call, newUnits, observerOnly){
   const _norm = u => String(u||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'');
-  const _others = (call.responders||[]).some(r => _norm(r.unit) !== _norm(unitDisp));
-  if (allResponders && _others) msg += `\nOn call: ${allResponders}`;
+  const newSet = new Set(newUnits.map(_norm));
+  const all = (call.responders||[]).map(r => String(r.unit||'').replace(/^BC-?/i,'')).filter(u=>u && !(typeof _isInterstateUnit==='function' && _isInterstateUnit(u)));
+  const others = all.some(u => !newSet.has(_norm(u)));
+  const who = _waJoinUnits(newUnits.map(u=>'BC-'+String(u).replace(/^BC-?/i,'')));
+  const num = call.callNum ? `call #${call.callNum}` : 'the call';
+  let msg;
+  if (observerOnly)      msg = `*${who} observing ${num}*`;
+  else if (others)       msg = `*${who} backing up ${num}*`;
+  else                   msg = `*${who} responding to ${num}*`;
+  if (others) msg += `\nOn call: ${_waJoinUnits([...new Set(all)].map(u=>'BC-'+u))}`;
   return msg;
+}
+function _waMsgResponderUpdate(call, newResponder) {
+  return _waMsgRespondersJoined(call, [newResponder.unit], !!newResponder.observerOnly);
 }
 
 // "🆘 BACKUP NEEDED"
@@ -11325,19 +11336,7 @@ async function submitRadioResponders() {
   // WA: one consolidated message for the newly-added responders (not one per member)
   setTimeout(() => {
     let waMsg;
-    if (_newMembers.length === 1) {
-      waMsg = _waMsgResponderUpdate(call, _newMembers[0]);
-    } else {
-      const callNumTxt = call.callNum ? ` to call #${call.callNum}` : '';
-      const respList = _newMembers.map(m=>`BC-${String(m.unit).replace(/^BC-?/i,'')}`).join(', ');
-      const onCall = (call.responders||[]).map(r=>`BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
-      waMsg = `*${respList} responding${callNumTxt}*`;   // e.g. "BC-50, BC-52 responding to call #322" (Nov 2026)
-      // Only list "On call" when someone was already on before these were added (Nov 2026).
-      const _norm = u => String(u||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'');
-      const _newSet = new Set(_newMembers.map(m=>_norm(m.unit)));
-      const _others = (call.responders||[]).some(r => !_newSet.has(_norm(r.unit)));
-      if (onCall && _others) waMsg += `\nOn call: ${onCall}`;
-    }
+    waMsg = (_newMembers.length === 1) ? _waMsgResponderUpdate(call, _newMembers[0]) : _waMsgRespondersJoined(call, _newMembers.map(m=>m.unit), false);
     sendWA({ target:'all', message: waMsg });
   }, 400);
 }
