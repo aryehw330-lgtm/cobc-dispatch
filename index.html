@@ -183,9 +183,9 @@ html,body{background:#000;}</style><script>(function(){function setH(){var h=(wi
   .topbar-right{gap:14px;}
   .topbar-weather{font-size:11px;padding:3px 7px;gap:3px;}
   .status-pill{padding:3px 7px;font-size:9.5px;gap:4px;}
-  .topbar-sync{width:26px;height:26px;font-size:13px;}
+  .topbar-sync{width:32px;height:32px;font-size:16px;}
 }
-.topbar-sync{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(212,169,58,.4);color:var(--gold-light,#d4a93a);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;transition:transform .2s,background .15s;}
+.topbar-sync{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(212,169,58,.4);color:var(--gold-light,#d4a93a);font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;transition:transform .2s,background .15s;}
 .topbar-sync:hover{background:rgba(212,169,58,.2);}
 .topbar-sync.spinning{animation:syncspin 1s linear infinite;}
 .topbar-sync.ok{color:#22c55e;border-color:rgba(34,197,94,.5);}
@@ -1104,7 +1104,7 @@ textarea.input{min-height:80px;resize:vertical;}
     <div class="topbar-right">
       <button class="topbar-sync" onclick="goToNumbers()" title="Important Numbers" aria-label="Important Numbers">☎️</button>
       <button id="topbarSync" class="topbar-sync" onclick="manualSync()" title="Sync inventory from Google Sheet" aria-label="Sync">↻</button>
-      <div style="cursor:pointer;font-size:14px;color:rgba(255,255,255,.6);padding:4px;" onclick="signOut()">⎋</div>
+      <div style="cursor:pointer;font-size:20px;line-height:1;color:rgba(255,255,255,.7);padding:6px;" onclick="signOut()" title="Sign out" aria-label="Sign out">⎋</div>
     </div>
   </div>
 
