@@ -19519,31 +19519,11 @@ function fireConfetti() {
   try { haptic && haptic('success'); } catch(e){}
 }
 function _renderInventoryMember(){
+  // Members (Nov 2026): one grouped list (the old "At a Glance") with Check IN / OUT on each item.
+  // It follows the All / Out / In pills, category, location and search — see renderEqGlance().
   const el=document.getElementById('eqList'); if(!el) return;
-  const search=(document.getElementById('eqSearch')?.value||'').toLowerCase();
-  const me=_normU((SESSION&&SESSION.unit)||'');
-  const bad=['Damaged','Missing','Not Active'];
-  let all=(STATE.equipment||[]).filter(e=>!bad.includes(e.equipStatus) && !(typeof isCarItem==='function' && isCarItem(e.name)));   // no vehicles for members
-  if(eqCurCat!=='all') all=all.filter(e=>getCat(e.name)===eqCurCat);
-  if(eqCurLoc!=='all') all=all.filter(e=>e.location===eqCurLoc);
-  if(search) all=all.filter(e=>(e.name||'').toLowerCase().includes(search)||(e.location||'').toLowerCase().includes(search));
-  const mine=all.filter(e=>e.status==='out' && _normU(e.checkedOutBy||'')===me);
-  const avail=all.filter(e=>e.status==='in' && !e.isCNC);
-  // Items someone else has out — any member can check them back in (backup for when the QR camera won't work)
-  const othersOut=all.filter(e=>e.status==='out' && _normU(e.checkedOutBy||'')!==me);
-  const byName=(a,b)=>String(a.name).localeCompare(String(b.name),undefined,{numeric:true,sensitivity:'base'});
-  const card=(e,btn)=>`<div data-row="${e.row||0}" class="eq-inv-card" style="background:#fff;border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);">
-      <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${e.name}</div>
-      <div style="font-size:12px;color:var(--text3);">${e.location||''}${btn==='IN'&&e.callNum?' · Call #'+e.callNum:''}</div>
-      <button style="width:100%;margin-top:10px;padding:11px;background:${btn==='IN'?'var(--navy)':'var(--red)'};color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'${btn}')">${btn==='IN'?'Check IN':'Check OUT'}</button>
-    </div>`;
-  const showOut = eqFilter!=='in', showIn = eqFilter!=='out';   // All / Out / In pills
-  let html='<div class="section-label">At a Glance</div><div id="eq-glance-list-m" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>';
-  if(showOut && mine.length) html+='<div class="section-label">My items</div>'+mine.sort(byName).map(e=>card(e,'IN')).join('');
-  if(showOut && othersOut.length) html+='<div class="section-label">Out — check back in</div>'+othersOut.sort(byName).map(e=>card(e,'IN')).join('');
-  if(showOut && !showIn && !mine.length && !othersOut.length) html+='<div class="empty-state"><div class="empty-text">Nothing is out right now</div></div>';
-  if(showIn) html+='<div class="section-label">Available</div>'+(avail.length?avail.sort(byName).map(e=>card(e,'OUT')).join(''):'<div class="empty-state"><div class="empty-text">No items found</div></div>');
-  el.innerHTML=html;
+  if(!document.getElementById('eq-glance-list-m'))
+    el.innerHTML='<div id="eq-glance-list-m" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>';
   try{ renderEqGlance(); }catch(e){}
 }
 function renderInventory() {
