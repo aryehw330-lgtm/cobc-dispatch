@@ -2510,7 +2510,7 @@ textarea.input{min-height:80px;resize:vertical;}
       <button class="qtype-btn" data-top="1" onclick="selectCallType('flood',this)">Flood</button>
       <button class="qtype-btn qtype-group" data-top="1" onclick="openCallTypeGroup('lockout')">Lockout ▸<br><span style="font-size:10px;opacity:.7;">Car · House</span></button>
       <button class="qtype-btn" data-top="1" onclick="selectCallType('missing_person',this)">Missing Person</button>
-      <button class="qtype-btn" data-top="1" onclick="selectCallType('medical',this)">🚑 Medical</button>
+      <button class="qtype-btn" data-top="1" onclick="selectCallType('medical',this)">🚨 911 Call</button>
       <button class="qtype-btn" data-top="1" onclick="selectCallType('out_of_gas',this)">⛽ Out Of Gas</button>
       <button class="qtype-btn" data-top="1" onclick="selectCallType('transport',this)">📦 Transport</button>
       <button class="qtype-btn qtype-group" data-top="1" onclick="openCallTypeGroup('vehicle')">Vehicle ▸<br><span style="font-size:10px;opacity:.7;">Stalled · Snow · More</span></button>
@@ -8375,7 +8375,7 @@ function renderHome() {
 //  DISPATCH
 // ──────────────────────────────────────────────
 const CALL_TYPE_LABELS = {
-  medical:'Medical',
+  medical:'911 Call',
   flat_tire_spare:'Flat Tire - Has Spare',flat_tire_no_spare:'Flat Tire - No Spare',lockout:'House Lockout',car_lockout:'Car Lockout',child_lockout:'Child Locked in Car',missing_person:'Missing Person',jump_start:'⚡ Boost',
   flood:'Flood',ac_heat:'A/C or Heat',generator:'Generator',
   needs_ac:'Needs A/C',needs_fan:'Needs Fans',needs_heat:'Needs Heater',out_of_gas:'Out Of Gas',
