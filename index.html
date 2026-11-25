@@ -10219,7 +10219,8 @@ function _waNewCallText(call, typeLabel, urgent){
   let m = urgent ? `${tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${tp}*COBC Call #${call.callNum||''}*\n\n`;
   // Location
   m += `📍 ${fmtLoc(call)}\n`;
-  try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){}
+  // Clickable Google Maps link under the address — GPS pin when we have it, otherwise the address
+  try{ if(call.address||call.town){ const nt=String(navQuery(call.address,call.town)||'').trim(); const isLL=/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(nt); m += `https://www.google.com/maps?q=${isLL?nt:encodeURIComponent(nt)}\n`; } }catch(e){}
   m += `\n`;
   // Caller
   if (call.caller||call.phone) m += `👤 ${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
