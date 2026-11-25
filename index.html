@@ -1142,7 +1142,7 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
       </div>
-      <div class="section-label">Active Calls</div>
+      <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">Active Calls<span id="homeMemberViewTag" style="display:none;font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#93c5fd;background:rgba(37,99,235,.16);border:1px solid rgba(147,197,253,.45);border-radius:999px;padding:3px 9px;">👤 Member view</span></div>
       <div id="homePendingBanner" style="display:none;"></div>
       <div id="homeCallsList"></div>
       <div id="homeNotifBanner"></div>
@@ -8360,6 +8360,7 @@ function renderHome() {
     .filter(c=>c.status!=='done' && c.status!=='draft' && c.status!=='cancelled')
     .sort((a,b)=>_hSort(a)-_hSort(b) || (b.createdAt-a.createdAt));
   el.innerHTML=_callsLoading?_callsLoadingHTML():(recent.length?recent.map(c=>callCardHTML(c,true)).join(''):homeEmptyCallsHTML());
+  try{ const _mv=document.getElementById('homeMemberViewTag'); if(_mv) _mv.style.display=_isRealDispatchRole()?'inline-block':'none'; }catch(e){}
   setTimeout(fitCardAddresses, 0);
   setTimeout(fillCardETAs, 50); // async fill ETAs after cards render
 
