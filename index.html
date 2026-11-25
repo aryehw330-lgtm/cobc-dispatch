@@ -3730,14 +3730,39 @@ async function _waitAuthToken(ms){
   }
   return null;
 }
+// Which kind of device is signing up for alerts (Nov 24 2026) — lets the push server stop the old
+// Android Chrome app from also getting alerts once the member installs the Play Store app.
+function _pushPlatform(){
+  try{
+    if(_isNativeApp()) return 'android-app';
+    const ua=navigator.userAgent||'';
+    if(/android/i.test(ua)) return 'android-web';
+    if(/iPhone|iPad|iPod/i.test(ua)) return 'ios-web';
+  }catch(e){}
+  return 'web';
+}
+function _showOldPwaBanner(){
+  try{
+    if(_isNativeApp() || document.getElementById('oldPwaBanner')) return;
+    const b=document.createElement('div'); b.id='oldPwaBanner';
+    b.style.cssText='position:fixed;left:10px;right:10px;top:calc(70px + env(safe-area-inset-top));z-index:10045;background:#1d4ed8;color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 10px 28px rgba(0,0,0,.45);font-size:13.5px;line-height:1.45;';
+    b.innerHTML='<div style="font-weight:900;font-size:15px;margin-bottom:4px;">📱 You have the new COBC Dispatch app</div>'
+      +'<div>Alerts now come to the <b>COBC Dispatch</b> app from Google Play. Please <b>delete this old one</b> from your home screen (long-press the icon → Uninstall).</div>'
+      +'<button onclick="document.getElementById(\'oldPwaBanner\').remove()" style="margin-top:8px;background:#fff;color:#1d4ed8;border:none;border-radius:9px;padding:7px 14px;font-weight:800;cursor:pointer;">OK</button>';
+    document.body.appendChild(b);
+  }catch(e){}
+}
+setTimeout(()=>{ try{ if(localStorage.getItem('cobc_has_android_app') && !_isNativeApp()) _showOldPwaBanner(); }catch(e){} }, 4000);
 async function _registerPushToken(token){
   const auth=await _waitAuthToken(60000);
   if(!auth){ console.warn('push register: no sign-in yet'); return false; }
   try{
     const r=await fetch(PUSH_SEND_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({action:'register',authToken:auth,unit:SESSION.unit,name:SESSION.name,role:SESSION.role,token})});
+      body:JSON.stringify({action:'register',authToken:auth,unit:SESSION.unit,name:SESSION.name,role:SESSION.role,token,platform:_pushPlatform()})});
     const j=await r.json().catch(()=>({}));
-    if(j && j.ok){ try{ localStorage.setItem('cobc_fcm_token_'+SESSION.unit, token); localStorage.setItem('cobc_push_registered_at', String(Date.now())); }catch(e){} return true; }
+    // This member already uses the Play Store app → the server didn't sign up this old Chrome app (no double alerts).
+    if(j && j.ok && j.skipped==='android-app'){ try{ localStorage.removeItem('cobc_fcm_token_'+SESSION.unit); localStorage.setItem('cobc_has_android_app','1'); }catch(e){} _showOldPwaBanner(); return true; }
+    if(j && j.ok){ try{ localStorage.setItem('cobc_fcm_token_'+SESSION.unit, token); localStorage.setItem('cobc_push_registered_at', String(Date.now())); localStorage.removeItem('cobc_has_android_app'); }catch(e){} return true; }
     console.warn('push register refused:', j && j.error); return false;
   }catch(e){ console.warn('push register failed:', e); return false; }
 }
