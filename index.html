@@ -10158,10 +10158,10 @@ setTimeout(() => {
 }
 
 // ── New-call WhatsApp message (Nov 24 2026, owner's order) ─────────────────────────
-// Call # (+ type) → location → caller name & phone → details → waiver → app → SAFETY FIRST footer.
+// Call # → location → caller name & phone → Nature (type) + details → waiver → app → SAFETY FIRST footer.
 function _waNewCallText(call, typeLabel, urgent){
   const tp = call.isTest ? '🧪 TEST — ' : '';
-  let m = urgent ? `${tp}🚨 *URGENT — COBC Call #${call.callNum||''} — ${typeLabel}*\n\n` : `${tp}*COBC Call #${call.callNum||''} — ${typeLabel}*\n\n`;
+  let m = urgent ? `${tp}🚨 *URGENT — COBC Call #${call.callNum||''}*\n\n` : `${tp}*COBC Call #${call.callNum||''}*\n\n`;
   // Location
   m += `📍 ${fmtLoc(call)}\n`;
   try{ const nt=(typeof navQuery==='function')?navQuery(call.address,call.town):''; if(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(String(nt||'').trim())) m += `https://maps.google.com/?q=${nt.trim()}\n`; }catch(e){}
@@ -10169,7 +10169,7 @@ function _waNewCallText(call, typeLabel, urgent){
   // Caller
   if (call.caller||call.phone) m += `👤 ${[call.caller,call.phone].filter(Boolean).join(' · ')}\n\n`;
   // Details
-  let det='';
+  let det=`*Nature:* ${typeLabel}\n`;
   if (call.notes) det += `Note: ${call.notes}\n`;
   if (call.noSpareAction==='plug') det += `🔧 Possible Plug\n`;
   if (call.carMake) { const _cs=[call.carYear,call.carColor,call.carMake.replace('_',' '),call.carModel,call.carTrim].filter(Boolean).join(' '); if(_cs) det += `${_cs}\n`; }
