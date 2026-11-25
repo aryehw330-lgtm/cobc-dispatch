@@ -7269,7 +7269,7 @@ function _sheetMemberToApp(sm){
     // SECURITY: do NOT keep PINs in client state or localStorage. They're verified
     // server-side at login and never needed on the device afterward.
     pin:'',
-    email:(sm.email||'').trim().toLowerCase(),
+    email:(sm.email||'').trim().toLowerCase(),   // may hold several: "a@gmail.com, b@gmail.com" (Nov 25 2026)
     carAccess:carAccess,
     cobc4Approval:carAccess, alertRecipient:sm.alertRecipient||'',
     fromSheet:true
@@ -7354,7 +7354,8 @@ function findSheetMemberByUnit(unit){
 }
 function findSheetMemberByEmail(email){
   const e=String(email||'').trim().toLowerCase();
-  return SHEET_MEMBERS.find(m=>m.email&&m.email===e)||null;
+  // A member's Email cell may list several addresses (comma/semicolon/space separated) — match any one.
+  return SHEET_MEMBERS.find(m=>m.email && String(m.email).split(/[\s,;]+/).map(x=>x.trim()).includes(e))||null;
 }
 // Load members from the sheet as soon as we can
 window.addEventListener('load',()=>{ setTimeout(()=>{ loadMembersFromSheet(); }, 1200); });
