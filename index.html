@@ -1103,7 +1103,7 @@ textarea.input{min-height:80px;resize:vertical;}
     </div>
     <div class="topbar-right">
       <button class="topbar-sync" onclick="goToNumbers()" title="Important Numbers" aria-label="Important Numbers">☎️</button>
-      <button id="topbarSync" class="topbar-sync" onclick="manualSync()" title="Sync inventory from Google Sheet" aria-label="Sync">↻</button>
+      <button id="topbarSync" class="topbar-sync" onclick="manualSync()" title="Refresh everything" aria-label="Refresh everything">↻</button>
       <div style="cursor:pointer;font-size:20px;line-height:1;color:rgba(255,255,255,.7);padding:6px;" onclick="signOut()" title="Sign out" aria-label="Sign out">⎋</div>
     </div>
   </div>
@@ -5949,16 +5949,26 @@ function selectNoSpareAction(action, btn) {
     ezSec.style.display='none';
   }
 }
+// ↻ in the top bar: refresh EVERYTHING from the server (Nov 24 2026, owner) — calls, equipment,
+// members, and this phone's alert sign-up. Useful if someone thinks their screen is stuck.
 async function manualSync(){
   const btn=document.getElementById('topbarSync');
   if(btn){btn.classList.add('spinning');btn.disabled=true;}
   const done=()=>{if(btn){btn.classList.remove('spinning');btn.disabled=false;}};
+  let ok=0, fail=0;
+  const step=async(fn)=>{ try{ await fn(); ok++; }catch(e){ fail++; console.warn('refresh step', e); } };
   try{
-    await loadInventoryFromSheet();
-    showToast('✅ Data refreshed');
+    await Promise.all([
+      step(async()=>{ if(window._forceCallsResync) window._forceCallsResync(); }),             // calls: fresh server read
+      step(async()=>{ await loadInventoryFromSheet(true); }),                                      // equipment / EZ-Spares
+      step(async()=>{ await loadMembersFromSheet(); try{ renderMemberDir&&renderMemberDir(); renderAdminMembers&&renderAdminMembers(); }catch(e){} }),
+      step(async()=>{ try{ sessionStorage.removeItem('cobc_push_refreshed'); }catch(e){} if(typeof _autoRefreshPush==='function') _autoRefreshPush(); }) // re-check alert sign-up
+    ]);
+    try{ renderCalls&&renderCalls(); renderHome&&renderHome(); renderSchedule&&renderSchedule(); }catch(e){}
+    showToast(fail ? '⚠️ Refreshed — some parts could not load, check connection' : '✅ Everything refreshed');
   }catch(e){
-    showToast('Could not sync — check connection');
-  }finally{done();}
+    showToast('Could not refresh — check connection');
+  }finally{ setTimeout(done, 600); }
 }
 async function refreshEzSpareInventory(){try{renderInventory&&renderInventory();renderChkFull&&renderChkFull();showSheetStatus('ok');}catch(e){console.warn(e);}}
 function onCarMakeChange_legacy_removed(){}
