@@ -14065,7 +14065,8 @@ function renderNumbers() {
   if(addBtn) addBtn.style.display = isAdmin ? 'block' : 'none';
   // (Equipment activity-history accordion removed — replaced by Dispatch Call History)
   let list=STATE.numbers||[];
-  if(!isDispatch) list=list.filter(n=>n.memberVisible&&!n.dispatchOnly);
+  // Members only see the Chaverim numbers (owner, Nov 24 2026); dispatch/admin see everything.
+  if(!isDispatch) list=list.filter(n=>n.memberVisible&&!n.dispatchOnly&&/^chaverim/i.test(String(n.category||'')));
 
   // Group by category
   const groups={};
