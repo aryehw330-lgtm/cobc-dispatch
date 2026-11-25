@@ -71,16 +71,29 @@ self.addEventListener('fetch', (event) => {
   const isHTML = req.mode === 'navigate' || accept.indexOf('text/html') !== -1;
 
   if (isHTML) {
-    // Network-first so code updates always win; cached shell only when offline.
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
+    // Network-first so code updates always win. The saved copy is used when the phone is
+    // offline, when the host (GitHub Pages) answers with an error page (outage), or when it
+    // hangs for 10s — so a GitHub outage never takes the app down. Only good pages are saved.
+    const savedShell = () => caches.match(BASE + 'index.html').then((c) => c || caches.match(BASE));
+    event.respondWith((async () => {
+      try {
+        const res = await Promise.race([
+          fetch(req),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))
+        ]);
+        if (res && res.ok) {
           const copy = res.clone();
           caches.open(CACHE_VERSION).then((c) => c.put(BASE + 'index.html', copy)).catch(() => {});
           return res;
-        })
-        .catch(() => caches.match(BASE + 'index.html').then((c) => c || caches.match(BASE)))
-    );
+        }
+        const saved = await savedShell();
+        return saved || res;          // host error page → saved copy if we have one
+      } catch (e) {
+        const saved = await savedShell();
+        if (saved) return saved;
+        return fetch(req);            // nothing saved yet → keep waiting on the network
+      }
+    })());
     return;
   }
 
