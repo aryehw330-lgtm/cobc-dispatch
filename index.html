@@ -19527,7 +19527,7 @@ function _renderInventoryMember(){
   const byName=(a,b)=>String(a.name).localeCompare(String(b.name),undefined,{numeric:true,sensitivity:'base'});
   const card=(e,btn)=>`<div data-row="${e.row||0}" class="eq-inv-card" style="background:#fff;border-radius:12px;padding:13px;margin-bottom:9px;box-shadow:var(--shadow);">
       <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${e.name}</div>
-      <div style="font-size:12px;color:var(--text3);">${e.location||''}${btn==='IN'&&e.checkedOutBy&&_normU(e.checkedOutBy)!==me?' · Out with '+fmtEqHolder(e):''}${btn==='IN'&&e.callNum?' · Call #'+e.callNum:''}</div>
+      <div style="font-size:12px;color:var(--text3);">${e.location||''}${btn==='IN'&&e.callNum?' · Call #'+e.callNum:''}</div>
       <button style="width:100%;margin-top:10px;padding:11px;background:${btn==='IN'?'var(--navy)':'var(--red)'};color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;" onclick="openCheckout(${e.row||0},'${btn}')">${btn==='IN'?'Check IN':'Check OUT'}</button>
     </div>`;
   const showOut = eqFilter!=='in', showIn = eqFilter!=='out';   // All / Out / In pills
