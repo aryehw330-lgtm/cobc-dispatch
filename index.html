@@ -1638,6 +1638,18 @@ textarea.input{min-height:80px;resize:vertical;}
           </div>
         </div>
 
+        <!-- Call notification choices (owner, Nov 26 2026 — modeled on the Queens app, no areas) -->
+        <div class="card" id="settings-notif-types" style="margin-bottom:10px;">
+          <div class="card-title">📣 Call Notifications</div>
+          <div class="card-desc" style="margin-bottom:6px;">Choose which call alerts come to this phone.</div>
+          <div id="notifTypeRows"></div>
+          <div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(230,196,99,.10);border:1px solid rgba(230,196,99,.35);font-size:12.5px;line-height:1.5;">
+            <div><b>Always on:</b> new calls (including urgent and "Any units available?") and anything about you — approved, removed from a call, or a call you're on being cancelled.</div>
+            <div style="margin-top:6px;"><b>On a call?</b> If you're on a call or asked to go on it, you always get that call's updates, backup, completed and cancelled alerts — even if you turned those off here.</div>
+          </div>
+          <div id="notifTypeStatus" style="margin-top:6px;font-size:12px;color:var(--text3);"></div>
+        </div>
+
         <!-- Sign-in & security -->
         <div class="card" id="settings-security-card" style="margin-bottom:10px;">
           <div class="card-title">🔐 Sign-in &amp; security</div>
@@ -4366,6 +4378,12 @@ function _thanksBody(call){
   }catch(e){}
   return `Thank you for responding`;
 }
+// Units ON a call or asking to go on it — they always get that call's alerts, whatever their settings.
+function _callUnits(call){
+  const out=new Set();
+  [...(call&&call.responders||[]), ...(call&&call.pendingResponders||[])].forEach(r=>{ const u=String((r&&r.unit)||r||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'').trim(); if(u) out.add(u); });
+  return [...out];
+}
 function _waJoinUnits(units){ const l=units.filter(Boolean); return l.length<=1 ? (l[0]||'') : l.slice(0,-1).join(', ')+' and '+l[l.length-1]; }
 // WhatsApp line when member(s) get on a call (owner's wording, Nov 24 2026):
 //   first on the call:        *BC-38 responding to call #330*
@@ -4403,7 +4421,7 @@ function _waMsgBackup(call, backupReq) {
 function _waMsgComplete(call) {
   const _int = call.completionOutcome==='INT';
   let msg = _int ? `*Call #${call.callNum||''} closed — sent to Chaverim Interstate.*`
-                 : `*Call #${call.callNum||''} completed.*`;
+                 : `*✅ Call #${call.callNum||''} completed.*`;
   const responders = (call.responders||[]).filter(r=>!_isInterstateUnit(r.unit));
   if (responders.length) {
     const names = responders.map(r => `BC-${String(r.unit||'').replace(/^BC-?/i,'')}`).join(', ');
@@ -10785,26 +10803,18 @@ function _doCancelCallApply(id,call) {
   try{ if(window.cmExternalComplete) window.cmExternalComplete(call.id); }catch(e){}
   const _cxTypeLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
   // Always broadcast to everyone — "Call #X cancelled"
+  const _cxUnits=[...new Set([..._callUnits(call), ...prevResponders.map(r=>String(r.unit||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'').trim()).filter(Boolean)])];
   setTimeout(()=>sendPush({
-    target:'all',
+    target:'all', category:'cancelled', always:_cxUnits,
     title:`🚫 Call #${call.callNum||''} Cancelled`,
     body:`${_cxTypeLabel} — ${fmtLoc(call)}`,
+    // Members who were on it get ONE alert, worded for them (owner, Nov 26)
+    personal: _cxUnits.length ? { units:_cxUnits, title:`🚫 Call #${call.callNum||''} Cancelled — Do Not Respond`, body:`${_cxTypeLabel} at ${fmtLoc(call)} has been cancelled.` } : null,
     url:'/cobc-dispatch/'
   }),0);
   // WhatsApp group: the call was posted there, so the cancel goes there too
   setTimeout(()=>{ try{ sendWA({ target:'all', message:`*🚫 Call #${call.callNum||''} cancelled — do not respond*\n${_cxTypeLabel} · ${fmtLoc(call)}` }); }catch(e){} },400);
-  // Also send personal "do not respond" to each responder
-  if(prevResponders.length) {
-    prevResponders.forEach(r=>{
-      sendPush({
-        target:'unit',
-        unit:String(r.unit),
-        title:`🚫 Call #${call.callNum||''} Cancelled — Do Not Respond`,
-        body:`${_cxTypeLabel} at ${fmtLoc(call)} has been cancelled.`,
-        url:'/cobc-dispatch/'
-      });
-    });
-  }
+  // (The separate "Do Not Respond" alert to each responder is now folded into the one above.)
 }
 
 // ── Per-member call type restrictions (from admin Edit Member checkboxes) ──
@@ -11044,7 +11054,7 @@ function _doApproveResponderApply(callId, unit, call, req, savedOnServer) {
   // service worker shows it as "✅ Approved to respond" — so that member gets a single alert
   // (iPhone can't merge two alerts after they arrive, so the separate approval push was dropped).
   setTimeout(()=>sendPush({
-    target:'all',
+    target:'all', category:'covered', always:_callUnits(call),
     title:'Assigned to Call',
     body:`#${call.callNum||''} · BC-${String(unit||'').replace(/^BC-?/i,'')} is responding — ${typeLabel}, ${call.town}`
       + (()=>{ const _o=(call.responders||[]).map(r=>String(r.unit||'').replace(/^BC-?/i,'')).filter(u=>u && _normU(u)!==_normU(unit) && !_isInterstateUnit(u)); return _o.length?` · Also on call: ${[...new Set(_o)].map(u=>'BC-'+u).join(', ')}`:''; })(),
@@ -11144,7 +11154,7 @@ function submitBackup() {
     renderCalls(); renderHome();
     showToast('🆘 Backup alert sent');
     const _bL=CALL_TYPE_LABELS[call.type]||call.type;
-    setTimeout(()=>{ try{ sendPush({target:'all',title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendPush({target:'all',category:'backup',always:_callUnits(call),title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
     setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
     return;
   }
@@ -11208,7 +11218,7 @@ function approveBackup(callId, time) {
   showToast('🆘 Backup approved — alert sent');
   // NOW the gated broadcast goes out to everyone
   const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
-  setTimeout(()=>{ try{ sendPush({target:'all',title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bLabel} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
+  setTimeout(()=>{ try{ const _bReq=String((_approved&&_approved.unit)||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'').trim(); sendPush({target:'all',category:'backup',always:_callUnits(call),title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bLabel} — ${fmtLoc(call)}`,personal:_bReq?{units:[_bReq],title:`✅ Your backup request went out — Call #${call.callNum||''}`,body:'Members were alerted that you need backup.'}:null,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
   setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
 }
 
@@ -11400,7 +11410,7 @@ async function submitRadioResponders() {
   const _rNames=_newMembers.map(m=>`BC-${String(m.unit).replace(/^BC-/i,'')}`).join(', ');
   const _newSet=new Set(_newMembers.map(m=>_normU(m.unit)));
   const _alsoOn=[...new Set((call.responders||[]).map(r=>String(r.unit||'').replace(/^BC-?/i,'')).filter(u=>u && !_newSet.has(_normU(u)) && !_isInterstateUnit(u)))];
-  setTimeout(()=>sendPush({target:'all',title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} responding — ${_rLabel}, ${call.town}`+(_alsoOn.length?` · Also on call: ${_alsoOn.map(u=>'BC-'+u).join(', ')}`:''),url:'/cobc-dispatch/',callId:id}),0);
+  setTimeout(()=>sendPush({target:'all',category:'covered',always:_callUnits(call),title:'Assigned to Call',body:`#${call.callNum||''} · ${_rNames} responding — ${_rLabel}, ${call.town}`+(_alsoOn.length?` · Also on call: ${_alsoOn.map(u=>'BC-'+u).join(', ')}`:''),url:'/cobc-dispatch/',callId:id}),0);
   // WA: one consolidated message for the newly-added responders (not one per member)
   setTimeout(() => {
     let waMsg;
@@ -12229,7 +12239,7 @@ function saveCallEdit() {
   const _eDetails=[_eLabel+' — '+fmtLoc(call), call.priority==='urgent'?'⚠️ URGENT':'', call.notes?('Notes: '+call.notes):''].filter(Boolean).join(' · ');
   // A draft (e.g. a Missing Person waiting for approval) hasn't gone out yet — editing it must stay silent.
   if(call.status!=='draft'){
-    setTimeout(()=>{ try{ sendPush({target:'all',title:`✏️ Update to Call #${call.callNum||''}`,body:_eDetails,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendPush({target:'all',category:'updates',always:_callUnits(call),title:`✏️ Update to Call #${call.callNum||''}`,body:_eDetails,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
     setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgUpdate(call) }); }catch(e){} },800);
   }
   openCallDetail(id);
@@ -12394,7 +12404,7 @@ function _confirmCompleteCallApply() {
   try{ if(window.cmExternalComplete) window.cmExternalComplete(call.id); }catch(e){}
     // PUSH #4: call completed → all
     const _cLabel=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-    setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:_thanksBody(call),url:'/cobc-dispatch/'}),0);
+    setTimeout(()=>sendPush({target:'all',category:'completed',always:_callUnits(call),title:`✅ Call #${call.callNum||''} completed`,body:_thanksBody(call),url:'/cobc-dispatch/'}),0);
     setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgComplete(call) }); } catch(e){} },800);
 }
 // ── MEMBER COMPLETION REQUEST (needs dispatch approval) ──
@@ -12503,10 +12513,9 @@ function _approveCallCompletionApply(id){
   save(); firestoreUpsertCall(call); renderCalls(); renderHome();
   showToast(`✅ Call completed (${cr.outcome})`);
   try{ if(window.cmExternalComplete) window.cmExternalComplete(call.id); }catch(e){}
-  // Notify the member who requested it
-  sendPush({target:'unit',unit:String(cr.by),title:'✅ Completion Approved',body:`Dispatch confirmed your ${cr.outcome} report. Call closed.`,url:'/cobc-dispatch/',callId:call.id});
+  // (No separate "Completion Approved" alert — the member gets the "Call #N completed" one below. Owner, Nov 26.)
   const _cl=cleanLabel(call.type?.startsWith('other:')?call.type.replace('other:',''):CALL_TYPE_LABELS[call.type]||call.type);
-  setTimeout(()=>sendPush({target:'all',title:`✅ Call #${call.callNum||''} completed`,body:_thanksBody(call),url:'/cobc-dispatch/'}),0);
+  setTimeout(()=>sendPush({target:'all',category:'completed',always:_callUnits(call),title:`✅ Call #${call.callNum||''} completed`,body:_thanksBody(call),url:'/cobc-dispatch/'}),0);
   setTimeout(()=>{ try { sendWA({ target:'all', message: _waMsgComplete(call) }); } catch(e){} },800);
 }
 function denyCallCompletion(id){
@@ -14682,8 +14691,47 @@ function renderAdminStats() {
 }
 
 // ── Settings tab ──
+const NOTIF_TYPES=[
+  ['covered','✅ Covered calls','"BC-38 is responding to call #330"'],
+  ['completed','🏁 Completed calls','"Call #330 completed"'],
+  ['cancelled','🚫 Cancelled calls','"Call #330 cancelled"'],
+  ['backup','🆘 Backup requests','"Backup needed — call #330"'],
+  ['updates','✏️ Call updates','"Update to call #330"']
+];
+function _notifPrefs(){ try{ return JSON.parse(localStorage.getItem('cobc_notif_prefs')||'{}')||{}; }catch(e){ return {}; } }
+function renderNotifTypes(){
+  const box=document.getElementById('notifTypeRows'); if(!box) return;
+  const p=_notifPrefs();
+  box.innerHTML=NOTIF_TYPES.map(([k,label,ex])=>`<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid rgba(255,255,255,.08);">
+      <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;">${label}</div><div style="font-size:12px;color:var(--text3);">${ex}</div></div>
+      <label class="toggle" style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;">
+        <input type="checkbox" ${p[k]===false?'':'checked'} onchange="setNotifType('${k}',this.checked)" style="opacity:0;width:0;height:0;"/>
+        <span class="toggle-track" style="position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:26px;transition:.2s;"></span>
+      </label></div>`).join('');
+}
+let _notifSaveT=null;
+function setNotifType(k,on){
+  const p=_notifPrefs(); if(on) delete p[k]; else p[k]=false;
+  try{ localStorage.setItem('cobc_notif_prefs',JSON.stringify(p)); }catch(e){}
+  const st=document.getElementById('notifTypeStatus'); if(st) st.textContent='Saving…';
+  clearTimeout(_notifSaveT); _notifSaveT=setTimeout(_saveNotifPrefs,600);
+}
+async function _notifPrefsCall(action, extra){
+  const r=await fetch(PUSH_SEND_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action, authToken:await _pushAuth(), ...(extra||{})})});
+  return r.json();
+}
+async function _saveNotifPrefs(){
+  const st=document.getElementById('notifTypeStatus');
+  try{ const j=await _notifPrefsCall('setPrefs',{prefs:_notifPrefs()}); if(!j||!j.ok) throw new Error((j&&j.error)||'failed'); if(st) st.textContent='✅ Saved'; }
+  catch(e){ if(st) st.textContent='⚠️ Not saved — check your connection and try again'; }
+}
+// The server's copy wins (same choices on every phone the member uses).
+async function _loadNotifPrefs(){
+  try{ const j=await _notifPrefsCall('getPrefs'); if(j&&j.ok&&j.prefs){ localStorage.setItem('cobc_notif_prefs',JSON.stringify(j.prefs)); renderNotifTypes(); } }catch(e){}
+}
 function renderSettingsTab() {
   try{ renderSecurityCard(); }catch(e){}
+  try{ renderNotifTypes(); _loadNotifPrefs(); }catch(e){}
   const settings = JSON.parse(localStorage.getItem('cobc_settings')||'{}');
   // Notification state
   const notifDesc = document.getElementById('settings-notif-desc');
