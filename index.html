@@ -1644,8 +1644,8 @@ textarea.input{min-height:80px;resize:vertical;}
           <div class="card-desc" style="margin-bottom:6px;">Choose which call alerts come to this phone.</div>
           <div id="notifTypeRows"></div>
           <div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(230,196,99,.10);border:1px solid rgba(230,196,99,.35);font-size:12.5px;line-height:1.5;">
-            <div><b>Always on:</b> new calls (including urgent and "Any units available?") and anything about you — approved, removed from a call, or a call you're on being cancelled.</div>
-            <div style="margin-top:6px;"><b>On a call?</b> If you're on a call or asked to go on it, you always get that call's updates, backup, completed and cancelled alerts — even if you turned those off here.</div>
+            <div><b>Always on:</b> new calls (including urgent and "Any units available?"), backup needed alerts, and anything about you — approved, removed from a call, or a call you're on being cancelled.</div>
+            <div style="margin-top:6px;"><b>On a call?</b> If you're on a call or asked to go on it, you always get that call's updates, completed and cancelled alerts — even if you turned those off here.</div>
           </div>
           <div id="notifTypeStatus" style="margin-top:6px;font-size:12px;color:var(--text3);"></div>
         </div>
@@ -11154,7 +11154,7 @@ function submitBackup() {
     renderCalls(); renderHome();
     showToast('🆘 Backup alert sent');
     const _bL=CALL_TYPE_LABELS[call.type]||call.type;
-    setTimeout(()=>{ try{ sendPush({target:'all',category:'backup',always:_callUnits(call),title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
+    setTimeout(()=>{ try{ sendPush({target:'all',title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bL} — ${fmtLoc(call)}`,url:'/cobc-dispatch/',callId:id}); }catch(e){} },0);
     setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
     return;
   }
@@ -11218,7 +11218,7 @@ function approveBackup(callId, time) {
   showToast('🆘 Backup approved — alert sent');
   // NOW the gated broadcast goes out to everyone
   const _bLabel=CALL_TYPE_LABELS[call.type]||call.type;
-  setTimeout(()=>{ try{ const _bReq=String((_approved&&_approved.unit)||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'').trim(); sendPush({target:'all',category:'backup',always:_callUnits(call),title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bLabel} — ${fmtLoc(call)}`,personal:_bReq?{units:[_bReq],title:`✅ Your backup request went out — Call #${call.callNum||''}`,body:'Members were alerted that you need backup.'}:null,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
+  setTimeout(()=>{ try{ const _bReq=String((_approved&&_approved.unit)||'').replace(/^BC-?/i,'').replace(/^0+(?=\d)/,'').trim(); sendPush({target:'all',title:`🆘 Backup Needed — Call #${call.callNum||''}`,body:`${_bLabel} — ${fmtLoc(call)}`,personal:_bReq?{units:[_bReq],title:`✅ Your backup request went out — Call #${call.callNum||''}`,body:'Members were alerted that you need backup.'}:null,url:'/cobc-dispatch/',callId:callId}); }catch(e){} },0);
   setTimeout(()=>{ try{ sendWA({ target:'all', message: _waMsgBackup(call, _approved) }); } catch(e){} }, 800);
 }
 
@@ -14695,7 +14695,6 @@ const NOTIF_TYPES=[
   ['covered','✅ Covered calls','"BC-38 is responding to call #330"'],
   ['completed','🏁 Completed calls','"Call #330 completed"'],
   ['cancelled','🚫 Cancelled calls','"Call #330 cancelled"'],
-  ['backup','🆘 Backup requests','"Backup needed — call #330"'],
   ['updates','✏️ Call updates','"Update to call #330"']
 ];
 function _notifPrefs(){ try{ return JSON.parse(localStorage.getItem('cobc_notif_prefs')||'{}')||{}; }catch(e){ return {}; } }
